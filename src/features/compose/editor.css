@@ -1,0 +1,62 @@
+/* Tiptap body styling for the composer.
+   Plain CSS, no Tailwind directives: ProseMirror owns this subtree and the
+   classes it emits are not ours to compose from utilities. Every value is
+   DIRECTION §4 (type) and §5 (4 px grid). */
+
+.wren-editor .ProseMirror {
+    outline: none;
+    font-family: var(--wren-font-body);
+    font-size: var(--text-lg);
+    line-height: var(--text-lg--line-height);
+    letter-spacing: var(--text-lg--letter-spacing);
+    color: var(--wren-text-1);
+    min-height: 100%;
+}
+
+.wren-editor .ProseMirror > * + * {
+    margin-top: 12px;
+}
+
+.wren-editor .ProseMirror p {
+    margin: 0;
+    text-wrap: pretty;
+}
+
+/* An empty paragraph is a deliberate spacer above a quote — it must hold its
+   line height instead of collapsing to nothing. */
+.wren-editor .ProseMirror p:empty::before {
+    content: '';
+    display: inline-block;
+}
+
+.wren-editor .ProseMirror ul,
+.wren-editor .ProseMirror ol {
+    margin: 0;
+    padding-inline-start: 24px;
+}
+
+.wren-editor .ProseMirror li > p {
+    margin: 0;
+}
+
+.wren-editor .ProseMirror blockquote {
+    margin: 0;
+    padding-inline-start: 16px;
+    border-inline-start: 2px solid var(--wren-hairline-strong);
+    color: var(--wren-text-2);
+}
+
+.wren-editor .ProseMirror a {
+    color: var(--wren-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* Placeholder: DIRECTION forbids a second grey, so it reuses the meta tier. */
+.wren-editor .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: inline-start;
+    height: 0;
+    pointer-events: none;
+    color: var(--wren-text-3);
+}

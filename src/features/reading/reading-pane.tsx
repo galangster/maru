@@ -1,13 +1,14 @@
 // The third pane: thread header, message cards, and the actions that act on
-// the whole thread. Archive / trash / star / read are wired through
-// performAction for real; composing is stubbed until T4.
+// the whole thread. Archive / trash / star / read go through performAction;
+// reply / reply all / forward open the composer on the newest message.
 
 import { useMemo } from 'react'
-import { toast } from 'sonner'
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
 import type { Account, MailActionType, Message, Thread } from '@/core/types'
+import { useComposeActions } from '@/features/compose/use-compose-actions'
+import type { ReplyMode } from '@/lib/compose'
 import { useAccounts, useLabels, usePerformAction, useThread } from '@/features/mail/queries'
 import { useUi } from '@/features/mail/ui-store'
 import { EmptyState } from '@/features/list/empty-state'
@@ -114,7 +115,7 @@ export function ReadingPane() {
             ))}
           </div>
 
-          <ReplyBar subject={thread.subject} />
+          <ReplyBar />
         </div>
       </div>
     </section>
@@ -162,17 +163,14 @@ function ThreadHeader({
   )
 }
 
-/** Equal-width action tiles, Phantom 3. Stubs until the composer lands. */
-function ReplyBar({ subject }: { subject: string }) {
-  const stub = (what: string) =>
-    toast(`${what} arrives with T4`, {
-      description: `Wren will open the composer on "${subject}".`,
-    })
+/** Equal-width action tiles, Phantom 3. Each opens the composer prefilled. */
+function ReplyBar() {
+  const { replyToSelected } = useComposeActions()
 
-  const tiles: { icon: IconName; label: string }[] = [
-    { icon: 'reply', label: 'Reply' },
-    { icon: 'replyAll', label: 'Reply all' },
-    { icon: 'forward', label: 'Forward' },
+  const tiles: { icon: IconName; label: string; mode: ReplyMode; hint: string }[] = [
+    { icon: 'reply', label: 'Reply', mode: 'reply', hint: 'R' },
+    { icon: 'replyAll', label: 'Reply all', mode: 'replyAll', hint: 'A' },
+    { icon: 'forward', label: 'Forward', mode: 'forward', hint: 'F' },
   ]
 
   return (
@@ -181,7 +179,8 @@ function ReplyBar({ subject }: { subject: string }) {
         <button
           key={tile.label}
           type="button"
-          onClick={() => stub(tile.label)}
+          title={`${tile.label} (${tile.hint})`}
+          onClick={() => replyToSelected(tile.mode)}
           className={cn(
             'bg-surface text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 flex h-10 items-center justify-center gap-2 rounded-md text-base outline-none shadow-xs',
             'font-ui font-medium transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3',

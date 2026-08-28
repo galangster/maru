@@ -26,6 +26,7 @@ export const keys = {
   thread: (threadKey: string) => ['thread', threadKey] as const,
   unread: (view: MailView) => ['unread', viewKey(view)] as const,
   settings: ['settings'] as const,
+  search: (q: string) => ['search', q] as const,
 }
 
 export function useAccounts() {
@@ -68,6 +69,25 @@ export function useUnreadCount(view: MailView) {
 export function useSettings() {
   const service = useMailService()
   return useQuery({ queryKey: keys.settings, queryFn: () => service.getSettings() })
+}
+
+/** The shortest query worth sending. One letter matches most of a mailbox. */
+export const MIN_SEARCH_LENGTH = 2
+
+/**
+ * Shared by the palette and the list header, so typing the same query in both
+ * costs one call. `placeholderData` keeps the previous results on screen while
+ * the next ones resolve — the results panel must not blink between keystrokes.
+ */
+export function useSearch(query: string) {
+  const service = useMailService()
+  const term = query.trim()
+  return useQuery({
+    queryKey: keys.search(term),
+    queryFn: () => service.search(term),
+    enabled: term.length >= MIN_SEARCH_LENGTH,
+    placeholderData: (previous) => previous,
+  })
 }
 
 // -- events -----------------------------------------------------------------

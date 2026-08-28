@@ -1,0 +1,33 @@
+/* Floating surfaces.
+
+   DIRECTION's glass recipe sets `position: relative` so `.glass-strong::before`
+   (the noise layer that kills banding) has something to be absolute against.
+   Every surface Wren mounts is placed by the app instead — the composer docks
+   to the window, the dialogs are centred by the primitive — so each needs
+   `fixed` back.
+
+   Two classes, so this wins on specificity rather than on which stylesheet the
+   bundler happens to emit last. tokens.css stays the owner of the material;
+   this file only says where the material sits. */
+
+.glass.wren-fixed,
+.glass-strong.wren-fixed {
+    position: fixed;
+}
+
+/* The floating surface is the glass; the scrim only dims.
+
+   shadcn's overlay blurs the backdrop as well, which spends the second of
+   DIRECTION §7's two glass layers on the scrim, leaves the app behind reading
+   as fog rather than depth, and makes the palette's own blur invisible. Wren
+   dims and lets the surface do the blurring. */
+
+[data-slot='dialog-overlay'] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: oklch(0.235 0.02 268 / 0.24);
+}
+
+:root.dark [data-slot='dialog-overlay'] {
+    background-color: oklch(0.155 0.012 268 / 0.56);
+}

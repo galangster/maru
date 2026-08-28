@@ -1,4 +1,5 @@
-// The middle pane: a virtualized, date-grouped thread list.
+// The middle pane: a virtualized, date-grouped thread list, and the inline
+// search that temporarily replaces it.
 //
 // Hairlines appear only between day groups (Family 1). Rows inside a group are
 // separated by nothing but their own height.
@@ -7,17 +8,23 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import { Icon } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import {
+  MIN_SEARCH_LENGTH,
   useAccounts,
   useLabels,
   usePerformAction,
+  useSearch,
   useThreads,
 } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { useUi } from '@/features/mail/ui-store'
+import { ThreadResult } from '@/features/search/thread-result'
+import { useSurfaces } from '@/features/shell/surface-store'
 import { dateGroup, type DateGroup } from '@/lib/format'
+import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
@@ -51,6 +58,12 @@ export function ThreadList() {
   const setSelected = useUi((s) => s.setSelected)
   const now = useNow()
   const service = useMailService()
+
+  const searchOpen = useSurfaces((s) => s.searchOpen)
+  const searchQuery = useSurfaces((s) => s.searchQuery)
+  const debounced = useDebounced(searchQuery)
+  const searching = searchOpen && debounced.trim().length >= MIN_SEARCH_LENGTH
+  const results = useSearch(searchOpen ? debounced : '')
 
   const threads = useThreads(view)
   const accounts = useAccounts()
@@ -86,10 +99,10 @@ export function ThreadList() {
 
   // Keyboard selection has to bring its row into view.
   useEffect(() => {
-    if (!selected) return
+    if (!selected || searching) return
     const index = rows.findIndex((r) => r.kind === 'thread' && r.thread.key === selected)
     if (index >= 0) virtualizer.scrollToIndex(index, { align: 'auto' })
-  }, [selected, rows, virtualizer])
+  }, [selected, rows, virtualizer, searching])
 
   const onSelect = useCallback(
     (thread: Thread) => {
@@ -117,30 +130,85 @@ export function ThreadList() {
     view.kind === 'account' ? accountsById.get(view.accountId)?.email : undefined
 
   const showAccountDot = view.kind === 'unified' && (accounts.data?.length ?? 0) > 1
+  const hits = searching ? (results.data ?? []) : []
 
   return (
     <section
       aria-label="Threads"
-      className="bg-surface flex h-full min-w-0 flex-col"
+      tabIndex={-1}
+      className="bg-surface flex h-full min-w-0 flex-col outline-none"
     >
       <header className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-2 border-b px-4">
-        <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <h2 className="font-ui text-ink truncate text-base font-semibold">{title}</h2>
-          {subtitle && <span className="text-ink-3 truncate text-xs">{subtitle}</span>}
-        </div>
-        <span className="text-ink-3 shrink-0 text-xs tabular-nums">
-          {threads.data ? threads.data.length : ''}
-        </span>
-        <IconButton
-          name="sync"
-          label="Refresh"
-          size={16}
-          onClick={() => void service.refresh()}
-        />
+        {searchOpen ? (
+          <SearchField />
+        ) : (
+          <>
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
+              <h2 className="font-ui text-ink truncate text-base font-semibold">{title}</h2>
+              {subtitle && <span className="text-ink-3 truncate text-xs">{subtitle}</span>}
+            </div>
+            <span className="text-ink-3 shrink-0 text-xs tabular-nums">
+              {threads.data ? threads.data.length : ''}
+            </span>
+            <SearchToggle />
+            <IconButton
+              name="sync"
+              label="Refresh"
+              size={16}
+              onClick={() => void service.refresh()}
+            />
+          </>
+        )}
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        {threads.isPending ? (
+      {searching && (
+        <div className="border-hairline text-ink-3 flex h-8 shrink-0 items-center gap-1 border-b px-4 text-xs">
+          <span className="tabular-nums">
+            {hits.length} result{hits.length === 1 ? '' : 's'}
+          </span>
+          <span aria-hidden>·</span>
+          <span>Esc to clear</span>
+        </div>
+      )}
+
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+        {searching ? (
+          hits.length === 0 ? (
+            <EmptyState
+              copy={{
+                title: 'No matches',
+                subtitle: `Nothing in your mail mentions “${debounced.trim()}”.`,
+              }}
+            />
+          ) : (
+            <ul role="listbox" aria-label="Search results" className="flex flex-col py-1">
+              {hits.map((thread) => (
+                <li key={thread.key}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected === thread.key}
+                    data-thread-key={thread.key}
+                    onClick={() => onSelect(thread)}
+                    className={cn(
+                      'flex h-(--wren-row-h-compact) w-full items-center px-4 text-left outline-none',
+                      'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+                      'focus-visible:ring-ring/50 focus-visible:ring-3 focus-visible:ring-inset',
+                      selected === thread.key ? 'bg-fill-selected' : 'hover:bg-fill-hover',
+                    )}
+                  >
+                    <ThreadResult
+                      thread={thread}
+                      account={accountsById.get(thread.accountId)}
+                      selfEmails={selfEmails}
+                      now={now}
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : threads.isPending ? (
           <ListSkeleton />
         ) : rows.length === 0 ? (
           <EmptyState copy={emptyCopyFor(view, labelName)} />
@@ -180,6 +248,43 @@ export function ThreadList() {
         )}
       </div>
     </section>
+  )
+}
+
+function SearchToggle() {
+  const openSearch = useSurfaces((s) => s.openSearch)
+  return <IconButton name="search" label="Search mail" size={16} onClick={openSearch} />
+}
+
+/** The header's inline field. `/` focuses it; Esc puts the view back. */
+function SearchField() {
+  const query = useSurfaces((s) => s.searchQuery)
+  const setQuery = useSurfaces((s) => s.setSearchQuery)
+  const closeSearch = useSurfaces((s) => s.closeSearch)
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <Icon name="search" size={16} className="text-ink-3 shrink-0" />
+      <input
+        id="wren-search"
+        type="search"
+        autoFocus
+        autoComplete="off"
+        spellCheck={false}
+        aria-label="Search mail"
+        placeholder="Search mail"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return
+          event.preventDefault()
+          event.stopPropagation()
+          closeSearch()
+        }}
+        className="text-ink placeholder:text-ink-3 h-8 min-w-0 flex-1 bg-transparent text-base outline-none [&::-webkit-search-cancel-button]:hidden"
+      />
+      <IconButton name="close" label="Close search" size={16} onClick={closeSearch} />
+    </div>
   )
 }
 

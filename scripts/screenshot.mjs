@@ -1,4 +1,4 @@
-// Deterministic captures of the T3 shell.
+// Deterministic captures of the shell (T3) and the feature surfaces (T4).
 //
 //   node scripts/screenshot.mjs
 //
@@ -29,11 +29,67 @@ const RICH_THREAD = 'demo-personal/p-marginal'
 // no dependence on what trash happens to hold.
 const EMPTY_VIEW = 'account:demo-personal:Label_family'
 
+// The palette query. Two fixture threads mention Ridgeline, in two accounts —
+// enough to show the results section without filling the list.
+const PALETTE_QUERY = 'ridgeline'
+
 const SHOTS = [
   { file: 't3-01-inbox-light.png', query: '', open: null },
   { file: 't3-02-thread-light.png', query: '', open: RICH_THREAD },
   { file: 't3-03-inbox-dark.png', query: '&theme=dark', open: null },
   { file: 't3-04-empty-trash-dark.png', query: `&theme=dark&view=${EMPTY_VIEW}`, open: null },
+
+  {
+    // A reply on the third thread in the inbox, prefilled and untouched:
+    // recipients, subject and the quoted original all come from the engine.
+    file: 't4-05-composer-light.png',
+    query: '',
+    open: null,
+    act: async (page) => {
+      await page.locator('[data-thread-key]').nth(2).click()
+      await page.waitForSelector('section[aria-label="Reading"] iframe', { timeout: 10_000 })
+      await page.keyboard.press('r')
+      await page.waitForSelector('section[aria-label="Reply"]', { timeout: 10_000 })
+      // Tiptap sets the quoted body on its first tick after mount.
+      await page.waitForSelector('section[aria-label="Reply"] blockquote', { timeout: 10_000 })
+    },
+  },
+  {
+    file: 't4-06-palette-dark.png',
+    query: '&theme=dark',
+    open: null,
+    act: async (page) => {
+      await page.keyboard.press('Control+k')
+      const input = page.locator('[cmdk-input]')
+      await input.waitFor({ timeout: 10_000 })
+      await input.fill(PALETTE_QUERY)
+      // The results section only exists once the debounced search resolves.
+      await page.locator('[cmdk-group-heading]', { hasText: 'Threads' }).waitFor({
+        timeout: 10_000,
+      })
+    },
+  },
+  {
+    file: 't4-07-settings-light.png',
+    query: '',
+    open: null,
+    act: async (page) => {
+      await page.locator('button[aria-label="Settings"]').click()
+      await page.locator('nav[aria-label="Settings sections"]').waitFor({ timeout: 10_000 })
+      await page.getByRole('button', { name: 'Add account' }).waitFor({ timeout: 10_000 })
+    },
+  },
+  {
+    // Onboarding cannot be reached in demo mode by definition, so the preview
+    // flag forces it. Captured on step two, where the two choices live.
+    file: 't4-08-onboarding-light.png',
+    query: '&onboarding=1',
+    open: null,
+    act: async (page) => {
+      await page.getByRole('button', { name: 'Get started' }).click()
+      await page.getByRole('button', { name: /Explore the demo/ }).waitFor({ timeout: 10_000 })
+    },
+  },
 ]
 
 function portOpen(port) {
@@ -103,6 +159,8 @@ async function main() {
         // The body renders in an iframe that is measured after it parses.
         await page.waitForSelector('section[aria-label="Reading"] iframe', { timeout: 10_000 })
       }
+
+      if (shot.act) await shot.act(page)
 
       // Nothing should sit under the cursor in a capture.
       await page.mouse.move(VIEWPORT.width - 4, VIEWPORT.height - 4)

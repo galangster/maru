@@ -1,0 +1,447 @@
+// The docked composer: a glass sheet in the bottom-right of the reading area,
+// 560 px wide, minimizable to a chip. DIRECTION §7 lists the composer sheet as
+// one of the surfaces glass is *for*.
+//
+// It mounts at the app root (never inside a pane) so no ancestor's transform
+// or opacity can steal the backdrop root — DIRECTION §7, WebView2 rule 6.
+
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { toast } from 'sonner'
+
+import { Icon } from '@/components/ui/icon'
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import type { Account } from '@/core/types'
+import { useAccounts } from '@/features/mail/queries'
+import { useMailService } from '@/features/mail/service'
+import { useSurfaces } from '@/features/shell/surface-store'
+import { ATTACHMENT_WARN_BYTES, totalBytes } from '@/lib/compose'
+import { formatBytes } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
+import { BodyEditor, FormatToolbar, useBodyEditor } from './body-editor'
+import { ChipInput } from './chip-input'
+import {
+  toComposeDraft,
+  useComposer,
+  type Draft,
+  type DraftAttachment,
+} from './compose-store'
+
+const TITLES: Record<string, string> = {
+  reply: 'Reply',
+  replyAll: 'Reply all',
+  forward: 'Forward',
+}
+
+export function Composer() {
+  const open = useComposer((s) => s.open)
+  const seed = useComposer((s) => s.seed)
+  // A fresh seed is a fresh draft, and Tiptap takes its content once — so the
+  // sheet remounts rather than trying to reconcile an editor mid-flight.
+  return open ? <ComposerSheet key={seed} /> : null
+}
+
+function ComposerSheet() {
+  const draft = useComposer((s) => s.draft)
+  const minimized = useComposer((s) => s.minimized)
+  const showCc = useComposer((s) => s.showCc)
+  const dirty = useComposer((s) => s.dirty)
+  const confirming = useComposer((s) => s.confirming)
+  const edit = useComposer((s) => s.edit)
+  const setField = useComposer((s) => s.set)
+  const setShowCc = useComposer((s) => s.setShowCc)
+  const setMinimized = useComposer((s) => s.setMinimized)
+  const setConfirming = useComposer((s) => s.setConfirming)
+  const close = useComposer((s) => s.close)
+  const openWith = useComposer((s) => s.openWith)
+  const remember = useComposer((s) => s.remember)
+
+  const accounts = useAccounts()
+  const service = useMailService()
+  const dialogOpen = useSurfaces(
+    (s) => s.palette || s.settings !== null || s.shortcuts || s.onboarding,
+  )
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onBody = useCallback((bodyHtml: string) => edit({ bodyHtml }), [edit])
+  const editor = useBodyEditor({ initialHtml: draft.bodyHtml, onChange: onBody })
+
+  // The From account: the one passed in (a reply keeps its thread's account),
+  // else the last one used, else the first there is.
+  const list = accounts.data ?? []
+  const firstAccountId = list[0]?.id
+  useEffect(() => {
+    if (draft.accountId || !firstAccountId) return
+    setField({ accountId: firstAccountId })
+  }, [draft.accountId, firstAccountId, setField])
+  const account = list.find((a) => a.id === draft.accountId)
+
+  const attachedBytes = useMemo(
+    () => totalBytes(draft.attachments.map((a) => a.sizeBytes)),
+    [draft.attachments],
+  )
+  const tooLarge = attachedBytes > ATTACHMENT_WARN_BYTES
+  const canSend = Boolean(draft.accountId) && draft.to.length > 0
+
+  const title = draft.reply ? TITLES[draft.reply.mode] : 'New message'
+
+  const send = async () => {
+    if (!canSend) return
+    const payload = toComposeDraft(draft)
+    const kept: Draft = draft
+    // Optimistic: the sheet goes as soon as the user commits, and only an
+    // actual failure brings it back.
+    close()
+    remember(payload.accountId)
+    try {
+      await service.send(payload)
+      toast.success('Sent', { description: payload.subject || '(no subject)' })
+    } catch (cause) {
+      toast.error('Could not send', {
+        description: cause instanceof Error ? cause.message : 'The draft is back, unchanged.',
+      })
+      openWith(kept)
+    }
+  }
+
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    // Composer-scoped: these two work while the user is typing.
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      void send()
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      if (confirming) setConfirming(false)
+      else if (dirty) setConfirming(true)
+      else close()
+    }
+  }
+
+  const addFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const read = await Promise.all([...files].map(readAsAttachment))
+    edit({ attachments: [...draft.attachments, ...read] })
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  // Glass over glass is two layers; a dialog's scrim would make a third, which
+  // DIRECTION §7 rules out. The sheet drops its blur while one is open.
+  const glassOff = dialogOpen
+    ? { backdropFilter: 'none', WebkitBackdropFilter: 'none', backgroundColor: 'var(--wren-surface-raised)' }
+    : undefined
+
+  if (minimized) {
+    return (
+      <div
+        className="glass wren-fixed right-4 bottom-4 z-40 flex h-10 w-72 items-center gap-2 pr-1 pl-4"
+        style={glassOff}
+        onKeyDown={onKeyDown}
+      >
+        <button
+          type="button"
+          onClick={() => setMinimized(false)}
+          className="font-ui text-ink min-w-0 flex-1 truncate text-left text-base font-medium outline-none"
+        >
+          {draft.subject || title}
+        </button>
+        <CloseControl
+          confirming={confirming}
+          setConfirming={setConfirming}
+          dirty={dirty}
+          onClose={close}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <section
+      aria-label={title}
+      onKeyDown={onKeyDown}
+      style={glassOff}
+      className={cn(
+        'glass wren-fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
+        'max-h-[calc(100vh-var(--wren-titlebar-h)-32px)]',
+      )}
+    >
+      <header className="border-hairline flex h-10 shrink-0 items-center gap-1 border-b pr-1 pl-4">
+        <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
+          {title}
+        </h2>
+        <SheetButton
+          name="minimize"
+          label="Minimize"
+          onClick={() => setMinimized(true)}
+        />
+        <CloseControl
+          confirming={confirming}
+          setConfirming={setConfirming}
+          dirty={dirty}
+          onClose={close}
+        />
+      </header>
+
+      <FromRow accounts={list} account={account} onChange={(id) => edit({ accountId: id })} />
+
+      <ChipInput
+        label="To"
+        value={draft.to}
+        onChange={(to) => edit({ to })}
+        autoFocus
+        trailing={
+          showCc ? undefined : (
+            <button
+              type="button"
+              onClick={() => setShowCc(true)}
+              className="font-ui text-ink-3 hover:text-ink focus-visible:ring-ring/50 h-6 rounded-xs px-1 text-xs outline-none focus-visible:ring-2"
+            >
+              Cc Bcc
+            </button>
+          )
+        }
+      />
+
+      {showCc && (
+        <>
+          <ChipInput label="Cc" value={draft.cc} onChange={(cc) => edit({ cc })} />
+          <ChipInput label="Bcc" value={draft.bcc} onChange={(bcc) => edit({ bcc })} />
+        </>
+      )}
+
+      <div className="border-hairline flex min-h-9 items-center gap-3 border-b px-4">
+        <label htmlFor="wren-subject" className="font-ui text-ink-3 w-12 shrink-0 text-xs">
+          Subject
+        </label>
+        <input
+          id="wren-subject"
+          type="text"
+          value={draft.subject}
+          onChange={(event) => edit({ subject: event.target.value })}
+          className="text-ink placeholder:text-ink-3 h-6 min-w-0 flex-1 bg-transparent text-base outline-none"
+        />
+      </div>
+
+      <BodyEditor editor={editor} />
+
+      {draft.attachments.length > 0 && (
+        <div className="border-hairline flex flex-col gap-2 border-t px-4 py-2">
+          <ul className="flex flex-wrap gap-2">
+            {draft.attachments.map((attachment) => (
+              <li
+                key={attachment.id}
+                className="bg-sunken text-ink-2 flex h-8 max-w-full items-center gap-2 rounded-xs pr-1 pl-2 text-sm"
+              >
+                <Icon name="attachment" size={16} className="text-ink-3" />
+                <span className="truncate">{attachment.filename}</span>
+                <span className="text-ink-3 shrink-0 text-xs tabular-nums">
+                  {formatBytes(attachment.sizeBytes)}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${attachment.filename}`}
+                  onClick={() =>
+                    edit({
+                      attachments: draft.attachments.filter((a) => a.id !== attachment.id),
+                    })
+                  }
+                  className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 inline-flex size-5 shrink-0 items-center justify-center rounded-xs outline-none focus-visible:ring-2"
+                >
+                  <Icon name="close" size={16} className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {tooLarge && (
+            <p className="text-ink-2 text-xs">
+              <span className="text-destructive">
+                {formatBytes(attachedBytes)} attached.
+              </span>{' '}
+              Gmail rejects messages over 25 MB — send a link instead.
+            </p>
+          )}
+        </div>
+      )}
+
+      <footer className="border-hairline flex h-12 shrink-0 items-center gap-2 border-t px-4">
+        <FormatToolbar editor={editor} />
+        <span className="bg-hairline h-4 w-px shrink-0" aria-hidden />
+        <SheetButton
+          name="attachment"
+          label="Attach files"
+          onClick={() => fileRef.current?.click()}
+        />
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          className="sr-only"
+          aria-label="Attach files"
+          onChange={(event) => void addFiles(event.target.files)}
+        />
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={!canSend}
+          title="Send (⌘↵)"
+          className={cn(
+            'font-ui bg-primary text-primary-foreground inline-flex h-8 items-center gap-2 rounded-md px-3 text-base font-medium',
+            'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+            'hover:bg-brand-hover focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
+            'disabled:pointer-events-none disabled:opacity-40',
+          )}
+        >
+          <Icon name="sent" size={16} />
+          Send
+        </button>
+      </footer>
+    </section>
+  )
+}
+
+function FromRow({
+  accounts,
+  account,
+  onChange,
+}: {
+  accounts: Account[]
+  account: Account | undefined
+  onChange: (accountId: string) => void
+}) {
+  return (
+    <div className="border-hairline flex min-h-9 items-center gap-3 border-b px-4">
+      <span className="font-ui text-ink-3 w-12 shrink-0 text-xs">From</span>
+      {accounts.length > 1 ? (
+        <Select value={account?.id ?? ''} onValueChange={(value) => onChange(String(value))}>
+          <SelectTrigger size="sm" aria-label="Send from" className="-ml-2 border-0 shadow-none">
+            <SelectValue>
+              {(value) => accounts.find((a) => a.id === value)?.email ?? 'Pick an account'}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {accounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.email}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <span className="text-ink truncate text-base">{account?.email ?? '—'}</span>
+      )}
+    </div>
+  )
+}
+
+function SheetButton({
+  name,
+  label,
+  onClick,
+}: {
+  name: 'minimize' | 'attachment'
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="text-ink-3 hover:bg-fill-hover hover:text-ink focus-visible:ring-ring/50 inline-flex size-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3"
+    >
+      <Icon name={name} size={16} />
+    </button>
+  )
+}
+
+/** Close, plus the discard confirm it raises when there is something to lose. */
+function CloseControl({
+  confirming,
+  setConfirming,
+  dirty,
+  onClose,
+}: {
+  confirming: boolean
+  setConfirming: (open: boolean) => void
+  dirty: boolean
+  onClose: () => void
+}) {
+  return (
+    <Popover open={confirming} onOpenChange={setConfirming}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label="Close"
+            title="Close"
+            onClick={(event) => {
+              if (dirty) return
+              event.preventDefault()
+              onClose()
+            }}
+            className="text-ink-3 hover:bg-fill-hover hover:text-ink focus-visible:ring-ring/50 inline-flex size-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3"
+          />
+        }
+      >
+        <Icon name="close" size={16} />
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="end" className="w-64">
+        <PopoverTitle className="font-ui text-ink text-base">Discard this draft?</PopoverTitle>
+        <PopoverDescription className="text-ink-3 text-sm">
+          Wren does not keep drafts yet. Closing loses what you wrote.
+        </PopoverDescription>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="font-ui text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 h-8 rounded-md px-3 text-base font-medium outline-none focus-visible:ring-3"
+          >
+            Keep writing
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="font-ui bg-destructive h-8 rounded-md px-3 text-base font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-destructive/50"
+          >
+            Discard
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function readAsAttachment(file: File): Promise<DraftAttachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`))
+    reader.onload = () => {
+      const url = String(reader.result)
+      resolve({
+        id: `${file.name}:${file.size}:${file.lastModified}`,
+        filename: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        dataBase64: url.slice(url.indexOf(',') + 1),
+      })
+    }
+    reader.readAsDataURL(file)
+  })
+}

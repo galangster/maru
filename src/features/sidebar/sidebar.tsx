@@ -4,15 +4,15 @@
 // Selection is a soft fill plus an accent-tinted icon. Never a left bar —
 // DIRECTION §2 (Juicebox) and §10.2.
 
-import { toast } from 'sonner'
-
 import { Icon, type IconName } from '@/components/ui/icon'
 import { AccountDot, IconButton } from '@/components/wren-controls'
 import type { Account, MailView, UnifiedFolder } from '@/core/types'
+import { useComposeActions } from '@/features/compose/use-compose-actions'
 import { useAccounts, useLabels, useSyncStatus, useUnreadCount } from '@/features/mail/queries'
+import { useMailMode } from '@/features/mail/service'
 import { useUi, viewKey } from '@/features/mail/ui-store'
+import { useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
-import { isDemo } from '@/lib/env'
 import { cn } from '@/lib/utils'
 
 const UNIFIED: { folder: UnifiedFolder; label: string; icon: IconName }[] = [
@@ -62,16 +62,13 @@ export function Sidebar() {
 }
 
 function ComposeButton({ collapsed }: { collapsed: boolean }) {
-  const onCompose = () =>
-    toast('Composer arrives with T4', {
-      description: 'Reading, triage and search land first. Writing is the next lane.',
-    })
+  const { compose } = useComposeActions()
 
   return (
     <button
       type="button"
-      onClick={onCompose}
-      title="Compose"
+      onClick={compose}
+      title="Compose (C)"
       className={cn(
         'font-ui bg-primary text-primary-foreground inline-flex h-9 items-center rounded-md text-base font-medium',
         'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
@@ -238,10 +235,12 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
     theme === 'light' ? 'themeLight' : theme === 'dark' ? 'themeDark' : 'themeSystem'
   const themeLabel = `Theme: ${theme}. Switch.`
 
+  const { demo } = useMailMode()
+  const openSettings = useSurfaces((s) => s.openSettings)
   const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
   const syncing = statuses.some((s) => s.state === 'syncing')
   const failed = statuses.some((s) => s.state === 'error')
-  const status = isDemo
+  const status = demo
     ? `Demo data · ${plural}`
     : failed
       ? 'Sync failed · retrying'
@@ -270,11 +269,7 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
         name="settings"
         label="Settings"
         size={16}
-        onClick={() =>
-          toast('Settings arrive with T4', {
-            description: 'Accounts, signatures and the image policy live there.',
-          })
-        }
+        onClick={() => openSettings()}
       />
       <IconButton name={themeIcon} label={themeLabel} size={16} onClick={toggle} />
     </div>

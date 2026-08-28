@@ -19,6 +19,13 @@ export const isDemo = params.get('demo') === '1' || !isTauri()
 export const isScreenshot = params.get('screenshot') === '1'
 
 /**
+ * `?onboarding=1` forces the welcome sequence. It is normally shown only in
+ * real mode with no accounts, which a demo build can never reach — so captures
+ * and design review need a way in.
+ */
+export const onboardingPreview = params.get('onboarding') === '1'
+
+/**
  * The frozen clock for captures. Demo fixtures are generated relative to
  * `now`, so a real Date.now() would re-date every row on every run and no two
  * captures would compare. Chosen as a late local evening so the fixture set
