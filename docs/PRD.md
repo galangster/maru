@@ -51,11 +51,16 @@ through a third-party server. Wren talks only to Google.
 
 ## Design language
 
-Clean, airy, quiet. Inter (bundled) with Segoe fallback; 13–14 px base;
-generous whitespace; rounded-lg surfaces; hairline borders and washes for
-emphasis (no left accent slivers); one blue accent; full dark mode; motion
-restrained and physical (150–250 ms ease-out entrances, spring on composer),
-`prefers-reduced-motion` respected.
+Cloud-soft modern SaaS (references: Family, Phantom, Aave, Umbra — see
+docs/design/DIRECTION.md). Open Runde (Medium/Semibold) for UI chrome and
+headings; DM Sans (Regular/Medium) for body and lists; at most five sizes.
+Soft rounded geometry on a 4 px spacing grid — spacing and alignment are an
+explicit review gate. Liquid-glass treatment on floating surfaces only
+(palette, composer, overlays) with solid list rows for scroll performance;
+hairline borders and washes for emphasis (no left accent slivers); full
+dark mode; motion restrained and physical, `prefers-reduced-motion`
+respected. All icons route through one `Icon` component (Anron target;
+lucide interim, tuned to match). No MetaDAO styling.
 
 ## Non-functional
 

@@ -148,4 +148,31 @@ In-Reply-To headers *and* threadId.
 **Toolchain note:** system Rust was 1.72 (Homebrew, 2023) — upgraded via
 `brew upgrade rust` to meet Tauri 2's minimum.
 
+## Round 5 — Nick's design-direction interjection (2026-08-28, during T2)
+
+Nick's ruling, verbatim gist: modern SaaS that "feels like a cloud"; some
+liquid-glass elements (researched properly); a thoughtful UX that fills the
+holes of current email clients; spacing and alignment "REALLY important";
+Mobbin MCP for inspiration; Anron icons; Open Runde + DM Sans, one or two
+weights, a couple of sizes; uncluttered, simple, elegant system. Reference
+apps: Family, Phantom, Aave, Umbra.
+
+Adopted:
+- **T7 design-direction lane inserted before the shell** — Mobbin study +
+  liquid-glass research → docs/design/DIRECTION.md + src/styles/tokens.css.
+  The shell builds against tokens; nothing is retrofitted.
+- **Fonts bundled:** DM Sans Regular/Medium statics from Nick's zip
+  (~/Downloads/DM_Sans.zip) and Open Runde Regular/Medium/Semibold woff2
+  from github.com/lauridskern/open-runde, with licenses, in
+  src/assets/fonts/. Two weights per family max, ≤5 sizes.
+- **⚠ Anron icons deferred:** no Figma MCP is connected in this session
+  (DesignSync targets claude.ai/design, not Figma). All icons go through a
+  single `Icon` component; MVP ships lucide tuned to Anron's rounded
+  geometry (stroke, caps, sizing grid); swapping in real Anron SVGs later is
+  a bounded change behind that seam.
+- **Glass discipline:** liquid glass on floating/overlay surfaces only;
+  list rows stay solid for WebView2 scroll performance.
+- 4 px spacing grid; spacing/alignment named as an explicit review gate in
+  T5.
+
 Frontier empty. Tree closed 2026-08-28.

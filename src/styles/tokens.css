@@ -1,0 +1,486 @@
+/* ==========================================================================
+   Wren — design tokens
+   Spec: docs/design/DIRECTION.md (T7 design direction lane)
+
+   Import AFTER src/index.css so the :root / .dark blocks below override the
+   shadcn defaults shipped there:
+
+       @import "./index.css";
+       @import "./styles/tokens.css";
+
+   Contains: @font-face, shadcn variable overrides, --wren-* system tokens,
+   the glass recipe, and base typography defaults. No component styles.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Fonts
+   Open Runde  — UI chrome, headings, sender names, buttons.  500 / 600
+   DM Sans     — body, snippets, meta.                        400 / 500
+   TODO(shell): subset the DM Sans TTFs to woff2 (~56 KB each unsubset today).
+   -------------------------------------------------------------------------- */
+
+@font-face {
+    font-family: 'Open Runde';
+    src: url('../assets/fonts/open-runde/OpenRunde-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Open Runde';
+    src: url('../assets/fonts/open-runde/OpenRunde-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Open Runde';
+    src: url('../assets/fonts/open-runde/OpenRunde-Semibold.woff2') format('woff2');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'DM Sans';
+    src: url('../assets/fonts/dm-sans/DMSans-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'DM Sans';
+    src: url('../assets/fonts/dm-sans/DMSans-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* --------------------------------------------------------------------------
+   2. Light theme
+   -------------------------------------------------------------------------- */
+
+:root {
+    color-scheme: light;
+
+    /* --- Wren surfaces ---------------------------------------------------- */
+    --wren-surface-base: oklch(0.967 0.006 268); /* #F2F4F8 canvas, sidebar   */
+    --wren-surface-sunken: oklch(0.945 0.008 268); /* #EAEDF2 wells, inputs   */
+    --wren-surface: oklch(1 0 0); /* #FFFFFF list + reading pane              */
+    --wren-surface-raised: oklch(1 0 0); /* #FFFFFF cards, popovers           */
+
+    /* --- Text tiers (AA verified, see DIRECTION.md §3) -------------------- */
+    --wren-text-1: oklch(0.235 0.02 268); /* #1A1E28  16.69 on surface        */
+    --wren-text-2: oklch(0.47 0.019 268); /* #565B66   6.83 on surface        */
+    --wren-text-3: oklch(0.535 0.017 268); /* #696D77  5.17 on surface        */
+
+    /* --- Accent: periwinkle indigo --------------------------------------- */
+    --wren-accent: oklch(0.545 0.185 268); /* #4364DA                         */
+    --wren-accent-hover: oklch(0.495 0.185 268); /* #3654C9                   */
+    --wren-accent-fg: oklch(1 0 0); /* white on accent = 5.17                 */
+
+    /* --- Semantic --------------------------------------------------------- */
+    --wren-unread: var(--wren-accent);
+    --wren-star: oklch(0.63 0.15 58); /* #CA6E03  3.66 non-text on surface    */
+    --wren-destructive: oklch(0.56 0.21 25); /* #D4212D                       */
+    --wren-success: oklch(0.515 0.125 155); /* #087C46                        */
+
+    /* --- Lines and fills --------------------------------------------------- */
+    --wren-hairline: oklch(0.905 0.01 268); /* #DDE0E6                        */
+    --wren-hairline-strong: oklch(0.86 0.012 268);
+    --wren-fill-hover: oklch(0.235 0.02 268 / 0.045);
+    --wren-fill-active: oklch(0.235 0.02 268 / 0.075);
+    --wren-fill-selected: oklch(0.545 0.185 268 / 0.08);
+    --wren-scrim: oklch(0.235 0.02 268 / 0.28);
+
+    /* --- Glass ------------------------------------------------------------- */
+    --wren-glass-blur: 20px;
+    --wren-glass-blur-strong: 32px;
+    --wren-glass-saturate: 180%;
+    --wren-glass-saturate-strong: 190%;
+    --wren-glass-tint: oklch(1 0 0 / 0.72);
+    --wren-glass-tint-strong: oklch(1 0 0 / 0.82);
+    --wren-glass-edge: oklch(1 0 0 / 0.7);
+    --wren-glass-sheen: oklch(1 0 0 / 0.85);
+
+    /* --- Elevation: soft ambient, two-part, hue-tinted --------------------- */
+    --wren-shadow-xs: 0 1px 2px oklch(0.235 0.02 268 / 0.05);
+    --wren-shadow-sm:
+        0 1px 2px oklch(0.235 0.02 268 / 0.04),
+        0 2px 6px oklch(0.235 0.02 268 / 0.05);
+    --wren-shadow-md:
+        0 2px 4px oklch(0.235 0.02 268 / 0.03),
+        0 6px 16px oklch(0.235 0.02 268 / 0.07);
+    --wren-shadow-lg:
+        0 4px 8px oklch(0.235 0.02 268 / 0.03),
+        0 12px 32px oklch(0.235 0.02 268 / 0.09);
+    --wren-shadow-xl:
+        0 8px 16px oklch(0.235 0.02 268 / 0.04),
+        0 24px 64px oklch(0.235 0.02 268 / 0.13);
+
+    /* ======================================================================
+       shadcn overrides — names mirror src/index.css exactly.
+       NOTE: shadcn's --accent is the SUBTLE HOVER FILL, not the brand colour.
+       Wren's brand accent maps to --primary and --ring.
+       ====================================================================== */
+    --background: var(--wren-surface-base);
+    --foreground: var(--wren-text-1);
+    --card: var(--wren-surface-raised);
+    --card-foreground: var(--wren-text-1);
+    --popover: var(--wren-surface-raised);
+    --popover-foreground: var(--wren-text-1);
+    --primary: var(--wren-accent);
+    --primary-foreground: var(--wren-accent-fg);
+    --secondary: var(--wren-surface-sunken);
+    --secondary-foreground: var(--wren-text-1);
+    --muted: var(--wren-surface-sunken);
+    --muted-foreground: var(--wren-text-3);
+    --accent: var(--wren-fill-hover);
+    --accent-foreground: var(--wren-text-1);
+    --destructive: var(--wren-destructive);
+    --border: var(--wren-hairline);
+    --input: var(--wren-hairline);
+    --ring: var(--wren-accent);
+
+    --chart-1: var(--wren-accent);
+    --chart-2: oklch(0.62 0.14 232);
+    --chart-3: oklch(0.66 0.13 178);
+    --chart-4: oklch(0.63 0.15 58);
+    --chart-5: oklch(0.55 0.16 320);
+
+    --radius: 1rem;
+
+    --sidebar: var(--wren-surface-base);
+    --sidebar-foreground: var(--wren-text-2);
+    --sidebar-primary: var(--wren-accent);
+    --sidebar-primary-foreground: var(--wren-accent-fg);
+    --sidebar-accent: var(--wren-fill-hover);
+    --sidebar-accent-foreground: var(--wren-text-1);
+    --sidebar-border: var(--wren-hairline);
+    --sidebar-ring: var(--wren-accent);
+}
+
+/* --------------------------------------------------------------------------
+   3. Dark theme
+   -------------------------------------------------------------------------- */
+
+.dark {
+    color-scheme: dark;
+
+    --wren-surface-base: oklch(0.185 0.013 268); /* #101319                   */
+    --wren-surface-sunken: oklch(0.155 0.012 268); /* #0A0C11                 */
+    --wren-surface: oklch(0.222 0.014 268); /* #181B22                        */
+    --wren-surface-raised: oklch(0.262 0.015 268); /* #21242C                 */
+
+    --wren-text-1: oklch(0.966 0.004 268); /* #F2F4F6  15.62 on surface       */
+    --wren-text-2: oklch(0.742 0.014 268); /* #A7ABB5   7.52 on surface       */
+    --wren-text-3: oklch(0.66 0.016 268); /* #8E929C    5.54 on surface       */
+
+    --wren-accent: oklch(0.745 0.12 268); /* #8CA9F9                          */
+    --wren-accent-hover: oklch(0.815 0.09 268); /* #A9C1FE                    */
+    --wren-accent-fg: oklch(0.185 0.013 268);
+
+    --wren-unread: var(--wren-accent);
+    --wren-star: oklch(0.8 0.135 80); /* #EBB34B                              */
+    --wren-destructive: oklch(0.705 0.175 22); /* #FA6B6D                     */
+    --wren-success: oklch(0.76 0.15 158); /* #48CD8C                          */
+
+    --wren-hairline: oklch(1 0 0 / 0.09);
+    --wren-hairline-strong: oklch(1 0 0 / 0.16);
+    --wren-fill-hover: oklch(1 0 0 / 0.05);
+    --wren-fill-active: oklch(1 0 0 / 0.09);
+    --wren-fill-selected: oklch(0.745 0.12 268 / 0.14);
+    --wren-scrim: oklch(0.09 0.01 268 / 0.55);
+
+    --wren-glass-tint: oklch(0.262 0.015 268 / 0.68);
+    --wren-glass-tint-strong: oklch(0.262 0.015 268 / 0.78);
+    --wren-glass-edge: oklch(1 0 0 / 0.1);
+    --wren-glass-sheen: oklch(1 0 0 / 0.08);
+
+    /* Dark shadows need more alpha; the top sheen does the real lifting. */
+    --wren-shadow-xs: 0 1px 2px oklch(0 0 0 / 0.3);
+    --wren-shadow-sm:
+        0 1px 2px oklch(0 0 0 / 0.3),
+        0 2px 6px oklch(0 0 0 / 0.28);
+    --wren-shadow-md:
+        0 2px 4px oklch(0 0 0 / 0.3),
+        0 6px 16px oklch(0 0 0 / 0.36);
+    --wren-shadow-lg:
+        0 4px 8px oklch(0 0 0 / 0.32),
+        0 12px 32px oklch(0 0 0 / 0.44);
+    --wren-shadow-xl:
+        0 8px 16px oklch(0 0 0 / 0.36),
+        0 24px 64px oklch(0 0 0 / 0.56);
+
+    --background: var(--wren-surface-base);
+    --foreground: var(--wren-text-1);
+    --card: var(--wren-surface-raised);
+    --card-foreground: var(--wren-text-1);
+    --popover: var(--wren-surface-raised);
+    --popover-foreground: var(--wren-text-1);
+    --primary: var(--wren-accent);
+    --primary-foreground: var(--wren-accent-fg);
+    --secondary: var(--wren-surface-raised);
+    --secondary-foreground: var(--wren-text-1);
+    --muted: var(--wren-surface-raised);
+    --muted-foreground: var(--wren-text-3);
+    --accent: var(--wren-fill-hover);
+    --accent-foreground: var(--wren-text-1);
+    --destructive: var(--wren-destructive);
+    --border: var(--wren-hairline);
+    --input: var(--wren-hairline-strong);
+    --ring: var(--wren-accent);
+
+    --chart-1: var(--wren-accent);
+    --chart-2: oklch(0.72 0.12 232);
+    --chart-3: oklch(0.76 0.11 178);
+    --chart-4: oklch(0.8 0.135 80);
+    --chart-5: oklch(0.7 0.14 320);
+
+    --sidebar: var(--wren-surface-base);
+    --sidebar-foreground: var(--wren-text-2);
+    --sidebar-primary: var(--wren-accent);
+    --sidebar-primary-foreground: var(--wren-accent-fg);
+    --sidebar-accent: var(--wren-fill-hover);
+    --sidebar-accent-foreground: var(--wren-text-1);
+    --sidebar-border: var(--wren-hairline);
+    --sidebar-ring: var(--wren-accent);
+}
+
+/* --------------------------------------------------------------------------
+   4. Theme-independent system tokens
+   -------------------------------------------------------------------------- */
+
+:root {
+    /* --- Type ------------------------------------------------------------- */
+    --wren-font-ui: 'Open Runde', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+    --wren-font-body: 'DM Sans', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+    --font-sans: var(--wren-font-body);
+    --font-heading: var(--wren-font-ui);
+
+    --text-xs: 0.71875rem; /* 11.5px */
+    --text-xs--line-height: 1rem; /* 16px  */
+    --text-xs--letter-spacing: 0.01em;
+    --text-sm: 0.8125rem; /* 13px   */
+    --text-sm--line-height: 1.125rem; /* 18px   */
+    --text-sm--letter-spacing: 0em;
+    --text-base: 0.875rem; /* 14px   */
+    --text-base--line-height: 1.25rem; /* 20px   */
+    --text-base--letter-spacing: -0.006em;
+    --text-lg: 0.96875rem; /* 15.5px */
+    --text-lg--line-height: 1.5rem; /* 24px   */
+    --text-lg--letter-spacing: -0.011em;
+    --text-xl: 1.3125rem; /* 21px   */
+    --text-xl--line-height: 1.6875rem; /* 27px   */
+    --text-xl--letter-spacing: -0.018em;
+
+    --wren-weight-regular: 400;
+    --wren-weight-medium: 500;
+    --wren-weight-semibold: 600;
+
+    /* --- Spacing: 4px grid ------------------------------------------------ */
+    --wren-space-1: 4px;
+    --wren-space-2: 8px;
+    --wren-space-3: 12px;
+    --wren-space-4: 16px;
+    --wren-space-5: 20px;
+    --wren-space-6: 24px;
+    --wren-space-8: 32px;
+    --wren-space-10: 40px;
+    --wren-space-12: 48px;
+    --wren-space-16: 64px;
+
+    /* --- Pane measures: alignment decided once ---------------------------- */
+    --wren-titlebar-h: 36px;
+    --wren-toolbar-h: 52px;
+    --wren-sidebar-w: 248px;
+    --wren-sidebar-w-collapsed: 64px;
+    --wren-list-w: 400px;
+    --wren-list-w-min: 340px;
+    --wren-list-w-max: 520px;
+    --wren-row-h: 68px;
+    --wren-row-h-compact: 52px;
+    --wren-list-sender-w: 152px;
+    --wren-pane-px: 16px;
+    --wren-read-px: 32px;
+    --wren-read-pt: 24px;
+    --wren-read-measure: 68ch;
+    --wren-avatar: 32px;
+    --wren-icon-box: 24px;
+    --wren-hit: 32px;
+
+    /* --- Radius ------------------------------------------------------------ */
+    --wren-radius-xs: 6px;
+    --wren-radius-sm: 8px;
+    --wren-radius-md: 12px;
+    --wren-radius-lg: 16px;
+    --wren-radius-xl: 20px;
+    --wren-radius-2xl: 28px;
+    --wren-radius-full: 999px;
+
+    /* --- Icons (lucide interim, tuned toward Anron) ------------------------ */
+    --wren-icon-sm: 16px;
+    --wren-icon-md: 18px;
+    --wren-icon-lg: 20px;
+    --wren-icon-stroke: 1.75;
+    --wren-icon-stroke-lg: 1.5;
+
+    /* --- Motion ------------------------------------------------------------ */
+    --wren-dur-fast: 120ms;
+    --wren-dur-base: 200ms;
+    --wren-dur-slow: 320ms;
+    --wren-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --wren-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --wren-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+    /* --- Noise: kills banding across large blurred areas ------------------- */
+    --wren-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+}
+
+/* --------------------------------------------------------------------------
+   5. Glass recipe
+   Allowed: command palette, composer sheet, menus, tooltips, toasts,
+            onboarding cards, modal scrim.
+   Banned:  list rows, reading body, sidebar, pane headers, anything that
+            scrolls or is a child of a scroll container, nested glass.
+   Budget:  max 2 concurrent glass layers. Never animate the blur.
+   -------------------------------------------------------------------------- */
+
+.glass,
+.glass-strong {
+    position: relative;
+    background-color: var(--wren-glass-tint);
+    border: 1px solid var(--wren-glass-edge);
+    border-radius: var(--wren-radius-xl);
+    box-shadow:
+        var(--wren-shadow-lg),
+        inset 0 1px 0 var(--wren-glass-sheen);
+    /* Bound rasterization, and stop a parent's opacity/transform from
+       hijacking the backdrop root. Mount glass in a portal at the root. */
+    contain: paint;
+    isolation: isolate;
+}
+
+.glass-strong {
+    background-color: var(--wren-glass-tint-strong);
+    border-radius: var(--wren-radius-2xl);
+    box-shadow:
+        var(--wren-shadow-xl),
+        inset 0 1px 0 var(--wren-glass-sheen);
+}
+
+/* Noise sits above the tint, below content. .glass-strong only — the large
+   blurred areas are where banding actually shows. */
+.glass-strong::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: var(--wren-noise);
+    opacity: 0.035;
+    pointer-events: none;
+    z-index: 0;
+}
+.glass-strong > * {
+    position: relative;
+    z-index: 1;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+        -webkit-backdrop-filter: blur(var(--wren-glass-blur)) saturate(var(--wren-glass-saturate));
+        backdrop-filter: blur(var(--wren-glass-blur)) saturate(var(--wren-glass-saturate));
+    }
+    .glass-strong {
+        -webkit-backdrop-filter: blur(var(--wren-glass-blur-strong))
+            saturate(var(--wren-glass-saturate-strong));
+        backdrop-filter: blur(var(--wren-glass-blur-strong))
+            saturate(var(--wren-glass-saturate-strong));
+    }
+}
+
+/* Fallbacks all collapse to the same thing: an opaque raised surface with the
+   same radius and shadow. Layout never changes, only the material. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass,
+    .glass-strong {
+        background-color: var(--wren-surface-raised);
+        border-color: var(--wren-hairline);
+    }
+    .glass-strong::before {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .glass,
+    .glass-strong {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background-color: var(--wren-surface-raised);
+        border-color: var(--wren-hairline);
+    }
+    .glass-strong::before {
+        display: none;
+    }
+}
+
+@media (prefers-contrast: more) {
+    .glass,
+    .glass-strong {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background-color: var(--wren-surface-raised);
+        border-color: var(--wren-hairline-strong);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   6. Base typography defaults
+   Keeps the app off the shadcn Inter default without touching src/index.css.
+   -------------------------------------------------------------------------- */
+
+@layer base {
+    html {
+        font-family: var(--wren-font-body);
+    }
+    body {
+        font-family: var(--wren-font-body);
+        font-weight: var(--wren-weight-regular);
+        font-size: var(--text-base);
+        line-height: var(--text-base--line-height);
+        letter-spacing: var(--text-base--letter-spacing);
+        /* Times, counts and sizes must not shimmer on refresh. */
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+    }
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    button,
+    label,
+    th {
+        font-family: var(--wren-font-ui);
+        font-weight: var(--wren-weight-medium);
+    }
+    /* Hairlines are always exactly 1px. Windows WebView2 at 100% DPI rounds
+       0.5px to 0 or renders it blurry — tune weight with alpha, not width. */
+    ::selection {
+        background-color: var(--wren-fill-selected);
+        color: var(--wren-text-1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* Transform and size animation is removed; a short opacity crossfade is
+       kept, because an instant cut is its own kind of jarring. */
+    :root {
+        --wren-dur-fast: 1ms;
+        --wren-dur-base: 1ms;
+        --wren-dur-slow: 1ms;
+    }
+}

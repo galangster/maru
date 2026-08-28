@@ -1,0 +1,373 @@
+# Wren — Design Direction
+
+Owner: Nick. Lane: T7. Status: ratified for the shell lane.
+Implementation: `src/styles/tokens.css`. This document is the *why*; the tokens file is the *what*.
+
+Wren is a unified Gmail desktop client that should feel like a cloud: light, soft-edged,
+weightless, quiet. It is not a MetaDAO product and carries none of that styling. Every value
+below is derived fresh from the reference set (Family, Phantom, Aave, Umbra) and from a bounded
+Mobbin study of Superhuman and web command-palette patterns.
+
+---
+
+## 1. Principles
+
+**Cloud-soft.** Depth comes from *fill steps and soft ambient shadow*, never from strokes or
+hard drops. Corners are generous. Nothing has a hard edge against the canvas.
+
+**Calm.** One accent, used sparingly. Color is information (unread, starred, danger), not
+decoration. A screen at rest should be near-monochrome; the only saturated pixels are the
+sender avatars and at most one accent element.
+
+**Precise.** Spacing and alignment are the product. Everything sits on a 4 px grid. The three
+panes have fixed, named measures so alignment is decided once, here, and never re-argued in a
+component. Columns line up across every row of a list, always.
+
+**Wren refuses to:**
+- Tint or stripe a list row to signal state. Unread is a dot and a weight change.
+- Put glass behind text that must be read (the list, the message body).
+- Use more than one accent hue, or a gradient as a surface.
+- Ship density presets. There is one density, tuned once, correctly.
+- Animate anything the user did not ask for.
+
+---
+
+## 2. Reference notes
+
+### Family (iOS wallet)
+1. **Rows with no container and no dividers.** The token list is bare text on the canvas;
+   grouping comes from vertical space alone. → Wren's list uses *no* hairline between rows in
+   the same day-group. A hairline appears only between groups.
+2. **Action cards carry a one-line "why".** Every action is title + explanatory subtitle, never
+   a bare label. → Empty states, onboarding cards, and every destructive confirm get a subtitle.
+3. **A single colored circular chip leads the row.** Scannability without borders. → The sender
+   avatar is the only saturated element in a list row.
+4. **Primary value right-aligned, secondary muted beneath it.** → Timestamp over attachment/count meta.
+
+### Phantom (iOS wallet)
+1. **Depth by fill, never by stroke.** Rows sit on a slightly raised rounded container on a
+   darker base. No borders anywhere in the dark theme. → `base → surface → raised` fill steps.
+2. **Rigid three-column row anatomy** repeated identically down the list: 32 px circular icon /
+   two-line name+meta / right-aligned two-line value+delta. → Exactly Wren's message row:
+   avatar / sender+subject+snippet / time+meta.
+3. **Equal-width action tiles** under the header — icon over label, rounded, same width.
+   → The reading-pane action bar.
+4. **Section headers are small, muted, with a trailing "Show more".** → Command palette sections
+   and the search results panel.
+
+### Aave / DeFi web (Binance, OKX, Kraken observed)
+1. **Dense tables that still breathe.** Tall rows (44–52 px) with generous horizontal padding and
+   a very low-contrast divider — density comes from row height, not from cramped padding.
+2. **Right rail of stacked contextual cards** (Activity / Explore / Tips) instead of modals.
+   → Wren's third pane can host thread context without ever opening a dialog.
+3. **All numerics right-aligned and tabular.** → `font-variant-numeric: tabular-nums` on every
+   time, count, and size in the app. Non-negotiable; it stops the list from shimmering on refresh.
+4. **Column headers are small and muted, not bold.** Hierarchy by color, not by weight.
+
+### Superhuman (web mail)
+1. **Fixed-width sender column (~150 px).** Every subject starts at the same x. This single
+   decision is what makes the list scannable. → `--wren-list-sender-w`.
+2. **Unread = dot in the left gutter + darker sender.** No row tint, no left bar. This
+   independently confirms Nick's no-sliver rule.
+3. **Day grouping via a small muted label** ("Yesterday", "Last 7 days") with generous space above.
+4. **A persistent lightweight right rail** teaching shortcuts, rather than a modal help screen.
+5. **Toast is small, bottom-left, rounded, with inline UNDO and a dismiss ×.** Steal verbatim.
+
+### Command palette (Ferndesk, Vapi, Juicebox)
+1. **Centered floating card ~560–640 px wide over a dimmed app.** Never full-screen.
+2. **A permanent keycap footer** inside the palette (↑↓ navigate · ↵ select · esc close).
+3. **Tiny muted section headers**, rows of icon + label + muted right-side context.
+4. Juicebox marks the selected row with a 2 px left bar. **We reject that** — selection is a soft
+   fill plus an accent-tinted icon.
+
+---
+
+## 3. Color
+
+OKLCH throughout. Hue **268** (periwinkle indigo) carries the entire neutral ramp at very low
+chroma, so the greys read cool and airy rather than dead.
+
+**Accent: periwinkle indigo, `oklch(0.545 0.185 268)` / `#4364DA`.**
+Justification: violet-indigo is the shared territory of Phantom, Aave and Umbra, but pushed
+lighter and cooler toward sky so it reads *cloud*, not *crypto wallet*.
+
+### Light
+
+| Role | OKLCH | Hex |
+|---|---|---|
+| base (app canvas, sidebar) | `0.967 0.006 268` | `#F2F4F8` |
+| sunken (wells, inset fields) | `0.945 0.008 268` | `#EAEDF2` |
+| surface (list, reading pane) | `1 0 0` | `#FFFFFF` |
+| raised (cards, popovers) | `1 0 0` | `#FFFFFF` |
+| hairline | `0.905 0.010 268` | `#DDE0E6` |
+| text-1 primary | `0.235 0.020 268` | `#1A1E28` |
+| text-2 secondary | `0.470 0.019 268` | `#565B66` |
+| text-3 meta | `0.535 0.017 268` | `#696D77` |
+| accent | `0.545 0.185 268` | `#4364DA` |
+| accent-hover | `0.495 0.185 268` | `#3654C9` |
+| destructive | `0.560 0.210 25` | `#D4212D` |
+| success | `0.515 0.125 155` | `#087C46` |
+| star | `0.630 0.150 58` | `#CA6E03` |
+
+### Dark
+
+| Role | OKLCH | Hex |
+|---|---|---|
+| base | `0.185 0.013 268` | `#101319` |
+| sunken | `0.155 0.012 268` | `#0A0C11` |
+| surface | `0.222 0.014 268` | `#181B22` |
+| raised | `0.262 0.015 268` | `#21242C` |
+| hairline | `oklch(1 0 0 / 0.09)` | — |
+| text-1 | `0.966 0.004 268` | `#F2F4F6` |
+| text-2 | `0.742 0.014 268` | `#A7ABB5` |
+| text-3 | `0.660 0.016 268` | `#8E929C` |
+| accent | `0.745 0.120 268` | `#8CA9F9` |
+| accent-hover | `0.815 0.090 268` | `#A9C1FE` |
+| destructive | `0.705 0.175 22` | `#FA6B6D` |
+| success | `0.760 0.150 158` | `#48CD8C` |
+| star | `0.800 0.135 80` | `#EBB34B` |
+
+### Verified contrast (WCAG 2.x, computed not estimated)
+
+Light, against `base` / `surface`: text-1 **15.16 / 16.69**, text-2 **6.21 / 6.83**,
+text-3 **4.70 / 5.17**, accent **4.70 / 5.17**, destructive **4.71 / 5.18**,
+success **4.81 / 5.30**. White on accent **5.17**.
+Star (non-text, needs 3.0) **3.33 / 3.66**.
+
+Dark, against `base` / `surface` / `raised`: text-1 **16.89 / 15.62 / 14.00**,
+text-2 **8.14 / 7.52 / 6.75**, text-3 **5.99 / 5.54 / 4.96**, accent **8.13 / — / 6.74**,
+destructive **6.57 / 6.07 / 5.45**, success **9.24 / 8.54 / 7.66**, star **9.85 / 9.11 / 8.17**.
+
+Every text tier clears AA (4.5) on every surface it is permitted to sit on. All values are in
+sRGB gamut — verified, no clipping.
+
+**Semantic mapping.** Unread = accent dot + sender at 600. Starred = star hue, filled glyph.
+Selected row = `--wren-fill-selected` (accent at 8% light / 14% dark), never a stroke.
+Hover = `--wren-fill-hover` (neutral, not accent).
+
+> **shadcn trap:** in shadcn, `--accent` is the *subtle hover fill*, not the brand colour.
+> Wren's brand accent maps to `--primary` and `--ring`. Do not use `bg-accent` for a brand element.
+
+---
+
+## 4. Type
+
+Two families, four weights total, five sizes total.
+
+- **Open Runde** — Medium 500, Semibold 600. UI chrome, headings, sender names, buttons, tabs,
+  numerals in chrome. Its rounded terminals are the typographic half of "cloud-soft".
+- **DM Sans** — Regular 400, Medium 500. Body copy, snippets, meta, timestamps, form values.
+
+`@font-face` blocks live in `tokens.css` with `font-display: swap`, pointing at the bundled
+`src/assets/fonts/open-runde/OpenRunde-{Regular,Medium,Semibold}.woff2` and
+`src/assets/fonts/dm-sans/DMSans-{Regular,Medium}.ttf`.
+
+| Token | Size | Line-height | Tracking | Use |
+|---|---|---|---|---|
+| `--text-xs` | 11.5px | 16px | +0.01em | timestamps, counts, keycaps, section headers |
+| `--text-sm` | 13px | 18px | 0 | snippets, secondary meta, table headers |
+| `--text-base` | 14px | 20px | −0.006em | UI default, sender names, buttons, menu items |
+| `--text-lg` | 15.5px | 24px | −0.011em | message body in the reading pane |
+| `--text-xl` | 21px | 27px | −0.018em | subject line, empty states, onboarding headline |
+
+Rules: `font-variant-numeric: tabular-nums` globally. `text-wrap: pretty` on prose,
+`text-wrap: balance` on headings under 3 lines. Reading-pane measure capped at **68ch**.
+Never use a weight below 400 or above 600. Never fake a weight.
+
+The size tokens live in `:root` as plain custom properties, named with Tailwind v4's
+`--text-*--line-height` convention. To get `text-sm` / `text-lg` *utilities* out of them, the
+shell lane lifts the same five declarations into a `@theme` block; nothing else changes.
+
+**Shell lane action:** `src/index.css` still imports `@fontsource-variable/inter` and pins
+`--font-sans` to Inter inside `@theme inline`. Remove that import and repoint the theme font to
+`var(--wren-font-body)` when wiring tokens.css. Also convert the two DM Sans `.ttf` files to
+subset `.woff2` — they are ~56 KB each as TTF and load unsubset today.
+
+---
+
+## 5. Spacing and pane measures
+
+**4 px grid. No exceptions.** Any value not divisible by 4 fails review, with two licensed
+exceptions: hairlines (1 px) and optical icon nudges (±1 px, documented at the call site).
+
+Steps: `--wren-space-1` 4 · `-2` 8 · `-3` 12 · `-4` 16 · `-5` 20 · `-6` 24 · `-8` 32 · `-10` 40 · `-12` 48 · `-16` 64.
+
+Pane measures, decided once:
+
+| Token | Value | Note |
+|---|---|---|
+| `--wren-titlebar-h` | 36px | Windows drag region; macOS traffic-light inset |
+| `--wren-toolbar-h` | 52px | per-pane header |
+| `--wren-sidebar-w` | 248px | |
+| `--wren-sidebar-w-collapsed` | 64px | icon rail |
+| `--wren-list-w` | 400px | default |
+| `--wren-list-w-min` / `-max` | 340px / 520px | resize clamp |
+| `--wren-row-h` | 68px | two-line message row |
+| `--wren-row-h-compact` | 52px | single-line row (search results, palette) |
+| `--wren-list-sender-w` | 152px | fixed sender column — the Superhuman lesson |
+| `--wren-pane-px` | 16px | list horizontal padding |
+| `--wren-read-px` | 32px | reading-pane horizontal padding |
+| `--wren-read-pt` | 24px | reading-pane top padding |
+| `--wren-read-measure` | 68ch | body max-width |
+| `--wren-avatar` | 32px | |
+| `--wren-icon-box` | 24px | fixed slot, `flex-shrink: 0` |
+| `--wren-hit` | 32px | minimum interactive box in chrome |
+
+---
+
+## 6. Radius, elevation, hairline
+
+**Radius** — generous, cloud. shadcn's `--radius` base is set to `1rem`, which derives its
+`sm/md/lg/xl/2xl` scale correctly. Wren adds explicit tokens:
+
+`--wren-radius-xs` 6 (chips, badges) · `-sm` 8 (inputs, small buttons) · `-md` 12 (buttons,
+menu items, avatars-as-squircle) · `-lg` 16 (cards, panes) · `-xl` 20 (sheets, popovers) ·
+`-2xl` 28 (command palette, onboarding cards) · `-full` 999.
+
+Nested radii must be concentric: inner = outer − padding. Never nest equal radii.
+
+**Elevation** — soft ambient only. Two-part shadows (a tight contact shadow plus a wide diffuse
+one), low alpha, tinted with the neutral hue so they never look grey-on-colour. No `0 4px 4px`
+hard drops. In dark mode shadows carry more alpha *and* gain a `inset 0 1px 0` top sheen,
+because a shadow alone does nothing against a dark canvas.
+
+`--wren-shadow-xs` → `-sm` → `-md` (menus) → `-lg` (popovers, toasts) → `-xl` (palette, sheets).
+
+**Hairline recipe.** Always exactly `1px`. Never `0.5px` — Windows WebView2 at 100% DPI rounds
+it to 0 or renders it blurry. Tune weight with *alpha*, not width. Row dividers use
+`box-shadow: inset 0 -1px 0 var(--wren-hairline)` so they never contribute to layout height;
+pane separators use a real `border-inline-end`.
+
+---
+
+## 7. Liquid glass
+
+### The position
+
+Apple's Liquid Glass adds true refraction — it distorts what sits behind it. On the web that
+requires an SVG `feDisplacementMap` fed into `backdrop-filter`, which **only Chromium exposes**.
+That would work in WebView2 and silently fail in WKWebView, and it costs a per-frame
+rasterization of the displaced backdrop.
+
+**Decision: Wren takes Liquid Glass's *material logic* — translucency, a specular edge, honest
+depth ordering — and rejects its *refraction implementation*.** Glass here is
+blur + saturate + edge sheen. No displacement maps. This ships identically on both engines.
+
+### Recipes
+
+`.glass` — menus, context menus, tooltips, toasts, the composer sheet:
+`backdrop-filter: blur(20px) saturate(180%)`, tint `oklch(1 0 0 / 0.72)` light /
+`oklch(0.262 0.015 268 / 0.68)` dark, `1px` inner light border, `inset 0 1px 0` sheen,
+`--wren-shadow-lg`.
+
+`.glass-strong` — command palette, onboarding cards:
+`backdrop-filter: blur(32px) saturate(190%)`, tint `oklch(1 0 0 / 0.82)` /
+`oklch(0.262 0.015 268 / 0.78)`, `--wren-shadow-xl`, plus a very low-opacity `feTurbulence`
+noise layer to kill gradient banding across the large blurred area.
+
+Both set `contain: paint` and `isolation: isolate` to bound rasterization and to stop a parent's
+`opacity`/`transform` from hijacking the backdrop root.
+
+### Where glass is allowed
+
+Command palette · composer sheet · context and dropdown menus · tooltips · toasts ·
+onboarding cards · the scrim behind a modal.
+
+### Where glass is banned
+
+**List rows stay solid.** So does the reading-pane body, the sidebar, every pane header, and any
+scroll container or any child of one. Never behind body copy. Never nested inside other glass.
+
+### WebView2 / WKWebView performance rules
+
+1. **Max 2 concurrent glass layers.** A palette over a scrim is the budget. A third is a bug.
+2. **Never on a scroll container, and never on a fixed element the page scrolls behind.** The
+   backdrop re-rasterizes every frame; this is the documented source of Chromium scroll flicker.
+3. **Never animate `backdrop-filter` or the blur radius.** Animate `opacity` and `transform`
+   only. Blur animation is the single most reliable way to drop frames.
+4. Keep the blurred area small. Blur cost scales with radius × area. Nothing over `blur(32px)`.
+5. Do not set `will-change: backdrop-filter` permanently — it pins a GPU layer for the life of
+   the element. Transient overlays do not need it.
+6. Beware stacking: a parent with `opacity < 1`, `filter`, or `mix-blend-mode` becomes the
+   backdrop root and the glass will blur the wrong thing. Glass mounts in a portal at the root.
+
+### Fallbacks
+
+```css
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass, .glass-strong { background: var(--wren-surface-raised); }
+}
+@media (prefers-reduced-transparency: reduce) { /* opaque raised surface, no blur */ }
+@media (prefers-contrast: more) { /* opaque + full-strength hairline */ }
+```
+
+All three collapse to the same thing: an opaque `raised` surface with the same shadow and radius.
+The layout never changes — only the material does.
+
+---
+
+## 8. Icons
+
+Anron eventually; **lucide-react** tuned to approximate its rounded geometry in the interim.
+
+- **Size grid: 16 / 18 / 20.** 16 inline with text and meta, 18 default for toolbars and menus,
+  20 for sidebar nav and primary actions. Never 24 in chrome.
+- **Stroke width 1.75** at 16 and 18; **1.5** at 20. Lucide's default 2 reads hard and mechanical
+  next to Open Runde's soft terminals.
+- `stroke-linecap: round`, `stroke-linejoin: round`, `vector-effect: non-scaling-stroke`.
+- Every icon sits in a fixed `--wren-icon-box` (24px) slot with `flex-shrink: 0`, so rows align
+  regardless of glyph width. Centre optically, not mathematically — chevrons and play triangles
+  get a documented ±1 px nudge.
+- Icons inherit the text tier they sit in. The only accent-coloured icons are active nav and the
+  unread dot. Star uses the star hue.
+
+**Icon seam.** Every icon in the app is imported from a single `src/components/ui/icon.tsx`
+mapping semantic names (`archive`, `snooze`, `unread`) to lucide components. No component
+imports from `lucide-react` directly. The Anron swap is then a one-file change.
+
+---
+
+## 9. Motion
+
+Three durations, two easings, one spring.
+
+| Token | Value | Applies to |
+|---|---|---|
+| `--wren-dur-fast` | 120ms | hover, press, colour and fill changes, focus ring |
+| `--wren-dur-base` | 200ms | menus, tooltips, tab switches, toasts |
+| `--wren-dur-slow` | 320ms | sheets, command palette, pane transitions |
+
+| Token | Curve | Applies to |
+|---|---|---|
+| `--wren-ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | entrances and nearly everything else |
+| `--wren-ease-in-out` | `cubic-bezier(0.65, 0, 0.35, 1)` | movement between two on-screen states |
+
+**Spring** (command palette scale-in, composer sheet): Motion config
+`{ type: 'spring', stiffness: 420, damping: 34, mass: 0.9 }`. CSS approximation
+`--wren-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1)`. One spring in the whole app; if a second
+is proposed, the answer is no.
+
+Exits run at **0.7×** the entrance duration with `ease-in`. Palette enters at
+`opacity 0 → 1, scale 0.96 → 1, translateY 8px → 0`.
+
+**Reduced motion.** Under `prefers-reduced-motion: reduce`, all transform and size animation is
+removed; a 120 ms opacity crossfade is retained, because an instant cut is its own kind of
+jarring. Focus-ring transitions are never removed.
+
+---
+
+## 10. Do / don't — the shell lane gate
+
+1. **Do** put every measurement on the 4 px grid. Hairlines and documented optical nudges are the
+   only exceptions. A stray `13px` padding fails review.
+2. **Don't** ship a left accent sliver, stripe, or bar on any row or card, ever. Use a wash plus
+   top/bottom hairlines, or a dot in the gutter.
+3. **Don't** carry over any MetaDAO styling, token, colour, or component. Everything here derives
+   from the reference set.
+4. **Do** keep list rows fully opaque. Glass is for floating surfaces only.
+5. **Don't** exceed two concurrent glass layers, or put glass on anything that scrolls.
+6. **Do** use `--primary` for the brand accent. `--accent` is shadcn's hover fill — different thing.
+7. **Do** give every list a fixed sender column so subjects align at the same x.
+8. **Do** set `tabular-nums` on every number that can change: times, counts, sizes.
+9. **Don't** introduce a second accent hue, a gradient surface, or a density toggle.
+10. **Do** import icons only from `src/components/ui/icon.tsx`, so the Anron swap stays one file.
