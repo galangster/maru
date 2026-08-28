@@ -1,15 +1,82 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter";
+/* The design law. Owns every :root / .dark custom property, the @font-face
+   blocks, the glass recipe and the base typography. Imported last so its
+   unlayered :root wins over the shadcn defaults that ship above. */
+@import "./styles/tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* Lifts the tokens that need Tailwind *utilities* out of tokens.css.
+   `inline` means utilities carry the value, not a var() reference, so a token
+   redefined under .dark still resolves through the --wren-* variable it points
+   at. Nothing here invents a value: every one is DIRECTION.md §3–§9. */
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans:
-        'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-        sans-serif;
+    /* Type: DIRECTION §4. Open Runde is the UI face, DM Sans the body face. */
+    --font-sans: var(--wren-font-body);
+    --font-heading: var(--wren-font-ui);
+    --font-ui: var(--wren-font-ui);
+    --font-body: var(--wren-font-body);
+
+    --text-xs: 0.71875rem; /* 11.5px */
+    --text-xs--line-height: 1rem; /* 16px */
+    --text-xs--letter-spacing: 0.01em;
+    --text-sm: 0.8125rem; /* 13px */
+    --text-sm--line-height: 1.125rem; /* 18px */
+    --text-sm--letter-spacing: 0em;
+    --text-base: 0.875rem; /* 14px */
+    --text-base--line-height: 1.25rem; /* 20px */
+    --text-base--letter-spacing: -0.006em;
+    --text-lg: 0.96875rem; /* 15.5px */
+    --text-lg--line-height: 1.5rem; /* 24px */
+    --text-lg--letter-spacing: -0.011em;
+    --text-xl: 1.3125rem; /* 21px */
+    --text-xl--line-height: 1.6875rem; /* 27px */
+    --text-xl--letter-spacing: -0.018em;
+
+    /* Radius: DIRECTION §6. Explicit values, not calc() off --radius, so the
+       scale stays on the documented steps instead of 9.6px / 12.8px. */
+    --radius-xs: var(--wren-radius-xs);
+    --radius-sm: var(--wren-radius-sm);
+    --radius-md: var(--wren-radius-md);
+    --radius-lg: var(--wren-radius-lg);
+    --radius-xl: var(--wren-radius-xl);
+    --radius-2xl: var(--wren-radius-2xl);
+
+    /* Elevation: DIRECTION §6, soft ambient only. */
+    --shadow-xs: var(--wren-shadow-xs);
+    --shadow-sm: var(--wren-shadow-sm);
+    --shadow-md: var(--wren-shadow-md);
+    --shadow-lg: var(--wren-shadow-lg);
+    --shadow-xl: var(--wren-shadow-xl);
+
+    /* Motion: DIRECTION §9. */
+    --ease-out: var(--wren-ease-out);
+    --ease-in-out: var(--wren-ease-in-out);
+    --default-transition-duration: var(--wren-dur-fast);
+    --default-transition-timing-function: var(--wren-ease-out);
+
+    /* Wren surfaces and text tiers as utilities. Named for what they are, so
+       `bg-surface` / `text-ink-2` read as the system, not as hex. */
+    --color-canvas: var(--wren-surface-base);
+    --color-sunken: var(--wren-surface-sunken);
+    --color-surface: var(--wren-surface);
+    --color-raised: var(--wren-surface-raised);
+    --color-hairline: var(--wren-hairline);
+    --color-hairline-strong: var(--wren-hairline-strong);
+    --color-ink: var(--wren-text-1);
+    --color-ink-2: var(--wren-text-2);
+    --color-ink-3: var(--wren-text-3);
+    --color-brand: var(--wren-accent);
+    --color-brand-hover: var(--wren-accent-hover);
+    --color-star: var(--wren-star);
+    --color-success: var(--wren-success);
+    --color-fill-hover: var(--wren-fill-hover);
+    --color-fill-active: var(--wren-fill-active);
+    --color-fill-selected: var(--wren-fill-selected);
+
+    /* shadcn bridge — unchanged names, now pointing at the Wren tokens. */
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -41,92 +108,47 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-:root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+    * {
+        @apply border-border outline-ring/50;
     }
-  body {
-    @apply bg-background text-foreground;
+    html,
+    body,
+    #root {
+        height: 100%;
     }
-  html {
-    @apply font-sans;
+    body {
+        @apply bg-background text-foreground;
+        overflow: hidden; /* the panes own their own scrolling */
     }
+
+    /* Quiet scrollbars. The list and the reading pane are the only scrollers,
+       and neither should announce itself with a chrome-grey trough. */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--wren-hairline-strong) transparent;
+    }
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: var(--wren-hairline-strong);
+        border-radius: var(--wren-radius-full);
+    }
+}
+
+/* Deterministic captures: ?screenshot=1 adds .screenshot to <html>. Motion is
+   removed outright so a frame is never grabbed mid-transition. */
+.screenshot *,
+.screenshot *::before,
+.screenshot *::after {
+    animation: none !important;
+    transition: none !important;
+    caret-color: transparent !important;
 }

@@ -16,7 +16,9 @@
    1. Fonts
    Open Runde  — UI chrome, headings, sender names, buttons.  500 / 600
    DM Sans     — body, snippets, meta.                        400 / 500
-   TODO(shell): subset the DM Sans TTFs to woff2 (~56 KB each unsubset today).
+   The DM Sans woff2 files are generated from the shipped TTFs by
+   `node scripts/build-fonts.mjs` (56 KB -> 22 KB each). Re-run it if the
+   source TTFs are ever replaced.
    -------------------------------------------------------------------------- */
 
 @font-face {
@@ -42,14 +44,14 @@
 }
 @font-face {
     font-family: 'DM Sans';
-    src: url('../assets/fonts/dm-sans/DMSans-Regular.ttf') format('truetype');
+    src: url('../assets/fonts/dm-sans/DMSans-Regular.woff2') format('woff2');
     font-weight: 400;
     font-style: normal;
     font-display: swap;
 }
 @font-face {
     font-family: 'DM Sans';
-    src: url('../assets/fonts/dm-sans/DMSans-Medium.ttf') format('truetype');
+    src: url('../assets/fonts/dm-sans/DMSans-Medium.woff2') format('woff2');
     font-weight: 500;
     font-style: normal;
     font-display: swap;
