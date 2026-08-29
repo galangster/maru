@@ -91,12 +91,18 @@ async function notify(platform: Platform | null, from: string, subject: string):
 
 /** Tauri: clicking the toast brings Wren forward. */
 async function listenForClicks(): Promise<() => void> {
-  const [{ onAction }, { getCurrentWindow }] = await Promise.all([
-    import('@tauri-apps/plugin-notification'),
-    import('@tauri-apps/api/window'),
-  ])
-  const listener = await onAction(() => {
-    void getCurrentWindow().setFocus()
-  })
-  return () => listener.unregister()
+  // onAction is mobile-only: on desktop the register_listener command does
+  // not exist and the call rejects. Fall back to the OS default click.
+  try {
+    const [{ onAction }, { getCurrentWindow }] = await Promise.all([
+      import('@tauri-apps/plugin-notification'),
+      import('@tauri-apps/api/window'),
+    ])
+    const listener = await onAction(() => {
+      void getCurrentWindow().setFocus()
+    })
+    return () => listener.unregister()
+  } catch {
+    return () => {}
+  }
 }

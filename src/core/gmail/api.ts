@@ -5,8 +5,12 @@
 //   2. auth           — bearer token, one single-flight refresh on a 401
 //   3. backoff        — exponential + jitter on 429/5xx, at most 5 tries
 //
-// Multi-item reads go through the batch endpoint in chunks of 50. Google
-// allows 100 per batch but explicitly recommends staying at or under 50.
+// Multi-item reads go through the batch endpoint in small chunks. Google
+// allows 100 per batch, but inner requests execute near-simultaneously and
+// the burst is what trips the per-user rate limiter: a 50-thread chunk of
+// threads.get costs 2,000 units in one instant (40 each, 2026-05 table) and
+// drew persistent inner 429s against a live mailbox. Ten per chunk keeps
+// bursts at 400 units.
 
 import type { Platform } from '../platform'
 import { decodeBase64Url } from './mapping'
@@ -34,7 +38,9 @@ import type {
 
 export const GMAIL_BASE_URL = 'https://gmail.googleapis.com'
 export const BATCH_ENDPOINT = '/batch/gmail/v1'
-export const MAX_BATCH_SIZE = 50
+export const MAX_BATCH_SIZE = 10
+/** Rounds of retry for inner-throttled batch parts before giving up. */
+export const BATCH_RETRY_ROUNDS = 4
 
 /**
  * Quota units per method, from Google's quota reference after the 2026-05-01
@@ -285,42 +291,64 @@ export class GmailApi {
   ): Promise<(T | null)[]> {
     const results: (T | null)[] = new Array(paths.length).fill(null)
 
-    for (const [chunkIndex, group] of chunk(paths, MAX_BATCH_SIZE).entries()) {
-      const offset = chunkIndex * MAX_BATCH_SIZE
-      const boundary = `batch_wren_${Date.now().toString(36)}_${chunkIndex}`
-      const body =
-        group
-          .map(
-            (path, i) =>
-              `--${boundary}\r\n` +
-              'Content-Type: application/http\r\n' +
-              `Content-ID: <item-${i}>\r\n\r\n` +
-              `GET ${path}\r\n\r\n`,
-          )
-          .join('') + `--${boundary}--\r\n`
+    // Work list of [original index, path]. Inner 429/5xx parts are retried
+    // alone in later rounds — replaying a whole chunk for one throttled part
+    // re-trips Gmail's per-user rate limiter and starved the live backfill.
+    let pending: Array<[number, string]> = paths.map((path, i) => [i, path])
 
-      const res = await this.request(unitCost * group.length, `${this.baseUrl}${BATCH_ENDPOINT}`, {
-        method: 'POST',
-        headers: { 'content-type': `multipart/mixed; boundary=${boundary}` },
-        body,
-      })
+    for (let round = 0; pending.length > 0; round++) {
+      if (round > BATCH_RETRY_ROUNDS) {
+        throw new HttpError(
+          429,
+          `batch still throttled after ${BATCH_RETRY_ROUNDS} retry rounds (${pending.length} items left)`,
+          '',
+          `${this.baseUrl}${BATCH_ENDPOINT}`,
+        )
+      }
+      if (round > 0) {
+        const nominal = 1_000 * 2 ** (round - 1)
+        await this.clock.sleep(Math.round(nominal * (0.5 + 0.5 * this.random())))
+      }
 
-      const responseBoundary = boundaryFromContentType(res.headers.get('content-type')) ?? boundary
-      const text = await res.text()
-      for (const part of parseBatchResponse(text, responseBoundary)) {
-        const index = Number(part.contentId.replace(/^item-/, ''))
-        if (!Number.isInteger(index) || index < 0 || index >= group.length) continue
-        if (part.status === 429 || part.status >= 500) {
-          // Throttling inside a batch: let the outer backoff replay the batch.
-          throw new HttpError(part.status, 'batch inner error', part.body, `${this.baseUrl}${BATCH_ENDPOINT}`)
-        }
-        if (part.status !== 200) continue // 404 = deleted since listing; skip it
-        try {
-          results[offset + index] = JSON.parse(part.body) as T
-        } catch {
-          results[offset + index] = null
+      const failed: Array<[number, string]> = []
+      for (const group of chunk(pending, MAX_BATCH_SIZE)) {
+        const boundary = `batch_wren_${this.clock.now().toString(36)}_${round}`
+        const body =
+          group
+            .map(
+              ([, path], i) =>
+                `--${boundary}\r\n` +
+                'Content-Type: application/http\r\n' +
+                `Content-ID: <item-${i}>\r\n\r\n` +
+                `GET ${path}\r\n\r\n`,
+            )
+            .join('') + `--${boundary}--\r\n`
+
+        const res = await this.request(unitCost * group.length, `${this.baseUrl}${BATCH_ENDPOINT}`, {
+          method: 'POST',
+          headers: { 'content-type': `multipart/mixed; boundary=${boundary}` },
+          body,
+        })
+
+        const responseBoundary = boundaryFromContentType(res.headers.get('content-type')) ?? boundary
+        const text = await res.text()
+        for (const part of parseBatchResponse(text, responseBoundary)) {
+          const local = Number(part.contentId.replace(/^item-/, ''))
+          if (!Number.isInteger(local) || local < 0 || local >= group.length) continue
+          const entry = group[local]
+          if (part.status === 429 || part.status >= 500) {
+            failed.push(entry)
+            continue
+          }
+          if (part.status !== 200) continue // 404 = deleted since listing; skip it
+          try {
+            results[entry[0]] = JSON.parse(part.body) as T
+          } catch {
+            results[entry[0]] = null
+          }
         }
       }
+      pending = failed
     }
     return results
   }

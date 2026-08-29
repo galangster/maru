@@ -190,6 +190,10 @@ export class SyncEngine {
       this.emit({ type: 'threadsChanged', accountId: this.accountId })
       this.status('idle', { lastSyncAt: this.now() })
     } catch (err) {
+      // Surfaces in the dev log; the UI only shows a short status string.
+      const detail =
+        err instanceof Error ? `${err.name} | ${err.message} | ${err.stack?.split('\n')[1] ?? ''}` : JSON.stringify(err)
+      console.error('[wren] backfill failed:', detail)
       this.failed(err)
       throw err
     }

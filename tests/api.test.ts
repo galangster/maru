@@ -105,7 +105,7 @@ describe('request building', () => {
 })
 
 describe('batch endpoint', () => {
-  it('splits more than 50 ids into separate batch posts', async () => {
+  it('splits ids into MAX_BATCH_SIZE chunks of separate batch posts', async () => {
     const p = new NodePlatform()
     const ids = Array.from({ length: 120 }, (_, i) => `m${i}`)
     let batchIndex = 0
@@ -122,7 +122,7 @@ describe('batch endpoint', () => {
     }
 
     const out = await api(p).batchGetMessages(ids, 'metadata')
-    expect(p.requests).toHaveLength(3)
+    expect(p.requests).toHaveLength(12)
     expect(p.requests[0].url).toBe('https://gmail.googleapis.com/batch/gmail/v1')
     expect(p.requests[0].headers['content-type']).toMatch(/^multipart\/mixed; boundary=/)
     expect(out).toHaveLength(120)
