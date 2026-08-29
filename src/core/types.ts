@@ -141,6 +141,14 @@ export interface Settings {
   googleClientSecret?: string
   imagePolicy: 'block' | 'allow'
   pollIntervalSec: number // default 60
+  /**
+   * Interface sounds. Off by default, on purpose: Wren's most frequent cue is
+   * new mail, which is unsolicited, can fire many times an hour, and Wren is
+   * read in meetings and open offices. Ship it excellent and opt-in rather than
+   * asking everyone to opt out of something that surprised them once in a quiet
+   * room. See docs/design/SOUNDS.md §3.
+   */
+  sounds: boolean // default false
 }
 
 export interface ListThreadsOptions {

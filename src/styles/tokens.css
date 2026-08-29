@@ -194,7 +194,9 @@
     --wren-glass-tint: oklch(0.262 0.015 268 / 0.68);
     --wren-glass-tint-strong: oklch(0.262 0.015 268 / 0.78);
     --wren-glass-edge: oklch(1 0 0 / 0.1);
-    --wren-glass-sheen: oklch(1 0 0 / 0.08);
+    /* Raised from 0.08: against a dark canvas a shadow stack does nothing, so
+       the ring *is* the depth (MAGIC §3.10, `surfaces` §3 dark-mode rings). */
+    --wren-glass-sheen: oklch(1 0 0 / 0.12);
 
     /* Dark shadows need more alpha; the top sheen does the real lifting. */
     --wren-shadow-xs: 0 1px 2px oklch(0 0 0 / 0.3);
@@ -318,6 +320,13 @@
     --wren-dur-fast: 120ms;
     --wren-dur-base: 200ms;
     --wren-dur-slow: 320ms;
+    /* Below DIRECTION §9's three durations on purpose, and only for surfaces
+       summoned by muscle memory a hundred times a day — the command palette.
+       UI-REVIEW-2026-08-28 S1 measured the 200 ms spring entrance as lag on
+       that surface rather than as feedback; anything a keyboard user opens
+       reflexively has to be there before they look. Opacity only at this
+       duration: 80 ms is too short to read a transform as motion. */
+    --wren-dur-instant: 80ms;
     /* Exits run at 0.7x the entrance, so leaving never reads as an entrance
        played backwards. */
     --wren-dur-exit: 140ms;
@@ -360,9 +369,14 @@
     background-color: var(--wren-glass-tint);
     border: 1px solid var(--wren-glass-edge);
     border-radius: var(--wren-radius-xl);
+    /* Two lit surfaces, not one: the top sheen says light is falling on the
+       slab, and a counter-edge at half strength along the bottom says the slab
+       has a thickness. MAGIC §3.10 — 1 px of edge treatment, no gradient
+       surface, and nothing here animates. */
     box-shadow:
         var(--wren-shadow-lg),
-        inset 0 1px 0 var(--wren-glass-sheen);
+        inset 0 1px 0 var(--wren-glass-sheen),
+        inset 0 -1px 0 color-mix(in oklab, var(--wren-glass-sheen) 50%, transparent);
     /* Bound rasterization, and stop a parent's opacity/transform from
        hijacking the backdrop root. Mount glass in a portal at the root. */
     contain: paint;
@@ -374,7 +388,8 @@
     border-radius: var(--wren-radius-2xl);
     box-shadow:
         var(--wren-shadow-xl),
-        inset 0 1px 0 var(--wren-glass-sheen);
+        inset 0 1px 0 var(--wren-glass-sheen),
+        inset 0 -1px 0 color-mix(in oklab, var(--wren-glass-sheen) 50%, transparent);
 }
 
 /* Noise sits above the tint, below content. .glass-strong only — the large
@@ -460,6 +475,11 @@
         letter-spacing: var(--text-base--letter-spacing);
         /* Times, counts and sizes must not shimmer on refresh. */
         font-variant-numeric: tabular-nums;
+        /* DIRECTION §4 ends with "Never fake a weight" and nothing enforced it.
+           DM Sans is loaded at 400 and 500 only, so a `font-semibold` on body
+           copy — including inside arbitrary third-party mail markup — used to
+           get a synthesized faux-bold. It now fails visibly instead. */
+        font-synthesis: none;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         text-rendering: optimizeLegibility;

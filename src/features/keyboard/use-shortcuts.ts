@@ -26,6 +26,7 @@ import { keys as queryKeys, usePerformAction } from '@/features/mail/queries'
 import { threadActions } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
+import { playSound } from '@/lib/sound'
 
 import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
 
@@ -70,7 +71,10 @@ export function useShortcuts() {
       const index = list.findIndex((t) => t.key === selected)
       const next = index === -1 ? (delta > 0 ? 0 : list.length - 1) : index + delta
       const thread = list[Math.min(Math.max(next, 0), list.length - 1)]
-      setSelected(thread.key)
+      // Traversal, not a jump: the reading pane cuts straight to the new thread
+      // rather than crossfading. Held j down a mailbox, a 200 ms fade per row
+      // reads as lag, and the content is legible before it finishes (S1).
+      setSelected(thread.key, 'keyboard')
       if (thread.unread) live.current.markRead(thread.key)
     }
 
@@ -123,10 +127,26 @@ export function useShortcuts() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.altKey) return
 
-      // The palette answers from anywhere, including a text field.
+      // The palette answers from anywhere, including a text field — but it
+      // *replaces* whatever surface is up rather than landing on top of it.
+      //
+      // Opening the shortcut sheet and pressing ⌘K used to leave two
+      // role="dialog" nodes at the same z-index with overlapping rectangles,
+      // two glass layers and two scrims: focus containment between them is
+      // undefined and DIRECTION §7 rule 1 calls a third glass layer "a bug"
+      // (UI-REVIEW-2026-08-28 B2). The composer already solved this by dropping
+      // its blur while a dialog is open; only the palette broke the rule.
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        useSurfaces.getState().setPalette(!useSurfaces.getState().palette)
+        const surfaces = useSurfaces.getState()
+        if (surfaces.settings || surfaces.shortcuts || surfaces.onboarding) {
+          useSurfaces.setState({ settings: null, shortcuts: false, onboarding: false })
+        }
+        const opening = !surfaces.palette
+        surfaces.setPalette(opening)
+        // A near-subliminal tick on open only — 3 ms of texture, not a sound
+        // (SOUNDS.md §2). Closing is not an arrival and gets nothing.
+        if (opening) playSound('palette')
         return
       }
 

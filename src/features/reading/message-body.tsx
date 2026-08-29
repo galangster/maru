@@ -51,6 +51,41 @@ function sanitizeCached(
   return result
 }
 
+/**
+ * Last measured height per message id.
+ *
+ * Every frame used to mount at a flat 120 px and jump to its measured height
+ * once the ResizeObserver fired — a several-hundred-pixel shift after paint on
+ * a long message, taking the reply tiles below it with it (S6). Re-opening a
+ * thread now starts at the height it ended at, and a message never seen before
+ * starts at an estimate from its own body length rather than at a constant.
+ *
+ * Bounded and oldest-out, alongside the sanitize cache and for the same reason.
+ */
+const HEIGHT_CACHE_LIMIT = 256
+const heights = new Map<string, number>()
+
+function rememberHeight(messageId: string, height: number): void {
+  if (heights.size >= HEIGHT_CACHE_LIMIT && !heights.has(messageId)) {
+    const oldest = heights.keys().next().value
+    if (oldest !== undefined) heights.delete(oldest)
+  }
+  heights.set(messageId, height)
+}
+
+/**
+ * A first guess from data. Mail bodies are mostly text at ~90 characters to a
+ * 24 px line inside the 68ch measure; markup inflates the raw length, so the
+ * divisor is deliberately generous and the result is clamped. Wrong by a little
+ * beats wrong by three hundred pixels.
+ */
+function estimateHeight(message: Message): number {
+  const known = heights.get(message.id)
+  if (known !== undefined) return known
+  const length = (message.bodyText ?? message.bodyHtml ?? message.snippet ?? '').length
+  return Math.min(720, Math.max(120, Math.ceil(length / 90) * 24 + 48))
+}
+
 /** cid: sources resolve from the message's own inline attachments. */
 function useInlineImages(threadKey: string, message: Message, needed: boolean) {
   const service = useMailService()
@@ -87,7 +122,7 @@ export function MessageBody({
   const raw = message.bodyHtml ?? escapeText(message.bodyText ?? '')
   const inlineImages = useInlineImages(threadKey, message, raw.includes('cid:'))
   const frameRef = useRef<HTMLIFrameElement>(null)
-  const [height, setHeight] = useState(120)
+  const [height, setHeight] = useState(() => estimateHeight(message))
 
   const { html, blockedImages } = useMemo(
     () =>
@@ -116,17 +151,17 @@ export function MessageBody({
         // documentElement.scrollHeight, so take the tallest honest metric.
         const root = doc.documentElement
         const body = doc.body
-        setHeight(
-          Math.ceil(
-            Math.max(
-              root.scrollHeight,
-              root.offsetHeight,
-              body?.scrollHeight ?? 0,
-              body?.offsetHeight ?? 0,
-              body?.getBoundingClientRect().height ?? 0,
-            ),
+        const measured = Math.ceil(
+          Math.max(
+            root.scrollHeight,
+            root.offsetHeight,
+            body?.scrollHeight ?? 0,
+            body?.offsetHeight ?? 0,
+            body?.getBoundingClientRect().height ?? 0,
           ),
         )
+        rememberHeight(message.id, measured)
+        setHeight(measured)
       }
       measure()
       observer = new ResizeObserver(measure)
@@ -153,7 +188,7 @@ export function MessageBody({
       observer?.disconnect()
       frame.contentDocument?.removeEventListener('click', onClick)
     }
-  }, [srcDoc])
+  }, [srcDoc, message.id])
 
   return (
     <iframe
@@ -162,8 +197,17 @@ export function MessageBody({
       sandbox="allow-same-origin"
       referrerPolicy="no-referrer"
       srcDoc={srcDoc}
-      // The body always renders on paper — see buildSrcdoc().
-      className="block w-full rounded-md bg-white"
+      // An iframe is focusable by default, and this one had no focus indicator
+      // and — because keydown inside a same-origin frame never reaches the
+      // parent window — swallowed every shortcut in the app with no visible
+      // reason (N10). It is content, not a control.
+      tabIndex={-1}
+      // The body always renders on paper — see buildSrcdoc(). `rounded-sm`,
+      // not `rounded-md`: the card is `rounded-lg` (16) at `p-4` (16), so
+      // DIRECTION §6's concentric rule (inner = outer − padding) puts the
+      // frame at 0 — but a hard-cornered white slab inside a cloud-soft card
+      // reads as a hole, so it takes the smallest step on the scale (N2).
+      className="block w-full rounded-sm bg-white"
       style={{ height }}
     />
   )

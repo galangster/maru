@@ -8,6 +8,15 @@ import { viewOverride } from '@/lib/env'
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
 
+/**
+ * How the current thread came to be selected.
+ *
+ * `keyboard` means j/k traversal — a 100+/day action that gets no motion at
+ * all. `pointer` covers a click and a palette jump: rare enough that the
+ * reading pane is licensed to animate its arrival (UI-REVIEW S1, MAGIC §3.8).
+ */
+export type SelectionSource = 'keyboard' | 'pointer'
+
 /** Stable string for a view — query keys, selection resets, DOM hooks. */
 export function viewKey(view: MailView): string {
   return view.kind === 'unified' ? view.folder : `account:${view.accountId}:${view.labelId}`
@@ -21,6 +30,7 @@ const INITIAL_VIEW: MailView = viewOverride() ?? { kind: 'unified', folder: 'inb
 interface UiState {
   view: MailView
   selected: string | null
+  selectionSource: SelectionSource
   theme: ThemeChoice
   sidebarCollapsed: boolean
   /** Account sections start collapsed — DIRECTION's sidebar spec. */
@@ -29,7 +39,7 @@ interface UiState {
   imagesAllowed: Set<string>
 
   setView: (view: MailView) => void
-  setSelected: (key: string | null) => void
+  setSelected: (key: string | null, source?: SelectionSource) => void
   setTheme: (theme: ThemeChoice) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleAccount: (accountId: string) => void
@@ -39,6 +49,7 @@ interface UiState {
 export const useUi = create<UiState>((set) => ({
   view: INITIAL_VIEW,
   selected: null,
+  selectionSource: 'pointer',
   theme: 'system',
   sidebarCollapsed: false,
   expandedAccounts:
@@ -57,7 +68,7 @@ export const useUi = create<UiState>((set) => ({
           ? { ...s.expandedAccounts, [view.accountId]: true }
           : s.expandedAccounts,
     })),
-  setSelected: (selected) => set({ selected }),
+  setSelected: (selected, selectionSource = 'pointer') => set({ selected, selectionSource }),
   setTheme: (theme) => set({ theme }),
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
   toggleAccount: (accountId) =>

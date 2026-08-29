@@ -54,6 +54,11 @@ export function CommandPalette() {
       <DialogContent
         showCloseButton={false}
         aria-label="Command palette"
+        // Opts this one dialog out of the 200 ms spring entrance every other
+        // surface gets. See features/shell/surfaces.css: the palette is a
+        // 100+/day keyboard surface and has to be there before the user looks
+        // (UI-REVIEW-2026-08-28 S1).
+        data-wren-surface="palette"
         className="glass-strong top-[16%] flex w-[600px] max-w-[calc(100%-2rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 ring-0 sm:max-w-[600px]"
       >
         <DialogTitle className="sr-only">Command palette</DialogTitle>
@@ -96,7 +101,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const openThread = (thread: Thread) =>
     run(() => {
       setView(viewForThread(thread))
-      setSelected(thread.key)
+      // A jump, not traversal: the reading pane may animate its arrival.
+      setSelected(thread.key, 'pointer')
     })
 
   const goTo = (next: MailView) => run(() => setView(next))

@@ -133,7 +133,13 @@ export function Icon({ name, size = 18, filled = false, className, ...props }: I
       strokeLinecap="round"
       strokeLinejoin="round"
       fill={filled ? 'currentColor' : 'none'}
-      className={cn('shrink-0 [&_*]:[vector-effect:non-scaling-stroke]', className)}
+      // No `vector-effect: non-scaling-stroke`. DIRECTION §8 asks for it, but
+      // it is what made a 16 px glyph scaled down by CSS keep a 1.75 stroke on
+      // a 12 px box — ~33% heavier than every other icon in the app
+      // (UI-REVIEW-2026-08-28 S9). With the stroke scaling with the viewBox,
+      // an off-grid glyph now reads *lighter* rather than heavier, which fails
+      // quietly instead of loudly; the call sites that forced one are gone.
+      className={cn('shrink-0', className)}
       {...props}
     />
   )

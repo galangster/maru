@@ -5,7 +5,7 @@
 import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
-import { IconButton } from '@/components/wren-controls'
+import { IconButton, Keycap, PRESS } from '@/components/wren-controls'
 import type { Message, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import type { ReplyMode } from '@/lib/compose'
@@ -14,7 +14,7 @@ import { threadActions, type ThreadActionId } from '@/features/mail/thread-actio
 import { useUi } from '@/features/mail/ui-store'
 import { EmptyState } from '@/features/list/empty-state'
 import { displayName } from '@/lib/format'
-import { crossfadePreset, useMotionMode } from '@/lib/motion'
+import { crossfadePreset, staggerPreset, stillPreset, useMotionMode } from '@/lib/motion'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +22,7 @@ import { MessageCard } from './message-card'
 
 export function ReadingPane() {
   const selectedKey = useUi((s) => s.selected)
+  const selectionSource = useUi((s) => s.selectionSource)
   const imagesAllowed = useUi((s) => s.imagesAllowed)
   const allowImages = useUi((s) => s.allowImages)
   const now = useNow()
@@ -30,7 +31,13 @@ export function ReadingPane() {
   const { byId: accountsById } = useAccountsById()
   const action = usePerformAction()
   const mode = useMotionMode()
-  const fade = crossfadePreset(mode)
+  // j/k traversal is the highest-frequency action in the app and gets nothing.
+  // A click or a palette jump is rare enough to arrive: the sender line resolves
+  // one 40 ms stagger step before the body, so the eye lands on *who* before
+  // *what* (MAGIC §3.8).
+  const traversing = selectionSource === 'keyboard'
+  const fade = traversing ? stillPreset() : crossfadePreset(mode)
+  const { step } = staggerPreset(mode)
 
   const thread = detail.data?.thread
   const labels = useLabels(thread?.accountId)
@@ -79,6 +86,7 @@ export function ReadingPane() {
               key={spec.id}
               name={spec.icon}
               label={spec.label}
+              hint={spec.hint}
               tone={spec.tone}
               filled={spec.filled}
               pop={spec.pop}
@@ -103,7 +111,12 @@ export function ReadingPane() {
         >
           <ThreadHeader thread={thread} messages={messages} chips={chips.map((l) => l.name)} />
 
-          <div className="mt-6 flex flex-col gap-2">
+          <motion.div
+            initial={fade.initial}
+            animate={fade.animate}
+            transition={{ ...fade.transition, delay: traversing ? 0 : step }}
+            className="mt-6 flex flex-col gap-2"
+          >
             {messages.map((message, index) => (
               <MessageCard
                 key={message.id}
@@ -116,7 +129,7 @@ export function ReadingPane() {
                 onAllowImages={() => allowImages(thread.key)}
               />
             ))}
-          </div>
+          </motion.div>
 
           <ReplyBar />
         </motion.div>
@@ -179,18 +192,22 @@ function ReplyBar() {
   return (
     <div className="mt-4 grid grid-cols-3 gap-2">
       {tiles.map((tile) => (
+        // The shortcut is printed, not hidden in a `title`. These three hints
+        // were discoverable by hover alone and never on keyboard focus (S12);
+        // the tiles are 40 px tall and have the room for a keycap.
         <button
           key={tile.label}
           type="button"
-          title={`${tile.label} (${tile.hint})`}
           onClick={() => replyToSelected(tile.mode)}
           className={cn(
             'bg-surface text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 flex h-10 items-center justify-center gap-2 rounded-md text-base outline-none shadow-xs',
-            'font-ui font-medium transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3',
+            'font-ui font-medium transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3',
+            PRESS,
           )}
         >
           <Icon name={tile.icon} size={16} />
           {tile.label}
+          <Keycap>{tile.hint}</Keycap>
         </button>
       ))}
     </div>

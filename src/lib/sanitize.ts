@@ -113,6 +113,9 @@ export function buildSrcdoc(bodyHtml: string): string {
     line-height: 24px;
     color: #1A1E28;
     overflow-wrap: break-word;
+    /* Mail is arbitrary third-party markup and will ask for weights the frame
+       does not have. DIRECTION §4: never fake a weight — fail visibly. */
+    font-synthesis: none;
     -webkit-font-smoothing: antialiased;
   }
   * { max-width: 100%; }

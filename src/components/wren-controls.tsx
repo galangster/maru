@@ -6,6 +6,7 @@
 import { useState, type CSSProperties } from 'react'
 
 import { Icon, type IconName, type IconSize } from '@/components/ui/icon'
+import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
 import type { EmailAddress } from '@/core/types'
 import { initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -19,9 +20,22 @@ const TONES: Record<Tone, string> = {
   danger: 'text-ink-3 hover:text-destructive',
 }
 
+/**
+ * Press feedback — MAGIC §3.2. Exactly 0.96, never below 0.95, and only on the
+ * pointer: a button activated from the keyboard already reports itself through
+ * the focus ring, and scaling it there would put motion on a path the audit
+ * rules must stay at zero cost. `:focus-visible:active` carries one more
+ * pseudo-class than `:active`, so it wins the tie and cancels the scale.
+ *
+ * Reduced motion drops the scale and keeps the colour transition.
+ */
+export const PRESS =
+  'motion-safe:active:scale-[0.96] motion-safe:focus-visible:active:scale-100'
+
 const ICON_BUTTON_BASE =
   'inline-flex size-8 items-center justify-center rounded-md outline-none ' +
-  'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) ' +
+  'transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out) ' +
+  `${PRESS} ` +
   'hover:bg-fill-hover focus-visible:ring-3 focus-visible:ring-ring/50 ' +
   'disabled:pointer-events-none disabled:opacity-40'
 
@@ -47,7 +61,8 @@ export function PrimaryButton({
       type="button"
       className={cn(
         'font-ui bg-primary text-primary-foreground inline-flex items-center justify-center rounded-md text-base font-medium',
-        'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        'shadow-xs transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        PRESS,
         'hover:bg-brand-hover focus-visible:ring-3 focus-visible:ring-ring/50 outline-none',
         'disabled:pointer-events-none disabled:opacity-40',
         className,
@@ -79,19 +94,24 @@ export function Keycap({
 
 export interface IconButtonProps extends Omit<React.ComponentProps<'button'>, 'children'> {
   name: IconName
-  /** Accessible name. Also the native tooltip. */
+  /** Accessible name, and the tooltip's first line. */
   label: string
+  /** The key that does the same thing. Printed in the tooltip, Things-3 style:
+   *  the slow path teaches the fast one at the moment it is used (MAGIC §2.7). */
+  hint?: string
   size?: IconSize
   tone?: Tone
   filled?: boolean
   active?: boolean
-  /** Give the glyph a 200 ms pop on press. Reserved for the star. */
+  /** Give the glyph a 200 ms pop on press, and crossfade outline → fill.
+   *  Reserved for the star. */
   pop?: boolean
 }
 
 export function IconButton({
   name,
   label,
+  hint,
   size = 18,
   tone = 'default',
   filled = false,
@@ -108,26 +128,74 @@ export function IconButton({
   const [presses, setPresses] = useState(0)
 
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-pressed={active || undefined}
-      onClick={(event) => {
-        if (pop) setPresses((n) => n + 1)
-        onClick?.(event)
-      }}
-      className={iconButtonClass(tone, cn(active && 'text-brand', className))}
-      {...props}
-    >
-      <span
-        key={presses}
-        className="inline-flex"
-        data-wren-pop={pop && presses > 0 ? '' : undefined}
+    <Tooltip>
+      <TooltipTrigger
+        // A real tooltip rather than the native `title`, which waits about a
+        // second, cannot be styled, never appears on keyboard focus, and is
+        // read inconsistently by screen readers (UI-REVIEW-2026-08-28 S12).
+        // `aria-label` stays the accessible name; the popup is presentation.
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            aria-pressed={active || undefined}
+            onClick={(event) => {
+              if (pop) setPresses((n) => n + 1)
+              onClick?.(event)
+            }}
+            className={iconButtonClass(tone, cn(active && 'text-brand', className))}
+            {...props}
+          />
+        }
       >
-        <Icon name={name} size={size} filled={filled} />
-      </span>
-    </button>
+        <span
+          key={presses}
+          className="inline-flex"
+          data-wren-pop={pop && presses > 0 ? '' : undefined}
+        >
+          {pop ? (
+            <FillingGlyph name={name} size={size} filled={filled} />
+          ) : (
+            <Icon name={name} size={size} filled={filled} />
+          )}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <span>{label}</span>
+        {hint && <TooltipHint>{hint}</TooltipHint>}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * Outline and fill stacked, crossfading — so the star *fills* rather than being
+ * *replaced* (MAGIC §3.4). The fill layer always carries the star hue, so the
+ * bloom is the colour arriving as well as the shape.
+ *
+ * Opacity only, which is what lets reduced motion keep it: DIRECTION §9 retains
+ * the 120 ms crossfade and removes only transform.
+ */
+function FillingGlyph({
+  name,
+  size,
+  filled,
+}: {
+  name: IconName
+  size: IconSize
+  filled: boolean
+}) {
+  const fade = 'transition-opacity duration-(--wren-dur-fast) ease-(--wren-ease-out)'
+  return (
+    <span className="relative inline-flex">
+      <Icon name={name} size={size} className={cn(fade, filled && 'opacity-0')} />
+      <Icon
+        name={name}
+        size={size}
+        filled
+        className={cn('text-star absolute inset-0', fade, !filled && 'opacity-0')}
+      />
+    </span>
   )
 }
 

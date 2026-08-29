@@ -41,13 +41,24 @@ export function ThreadResult({
           />
         </span>
       )}
-      <span className="font-ui text-ink w-(--wren-list-sender-w) shrink-0 truncate text-base font-medium">
+      {/* A *cap*, not a fixed column. The 152 px measure is right for the
+          two-line list row, where the subject lives on line 2 at full width; on
+          a one-line result the sender and the subject share the line, and the
+          fixed column left ~97 px of dead space inside it while the subject
+          truncated at 14 characters (S4). Alignment across results is carried
+          by the avatar on the left and the fixed time column on the right. */}
+      <span className="font-ui text-ink max-w-(--wren-list-sender-w) shrink-0 truncate text-base font-medium">
         {participantLine(people)}
       </span>
       <span className="text-ink-2 min-w-0 flex-1 truncate text-sm">
         {thread.subject || '(no subject)'}
       </span>
-      <span className="text-ink-3 shrink-0 text-xs tabular-nums">
+      {/* Same `w-16 text-right` as thread-row.tsx: "Yesterday" and "Sun" are
+          different widths, and a shrink-to-fit column leaves the left edge of
+          the timestamps ragged down the list — the one thing DIRECTION §1 says
+          a column may never do. The rule was written on the list row and not
+          applied here (S3). */}
+      <span className="text-ink-3 w-16 shrink-0 text-right text-xs tabular-nums">
         {relativeTime(thread.lastMessageAt, now)}
       </span>
     </span>

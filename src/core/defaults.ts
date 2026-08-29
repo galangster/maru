@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   imagePolicy: 'block',
   pollIntervalSec: 60,
+  sounds: false,
 }
 
 export const DEFAULT_PAGE_SIZE = 100

@@ -100,18 +100,28 @@ export function exitTransition(mode: MotionMode): Record<string, unknown> {
   return { duration: EXIT_DUR, ease: mode === 'reduced' ? 'linear' : EASE_IN }
 }
 
+/** Nothing moves. The keyboard traversal path, and the capture path. */
+export function stillPreset(): Preset {
+  return STILL
+}
+
 /**
- * Reading-pane content when the thread changes. A crossfade with a 4 px lift —
- * enough to read as "new content", not enough to read as a slide.
+ * Reading-pane content when the thread changes.
+ *
+ * It was a 200 ms `opacity + y: 4` crossfade replayed on every `j` and every
+ * `k`. A triage user paid 200 ms of fade per row for content that was legible
+ * before the fade finished, so it read as lag rather than as feedback
+ * (UI-REVIEW-2026-08-28 S1). The lift is gone and the duration is the 120 ms
+ * one; the keyboard path does not call this at all — see `reading-pane.tsx`.
  */
 export function crossfadePreset(mode: MotionMode): Preset {
   if (mode === 'off') return STILL
   if (mode === 'reduced') return FADE
   return {
-    initial: { opacity: 0, y: 4 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: 0 },
-    transition: { duration: DUR.base, ease: EASE_OUT },
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: DUR.fast, ease: EASE_OUT },
   }
 }
 

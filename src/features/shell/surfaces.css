@@ -40,13 +40,47 @@
     animation: wren-fade-out var(--wren-dur-exit) var(--wren-ease-in);
 }
 
-/* The palette, settings and the shortcut sheet. `--wren-ease-spring` is
-   DIRECTION §9's CSS stand-in for the one spring. */
+/* Settings and the shortcut sheet. `--wren-ease-spring` is DIRECTION §9's CSS
+   stand-in for the one spring. Both are surfaces a user opens deliberately and
+   rarely, which is what licenses 200 ms of entrance. */
 [data-slot='dialog-content'][data-open] {
     animation: wren-surface-in var(--wren-dur-base) var(--wren-ease-spring);
 }
 [data-slot='dialog-content'][data-closed] {
     animation: wren-surface-out var(--wren-dur-exit) var(--wren-ease-in);
+}
+
+/* The command palette is the exception, and it is opted out by name.
+   UI-REVIEW-2026-08-28 S1: this is a 100+/day keyboard surface, and a 200 ms
+   spring that overshoots past 1 reads as lag on something summoned by muscle
+   memory. Opacity only, at --wren-dur-instant.
+
+   MAGIC §3.5 proposed a transform-origin toward the search field plus a
+   first-render stagger on the result groups. Neither survives this envelope —
+   80 ms is below the threshold where a scale origin is perceptible at all, and
+   a 40 ms-per-group stagger would take the entrance to roughly three times the
+   budget. The audit ruling wins; the origin and the stagger are dropped. */
+[data-slot='dialog-content'][data-wren-surface='palette'][data-open] {
+    animation: wren-fade-in var(--wren-dur-instant) linear;
+}
+[data-slot='dialog-content'][data-wren-surface='palette'][data-closed] {
+    animation: wren-fade-out var(--wren-dur-instant) linear;
+}
+
+/* Tooltips are anchored to the control the pointer is already on. */
+[data-slot='tooltip-content'][data-open] {
+    animation: wren-anchored-in var(--wren-dur-fast) var(--wren-ease-out);
+}
+[data-slot='tooltip-content'][data-closed] {
+    animation: wren-anchored-out var(--wren-dur-fast) var(--wren-ease-in);
+}
+
+/* A label that changed rather than a label that was replaced: the send button
+   reading "Send" and then "Sent" crossfades in place. Family's shared-letter
+   morph degrades to this (MAGIC §3.3a); it is opacity only, so reduced motion
+   keeps it and `.screenshot` removes it with everything else. */
+.wren-swap {
+    animation: wren-fade-in var(--wren-dur-fast) var(--wren-ease-out);
 }
 
 /* Anchored surfaces scale from where they were summoned; no lift. */

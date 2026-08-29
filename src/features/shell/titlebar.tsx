@@ -31,10 +31,10 @@ export function Titlebar() {
         Wren
       </span>
       <div data-tauri-drag-region className="flex-1" />
+      {/* 18: chrome toolbar, DIRECTION §8's default (S8). */}
       <IconButton
         name="panelLeft"
         label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        size={16}
         onClick={() => setCollapsed(!collapsed)}
       />
     </header>

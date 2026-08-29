@@ -5,12 +5,13 @@
 // It mounts at the app root (never inside a pane) so no ancestor's transform
 // or opacity can steal the backdrop root — DIRECTION §7, WebView2 rule 6.
 
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { toast } from 'sonner'
 
 import { ConfirmPopover } from '@/components/confirm-popover'
 import { Icon } from '@/components/ui/icon'
+import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Select,
   SelectContent,
@@ -25,7 +26,9 @@ import { useMailService } from '@/features/mail/service'
 import { useAnyDialogOpen } from '@/features/shell/surface-store'
 import { ATTACHMENT_WARN_BYTES, totalBytes, type ReplyMode } from '@/lib/compose'
 import { formatBytes } from '@/lib/format'
+import { MOD } from '@/features/keyboard/keymap'
 import { exitTransition, sheetPreset, useMotionMode } from '@/lib/motion'
+import { playSound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
 import { BodyEditor, FormatToolbar, useBodyEditor } from './body-editor'
@@ -41,6 +44,57 @@ const TITLES: Record<ReplyMode, string> = {
   reply: 'Reply',
   replyAll: 'Reply all',
   forward: 'Forward',
+}
+
+/**
+ * How long the mail is genuinely held before it goes — MAGIC §3.3, Superhuman's
+ * pattern 10. An undo affordance is what licenses instant, un-confirmed action;
+ * without a real hold the toast would be decoration.
+ */
+const UNDO_WINDOW_MS = 4000
+
+/** One toast at a time. A second send replaces this one rather than stacking. */
+const SEND_TOAST = 'wren-send'
+
+/**
+ * The send waiting out its undo window, if there is one.
+ *
+ * Module scope, because it has to outlive the sheet: the composer unmounts the
+ * instant the user commits, and the mail leaves several seconds later.
+ */
+let heldSend: (() => void) | null = null
+
+if (typeof window !== 'undefined') {
+  // Closing the window must not eat a held message. Whatever is waiting goes
+  // now, in the same turn.
+  window.addEventListener('beforeunload', () => heldSend?.())
+}
+
+/**
+ * Hold `run` for the undo window. Returns the canceller.
+ *
+ * Anything already held is flushed first, so two sends in a row never race and
+ * never reorder: the earlier one goes immediately and the later one starts its
+ * own window.
+ */
+function holdSend(run: () => void): () => void {
+  heldSend?.()
+  let spent = false
+  const fire = () => {
+    if (spent) return
+    spent = true
+    window.clearTimeout(timer)
+    if (heldSend === fire) heldSend = null
+    run()
+  }
+  const timer = window.setTimeout(fire, UNDO_WINDOW_MS)
+  heldSend = fire
+  return () => {
+    if (spent) return
+    spent = true
+    window.clearTimeout(timer)
+    if (heldSend === fire) heldSend = null
+  }
 }
 
 export function Composer() {
@@ -92,6 +146,9 @@ function ComposerSheet() {
 
   const mode = useMotionMode()
   const preset = sheetPreset(mode)
+  // Held for the length of the send sequence, so the label reads "Sent" while
+  // the sheet is on its way out and the button cannot fire twice.
+  const [sending, setSending] = useState(false)
 
   // The From account: the one passed in (a reply keeps its thread's account),
   // else the last one used, else the first there is.
@@ -112,30 +169,74 @@ function ComposerSheet() {
 
   const title = draft.reply ? TITLES[draft.reply.mode] : 'New message'
 
-  const send = async () => {
-    if (!canSend) return
+  /**
+   * The flagship moment — MAGIC §3.3. One sequence, about 420 ms of it visible:
+   *
+   *   0 ms    the button label crossfades "Send" → "Sent"
+   *   140 ms  the sheet exits (opacity, a 2% scale step and 8 px, ease-in)
+   *   220 ms  the toast rises bottom-left carrying UNDO
+   *   4 s     the mail actually goes, and the earned cue plays
+   *
+   * The mail is genuinely held for that window, so UNDO is a real undo rather
+   * than a retraction the server may already have refused. Nothing blocks: the
+   * sheet is gone and the app is usable from 140 ms onward.
+   */
+  const send = () => {
+    if (!canSend || sending) return
     const payload = toComposeDraft(draft)
     const kept: Draft = draft
-    // Optimistic: the sheet goes as soon as the user commits, and only an
-    // actual failure brings it back.
-    close()
+    setSending(true)
+    playSound('send')
     remember(payload.accountId)
-    try {
-      await service.send(payload)
-      toast.success('Sent', { description: payload.subject || '(no subject)' })
-    } catch (cause) {
-      toast.error('Could not send', {
-        description: cause instanceof Error ? cause.message : 'The draft is back, unchanged.',
+
+    // Motion off (captures) and reduced motion both collapse the beats to zero
+    // rather than replaying them faster — there is nothing to see either way.
+    const beat = mode === 'full' ? 140 : 0
+
+    window.setTimeout(() => {
+      close()
+      const cancel = holdSend(() => {
+        void (async () => {
+          try {
+            await service.send(payload)
+            playSound('sent')
+            toast.success('Sent', {
+              id: SEND_TOAST,
+              description: payload.subject || '(no subject)',
+            })
+          } catch (cause) {
+            playSound('error')
+            toast.error('Could not send', {
+              id: SEND_TOAST,
+              description: cause instanceof Error ? cause.message : 'The draft is back, unchanged.',
+            })
+            openWith(kept)
+          }
+        })()
       })
-      openWith(kept)
-    }
+
+      window.setTimeout(() => {
+        toast('Sending…', {
+          id: SEND_TOAST,
+          description: payload.subject || '(no subject)',
+          duration: UNDO_WINDOW_MS,
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              cancel()
+              openWith(kept)
+            },
+          },
+        })
+      }, 80)
+    }, beat)
   }
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     // Composer-scoped: these two work while the user is typing.
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
-      void send()
+      send()
       return
     }
     if (event.key === 'Escape') {
@@ -202,7 +303,13 @@ function ComposerSheet() {
           transition={preset.transition}
           style={glassOff}
           className={cn(
-            'glass fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
+            // `glass-strong`, not `glass`. DIRECTION §1 puts glass behind text
+            // that must be *read* on the refuses list, and text being *written*
+            // has the same claim: at the 0.72 tint the mail behind the sheet
+            // read through the From, To and Subject rows clearly enough to
+            // compete with what was being typed (S13). Settings made exactly
+            // this call for exactly this reason.
+            'glass-strong fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
             // A fresh compose used to collapse to the height of its own
             // chrome, which made the writing surface an afterthought.
             'min-h-[440px] max-h-[calc(100vh-var(--wren-titlebar-h)-32px)]',
@@ -212,10 +319,11 @@ function ComposerSheet() {
         <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
           {title}
         </h2>
+        {/* Toolbar chrome sits at 18 on DIRECTION §8's grid; the 16 px
+            overrides here and in the footer were the composer half of S8. */}
         <IconButton
           name="minimize"
           label="Minimize"
-          size={16}
           className="shrink-0"
           onClick={() => setMinimized(true)}
         />
@@ -285,6 +393,13 @@ function ComposerSheet() {
                 <span className="text-ink-3 shrink-0 text-xs tabular-nums">
                   {formatBytes(attachment.sizeBytes)}
                 </span>
+                {/* 20×20 was under WCAG 2.2 SC 2.5.8's 24×24 floor and well
+                    under the app's own 32 px `--wren-hit` (S10). The glyph
+                    keeps its size; the pseudo-element restores a 32 px hit box
+                    without changing the chip's metrics — the same pattern the
+                    thread row already used. The `size-3.5` override is gone
+                    with it: a 16 px glyph scaled to 14 by CSS is off
+                    DIRECTION §8's 16/18/20 grid (S9). */}
                 <button
                   type="button"
                   aria-label={`Remove ${attachment.filename}`}
@@ -293,9 +408,9 @@ function ComposerSheet() {
                       attachments: draft.attachments.filter((a) => a.id !== attachment.id),
                     })
                   }
-                  className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 inline-flex size-5 shrink-0 items-center justify-center rounded-xs outline-none focus-visible:ring-3"
+                  className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 relative inline-flex size-5 shrink-0 items-center justify-center rounded-xs outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-3"
                 >
-                  <Icon name="close" size={16} className="size-3.5" />
+                  <Icon name="close" size={16} />
                 </button>
               </li>
             ))}
@@ -317,7 +432,6 @@ function ComposerSheet() {
         <IconButton
           name="attachment"
           label="Attach files"
-          size={16}
           className="shrink-0"
           onClick={() => fileRef.current?.click()}
         />
@@ -330,15 +444,29 @@ function ComposerSheet() {
           onChange={(event) => void addFiles(event.target.files)}
         />
         <div className="flex-1" />
-        <PrimaryButton
-          onClick={() => void send()}
-          disabled={!canSend}
-          title="Send (⌘↵)"
-          className="h-8 gap-2 px-3"
-        >
-          <Icon name="sent" size={16} />
-          Send
-        </PrimaryButton>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PrimaryButton
+                onClick={send}
+                disabled={!canSend || sending}
+                className="h-8 gap-2 px-3"
+              />
+            }
+          >
+            {/* The label changed rather than being replaced: keying the span on
+                the state remounts it, and `.wren-swap` crossfades it in place
+                at 120 ms. Family's shared-letter morph, degraded honestly. */}
+            <Icon name={sending ? 'check' : 'sent'} size={16} key={sending ? 'sent' : 'send'} />
+            <span key={sending ? 'sent-label' : 'send-label'} className="wren-swap">
+              {sending ? 'Sent' : 'Send'}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Send</span>
+            <TooltipHint>{MOD}↵</TooltipHint>
+          </TooltipContent>
+        </Tooltip>
       </footer>
         </motion.section>
       )}
@@ -407,8 +535,10 @@ function CloseControl({
       trigger={
         <button
           type="button"
+          // No `title`: it duplicated the accessible name and some screen
+          // readers announce both (N7). This element is already owned by the
+          // popover trigger, which is why it does not carry a Tooltip either.
           aria-label="Close"
-          title="Close"
           onClick={(event) => {
             if (dirty) return
             event.preventDefault()

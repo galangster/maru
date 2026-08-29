@@ -10,6 +10,7 @@ import StarterKit from '@tiptap/starter-kit'
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { iconButtonClass } from '@/components/wren-controls'
 import { cn } from '@/lib/utils'
 
@@ -121,19 +122,27 @@ export function FormatToolbar({ editor }: { editor: Editor | null }) {
 function ToolButton({ editor, control }: { editor: Editor | null; control: MarkControl }) {
   const active = editor ? control.isActive(editor) : false
   return (
-    <button
-      type="button"
-      aria-label={control.label}
-      title={control.label}
-      aria-pressed={active}
-      disabled={!editor}
-      // The editor must not lose the selection to the button.
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => editor && control.run(editor)}
-      className={toolClass(active)}
-    >
-      <Icon name={control.name} size={16} />
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={control.label}
+            aria-pressed={active}
+            disabled={!editor}
+            // The editor must not lose the selection to the button.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor && control.run(editor)}
+            className={toolClass(active)}
+          />
+        }
+      >
+        {/* 18, not 16: this is a toolbar, and it sat two rows from the reading
+            pane's 18 px one (DIRECTION §8, S8). */}
+        <Icon name={control.name} />
+      </TooltipTrigger>
+      <TooltipContent>{control.label}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -171,8 +180,9 @@ function LinkButton({ editor }: { editor: Editor | null }) {
         render={
           <button
             type="button"
+            // No `title` beside the accessible name (N7); this element belongs
+            // to the popover trigger, so it carries no Tooltip either.
             aria-label={active ? 'Remove link' : 'Link'}
-            title={active ? 'Remove link' : 'Link'}
             aria-pressed={active}
             disabled={!editor}
             onMouseDown={(event) => event.preventDefault()}
@@ -180,7 +190,7 @@ function LinkButton({ editor }: { editor: Editor | null }) {
           />
         }
       >
-        <Icon name="link" size={16} />
+        <Icon name="link" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-72">
         <input

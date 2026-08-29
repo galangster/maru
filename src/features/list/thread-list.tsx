@@ -28,8 +28,8 @@ import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
-import { EmptyState, emptyCopyFor } from './empty-state'
-import { ThreadRow } from './thread-row'
+import { EmptyState, emptyCopyFor, useInboxZeroTier } from './empty-state'
+import { ThreadRow, threadRowId } from './thread-row'
 
 const GROUP_H = 40
 const ROW_H = 68
@@ -102,7 +102,9 @@ export function ThreadList() {
 
   const onSelect = useCallback(
     (thread: Thread) => {
-      setSelected(thread.key)
+      // Pointer-initiated: the reading pane is licensed to animate its arrival.
+      // j/k traversal passes 'keyboard' and gets a hard cut instead.
+      setSelected(thread.key, 'pointer')
       if (thread.unread) actionRef.current.mutate({ type: 'markRead', threadKey: thread.key })
     },
     [setSelected],
@@ -127,6 +129,9 @@ export function ThreadList() {
 
   const showAccount = view.kind === 'unified' && accounts.length > 1
   const hits = searching ? (results.data ?? []) : []
+  // Empty because the user cleared it in this session, or empty because it
+  // always was? Only the first earns a moment (MAGIC §3.6).
+  const emptyTier = useInboxZeroTier(view, threads.isSuccess ? rows.length : -1)
 
   return (
     <section
@@ -150,12 +155,11 @@ export function ThreadList() {
               {subtitle && <span className="text-ink-3 truncate text-xs">{subtitle}</span>}
             </div>
             <SearchToggle />
-            <IconButton
-              name="sync"
-              label="Refresh"
-              size={16}
-              onClick={() => void service.refresh()}
-            />
+            {/* No `size` override: DIRECTION §8 puts toolbars at 18, and this
+                header sits at the same y as the reading pane's — which was
+                already 18 — separated by a 1 px rule, so a 16/18 mismatch read
+                as a direct side-by-side comparison (S8). */}
+            <IconButton name="sync" label="Refresh" onClick={() => void service.refresh()} />
           </>
         )}
       </header>
@@ -182,7 +186,9 @@ export function ThreadList() {
           ) : (
             <ul role="listbox" aria-label="Search results" className="flex flex-col py-1">
               {hits.map((thread) => (
-                <li key={thread.key}>
+                // A `listitem` between the listbox and its options breaks the
+                // required owned-element relationship (N9).
+                <li key={thread.key} role="presentation">
                   <button
                     type="button"
                     role="option"
@@ -210,12 +216,22 @@ export function ThreadList() {
         ) : threads.isPending ? (
           <ListSkeleton />
         ) : rows.length === 0 ? (
-          <EmptyState copy={emptyCopyFor(view, labelName)} />
+          <EmptyState copy={emptyCopyFor(view, labelName)} tier={emptyTier} />
         ) : (
           <div
             role="listbox"
             aria-label={title}
-            className="relative w-full"
+            // The listbox is the list's one tab stop, and the selection is
+            // announced through `aria-activedescendant` rather than by moving
+            // DOM focus into a virtualized row that may be recycled out from
+            // under it. Before this the container was never focusable and never
+            // set the attribute, so `aria-selected` moved and nothing announced
+            // — the primary surface had no navigable structure at all (B3).
+            // j/k are bound globally and already compute the right target.
+            tabIndex={0}
+            aria-activedescendant={selected ? threadRowId(selected) : undefined}
+            data-wren-listbox
+            className="focus-visible:ring-ring/50 relative w-full outline-none focus-visible:ring-3 focus-visible:ring-inset"
             style={{ height: virtualizer.getTotalSize() }}
           >
             {virtualizer.getVirtualItems().map((item) => {
@@ -251,7 +267,7 @@ export function ThreadList() {
 
 function SearchToggle() {
   const openSearch = useSurfaces((s) => s.openSearch)
-  return <IconButton name="search" label="Search mail" size={16} onClick={openSearch} />
+  return <IconButton name="search" label="Search mail" hint="/" onClick={openSearch} />
 }
 
 /** The header's inline field. `/` focuses it; Esc puts the view back. */
@@ -281,7 +297,7 @@ function SearchField() {
         }}
         className="text-ink placeholder:text-ink-3 h-8 min-w-0 flex-1 bg-transparent text-base outline-none [&::-webkit-search-cancel-button]:hidden"
       />
-      <IconButton name="close" label="Close search" size={16} onClick={closeSearch} />
+      <IconButton name="close" label="Close search" hint="esc" onClick={closeSearch} />
     </div>
   )
 }
@@ -304,12 +320,15 @@ function ListSkeleton() {
   return (
     <div aria-hidden className="flex flex-col">
       {Array.from({ length: 9 }).map((_, i) => (
+        // The skeleton is the row's shape, not a generic two-bar placeholder:
+        // `gap-1` like the row, a 20 px first line and an 18 px second, so
+        // nothing about the geometry changes when the data lands (N8).
         <div key={i} className="flex h-(--wren-row-h) items-center gap-3 px-4">
           <span className="w-3 shrink-0" />
           <Skeleton className="size-8 rounded-full" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <Skeleton className="h-3 w-(--wren-list-sender-w)" />
-            <Skeleton className="h-3 w-full max-w-64" />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <Skeleton className="h-5 w-(--wren-list-sender-w)" />
+            <Skeleton className="h-[18px] w-full max-w-64" />
           </div>
         </div>
       ))}

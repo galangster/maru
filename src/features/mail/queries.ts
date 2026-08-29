@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { threadMatchesView } from '@/core/defaults'
 import { applyActionToThread } from '@/core/service/actions'
 import type { Account, MailAction, MailView, Message, SyncStatus, Thread } from '@/core/types'
+import { playSound } from '@/lib/sound'
 
 import { useMailService } from './service'
 import { viewKey } from './ui-store'
@@ -182,6 +183,15 @@ export function usePerformAction() {
   return useMutation<void, Error, MailAction, ActionContext>({
     mutationFn: (action) => service.performAction(action),
     onMutate: async (action) => {
+      // One place, four surfaces: the row's hover cluster, the reading
+      // toolbar, the palette and the keymap all come through here, so the cue
+      // cannot be attached to three of them and missed on the fourth.
+      //
+      // Triage only. Reading, starring and restoring are not completions, and
+      // a sound on every `u` would be exactly the "100×/day" case MAGIC §4.5
+      // warns about. `complete` carries its own 400 ms guard, so a held `e`
+      // down a mailbox is one tick rather than forty (sound-policy.ts).
+      if (action.type === 'archive' || action.type === 'trash') playSound('complete')
       await client.cancelQueries({ queryKey: ['threads'] })
       const lists = client.getQueriesData<Thread[]>({ queryKey: ['threads'] })
       const detail = client.getQueryData<{ thread: Thread; messages: Message[] }>(
@@ -212,6 +222,9 @@ export function usePerformAction() {
       return { lists, detail }
     },
     onError: (_error, action, context) => {
+      // The optimistic change is being taken back on screen; the cue says so
+      // without a dialog. Low and short — it states "no" without alarming.
+      playSound('error')
       for (const [queryKey, threads] of context?.lists ?? []) client.setQueryData(queryKey, threads)
       if (context?.detail) client.setQueryData(keys.thread(action.threadKey), context.detail)
     },

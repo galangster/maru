@@ -66,6 +66,11 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
             className="bg-sunken text-ink-2 flex h-6 max-w-full items-center gap-1 rounded-xs pr-1 pl-2 text-xs"
           >
             <span className="truncate">{address.name ?? address.email}</span>
+            {/* 16×16 was under WCAG 2.2 SC 2.5.8's 24×24 floor and half the
+                app's own 32 px `--wren-hit` (S10); the pseudo-element restores
+                a 32 px box without changing the chip's height. The `size-3`
+                override is gone too — it rendered a 16 px glyph at 12 and put
+                it off DIRECTION §8's grid (S9). */}
             <button
               type="button"
               aria-label={`Remove ${formatAddress(address)}`}
@@ -73,9 +78,9 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
                 event.stopPropagation()
                 onChange(value.filter((a) => a.email !== address.email))
               }}
-              className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 inline-flex size-4 shrink-0 items-center justify-center rounded-xs outline-none focus-visible:ring-3"
+              className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 relative inline-flex size-4 shrink-0 items-center justify-center rounded-xs outline-none after:absolute after:-inset-x-2 after:-inset-y-1 after:content-[''] focus-visible:ring-3"
             >
-              <Icon name="close" size={16} className="size-3" />
+              <Icon name="close" size={16} />
             </button>
           </span>
         ))}

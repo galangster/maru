@@ -71,7 +71,18 @@ export function useAnyDialogOpen(): boolean {
   return useSurfaces(selectAnyDialogOpen)
 }
 
-/** Where focus goes when a surface closes: back to the list, per DIRECTION. */
+/**
+ * Where focus goes when a surface closes: back to the list, per DIRECTION.
+ *
+ * The listbox itself when there is one, so `aria-activedescendant` is live and
+ * the selection is announced; the pane is the fallback for an empty or
+ * searching list, which has no listbox to land on.
+ */
 export function focusThreadList(): void {
+  const listbox = document.querySelector<HTMLElement>('[data-wren-listbox]')
+  if (listbox) {
+    listbox.focus()
+    return
+  }
   document.querySelector<HTMLElement>('section[aria-label="Threads"]')?.focus()
 }

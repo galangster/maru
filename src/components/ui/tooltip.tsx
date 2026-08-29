@@ -1,15 +1,33 @@
+// Wren's tooltip.
+//
+// Retuned from the shadcn default, which shipped tw-animate-css's zoom/slide
+// vocabulary and a 12 px popup — neither of which is in DIRECTION. The popup is
+// now a solid inverted chip on the Wren radius and type scale, and its motion is
+// the same `wren-anchored-*` pair every other anchored surface uses, declared in
+// features/shell/surfaces.css because Base UI owns the unmount.
+//
+// Solid, not glass: an icon button inside the composer sheet would otherwise
+// put glass on glass, and DIRECTION §7 budgets two layers total.
+
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * One provider at the root. The delay is shared across siblings, so moving
+ * along a toolbar shows the second tooltip immediately instead of re-waiting —
+ * which is the whole reason a provider exists.
+ */
 function TooltipProvider({
-  delay = 0,
+  delay = 500,
+  closeDelay = 0,
   ...props
 }: TooltipPrimitive.Provider.Props) {
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
       delay={delay}
+      closeDelay={closeDelay}
       {...props}
     />
   )
@@ -26,7 +44,7 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
 function TooltipContent({
   className,
   side = "top",
-  sideOffset = 4,
+  sideOffset = 6,
   align = "center",
   alignOffset = 0,
   children,
@@ -48,17 +66,27 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "font-ui bg-ink text-canvas shadow-md",
+            "flex h-6 w-fit max-w-64 origin-(--transform-origin) items-center gap-2 rounded-xs px-2 text-xs",
             className
           )}
           {...props}
         >
           {children}
-          <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5" />
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+/**
+ * The keyboard shortcut, printed after the label: a help tag that teaches the
+ * faster path at the moment of the slower one (MAGIC §2.7, Things 3). Muted
+ * against the inverted chip rather than wearing the `Keycap` recipe, which is
+ * built for a light surface.
+ */
+function TooltipHint({ children }: { children: React.ReactNode }) {
+  return <span className="text-canvas/60">{children}</span>
+}
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipHint, TooltipProvider }

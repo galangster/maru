@@ -124,8 +124,11 @@
         overflow: hidden; /* the panes own their own scrolling */
     }
 
-    /* Quiet scrollbars. The list and the reading pane are the only scrollers,
-       and neither should announce itself with a chrome-grey trough. */
+    /* Quiet scrollbars, app-wide. The selector is deliberately global and the
+       comment now says so (N5): `body` is `overflow: hidden`, so the only
+       elements that ever grow a scrollbar are the panes and the two floating
+       lists — scoping this to a class would name six call sites to describe a
+       rule that has no exceptions. Neither trough should announce itself. */
     * {
         scrollbar-width: thin;
         scrollbar-color: var(--wren-hairline-strong) transparent;

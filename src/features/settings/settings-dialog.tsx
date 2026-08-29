@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { AccountAvatar, IconButton, PrimaryButton } from '@/components/wren-controls'
+import { AccountAvatar, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { keys, useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
@@ -37,6 +37,7 @@ import {
   type SettingsSection,
 } from '@/features/shell/surface-store'
 import { useUi, type ThemeChoice } from '@/features/mail/ui-store'
+import { setSoundsEnabled } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
 import pkg from '../../../package.json'
@@ -100,8 +101,13 @@ function SettingsBody({ section }: { section: SettingsSection }) {
               onClick={() => openSettings(item.id)}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'font-ui flex h-9 w-full items-center gap-2 rounded-md px-2 text-base outline-none',
-                'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+                // `rounded-xl` (20), not `rounded-md` (12): the dialog is
+                // `glass-strong` at 28 and the nav is `p-2`, so DIRECTION §6's
+                // concentric rule — inner = outer − padding — puts these items
+                // at 20 (N2).
+                'font-ui flex h-9 w-full items-center gap-2 rounded-xl px-2 text-base outline-none',
+                'transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+                PRESS,
                 'focus-visible:ring-ring/50 focus-visible:ring-3',
                 active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
               )}
@@ -127,7 +133,7 @@ function SettingsBody({ section }: { section: SettingsSection }) {
           <IconButton
             name="close"
             label="Close settings"
-            size={16}
+            hint="esc"
             className="shrink-0"
             onClick={closeSettings}
           />
@@ -328,43 +334,100 @@ const THEMES: { id: ThemeChoice; label: string; icon: IconName }[] = [
 function AppearanceSection() {
   const theme = useUi((s) => s.theme)
   const setTheme = useUi((s) => s.setTheme)
+  const settings = useSettings()
   const save = useSaveSettings()
+  const sounds = settings.data?.sounds ?? false
 
   return (
-    <div className="flex flex-col gap-4">
-      <Explainer>
-        System follows the desktop. Wren remembers whichever you pick, on this machine only.
-      </Explainer>
-      <div
-        role="radiogroup"
-        aria-label="Theme"
-        className="bg-sunken inline-flex h-9 w-fit items-center gap-1 rounded-md p-1"
-      >
-        {THEMES.map((option) => {
-          const active = option.id === theme
-          return (
-            <button
-              key={option.id}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => {
-                setTheme(option.id)
-                save.mutate({ theme: option.id })
-              }}
-              className={cn(
-                'font-ui inline-flex h-7 items-center gap-2 rounded-sm px-3 text-base outline-none',
-                'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-                'focus-visible:ring-ring/50 focus-visible:ring-3',
-                active ? 'bg-surface text-ink font-medium shadow-xs' : 'text-ink-2 hover:text-ink',
-              )}
-            >
-              <Icon name={option.icon} size={16} className={active ? 'text-brand' : 'text-ink-3'} />
-              {option.label}
-            </button>
-          )
-        })}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <Explainer>
+          System follows the desktop. Wren remembers whichever you pick, on this machine only.
+        </Explainer>
+        <div
+          role="radiogroup"
+          aria-label="Theme"
+          className="bg-sunken inline-flex h-9 w-fit items-center gap-1 rounded-md p-1"
+        >
+          {THEMES.map((option) => {
+            const active = option.id === theme
+            return (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => {
+                  setTheme(option.id)
+                  save.mutate({ theme: option.id })
+                }}
+                className={cn(
+                  'font-ui inline-flex h-7 items-center gap-2 rounded-sm px-3 text-base outline-none',
+                  'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+                  'focus-visible:ring-ring/50 focus-visible:ring-3',
+                  active ? 'bg-surface text-ink font-medium shadow-xs' : 'text-ink-2 hover:text-ink',
+                )}
+              >
+                <Icon
+                  name={option.icon}
+                  size={16}
+                  className={active ? 'text-brand' : 'text-ink-3'}
+                />
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
+
+      {/* Off by default — SOUNDS.md §3. Wren's most frequent cue is unsolicited
+          and it is read in meetings and open offices, so the switch is opt-in
+          rather than something to opt out of after it surprised someone once. */}
+      <SoundsToggle
+        on={sounds}
+        onChange={(next) => {
+          setSoundsEnabled(next)
+          save.mutate({ sounds: next })
+        }}
+      />
+    </div>
+  )
+}
+
+function SoundsToggle({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          id="wren-sounds"
+          onClick={() => onChange(!on)}
+          className={cn(
+            'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 outline-none',
+            'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+            'focus-visible:ring-ring/50 focus-visible:ring-3',
+            on ? 'bg-primary' : 'bg-sunken',
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              'size-4 rounded-full bg-white shadow-xs',
+              'transition-transform duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+              on ? 'translate-x-4' : 'translate-x-0',
+            )}
+          />
+        </button>
+        <label htmlFor="wren-sounds" className="font-ui text-ink cursor-pointer text-base">
+          Interface sounds
+        </label>
+      </div>
+      <Explainer>
+        Six quiet cues — sending, new mail, archiving. Nothing is audible across a room, and
+        nothing plays while your system asks for reduced motion.
+      </Explainer>
     </div>
   )
 }

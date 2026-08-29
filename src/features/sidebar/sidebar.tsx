@@ -5,6 +5,7 @@
 // DIRECTION §2 (Juicebox) and §10.2.
 
 import { Icon, type IconName } from '@/components/ui/icon'
+import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
 import { AccountDot, IconButton, PrimaryButton } from '@/components/wren-controls'
 import { FOLDERS, FOLDER_BY_LABEL } from '@/core/defaults'
 import type { Account, MailView } from '@/core/types'
@@ -82,17 +83,26 @@ function ComposeButton({ collapsed }: { collapsed: boolean }) {
   const { compose } = useComposeActions()
 
   return (
-    <PrimaryButton
-      onClick={compose}
-      title="Compose (C)"
-      // The label has to survive the collapse: at 64 px the word goes away and
-      // `title` alone is not an accessible name.
-      aria-label="Compose"
-      className={cn('h-9', collapsed ? 'w-9' : 'w-full gap-2')}
-    >
-      <Icon name="compose" size={collapsed ? 18 : 16} />
-      {!collapsed && 'Compose'}
-    </PrimaryButton>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <PrimaryButton
+            onClick={compose}
+            // The label has to survive the collapse: at 64 px the word goes
+            // away and a tooltip alone is not an accessible name.
+            aria-label="Compose"
+            className={cn('h-9', collapsed ? 'w-9' : 'w-full gap-2')}
+          />
+        }
+      >
+        <Icon name="compose" size={collapsed ? 18 : 16} />
+        {!collapsed && 'Compose'}
+      </TooltipTrigger>
+      <TooltipContent>
+        <span>Compose</span>
+        <TooltipHint>C</TooltipHint>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -121,48 +131,78 @@ function NavRow({
   const active = viewKey(current) === viewKey(view)
   const name = unread === undefined ? label : `${label}, ${unread} unread`
 
+  const buttonProps = {
+    type: 'button' as const,
+    onClick: () => setView(view),
+    'aria-current': active ? ('page' as const) : undefined,
+    'data-view-key': viewKey(view),
+    'aria-label': name,
+    className: cn(
+      'font-ui group flex h-9 w-full items-center rounded-md text-base outline-none',
+      'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+      'focus-visible:ring-3 focus-visible:ring-ring/50',
+      active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
+      collapsed ? 'justify-center px-0' : 'gap-2 px-2',
+      indent && !collapsed && 'pl-8',
+    ),
+  }
+
+  const content = (
+    <>
+      <span className="flex w-6 shrink-0 items-center justify-center">
+        {icon ? (
+          // Resting at the meta tier and stepping up on hover: structure felt,
+          // not seen (MAGIC §3.1, Linear's invisible refresh). The active row
+          // keeps the accent, which is the only thing that has to be seen.
+          <Icon
+            name={icon}
+            size={20}
+            className={active ? 'text-brand' : 'text-ink-3 group-hover:text-ink-2'}
+          />
+        ) : dot ? (
+          collapsed ? (
+            // At 64 px an account row used to fall through to a naked 6 px dot
+            // floating in a 40×36 button, which reads as a rendering fault
+            // (N3). An inbox glyph in the account colour says the same thing
+            // and looks intended.
+            <Icon name="inbox" size={20} style={{ color: dot }} />
+          ) : (
+            <AccountDot color={dot} />
+          )
+        ) : null}
+      </span>
+      {!collapsed && (
+        <span aria-hidden className="flex-1 truncate text-left">
+          {label}
+        </span>
+      )}
+      {!collapsed && unread !== undefined && (
+        <span
+          aria-hidden
+          className={cn(
+            'shrink-0 text-xs tabular-nums',
+            active ? 'text-brand font-medium' : 'text-ink-3',
+          )}
+        >
+          {unread}
+        </span>
+      )}
+    </>
+  )
+
+  // Collapsed, the tooltip is the *only* way to learn what a glyph means, and
+  // the native `title` it replaced never appeared on keyboard focus at all
+  // (S12). Expanded, the label is on screen and a tooltip would repeat it.
   return (
     <li>
-      <button
-        type="button"
-        onClick={() => setView(view)}
-        aria-current={active ? 'page' : undefined}
-        data-view-key={viewKey(view)}
-        title={collapsed ? name : undefined}
-        aria-label={name}
-        className={cn(
-          'font-ui flex h-9 w-full items-center rounded-md text-base outline-none',
-          'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-          'focus-visible:ring-3 focus-visible:ring-ring/50',
-          active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
-          collapsed ? 'justify-center px-0' : 'gap-2 px-2',
-          indent && !collapsed && 'pl-8',
-        )}
-      >
-        <span className="flex w-6 shrink-0 items-center justify-center">
-          {icon ? (
-            <Icon name={icon} size={20} className={active ? 'text-brand' : 'text-ink-3'} />
-          ) : dot ? (
-            <AccountDot color={dot} />
-          ) : null}
-        </span>
-        {!collapsed && (
-          <span aria-hidden className="flex-1 truncate text-left">
-            {label}
-          </span>
-        )}
-        {!collapsed && unread !== undefined && (
-          <span
-            aria-hidden
-            className={cn(
-              'shrink-0 text-xs tabular-nums',
-              active ? 'text-brand font-medium' : 'text-ink-3',
-            )}
-          >
-            {unread}
-          </span>
-        )}
-      </button>
+      {collapsed ? (
+        <Tooltip>
+          <TooltipTrigger render={<button {...buttonProps} />}>{content}</TooltipTrigger>
+          <TooltipContent side="right">{name}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <button {...buttonProps}>{content}</button>
+      )}
     </li>
   )
 }
@@ -276,13 +316,11 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
           <span className="sr-only">{detail}</span>
         </span>
       )}
-      <IconButton
-        name="settings"
-        label="Settings"
-        size={16}
-        onClick={() => openSettings()}
-      />
-      <IconButton name={themeIcon} label={themeLabel} size={16} onClick={toggle} />
+      {/* Toolbar chrome: 18, like every other toolbar (DIRECTION §8, S8). The
+          sync glyph above stays at 16 because it sits inline with text, which
+          is the size the same rule gives it. */}
+      <IconButton name="settings" label="Settings" onClick={() => openSettings()} />
+      <IconButton name={themeIcon} label={themeLabel} onClick={toggle} />
     </div>
   )
 }
