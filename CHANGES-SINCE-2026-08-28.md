@@ -80,5 +80,17 @@ where, why, proof.
     charted, not absorbed: tickets M7 (list sort/filter) and G2
     (cross-device sync, a grilling ticket against the no-servers line).
 
+12. **M7, list order + the lens.** Long threads now open landed on the
+    newest message (the cause behind Nick's oldest-first screenshot —
+    chronological threads opened at the top). Per-view sort and filter:
+    sliders popover on the list header, lens bar with count + Reset,
+    palette verbs, filter-aware empty states that never borrow "Inbox
+    zero". SegmentedGroup promoted to the kit (theme picker + lens share
+    it). Where: features/list/*, features/mail/ui-store.ts,
+    features/reading/, wren-controls.tsx. Why: Nick's ask, 2026-08-29
+    (ticket M7). Proof: this commit; 397 tests; live browser verification;
+    capture m7-14. Known limit documented: the lens sees the newest
+    100-thread page.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

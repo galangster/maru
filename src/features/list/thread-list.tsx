@@ -24,7 +24,7 @@ import {
   useThreads,
 } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
-import { useUi } from '@/features/mail/ui-store'
+import { DEFAULT_LIST_PREFS, isDefaultPrefs, useListPrefs, useUi } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/components/thread-result'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { HeldMutations } from '@/lib/deferred'
@@ -37,6 +37,8 @@ import { cn } from '@/lib/utils'
 
 import { EmptyState } from '@/components/empty-state'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
+import { ListControls } from './list-controls'
+import { FILTER_LABELS, applyListPrefs, filterEmptyCopy } from './list-prefs'
 import { ThreadRow, threadRowId } from './thread-row'
 
 const GROUP_H = 40
@@ -88,7 +90,18 @@ export function ThreadList() {
   const labels = useLabels(view.kind === 'account' ? view.accountId : undefined)
   const action = usePerformAction()
 
-  const rows = useMemo(() => buildRows(threads.data ?? [], now), [threads.data, now])
+  // The lens between the mailbox and the rows: per-view sort and filter.
+  // Applied here, after fetch, so j/k, selection and the virtualizer all see
+  // one list and cannot disagree about what "next" means.
+  const prefs = useListPrefs()
+  const setListPrefs = useUi((s) => s.setListPrefs)
+  const lensed = !isDefaultPrefs(prefs)
+
+  const rows = useMemo(
+    () => buildRows(applyListPrefs(threads.data ?? [], prefs), now),
+    [threads.data, prefs, now],
+  )
+  const threadCount = useMemo(() => rows.filter((r) => r.kind === 'thread').length, [rows])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({
@@ -216,8 +229,9 @@ export function ThreadList() {
   const showAccount = view.kind === 'unified' && accounts.length > 1
   const hits = searching ? (results.data ?? []) : []
   // Empty because the user cleared it in this session, or empty because it
-  // always was? Only the first earns a moment (MAGIC §3.6).
-  const emptyTier = useInboxZeroTier(view, threads.isSuccess ? rows.length : -1)
+  // always was? Only the first earns a moment (MAGIC §3.6). The *unfiltered*
+  // count decides: an inbox a filter merely hides is not inbox zero.
+  const emptyTier = useInboxZeroTier(view, threads.isSuccess ? (threads.data?.length ?? 0) : -1)
 
   return (
     <section
@@ -246,6 +260,7 @@ export function ThreadList() {
               <h2 className="font-ui text-ink truncate text-base font-semibold">{title}</h2>
               {subtitle && <span className="text-ink-3 truncate text-xs">{subtitle}</span>}
             </div>
+            <ListControls />
             <SearchToggle />
             {/* No `size` override: DIRECTION §8 puts toolbars at 18, and this
                 header sits at the same y as the reading pane's — which was
@@ -263,6 +278,29 @@ export function ThreadList() {
           </span>
           <span aria-hidden>·</span>
           <span>Esc to clear</span>
+        </div>
+      )}
+
+      {/* The lens bar: the same strip the search count uses, shown while the
+          list is not the whole mailbox. The list must never quietly be a
+          subset — the strip names the lens and offers the way back. */}
+      {!searching && lensed && (
+        <div className="border-hairline text-ink-3 flex h-8 shrink-0 items-center gap-1 border-b px-4 text-xs">
+          <span>
+            {FILTER_LABELS[prefs.filter]}
+            {prefs.sort === 'oldest' ? ', oldest first' : ''}
+          </span>
+          <span aria-hidden>·</span>
+          <span className="tabular-nums">
+            {threadCount} thread{threadCount === 1 ? '' : 's'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setListPrefs(view, DEFAULT_LIST_PREFS)}
+            className="focus-ring text-ink-2 hover:text-ink ml-auto rounded-sm font-medium"
+          >
+            Reset
+          </button>
         </div>
       )}
 
@@ -322,7 +360,13 @@ export function ThreadList() {
         ) : threads.isPending ? (
           <ListSkeleton />
         ) : rows.length === 0 ? (
-          <EmptyState copy={emptyCopyFor(view, labelName)} tier={emptyTier} />
+          prefs.filter !== 'all' ? (
+            // A filter that matches nothing is not an empty folder, and must
+            // never borrow "Inbox zero" or its celebration.
+            <EmptyState copy={filterEmptyCopy(prefs.filter)} />
+          ) : (
+            <EmptyState copy={emptyCopyFor(view, labelName)} tier={emptyTier} />
+          )
         ) : (
           <div
             role="listbox"

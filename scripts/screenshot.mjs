@@ -154,6 +154,21 @@ const SHOTS = [
       await page.getByRole('group', { name: 'Send scope' }).waitFor({ timeout: 10_000 })
     },
   },
+  // --- M7, the list lens ----------------------------------------------------
+  {
+    // The filter/sort popover with Unread applied: brand-toned trigger, the
+    // lens bar naming the subset, and the popover's two groups.
+    file: 'm7-14-list-lens-light.png',
+    query: '',
+    open: null,
+    act: async (page) => {
+      await page.getByRole('button', { name: 'Filter and sort' }).click()
+      const popup = page.locator('[data-slot="popover-content"]')
+      await popup.waitFor({ timeout: 10_000 })
+      await popup.getByRole('button', { name: 'Unread' }).click()
+      await page.getByRole('button', { name: 'Reset' }).waitFor({ timeout: 10_000 })
+    },
+  },
   {
     // The audit timeline, reached from the queue, in dark.
     file: 'm1-13-audit-dark.png',

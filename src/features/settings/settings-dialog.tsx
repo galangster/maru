@@ -31,7 +31,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { AccountAvatar, HueTile, IconButton, PRESS, PrimaryButton, SECTION_LABEL, SurfaceHeader } from '@/components/wren-controls'
+import {
+  AccountAvatar,
+  HueTile,
+  IconButton,
+  PRESS,
+  PrimaryButton,
+  SECTION_LABEL,
+  SegmentedGroup,
+  SurfaceHeader,
+} from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { AgentsSection } from '@/features/agents/agents-settings'
 import { keys, useAccounts, useSettings } from '@/features/mail/queries'
@@ -382,39 +391,15 @@ function AppearanceSection() {
         <Explainer>
           System follows the desktop. Wren remembers whichever you pick, on this machine only.
         </Explainer>
-        <div
-          role="group"
-          aria-label="Theme"
-          className="bg-sunken inline-flex h-9 w-fit items-center gap-1 rounded-md p-1"
-        >
-          {THEMES.map((option) => {
-            const active = option.id === theme
-            return (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => {
-                  setTheme(option.id)
-                  save.mutate({ theme: option.id })
-                }}
-                className={cn(
-                  'font-ui inline-flex h-7 items-center gap-2 rounded-sm px-3 text-base outline-none',
-                  'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-                  'focus-ring',
-                  active ? 'bg-surface text-ink font-medium shadow-xs' : 'text-ink-2 hover:text-ink',
-                )}
-              >
-                <Icon
-                  name={option.icon}
-                  size={16}
-                  className={active ? 'text-brand' : 'text-ink-3'}
-                />
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
+        <SegmentedGroup
+          label="Theme"
+          value={theme}
+          options={THEMES}
+          onChange={(id) => {
+            setTheme(id)
+            save.mutate({ theme: id })
+          }}
+        />
       </div>
 
       {/* Off by default — SOUNDS.md §3. Wren's most frequent cue is unsolicited

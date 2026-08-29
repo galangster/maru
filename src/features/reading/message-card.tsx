@@ -39,6 +39,7 @@ export function MessageCard({
     return (
       <button
         type="button"
+        data-message-card
         onClick={() => setExpanded(true)}
         className={cn(
           'focus-ring bg-surface hover:bg-fill-hover flex h-(--wren-row-h-compact) w-full items-center gap-3 rounded-lg px-4 text-left',
@@ -58,7 +59,7 @@ export function MessageCard({
   }
 
   return (
-    <article className="bg-surface rounded-lg p-4 shadow-xs">
+    <article data-message-card className="bg-surface rounded-lg p-4 shadow-xs">
       <header className="flex items-start gap-3">
         <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
         <div className="min-w-0 flex-1">

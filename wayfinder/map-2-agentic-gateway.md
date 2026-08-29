@@ -74,6 +74,12 @@ model becomes the reference for how agents touch a person's mailbox.
   [G2 cross-device sync](tickets/G2-cross-device-sync.md) (a grilling
   ticket: the "Wren account" phrasing collides with the ratified
   no-servers line, so the mechanism needs an owner decision first).
+- [M7 list controls](tickets/M7-list-controls.md): shipped same day — the
+  reading pane lands on the newest message (the screenshot's real cause:
+  chronological threads opened at their oldest card), plus the per-view
+  list lens: sort newest/oldest and filter unread/starred/attachments in a
+  header popover, a lens bar naming any active subset with Reset, palette
+  verbs, and a filter-empty state that never borrows "Inbox zero".
 
 ## Not yet specified
 

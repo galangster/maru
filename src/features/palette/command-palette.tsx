@@ -31,13 +31,25 @@ import { threadActions, type ThreadActionId } from '@/features/mail/thread-actio
 /** The palette lists state changes after triage, unlike the row's cluster. */
 const PALETTE_ACTIONS: ThreadActionId[] = ['archive', 'trash', 'star', 'read']
 import { useMailService } from '@/features/mail/service'
-import { useUi } from '@/features/mail/ui-store'
+import { DEFAULT_LIST_PREFS, useUi, type ListPrefs } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/components/thread-result'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { viewForThread } from '@/lib/thread-view'
+
+// Each verb names its end state, so "unread" always shows unread rather than
+// flipping something. "Everything" is the palette's reset, matching the lens
+// bar's own Reset by passing the same default.
+const LIST_VERBS: { icon: IconName; label: string; patch: Partial<ListPrefs> }[] = [
+  { icon: 'unread', label: 'Show unread only', patch: { filter: 'unread' } },
+  { icon: 'star', label: 'Show starred only', patch: { filter: 'starred' } },
+  { icon: 'attachment', label: 'Show attachments only', patch: { filter: 'attachments' } },
+  { icon: 'sliders', label: 'Sort oldest first', patch: { sort: 'oldest' } },
+  { icon: 'sliders', label: 'Sort newest first', patch: { sort: 'newest' } },
+  { icon: 'sliders', label: 'Show everything, newest first', patch: DEFAULT_LIST_PREFS },
+]
 
 export function CommandPalette() {
   const open = useSurfaces((s) => s.palette)
@@ -175,6 +187,25 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           />
           <Row icon="fileText" label="Audit log" onSelect={() => run(() => openAudit())} />
           <Row icon="settings" label="Settings" onSelect={() => run(() => openSettings())} />
+        </Group>
+
+        <Group heading="List">
+          {/* The same lens the header's sliders set, as typed verbs. Each row
+              names the end state, not the toggle, so "unread" always shows
+              unread rather than flipping something. */}
+          {LIST_VERBS.map((verb) => (
+            <Row
+              key={verb.label}
+              icon={verb.icon}
+              label={verb.label}
+              onSelect={() =>
+                run(() => {
+                  const { setListPrefs, view: current } = useUi.getState()
+                  setListPrefs(current, verb.patch)
+                })
+              }
+            />
+          ))}
         </Group>
 
         <Group heading="Go to">

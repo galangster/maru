@@ -162,6 +162,61 @@ export function SurfaceEmpty({
   )
 }
 
+/**
+ * The white-thumb-on-sunken choice group — the theme picker's shape, promoted
+ * the day the list lens became its second user. `full` stretches the track and
+ * centers each segment; the default hugs its content like the theme picker.
+ * `whitespace-nowrap` because a segment that wraps reads as two options.
+ */
+export function SegmentedGroup<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+  full = false,
+}: {
+  label: string
+  value: T
+  onChange: (id: T) => void
+  options: { id: T; label: string; icon?: IconName }[]
+  full?: boolean
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className={cn(
+        'bg-sunken inline-flex h-9 items-center gap-1 rounded-md p-1',
+        full ? 'w-full' : 'w-fit',
+      )}
+    >
+      {options.map((option) => {
+        const active = option.id === value
+        return (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.id)}
+            className={cn(
+              'font-ui inline-flex h-7 items-center gap-2 rounded-sm px-3 text-base whitespace-nowrap outline-none',
+              'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+              'focus-ring',
+              full && 'flex-1 justify-center',
+              active ? 'bg-surface text-ink font-medium shadow-xs' : 'text-ink-2 hover:text-ink',
+            )}
+          >
+            {option.icon && (
+              <Icon name={option.icon} size={16} className={active ? 'text-brand' : 'text-ink-3'} />
+            )}
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /** A key, as printed. The palette's footer and the "?" sheet share it. */
 export function Keycap({
   children,

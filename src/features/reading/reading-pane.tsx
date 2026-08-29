@@ -2,6 +2,8 @@
 // the whole thread. Archive / trash / star / read go through performAction;
 // reply / reply all / forward open the composer on the newest message.
 
+import { useLayoutEffect, useRef } from 'react'
+
 import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
@@ -41,6 +43,29 @@ export function ReadingPane() {
 
   const thread = detail.data?.thread
   const labels = useLabels(thread?.accountId)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Land on the newest message, not the oldest. Messages stay chronological —
+  // a conversation reads downward — but a long thread used to open at its
+  // top, so the first screen was years-old collapsed cards and the message
+  // that caused the notification sat below the fold. Everything above the
+  // newest card is collapsed to a fixed height, so its offset is stable even
+  // while its own body iframe is still measuring; a short thread has no
+  // scroll range and the assignment clamps to 0. Instant, before paint: this
+  // is where the thread opens, not a motion.
+  const messageCount = detail.data?.messages.length ?? 0
+  useLayoutEffect(() => {
+    const container = scrollRef.current
+    if (!container || messageCount < 2) return
+    const cards = container.querySelectorAll<HTMLElement>('[data-message-card]')
+    const newest = cards[cards.length - 1]
+    if (!newest) return
+    const top =
+      newest.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop
+    container.scrollTop = Math.max(0, top - 12)
+  }, [thread?.key, messageCount])
 
   if (!selectedKey || !thread) {
     return (
@@ -111,7 +136,7 @@ export function ReadingPane() {
 
       {/* `scroll-fade`: the body runs to the window frame, so a line of mail
           straddling the bottom edge dissolves rather than being sliced. */}
-      <div data-reading-scroll className="scroll-fade min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} data-reading-scroll className="scroll-fade min-h-0 flex-1 overflow-y-auto">
         {/* Keyed on the thread, so switching threads is a crossfade rather
             than a hard cut. No AnimatePresence: the outgoing thread would have
             to be absolutely positioned over the incoming one, which fights the
