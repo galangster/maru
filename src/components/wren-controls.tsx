@@ -56,6 +56,25 @@ export function iconButtonClass(tone: Tone = 'default', className?: string): str
   return cn(ICON_BUTTON_BASE, TONES[tone], className)
 }
 
+/**
+ * The quiet text button — a surface's secondary action beside its one
+ * accent: Audit log, Deny, Copy debug report. Layout (w-fit / shrink-0 /
+ * disabled handling) stays the caller's, exactly like `iconButtonClass`.
+ */
+export function textButtonClass(
+  tone: 'default' | 'danger' = 'default',
+  className?: string,
+): string {
+  return cn(
+    'font-ui text-ink-2 focus-ring h-8 rounded-full px-3 text-base font-medium',
+    'transition-colors duration-(--wren-dur-fast)',
+    tone === 'danger'
+      ? 'hover:bg-fill-hover hover:text-destructive'
+      : 'hover:bg-fill-hover hover:text-ink',
+    className,
+  )
+}
+
 /** A surface's h2. `SurfaceHeader` renders it; the composer, whose chrome sits
  * on its own grid (S8), renders the recipe without the header. */
 export const SURFACE_TITLE = 'font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold'

@@ -35,6 +35,7 @@ import {
   SEND_CONFIRM,
   SurfaceEmpty,
   SurfaceHeader,
+  textButtonClass,
 } from '@/components/wren-controls'
 import { htmlToText } from '@/core'
 import type { Approval } from '@/core/agents'
@@ -161,7 +162,7 @@ function QueueBody() {
         <button
           type="button"
           onClick={() => openAudit()}
-          className="font-ui text-ink-2 hover:bg-fill-hover hover:text-ink focus-ring h-8 shrink-0 rounded-full px-3 text-base font-medium transition-colors duration-(--wren-dur-fast)"
+          className={textButtonClass('default', 'shrink-0')}
         >
           Audit log
         </button>
@@ -366,7 +367,7 @@ function PendingRow({
           type="button"
           onClick={() => void deny()}
           disabled={busy}
-          className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-ring h-8 shrink-0 rounded-full px-3 text-base font-medium transition-colors duration-(--wren-dur-fast) disabled:pointer-events-none disabled:opacity-40"
+          className={textButtonClass('danger', 'shrink-0 disabled:pointer-events-none disabled:opacity-40')}
         >
           Deny
         </button>

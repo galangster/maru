@@ -24,6 +24,7 @@
 // passes its id to `AgentGateway.authorize` on every tool call; it never
 // re-reads the token, and it never trusts a client-supplied id.
 
+import { sha256Hex } from '../../lib/hash'
 import type { AgentStore, Agent, AgentRecord } from './types'
 import { publicAgent } from './store'
 import type { AuditLog } from './audit'
@@ -60,9 +61,7 @@ export function issueCredential(): string {
  * verification a single keyed lookup rather than a table scan.
  */
 export async function hashCredential(token: string): Promise<string> {
-  const data = new TextEncoder().encode(token.trim())
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return sha256Hex(token.trim())
 }
 
 export interface AgentRegistryDeps {

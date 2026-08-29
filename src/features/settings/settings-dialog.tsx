@@ -39,10 +39,11 @@ import {
   SECTION_LABEL,
   SegmentedGroup,
   SurfaceHeader,
+  textButtonClass,
 } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { AgentsSection } from '@/features/agents/agents-settings'
-import { useAccounts, useSaveSettings, useSettings } from '@/features/mail/queries'
+import { useAccounts, useSaveSettings, useSettings, useSyncStatus } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import {
   focusThreadList,
@@ -55,6 +56,14 @@ import { hueFor, type Hue } from '@/lib/hue'
 import { setSoundsEnabled } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
+import { copyText } from '@/lib/clipboard'
+import {
+  REPORT_SAFE_FIELDS,
+  exportSettings,
+  parseSettingsTransfer,
+  transferDiff,
+} from './transfer'
+import { buildDebugReport } from '@/lib/debug-report'
 import pkg from '../../../package.json'
 
 const SECTION_ICONS: Record<SettingsSection, IconName> = {
@@ -564,6 +573,112 @@ function SyncSection() {
           </SelectContent>
         </Select>
       </div>
+      <TransferBlock />
+    </div>
+  )
+}
+
+/**
+ * The free half of G2: settings travel by clipboard, through any channel you
+ * already trust between your own devices. Never tokens, never agents.
+ */
+function TransferBlock() {
+  const settings = useSettings()
+  const save = useSaveSettings()
+  const setTheme = useUi((s) => s.setTheme)
+  const [pasted, setPasted] = useState('')
+  const [preview, setPreview] = useState<{ patch: Partial<Settings> } | { error: string } | null>(
+    null,
+  )
+
+  const exportNow = async () => {
+    if (!settings.data) return
+    const ok = await copyText(await exportSettings(settings.data))
+    if (ok) {
+      toast('Settings copied', {
+        description:
+          'Paste into Wren on your other device — Sync → Import. Carries your OAuth client, never tokens or agents.',
+      })
+    } else {
+      toast.error('Could not reach the clipboard')
+    }
+  }
+
+  const inspect = async (text: string) => {
+    setPasted(text)
+    if (text.trim() === '') {
+      setPreview(null)
+      return
+    }
+    const parsed = await parseSettingsTransfer(text)
+    setPreview(parsed.ok ? { patch: parsed.settings } : { error: parsed.reason })
+  }
+
+  const apply = () => {
+    if (!preview || 'error' in preview) return
+    save.mutate(preview.patch)
+    // Theme lives in two places on purpose (instant paint + persistence);
+    // an import must move both, exactly as the Appearance picker does.
+    if (preview.patch.theme) setTheme(preview.patch.theme)
+    toast.success('Settings imported')
+    setPasted('')
+    setPreview(null)
+  }
+
+  return (
+    <div className="border-hairline flex flex-col gap-2 border-t pt-4">
+      <p className={SECTION_LABEL}>This device</p>
+      <Explainer>
+        Move your settings to another Wren by clipboard: export here, paste into
+        the other device's import. Your Google OAuth client travels; account
+        tokens, agents and grants never do — each device earns its own trust.
+      </Explainer>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void exportNow()}
+          className={textButtonClass('default', 'w-fit')}
+        >
+          Copy settings export
+        </button>
+      </div>
+      <textarea
+        value={pasted}
+        onChange={(event) => void inspect(event.target.value)}
+        placeholder="Paste an export from another device to import it here"
+        rows={3}
+        spellCheck={false}
+        aria-label="Paste a settings export"
+        className="border-hairline text-ink placeholder:text-ink-3 focus-ring rounded-md border bg-transparent p-2 font-mono text-sm"
+      />
+      {preview && 'error' in preview && (
+        <p className="text-destructive text-sm text-pretty">{preview.error}</p>
+      )}
+      {preview && 'patch' in preview && settings.data && (() => {
+        const rows = transferDiff(settings.data, preview.patch)
+        return (
+        <div className="flex flex-col gap-2">
+          {rows.length === 0 ? (
+            <p className="text-ink-3 text-sm">
+              A valid export — and it matches this device already. Nothing to change.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {rows.map((row) => (
+                <li key={row.field} className="text-ink-2 text-sm tabular-nums">
+                  <span className="text-ink font-medium">{row.field}</span>: {row.from} → {row.to}
+                </li>
+              ))}
+            </ul>
+          )}
+          {rows.length > 0 && (
+            <PrimaryButton onClick={apply} className="h-8 w-fit px-4">
+              Apply {rows.length} change{rows.length === 1 ? '' : 's'}
+            </PrimaryButton>
+          )}
+        </div>
+        )
+      })()}
     </div>
   )
 }
@@ -571,11 +686,60 @@ function SyncSection() {
 // -- about --------------------------------------------------------------------
 
 function AboutSection() {
+  const settings = useSettings()
+  const accounts = useAccounts()
+  const { demo } = useMailMode()
+  const syncStatuses = useSyncStatus()
+
+  const copyReport = async () => {
+    const s = settings.data
+    const report = buildDebugReport({
+      version: pkg.version,
+      mode: demo ? 'demo' : 'real',
+      accountCount: accounts.data?.length ?? 0,
+      // The transfer whitelist minus the OAuth pair — one list, so the
+      // report and the export cannot drift apart about what is safe to name.
+      settings: s
+        ? Object.fromEntries(REPORT_SAFE_FIELDS.map((field) => [field, s[field]]))
+        : {},
+      syncStates: Object.values(syncStatuses).map((status) =>
+        status.state === 'error' ? `error: ${status.error ?? 'unknown'}` : status.state,
+      ),
+      userAgent: navigator.userAgent,
+    })
+    if (await copyText(report)) {
+      toast('Debug report copied', {
+        description: 'Paste it into a GitHub issue. It names no addresses and no secrets.',
+      })
+    } else {
+      toast.error('Could not reach the clipboard', {
+        description: 'Select and copy from the console instead — the report was printed there.',
+      })
+      console.info(report)
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-2">
-      <p className="font-ui text-ink text-xl font-semibold">Wren</p>
-      <p className="text-ink-3 text-sm tabular-nums">Version {pkg.version}</p>
-      <p className="text-ink-2 text-sm text-pretty">Local-first. Talks only to Google.</p>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <p className="font-ui text-ink text-xl font-semibold">Wren</p>
+        <p className="text-ink-3 text-sm tabular-nums">Version {pkg.version}</p>
+        <p className="text-ink-2 text-sm text-pretty">Local-first. Talks only to Google.</p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Explainer>
+          Something broke? The report below is how Wren asks for help without
+          phoning home: versions, settings and recent errors, with addresses
+          and secrets scrubbed before they ever reach the clipboard.
+        </Explainer>
+        <button
+          type="button"
+          onClick={() => void copyReport()}
+          className={textButtonClass('default', 'w-fit')}
+        >
+          Copy debug report
+        </button>
+      </div>
     </div>
   )
 }

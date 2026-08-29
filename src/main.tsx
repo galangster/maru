@@ -6,7 +6,11 @@ import App from "@/App";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/sonner";
 import { MailServiceProvider } from "@/features/mail/service";
+import { installTroubleHooks } from "@/lib/debug-report";
 import "./index.css";
+
+// Before render, so a crash during mount still lands in the debug report.
+installTroubleHooks();
 
 const queryClient = new QueryClient({
   defaultOptions: {

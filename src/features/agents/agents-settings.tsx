@@ -9,12 +9,13 @@
 // SHA-256 digest, so "you won't see this again" is a statement of fact rather
 // than a policy — see core/agents/registry.ts.
 
+import { copyText } from '@/lib/clipboard'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmPopover } from '@/components/confirm-popover'
 import { Icon } from '@/components/ui/icon'
-import { PRESS, PrimaryButton, SECTION_LABEL } from '@/components/wren-controls'
+import { PRESS, PrimaryButton, SECTION_LABEL, textButtonClass } from '@/components/wren-controls'
 import type { Agent, Capability, Grant } from '@/core/agents'
 import { CAPABILITIES, DEMO_AGENT, DEMO_AGENT_CREDENTIAL } from '@/core/agents'
 import { useAgentGateway, useMailMode } from '@/features/mail/service'
@@ -73,7 +74,7 @@ export function AgentsSection() {
       <button
         type="button"
         onClick={() => openAudit()}
-        className="font-ui text-ink-2 hover:bg-fill-hover hover:text-ink focus-ring h-8 w-fit rounded-full px-3 text-base font-medium transition-colors duration-(--wren-dur-fast)"
+        className={textButtonClass('default', 'w-fit')}
       >
         Open the audit log
       </button>
@@ -136,7 +137,7 @@ function AgentCard({
               <button
                 type="button"
                 aria-label={`Revoke ${agent.name}`}
-                className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-ring h-8 shrink-0 rounded-full px-3 text-base font-medium transition-colors duration-(--wren-dur-fast)"
+                className={textButtonClass('danger', 'shrink-0')}
               />
             }
             triggerContent="Revoke"
@@ -507,7 +508,7 @@ function CredentialOnce({
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(issued.credential)
+      if (!(await copyText(issued.credential))) throw new Error('clipboard refused')
       setCopied(true)
       toast.success('Credential copied')
     } catch {
