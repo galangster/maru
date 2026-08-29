@@ -140,5 +140,15 @@ where, why, proof.
     tickets P1–P9, R3a; G1 and G2 closed with resolutions. Proof: this
     commit.
 
+18. **Map 3 autonomous run: P1, R3a, P5, P7, P8, P9.** Flip prep complete
+    (gitleaks-clean history, SECURITY.md, Anron license, README posture,
+    npm placeholder awaiting Nick's publish); shared-OAuth research
+    recommends a verified shared client via the CASA local-client
+    exemption; settings transfer by clipboard (checksummed, previewed,
+    G2 hard lines intact); debug report (no telemetry); startup bundle
+    1,387→541 KB; gateway CI on Linux+Windows. Kit grew textButtonClass
+    (sixth call site) and lib/hash + lib/clipboard. Proof: commits
+    d3ad18f, 5f4706b, cf11536, cb08df2; 427 tests; captures (t9-09 only).
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

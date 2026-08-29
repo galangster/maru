@@ -73,6 +73,20 @@ Wren ever runs is the one people pay for.
 Owner thread, not tickets: the triage-morning live run + film (runbook in
 docs/TRIAGE-MORNING.md §4) — still the launch's centerpiece asset.
 
+## Progress — autonomous run, 2026-08-29 (evening)
+
+Closed same-day: **P1** (flip prep: gitleaks clean over all history,
+SECURITY.md, Anron license, README posture, `wren-mcp` placeholder
+prepped — the publish and the flip are Nick's two buttons), **R3a**
+(recommendation: one shared *verified* client via the restricted-scope
+local-client CASA exemption; Thunderbird precedent; bring-your-own stays
+the fork path — docs/research/shared-oauth-client.md), **P5** (clipboard
+settings transfer with checksum + preview), **P7** (debug report, no
+telemetry), **P8** (startup chunk 1,387 → 541 KB via latched lazy
+surfaces), **P9** (gateway CI matrix; first run triggered). Remaining:
+P2/P3 behind Apple enrollment, P4 behind R3a's owner read + the film,
+P6 behind the flip.
+
 ## Not yet specified
 
 - The shared-client outcome (R3a) reshapes P4's scope either way.
