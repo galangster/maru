@@ -98,12 +98,19 @@ model becomes the reference for how agents touch a person's mailbox.
   outgoing attachments on `request_send` (capped under the frame, shown
   on the approval card). M3's two recorded gaps are closed; the
   CONNECT-AN-AGENT caveats were rewritten to match.
+- [M10 first-connection consent](tickets/M10-connection-consent.md)
+  charted decision-ready: notice (recommended) vs gate, Nick's call.
+  Session boundary 2026-08-29 (evening): the unblocked roadmap is
+  exhausted — M4–M9 shipped; what remains is owner gates. Handoff:
+  handoffs/2026-08-29-roadmap-run.md.
 
 ## Not yet specified
 
 - The permission-grant data model's exact shape (per-agent × capability ×
   scope: recipient/domain/label) — sharpens in M1.
 - Standing-permission UX ("always allow X for this agent") and revocation.
+- ~~The connection-consent prompt~~ — graduated to
+  [M10](tickets/M10-connection-consent.md), decision-ready.
 - ~~The spec document that makes "defacto" claimable~~ — graduated to
   [M5](tickets/M5-permission-spec.md) by M4's close.
 - Outlook (Graph) and IMAP providers behind the provider seam.
