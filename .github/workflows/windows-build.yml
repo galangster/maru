@@ -1,0 +1,44 @@
+name: Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Build Windows bundles (NSIS + MSI)
+        run: npx tauri build
+        env:
+          CI: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wren-windows
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  # macOS build, same shape — enable when needed.
+  # macos:
+  #   runs-on: macos-latest
+  #   steps: [checkout, setup-node, rust-toolchain, npm ci, npx tauri build,
+  #           upload src-tauri/target/release/bundle/dmg/*.dmg]

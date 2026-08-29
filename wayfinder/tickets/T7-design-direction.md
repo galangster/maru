@@ -1,6 +1,17 @@
 # T7 — Design direction: Mobbin + liquid glass + tokens  `wayfinder:research` (AFK)
 
-status: open · claimed: — · blocked by: —
+status: closed · claimed: fable-orchestrator · blocked by: —
+
+## Resolution
+
+Closed 2026-08-28, commit 2a1a585. System: periwinkle-indigo accent (OKLCH
+hue 268) carried at low chroma through the neutrals; AA-verified tiers;
+5-size type scale (Open Runde 500/600 chrome, DM Sans 400/500 body); glass
+recipe blur(20)/saturate(180) with WebView2 rules (max 2 layers, never on
+scroll containers, no animated blur; true Liquid Glass refraction rejected —
+Chromium-only). Mobbin: fixed sender column, space-not-dividers grouping,
+fill-step depth, centered glass palettes. docs/design/DIRECTION.md +
+src/styles/tokens.css.
 
 ## Question
 
