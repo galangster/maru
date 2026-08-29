@@ -175,4 +175,45 @@ Adopted:
 - 4 px spacing grid; spacing/alignment named as an explicit review gate in
   T5.
 
+## Round 6 — post-MVP live session (2026-08-28/29, Nick present)
+
+Rulings and events after the seal, in order:
+- **ui-review full audit** (Nick's directive): verdict Blocked, grade B+; all
+  3 blocking + 13/13 should-fix + 10/11 nits fixed (d757c1c).
+- **Magic + sounds**: MAGIC.md moments implemented; CC0 sound set, off by
+  default; send micro-sequence with a real 4 s undo window.
+- **GitHub**: private repo galangster/wren; Windows CI run succeeded
+  (artifact wren-windows). gh account restored to NickMetaDAO after each push.
+- **Google OAuth**: project "Wren" (id smart-processor-507004-r9), Gmail API
+  enabled, External/Testing consent, Nick sole test user, Desktop client
+  "Wren Desktop". Claude drove the console; Nick performed sign-in, the
+  User-Data-Policy agreement, and credential copy — credentials never
+  entered Claude's context.
+- **First live sync — two real-engine fixes:** (1) pooled-connection
+  BEGIN/COMMIT starved every write (5 s busy-timeout, rows_affected=0) —
+  transactions removed, WAL enabled (e2894ad); (2) Gmail per-user rate
+  limiter 429'd 50-item batch bursts (2,000 units/instant) — chunks now 10
+  with per-part retry rounds instead of whole-batch replay (ac6d3b3).
+  Verified live: full backfill completed; send verified cross-account.
+- **⚠ Amie-ification** (Nick: "take all of the UI, colors, and styling from
+  Amie... they told me i could"): styling system only — no Amie assets or
+  brand. Study from 36 Mobbin screens → de-tinted achromatic neutrals,
+  8-hue category family bound to labels/avatars, ring-composed ~25% lighter
+  depth, tighter desktop radii, inset rounded rows (3175e3e). Autonomous
+  calls under Nick's delegation: accent stays hue 268; glass narrowed to
+  palette+composer (his Round-5 ask outranks Amie's no-glass); subject-emoji
+  inference deferred.
+- **Celebrations** (Nick: "small celebrations... dopamine"): overrides the
+  earlier no-confetti conservatism. Amie register — one confident pop;
+  particles only at inbox-zero (18, once per transition, 60 s guard);
+  reduced-motion mounts nothing.
+- **Colored active fills** (Nick): stateful icons use Anron Filled twins +
+  semantic color (star gold — contrast-floored at oklch(0.63 0.15 58)).
+- **Anron icons landed** after Nick supplied the library-grid Figma node:
+  42/43 mapped, Line resting / Filled active; icon-seam chip session merged
+  (82f42ef); non-scaling-stroke hack removed (root cause of heavy small
+  icons).
+- **Titlebar**: double "Wren" fixed — macOS hiddenTitle + overlay traffic
+  lights; Windows overlay untouched.
+
 Frontier empty. Tree closed 2026-08-28.
