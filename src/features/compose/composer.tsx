@@ -19,7 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { IconButton, PrimaryButton, iconButtonClass } from '@/components/wren-controls'
+import {
+  IconButton,
+  META_TEXT,
+  PrimaryButton,
+  SEND_BUTTON,
+  SEND_CONFIRM,
+  SURFACE_TITLE,
+  iconButtonClass,
+} from '@/components/wren-controls'
 import type { Account } from '@/core/types'
 import { useAccounts } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
@@ -34,7 +42,7 @@ import { playSound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
 import { BodyEditor, FormatToolbar, useBodyEditor } from './body-editor'
-import { ChipInput } from './chip-input'
+import { ChipInput, FIELD_LABEL } from './chip-input'
 import {
   toComposeDraft,
   useComposer,
@@ -325,7 +333,7 @@ function ComposerSheet() {
           )}
         >
       <header className="flex h-10 shrink-0 items-center gap-1 pr-1 pl-4">
-        <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
+        <h2 className={SURFACE_TITLE}>
           {title}
         </h2>
         {/* Toolbar chrome sits at 18 on DIRECTION §8's grid; the 16 px
@@ -392,7 +400,7 @@ function ComposerSheet() {
       <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
         <label
           htmlFor="wren-subject"
-          className="font-ui text-ink-3 w-14 shrink-0 text-xs font-semibold uppercase"
+          className={FIELD_LABEL}
         >
           Subject
         </label>
@@ -418,7 +426,7 @@ function ComposerSheet() {
               >
                 <Icon name="attachment" size={16} className="text-ink-3" />
                 <span className="truncate">{attachment.filename}</span>
-                <span className="text-ink-3 shrink-0 text-xs tabular-nums">
+                <span className={META_TEXT}>
                   {formatBytes(attachment.sizeBytes)}
                 </span>
                 {/* 20×20 was under WCAG 2.2 SC 2.5.8's 24×24 floor and well
@@ -492,11 +500,7 @@ function ComposerSheet() {
                     ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
                     : undefined
                 }
-                className={cn(
-                  'h-8 gap-2 px-4 transition-[background-color,color] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-                  sending &&
-                    'bg-hue-green text-hue-fg disabled:opacity-100',
-                )}
+                className={cn(SEND_BUTTON, sending && SEND_CONFIRM)}
               />
             }
           >
@@ -531,7 +535,7 @@ function FromRow({
 }) {
   return (
     <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
-      <span className="font-ui text-ink-3 w-14 shrink-0 text-xs font-semibold uppercase">From</span>
+      <span className={FIELD_LABEL}>From</span>
       {accounts.length > 1 ? (
         <Select value={account?.id ?? ''} onValueChange={(value) => onChange(String(value))}>
           <SelectTrigger size="sm" aria-label="Send from" className="-ml-2 border-0 shadow-none">

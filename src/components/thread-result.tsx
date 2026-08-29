@@ -3,7 +3,7 @@
 // at the same x.
 
 import { Icon } from '@/components/ui/icon'
-import { AccountAvatar } from '@/components/wren-controls'
+import { AccountAvatar, DATE_COLUMN, ICON_SLOT } from '@/components/wren-controls'
 import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
 import { hueFor } from '@/lib/hue'
@@ -33,7 +33,7 @@ export function ThreadResult({
       {avatar ? (
         <AccountAvatar address={lead} hue={hueFor(lead.email)} />
       ) : (
-        <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
+        <span className={ICON_SLOT}>
           <Icon
             name={thread.unread ? 'unread' : 'read'}
             size={16}
@@ -58,7 +58,7 @@ export function ThreadResult({
           the timestamps ragged down the list — the one thing DIRECTION §1 says
           a column may never do. The rule was written on the list row and not
           applied here (S3). */}
-      <span className="text-ink-3 w-16 shrink-0 text-right text-xs tabular-nums">
+      <span className={DATE_COLUMN}>
         {relativeTime(thread.lastMessageAt, now)}
       </span>
     </span>

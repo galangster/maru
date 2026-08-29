@@ -13,9 +13,8 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
-import { Icon } from '@/components/ui/icon'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { IconButton, PRESS } from '@/components/wren-controls'
+import { IconButton, PRESS, SurfaceEmpty, SurfaceHeader } from '@/components/wren-controls'
 import type { AuditEntry } from '@/core/agents'
 import { AUDIT_READ_CAP } from '@/core/agents'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
@@ -99,8 +98,7 @@ function TimelineBody({ filter }: { filter: string }) {
 
   return (
     <>
-      <header className="border-hairline flex h-12 shrink-0 items-center gap-2 border-b pr-2 pl-6">
-        <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">Audit</h2>
+      <SurfaceHeader title="Audit">
         <IconButton
           name="close"
           label="Close the audit log"
@@ -108,7 +106,7 @@ function TimelineBody({ filter }: { filter: string }) {
           className="shrink-0"
           onClick={closeAudit}
         />
-      </header>
+      </SurfaceHeader>
 
       {/* Per-agent filter chips. One row, left-aligned, the same soft-fill
           selection every other selected thing in Wren takes.
@@ -140,13 +138,9 @@ function TimelineBody({ filter }: { filter: string }) {
 
       <div ref={scrollRef} className="scroll-fade min-h-0 flex-1 overflow-y-auto">
         {rows.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-8 py-16 text-center">
-            <Icon name="fileText" size={20} className="text-ink-3" />
-            <p className="font-ui text-ink text-base font-medium">Nothing recorded yet</p>
-            <p className="text-ink-3 max-w-80 text-sm text-pretty">
-              Every read, archive, draft and send an agent makes is written here, and stays.
-            </p>
-          </div>
+          <SurfaceEmpty icon="fileText" title="Nothing recorded yet">
+            Every read, archive, draft and send an agent makes is written here, and stays.
+          </SurfaceEmpty>
         ) : (
           <table className="w-full border-collapse text-left">
             {/* Small and muted, not bold: hierarchy by colour, never by weight

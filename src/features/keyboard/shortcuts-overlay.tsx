@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Keycap } from '@/components/wren-controls'
+import { Keycap, SECTION_LABEL } from '@/components/wren-controls'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 
 import { SHORTCUT_GROUPS, shortcutsIn } from './keymap'
@@ -44,7 +44,7 @@ export function ShortcutsOverlay() {
           {SHORTCUT_GROUPS.map((group) => (
             <section key={group} className="flex flex-col gap-2">
               {/* The eyebrow — AMIE-STUDY §3. One word naming the section it owns. */}
-              <h3 className="font-ui text-ink-3 text-xs font-semibold uppercase">{group}</h3>
+              <h3 className={SECTION_LABEL}>{group}</h3>
               <ul className="flex flex-col gap-2">
                 {shortcutsIn(group).map((shortcut) => (
                   <li key={shortcut.id} className="flex items-center gap-2">

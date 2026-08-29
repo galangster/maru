@@ -4,7 +4,7 @@
 import { useCallback, useState } from 'react'
 
 import { Icon } from '@/components/ui/icon'
-import { AccountAvatar } from '@/components/wren-controls'
+import { AccountAvatar, META_TEXT } from '@/components/wren-controls'
 import type { Message } from '@/core/types'
 import { displayName, fullTimestamp, relativeTime } from '@/lib/format'
 import { hueFor } from '@/lib/hue'
@@ -50,7 +50,7 @@ export function MessageCard({
           {displayName(message.from)}
         </span>
         <span className="text-ink-3 min-w-0 flex-1 truncate text-sm">{message.snippet}</span>
-        <span className="text-ink-3 shrink-0 text-xs tabular-nums">
+        <span className={META_TEXT}>
           {relativeTime(message.date, now)}
         </span>
       </button>
@@ -68,7 +68,7 @@ export function MessageCard({
           <p className="text-ink-3 truncate text-sm">{message.from.email}</p>
         </div>
         <time
-          className="text-ink-3 shrink-0 text-xs tabular-nums"
+          className={META_TEXT}
           title={fullTimestamp(message.date)}
         >
           {relativeTime(message.date, now)}

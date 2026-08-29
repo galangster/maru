@@ -10,8 +10,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
-import { PrimaryButton } from '@/components/wren-controls'
-import { CloudMark } from '@/features/list/empty-state'
+import { ICON_SLOT, PrimaryButton } from '@/components/wren-controls'
+import { CloudMark } from '@/components/empty-state'
 import { useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import { useSurfaces } from '@/features/shell/surface-store'
@@ -161,7 +161,7 @@ function Choice({
         'hover:bg-fill-hover focus-ring',
       )}
     >
-      <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
+      <span className={ICON_SLOT}>
         <Icon name={icon} size={20} className={primary ? 'text-brand' : 'text-ink-3'} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">

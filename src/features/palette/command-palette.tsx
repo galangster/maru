@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Keycap } from '@/components/wren-controls'
+import { ICON_SLOT, Keycap } from '@/components/wren-controls'
 import { FOLDERS } from '@/core/defaults'
 import type { MailView, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
@@ -32,7 +32,7 @@ import { threadActions, type ThreadActionId } from '@/features/mail/thread-actio
 const PALETTE_ACTIONS: ThreadActionId[] = ['archive', 'trash', 'star', 'read']
 import { useMailService } from '@/features/mail/service'
 import { useUi } from '@/features/mail/ui-store'
-import { ThreadResult } from '@/features/search/thread-result'
+import { ThreadResult } from '@/components/thread-result'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { useDebounced } from '@/lib/use-debounced'
@@ -120,7 +120,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     >
       <div className="border-hairline flex h-12 shrink-0 items-center gap-3 border-b px-4">
         {/* Same 24 px icon box as every row below, so the glyphs line up. */}
-        <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
+        <span className={ICON_SLOT}>
           <Icon name="search" size={18} className="text-ink-3" />
         </span>
         <Command.Input
@@ -266,7 +266,7 @@ function Row({
       onSelect={onSelect}
       className="data-[selected=true]:bg-fill-selected data-[selected=true]:text-ink group text-ink-2 flex h-9 cursor-default items-center gap-3 rounded-inset px-2 text-base outline-none"
     >
-      <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
+      <span className={ICON_SLOT}>
         <Icon
           name={icon}
           size={18}

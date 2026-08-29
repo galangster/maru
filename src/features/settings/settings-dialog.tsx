@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { AccountAvatar, HueTile, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
+import { AccountAvatar, HueTile, IconButton, PRESS, PrimaryButton, SECTION_LABEL, SurfaceHeader } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { AgentsSection } from '@/features/agents/agents-settings'
 import { keys, useAccounts, useSettings } from '@/features/mail/queries'
@@ -160,10 +160,7 @@ function SettingsBody({ section }: { section: SettingsSection }) {
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-hairline flex h-12 shrink-0 items-center gap-2 border-b pr-2 pl-6">
-          <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
-            {SETTINGS_SECTIONS.find((s) => s.id === section)?.label}
-          </h2>
+        <SurfaceHeader title={SETTINGS_SECTIONS.find((s) => s.id === section)?.label}>
           <IconButton
             name="close"
             label="Close settings"
@@ -171,7 +168,7 @@ function SettingsBody({ section }: { section: SettingsSection }) {
             className="shrink-0"
             onClick={closeSettings}
           />
-        </header>
+        </SurfaceHeader>
 
         {/* `scroll-fade`: the taller sections — the Google setup guide, and now
             Agents — run past the fixed 440, and a field sliced flat against the
@@ -200,7 +197,7 @@ function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor:
     // The eyebrow — AMIE-STUDY §3. A field label is a word, so it takes the
     // caps half of the role as well as the weight and the tracking, exactly
     // like the grey labels above every field well in Amie's own sheets.
-    <label htmlFor={htmlFor} className="font-ui text-ink-3 text-xs font-semibold uppercase">
+    <label htmlFor={htmlFor} className={SECTION_LABEL}>
       {children}
     </label>
   )

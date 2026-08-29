@@ -19,7 +19,7 @@
 import { memo, useCallback, useState } from 'react'
 
 import { Icon } from '@/components/ui/icon'
-import { AVATAR_CHIP, AccountAvatar, iconButtonClass } from '@/components/wren-controls'
+import { AVATAR_CHIP, AccountAvatar, DATE_COLUMN, META_TEXT, iconButtonClass } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import { THREAD_ACTION_ORDER, threadActions } from '@/features/mail/thread-actions'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
@@ -141,7 +141,7 @@ export const ThreadRow = memo(function ThreadRow({
               {sender}
             </span>
             {thread.messageCount > 1 && (
-              <span className="text-ink-3 shrink-0 text-xs tabular-nums">
+              <span className={META_TEXT}>
                 {thread.messageCount}
               </span>
             )}
@@ -152,7 +152,7 @@ export const ThreadRow = memo(function ThreadRow({
               left edge of the timestamps ragged down the list, which is the
               one thing DIRECTION §1 says a column may never do. 64 px holds
               the longest value. */}
-          <time className="text-ink-3 w-16 shrink-0 text-right text-xs tabular-nums">
+          <time className={DATE_COLUMN}>
             {relativeTime(thread.lastMessageAt, now)}
           </time>
         </div>

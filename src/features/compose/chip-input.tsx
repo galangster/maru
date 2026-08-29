@@ -6,9 +6,16 @@
 import { useId, useRef, useState } from 'react'
 
 import { Icon } from '@/components/ui/icon'
+import { SECTION_LABEL } from '@/components/wren-controls'
 import type { EmailAddress } from '@/core/types'
 import { dedupeAddresses, formatAddress, parseAddresses } from '@/lib/compose'
 import { cn } from '@/lib/utils'
+
+/**
+ * The 56 px field label the compose fields share — To, Cc, Subject, From.
+ * The section-label recipe plus the fixed column that keeps chips aligned.
+ */
+export const FIELD_LABEL = `${SECTION_LABEL} w-14 shrink-0`
 
 export interface ChipInputProps {
   label: string
@@ -55,7 +62,7 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
     <div className="bg-sunken rounded-md flex min-h-9 items-start gap-3 px-3">
       <label
         htmlFor={id}
-        className="font-ui text-ink-3 w-14 shrink-0 cursor-text py-2 text-xs font-semibold uppercase"
+        className={cn(FIELD_LABEL, 'cursor-text py-2')}
       >
         {label}
       </label>

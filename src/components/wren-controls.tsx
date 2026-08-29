@@ -56,6 +56,41 @@ export function iconButtonClass(tone: Tone = 'default', className?: string): str
   return cn(ICON_BUTTON_BASE, TONES[tone], className)
 }
 
+/** A surface's h2. `SurfaceHeader` renders it; the composer, whose chrome sits
+ * on its own grid (S8), renders the recipe without the header. */
+export const SURFACE_TITLE = 'font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold'
+
+/** Timestamps, sizes, counts — the quiet numerals beside a row's text. */
+export const META_TEXT = 'text-ink-3 shrink-0 text-xs tabular-nums'
+
+/**
+ * The right-aligned date column the list row and the search row share. One
+ * width for both, because subjects across the two row kinds start at the same
+ * x only while their trailing columns agree.
+ */
+export const DATE_COLUMN = `${META_TEXT} w-16 text-right`
+
+/** The uppercase group label settings surfaces and the shortcut sheet share. */
+export const SECTION_LABEL = 'font-ui text-ink-3 text-xs font-semibold uppercase'
+
+/**
+ * The fixed-width icon slot a repeated row leads with. Width comes from the
+ * token, `shrink-0` is the point: gap alone cannot align a column of icons
+ * across rows whose text runs long.
+ */
+export const ICON_SLOT = 'flex w-(--wren-icon-box) shrink-0 items-center justify-center'
+
+/**
+ * The send action's sizing, and its confirmation. One recipe for the composer
+ * and the approval queue, because the queue's Approve promises to confirm
+ * "exactly as the composer runs it" — a promise a shared constant keeps and a
+ * second copy lets drift. `disabled:opacity-100` because both call sites
+ * disable the button the moment it fires, and the confirmation must not grey.
+ */
+export const SEND_BUTTON =
+  'h-8 gap-2 px-4 transition-[background-color,color] duration-(--wren-dur-fast) ease-(--wren-ease-out)'
+export const SEND_CONFIRM = 'bg-hue-green text-hue-fg disabled:opacity-100'
+
 /**
  * The one primary action on a surface: compose, send, add account, get
  * started. Height and padding are the caller's — the colour, the elevation,
@@ -81,6 +116,49 @@ export function PrimaryButton({
       )}
       {...props}
     />
+  )
+}
+
+/**
+ * The 48 px header every full surface opens with: title left, actions right.
+ * `title` is a node, not a string, because the queue's count rides inside the
+ * h2 where a screen reader announces them together.
+ */
+export function SurfaceHeader({
+  title,
+  children,
+}: {
+  title: React.ReactNode
+  children?: React.ReactNode
+}) {
+  return (
+    <header className="border-hairline flex h-12 shrink-0 items-center gap-2 border-b pr-2 pl-6">
+      <h2 className={SURFACE_TITLE}>{title}</h2>
+      {children}
+    </header>
+  )
+}
+
+/**
+ * A surface's quiet empty block: one glyph, one line, one explanation. Sits at
+ * the top of a scroll area rather than centering in it — an empty queue and an
+ * empty timeline keep their chrome where the full versions put it.
+ */
+export function SurfaceEmpty({
+  icon,
+  title,
+  children,
+}: {
+  icon: IconName
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-8 py-16 text-center">
+      <Icon name={icon} size={20} className="text-ink-3" />
+      <p className="font-ui text-ink text-base font-medium">{title}</p>
+      <p className="text-ink-3 max-w-80 text-sm text-pretty">{children}</p>
+    </div>
   )
 }
 

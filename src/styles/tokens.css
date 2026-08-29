@@ -896,7 +896,7 @@
 /* Inbox zero. Fires at most once per transition, never twice inside 60 s, and
    never on the first mount of an already-empty inbox. The guard is the part
    that decides whether this is charming or infuriating; it lives in
-   features/list/celebrate.ts. */
+   lib/celebrate.ts. */
 @keyframes wren-celebrate-in {
     0% {
         opacity: 0;

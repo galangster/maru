@@ -26,7 +26,16 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
+import {
+  IconButton,
+  META_TEXT,
+  PRESS,
+  PrimaryButton,
+  SEND_BUTTON,
+  SEND_CONFIRM,
+  SurfaceEmpty,
+  SurfaceHeader,
+} from '@/components/wren-controls'
 import { htmlToText } from '@/core'
 import type { Approval } from '@/core/agents'
 import { useAgentGateway } from '@/features/mail/service'
@@ -136,13 +145,18 @@ function QueueBody() {
         {announcement}
       </div>
 
-      <header className="border-hairline flex h-12 shrink-0 items-center gap-2 border-b pr-2 pl-6">
-        <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
-          Waiting on you
-          {items.length > 0 && (
-            <span className="text-ink-3 ml-2 text-sm font-normal tabular-nums">{items.length}</span>
-          )}
-        </h2>
+      <SurfaceHeader
+        title={
+          <>
+            Waiting on you
+            {items.length > 0 && (
+              <span className="text-ink-3 ml-2 text-sm font-normal tabular-nums">
+                {items.length}
+              </span>
+            )}
+          </>
+        }
+      >
         <button
           type="button"
           onClick={() => openAudit()}
@@ -158,7 +172,7 @@ function QueueBody() {
           className="shrink-0"
           onClick={() => setApprovals(false)}
         />
-      </header>
+      </SurfaceHeader>
 
       {/* `scroll-fade`: a request that straddles the bottom edge dissolves
           rather than being guillotined against the canvas (DIRECTION §1, and
@@ -187,14 +201,10 @@ function EmptyQueue() {
   return (
     // Title plus a one-line why, the shape DIRECTION §2 (Family 2) asks every
     // empty state and every confirm to take.
-    <div className="flex flex-col items-center gap-2 px-8 py-16 text-center">
-      <Icon name="check" size={20} className="text-ink-3" />
-      <p className="font-ui text-ink text-base font-medium">Nothing waiting</p>
-      <p className="text-ink-3 max-w-80 text-sm text-pretty">
-        When an agent asks to send something, it lands here first. A request expires on its own
-        after a day.
-      </p>
-    </div>
+    <SurfaceEmpty icon="check" title="Nothing waiting">
+      When an agent asks to send something, it lands here first. A request expires on its own
+      after a day.
+    </SurfaceEmpty>
   )
 }
 
@@ -288,7 +298,7 @@ function PendingRow({
             the audit table hedges the same column (S4). */}
         <span
           title={fullTimestamp(approval.createdAt)}
-          className="text-ink-3 ml-auto shrink-0 text-xs tabular-nums"
+          className={cn(META_TEXT, 'ml-auto')}
         >
           {elapsedTime(approval.createdAt, now())}
         </span>
@@ -355,11 +365,7 @@ function PendingRow({
               ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
               : undefined
           }
-          className={cn(
-            'h-8 gap-2 px-4 transition-[background-color,color] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-            PRESS,
-            sent && 'bg-hue-green text-hue-fg disabled:opacity-100',
-          )}
+          className={cn(SEND_BUTTON, PRESS, sent && SEND_CONFIRM)}
         >
           <Icon name={sent ? 'check' : 'sent'} size={16} key={sent ? 'sent' : 'send'} />
           <span key={sent ? 'sent-label' : 'send-label'} className="wren-swap">

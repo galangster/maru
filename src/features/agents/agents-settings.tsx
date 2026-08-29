@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 
 import { ConfirmPopover } from '@/components/confirm-popover'
 import { Icon } from '@/components/ui/icon'
-import { PRESS, PrimaryButton } from '@/components/wren-controls'
+import { PRESS, PrimaryButton, SECTION_LABEL } from '@/components/wren-controls'
 import type { Agent, Capability, Grant } from '@/core/agents'
 import { CAPABILITIES, DEMO_AGENT, DEMO_AGENT_CREDENTIAL } from '@/core/agents'
 import { useAgentGateway, useMailMode } from '@/features/mail/service'
@@ -231,7 +231,7 @@ function CapabilityToggles({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="font-ui text-ink-3 text-xs font-semibold uppercase">Capabilities</p>
+      <p className={SECTION_LABEL}>Capabilities</p>
       <div role="group" aria-label="Capabilities" className="flex flex-wrap gap-2">
         {CAPABILITIES.map((capability) => {
           const on = Boolean(held[capability])
@@ -342,7 +342,7 @@ function SendScopeEditor({ agentId, grant }: { agentId: string; grant: Grant }) 
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="font-ui text-ink-3 text-xs font-semibold uppercase">Send to</p>
+      <p className={SECTION_LABEL}>Send to</p>
       {/* A group of pressed toggles rather than a `role="radiogroup"`. The
           radiogroup role promises roving tabindex and arrow-key traversal, and
           this control implemented neither: each option was its own tab stop and
@@ -443,7 +443,7 @@ function CreateAgent() {
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="wren-agent-name" className="font-ui text-ink-3 text-xs font-semibold uppercase">
+      <label htmlFor="wren-agent-name" className={SECTION_LABEL}>
         Name
       </label>
       <div className="flex items-center gap-2">

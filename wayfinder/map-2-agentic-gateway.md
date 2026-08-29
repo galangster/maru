@@ -63,6 +63,18 @@ model becomes the reference for how agents touch a person's mailbox.
   [M5](tickets/M5-permission-spec.md). The live split-screen film with a
   real Claude stays an owner gate — it needs Nick at the keyboard.
 
+- [M6 component audit](tickets/M6-component-audit.md): shipped — see the
+  ticket resolution; docs/design/COMPONENTS.md now documents the layers,
+  the promotion rule, and the import rules; all 13 captures re-ran
+  byte-identical as the refactor-purity proof.
+- New asks from Nick, 2026-08-29, charted rather than absorbed:
+  [M7 list controls](tickets/M7-list-controls.md) (default newest-first is
+  already true on every thread list; the screenshot is likely within-thread
+  order, plus filter/sort options as a feature) and
+  [G2 cross-device sync](tickets/G2-cross-device-sync.md) (a grilling
+  ticket: the "Wren account" phrasing collides with the ratified
+  no-servers line, so the mechanism needs an owner decision first).
+
 ## Not yet specified
 
 - The permission-grant data model's exact shape (per-agent × capability ×

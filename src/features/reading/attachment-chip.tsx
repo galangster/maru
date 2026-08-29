@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
 
 import { Icon } from '@/components/ui/icon'
+import { META_TEXT } from '@/components/wren-controls'
 import type { Attachment } from '@/core/types'
 import { attachmentIcon, formatBytes } from '@/lib/format'
 
@@ -19,7 +20,7 @@ export function AttachmentChip({ attachment }: { attachment: Attachment }) {
     >
       <Icon name={attachmentIcon(attachment.mimeType)} size={16} className="text-ink-3" />
       <span className="truncate">{attachment.filename}</span>
-      <span className="text-ink-3 shrink-0 text-xs tabular-nums">
+      <span className={META_TEXT}>
         {formatBytes(attachment.sizeBytes)}
       </span>
     </button>

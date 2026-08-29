@@ -69,5 +69,16 @@ where, why, proof.
     story". Proof: 9d1db86; 388 tests; frame-verified webm. Spec fog item
     graduated as ticket M5.
 
+11. **M6, the component-system audit.** Token/seam layers verified clean;
+    duplication fixed one layer up: empty-state and thread-result promoted
+    to src/components (domain half split to features/list/inbox-zero.ts,
+    celebrate.ts to src/lib), SurfaceHeader/SurfaceEmpty + seven recipe
+    constants added to wren-controls, ~30 call sites deduplicated, and
+    docs/design/COMPONENTS.md written (layers, promotion rule, import
+    rules). Why: Nick's scalability directive, 2026-08-29. Proof: this
+    commit; 388 tests; all 13 captures byte-identical twice. New asks
+    charted, not absorbed: tickets M7 (list sort/filter) and G2
+    (cross-device sync, a grilling ticket against the no-servers line).
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

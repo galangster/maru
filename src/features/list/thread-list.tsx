@@ -25,7 +25,7 @@ import {
 } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { useUi } from '@/features/mail/ui-store'
-import { ThreadResult } from '@/features/search/thread-result'
+import { ThreadResult } from '@/components/thread-result'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { HeldMutations } from '@/lib/deferred'
 import { dateGroup, type DateGroup } from '@/lib/format'
@@ -35,7 +35,8 @@ import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
-import { EmptyState, emptyCopyFor, useInboxZeroTier } from './empty-state'
+import { EmptyState } from '@/components/empty-state'
+import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
 import { ThreadRow, threadRowId } from './thread-row'
 
 const GROUP_H = 40
