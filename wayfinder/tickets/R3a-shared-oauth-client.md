@@ -1,6 +1,6 @@
 # R3a — A shared OAuth client?  `wayfinder:research` (AFK)
 
-status: open · claimed: — · blocked by: —
+status: in progress · claimed: autonomous run, 2026-08-29 · blocked by: —
 
 ## Question
 

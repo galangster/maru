@@ -1,6 +1,6 @@
 # P9 — Gateway CI matrix  `wayfinder:task`  *(cuttable)*
 
-status: open · claimed: — · blocked by: —
+status: in progress · claimed: autonomous run, 2026-08-29 · blocked by: —
 
 Windows named-pipe and Linux socket verification in CI: cargo tests for
 src-tauri/src/gateway.rs on windows-latest + ubuntu-latest, and the

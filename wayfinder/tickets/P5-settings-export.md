@@ -1,6 +1,6 @@
 # P5 — Settings export/import  `wayfinder:task`
 
-status: open · claimed: — · blocked by: —
+status: in progress · claimed: autonomous run, 2026-08-29 · blocked by: —
 
 ## Question → work
 

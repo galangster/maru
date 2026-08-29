@@ -3,9 +3,9 @@
 What flipping galangster/wren public would expose, scanned tree **and**
 full git history. Verdict up front: **none of the secret shapes this
 project handles appear anywhere — tree or history — so nothing suggests a
-rewrite.** The scan is shape-based (the patterns below), not
-entropy-based: run `gitleaks` over history at flip time to make the claim
-unconditional. Three small items are worth a decision first, none
+rewrite.** Confirmed 2026-08-29: `gitleaks detect --log-opts=--all` over
+all 34 commits — **no leaks found** — on top of the shape-based scan
+below, making the claim unconditional. Three small items are worth a decision first, none
 blocking.
 
 ## Scanned
@@ -50,10 +50,10 @@ blocking.
 
 **Housekeeping (no decision needed, do at flip time):**
 
-- Run `gitleaks detect --source . --log-opts=--all` once (not installed
-  on this machine today) to upgrade the shape-scan into a full ruleset +
-  entropy pass.
-- Add a `SECURITY.md` (where to report, what the socket trusts).
+- ~~gitleaks pass~~ — done, clean (34 commits).
+- ~~SECURITY.md~~ — written.
+- ~~Anron license line~~ — written (all-rights-reserved, Wren-build
+  exception, lucide fallback).
 - CI badge + `windows-build.yml` will run on a public repo's actions
   minutes — confirm billing posture.
 - The delta doc references private-era commit hashes; they resolve once

@@ -1,8 +1,15 @@
 # Wren
 
-A lightweight, beautiful unified-Gmail desktop client. One quiet inbox for
-all your Gmail accounts — local-first, no third-party servers, no
-subscription. Windows-first, runs on macOS too.
+A lightweight, beautiful unified-Gmail desktop client — and an MCP
+gateway that lets your agents touch your mailbox on your terms. One quiet
+inbox for all your Gmail accounts: local-first, no third-party servers,
+talks only to Google.
+
+> **Pre-1.0.** Wren works — five real accounts and a real agent gateway
+> run on it daily — but it is weeks old, macOS-verified, and unsigned.
+> Read [SECURITY.md](SECURITY.md) before trusting it with a mailbox.
+> Wren is free and open (AGPL); a paid hosted **sync** service is planned
+> — the app never becomes the product's hostage.
 
 Built with Tauri 2 + React 19 + TypeScript + Tailwind v4 + shadcn/ui.
 Typeset in Open Runde and DM Sans. ~10 MB core, talks only to Google.
@@ -89,5 +96,7 @@ swap-ready). Fonts are bundled in `src/assets/fonts/` under their licenses
 - **The permission-model spec** ([docs/PERMISSION-MODEL.md](docs/PERMISSION-MODEL.md)):
   CC BY 4.0 — it exists to be borrowed by other agent gateways.
 - **Bundled assets** keep their own licenses: fonts under the OFL and the
-  Open Runde license (src/assets/fonts/), interface sounds CC0, the Anron
-  icon glyphs by their author's permission (Nick's own library).
+  Open Runde license (src/assets/fonts/), interface sounds CC0, and the
+  Anron icon glyphs all-rights-reserved with a named exception for Wren
+  builds ([src/assets/icons/anron/LICENSE.md](src/assets/icons/anron/LICENSE.md)
+  — forks can drop them and fall back to lucide through the Icon seam).
