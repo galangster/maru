@@ -126,13 +126,21 @@ export function useShortcuts() {
       forward: () => live.current.reply('forward'),
       search: () => useSurfaces.getState().openSearch(),
       help: () => useSurfaces.getState().setShortcuts(true),
-      // Handled ahead of the table, because they must also fire while typing
-      // or while a surface is up. Listed so the record stays exhaustive.
+      // `z`, Gmail's unmodified undo. ⌘Z runs the same body ahead of the
+      // table because it must also work with a dialog up.
+      undo: () => {
+        const label = useUi.getState().runUndo()
+        if (label) toast('Undone', { id: UNDO_TOAST_ID, description: label })
+      },
+      // Handled ahead of the table, because they carry modifiers, need the
+      // event, or must fire while typing. Listed so the record stays
+      // exhaustive.
       folders: () => {},
       palette: () => {},
       send: () => {},
       escape: () => {},
-      undo: () => {},
+      scan: () => {},
+      settings: () => {},
     }
 
     /** A triage key with nothing selected is a no-op, not a crash. */
@@ -187,6 +195,31 @@ export function useShortcuts() {
       }
 
       if (event.metaKey || event.ctrlKey) {
+        // The universal chords (Nick, 2026-08-29). ⌘⌫ respects a text field's
+        // own delete; the other three are app-level everywhere, which is how
+        // every Mac app treats ⌘N, ⌘, and ⌘F.
+        if (event.key === 'Backspace') {
+          if (isTyping(event.target)) return
+          event.preventDefault()
+          withThread((t) => live.current.act(threadActions(t).trash.type))
+          return
+        }
+        const chord = event.key.toLowerCase()
+        if (chord === 'n') {
+          event.preventDefault()
+          live.current.compose()
+          return
+        }
+        if (chord === ',') {
+          event.preventDefault()
+          useSurfaces.getState().openSettings()
+          return
+        }
+        if (chord === 'f') {
+          event.preventDefault()
+          useSurfaces.getState().openSearch()
+          return
+        }
         const index = Number(event.key) - 1
         if (Number.isInteger(index) && index >= 0 && index < UNIFIED_ORDER.length) {
           event.preventDefault()
@@ -196,6 +229,25 @@ export function useShortcuts() {
       }
 
       if (isTyping(event.target)) return
+
+      // Space reads; at the end of the thread it advances. Shift+Space reads
+      // backwards. The overlap keeps the previous screenful's last lines in
+      // view, the way every mail reader since Usenet has paged.
+      if (event.key === ' ') {
+        event.preventDefault()
+        const pane = document.querySelector<HTMLElement>('[data-reading-scroll]')
+        const dir = event.shiftKey ? -1 : 1
+        if (pane && pane.scrollHeight - pane.clientHeight > 1) {
+          const atEnd = dir > 0 && pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 1
+          const atStart = dir < 0 && pane.scrollTop <= 0
+          if (!atEnd && !atStart) {
+            pane.scrollBy({ top: dir * (pane.clientHeight - 80), behavior: 'smooth' })
+            return
+          }
+        }
+        run[dir > 0 ? 'next' : 'prev']()
+        return
+      }
 
       // Topmost first: the search bar, then the composer.
       if (event.key === 'Escape') {

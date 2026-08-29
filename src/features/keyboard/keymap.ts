@@ -5,6 +5,12 @@
 // lists, so a shortcut could be bound and undocumented, or documented and
 // dead. Adding a row here is now the only way to add a shortcut, and the
 // handler map in use-shortcuts is keyed by this table's ids.
+//
+// Two kinds of key reach a row: the Gmail-school letters (j/k/e/#) for hands
+// that know them, and the universal mental models (arrows, Delete-to-archive,
+// ⌘N, ⌘,) for hands that don't — Nick's ruling, 2026-08-29. The second kind
+// rides `aliases`: extra unmodified presses that fire the same id without
+// widening what the overlay prints.
 
 import { platformOS } from '@/lib/env'
 
@@ -18,6 +24,7 @@ export type ShortcutId =
   | 'next'
   | 'prev'
   | 'open'
+  | 'scan'
   | 'folders'
   | 'archive'
   | 'trash'
@@ -31,6 +38,7 @@ export type ShortcutId =
   | 'send'
   | 'palette'
   | 'search'
+  | 'settings'
   | 'help'
   | 'escape'
 
@@ -42,26 +50,29 @@ export interface ShortcutSpec {
   group: ShortcutGroup
   /**
    * The KeyboardEvent.key the global handler switches on, when the shortcut is
-   * a plain unmodified press. The modified ones (⌘K, ⌘1-4, ⌘↵) and Escape are
-   * handled ahead of the table, because they must also fire while typing.
+   * a plain unmodified press. The modified ones (⌘K, ⌘1-4, ⌘↵, ⌘⌫, ⌘N, ⌘,
+   * ⌘F), Space and Escape are handled ahead of the table, because they carry
+   * modifiers or need the event itself.
    */
   key?: string
+  /** Extra unmodified presses that fire the same id. Not printed. */
+  aliases?: string[]
 }
 
 export const SHORTCUTS: ShortcutSpec[] = [
-  { id: 'next', keys: ['J'], label: 'Next thread', group: 'Move', key: 'j' },
-  { id: 'prev', keys: ['K'], label: 'Previous thread', group: 'Move', key: 'k' },
+  { id: 'next', keys: ['J'], label: 'Next thread', group: 'Move', key: 'j', aliases: ['ArrowDown'] },
+  { id: 'prev', keys: ['K'], label: 'Previous thread', group: 'Move', key: 'k', aliases: ['ArrowUp'] },
   { id: 'open', keys: ['↵'], label: 'Open the selection', group: 'Move', key: 'Enter' },
+  { id: 'scan', keys: ['space'], label: 'Scroll, then next thread', group: 'Move' },
   { id: 'folders', keys: [`${MOD}1`, `${MOD}4`], label: 'Inbox … Trash', group: 'Move' },
 
-  { id: 'archive', keys: ['E'], label: 'Archive', group: 'Triage', key: 'e' },
+  { id: 'archive', keys: ['E'], label: 'Archive', group: 'Triage', key: 'e', aliases: ['Backspace', 'Delete'] },
   { id: 'trash', keys: ['#'], label: 'Trash or restore', group: 'Triage', key: '#' },
   { id: 'star', keys: ['S'], label: 'Star', group: 'Triage', key: 's' },
   { id: 'read', keys: ['U'], label: 'Read / unread', group: 'Triage', key: 'u' },
-  // Modified, so it is handled ahead of the table and carries no `key`. It is
-  // in Triage rather than a group of its own because what it undoes is the
-  // four rows above it.
-  { id: 'undo', keys: [`${MOD}Z`], label: 'Undo the last action', group: 'Triage' },
+  // `z` is Gmail's muscle memory for the same undo ⌘Z runs; both land here.
+  // The printed key stays ⌘Z — one canonical chord, one muscle-memory alias.
+  { id: 'undo', keys: [`${MOD}Z`], label: 'Undo the last action', group: 'Triage', key: 'z' },
 
   { id: 'compose', keys: ['C'], label: 'Compose', group: 'Write', key: 'c' },
   { id: 'reply', keys: ['R'], label: 'Reply', group: 'Write', key: 'r' },
@@ -71,6 +82,7 @@ export const SHORTCUTS: ShortcutSpec[] = [
 
   { id: 'palette', keys: [`${MOD}K`], label: 'Command palette', group: 'Find' },
   { id: 'search', keys: ['/'], label: 'Search mail', group: 'Find', key: '/' },
+  { id: 'settings', keys: [`${MOD},`], label: 'Settings', group: 'Find' },
   { id: 'help', keys: ['?'], label: 'Show this list', group: 'Find', key: '?' },
   { id: 'escape', keys: ['esc'], label: 'Close the top surface', group: 'Find' },
 ]
@@ -81,7 +93,7 @@ export function shortcutsIn(group: ShortcutGroup): ShortcutSpec[] {
   return SHORTCUTS.filter((s) => s.group === group)
 }
 
-/** The unmodified presses, indexed by the key that fires them. */
+/** The unmodified presses, indexed by every key or alias that fires them. */
 export const SHORTCUTS_BY_KEY: Record<string, ShortcutId> = Object.fromEntries(
-  SHORTCUTS.filter((s) => s.key).map((s) => [s.key as string, s.id]),
+  SHORTCUTS.flatMap((s) => [...(s.key ? [s.key] : []), ...(s.aliases ?? [])].map((k) => [k, s.id])),
 )

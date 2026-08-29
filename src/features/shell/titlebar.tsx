@@ -2,14 +2,12 @@
 // native window controls; in a browser it is a quiet header that keeps the
 // three panes from starting hard against the top of the viewport.
 //
-// There is exactly one wordmark in the app, and it is the span below. macOS
-// used to draw a second one: the window carried a visible native title bar
-// rendering `Wren` from tauri.conf.json, directly above this strip rendering
-// `Wren` again. The window is now `titleBarStyle: "Overlay"` with
-// `hiddenTitle: true`, so the native bar keeps its traffic lights, drops its
-// text, and lets this strip be the title bar. The `title` field stays set,
-// because it is what the window is called in Mission Control, the Window menu
-// and the Dock.
+// There is no wordmark here at all — Nick's ruling (2026-08-29): the dock
+// icon introduces the app; chrome that says its own name is noise. The window
+// is `titleBarStyle: "Overlay"` with `hiddenTitle: true`, so the native bar
+// keeps its traffic lights and no text. The `title` field stays set in
+// tauri.conf.json, because it is what the window is called in Mission
+// Control, the Window menu and the Dock.
 //
 // THE GRID. The strip used to hold a bare `pl-20` on macOS and `pl-4`
 // everywhere else — two numbers that agreed with nothing, which is what made
@@ -57,22 +55,6 @@ export function Titlebar() {
         native && platformOS === 'windows' ? 'pr-(--wren-titlebar-overlay-w)' : 'pr-2',
       )}
     >
-      <span
-        data-tauri-drag-region
-        className={cn(
-          'font-ui text-ink-3 pointer-events-none text-xs font-semibold',
-          // A documented optical nudge, DIRECTION §5's second licensed
-          // exception to the 4 px grid. The lights' centre line is at y=17 —
-          // an 11 px inset plus half of a 12 px disc — and the strip's own
-          // centre is at 18, so centring the wordmark in the strip leaves it
-          // one pixel below the row of controls it reads as a set with. One
-          // pixel is visible at this size and at this weight; it is the
-          // difference between a baseline and a near-baseline.
-          macOverlay && '-mt-px',
-        )}
-      >
-        Wren
-      </span>
       <div data-tauri-drag-region className="flex-1" />
       {/* 18: chrome toolbar, DIRECTION §8's default (S8). */}
       <IconButton

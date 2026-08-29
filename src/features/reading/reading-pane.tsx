@@ -111,7 +111,7 @@ export function ReadingPane() {
 
       {/* `scroll-fade`: the body runs to the window frame, so a line of mail
           straddling the bottom edge dissolves rather than being sliced. */}
-      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
+      <div data-reading-scroll className="scroll-fade min-h-0 flex-1 overflow-y-auto">
         {/* Keyed on the thread, so switching threads is a crossfade rather
             than a hard cut. No AnimatePresence: the outgoing thread would have
             to be absolutely positioned over the incoming one, which fights the
