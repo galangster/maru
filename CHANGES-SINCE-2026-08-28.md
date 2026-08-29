@@ -92,5 +92,15 @@ where, why, proof.
     capture m7-14. Known limit documented: the lens sees the newest
     100-thread page.
 
+13. **M5, the permission-model spec.** docs/PERMISSION-MODEL.md v0.1: the
+    earned-autonomy model as a standalone RFC-2119 spec for other gateway
+    builders — identity, grants, the nine rules, the app-level approval
+    queue, revocation, the audit contract, transport requirements, and a
+    conformance summary. Fact-checked claim-by-claim against the code by
+    an independent agent; five discrepancies corrected. Linked from the
+    README and CONNECT-AN-AGENT. Why: map 2's "defacto" thesis, graduated
+    by M4. Proof: this commit; the accuracy pass. Placement/license stay
+    behind G1.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

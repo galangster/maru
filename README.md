@@ -29,6 +29,10 @@ invisible — every call, and every refusal, lands in an append-only audit log.
 - **[docs/TRIAGE-MORNING.md](docs/TRIAGE-MORNING.md)** — the first story to
   run: an agent triages your overnight inbox and you wake to a tidy inbox
   and a queue of drafts waiting on your tap.
+- **[docs/PERMISSION-MODEL.md](docs/PERMISSION-MODEL.md)** — the model as a
+  publishable spec, written for people building other agent gateways:
+  identity, grants, the nine evaluation rules, the approval queue, and the
+  audit contract.
 
 ## Run it
 

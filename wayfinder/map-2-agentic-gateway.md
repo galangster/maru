@@ -80,6 +80,14 @@ model becomes the reference for how agents touch a person's mailbox.
   list lens: sort newest/oldest and filter unread/starred/attachments in a
   header popover, a lens bar naming any active subset with Reset, palette
   verbs, and a filter-empty state that never borrows "Inbox zero".
+- [M5 permission spec](tickets/M5-permission-spec.md): shipped —
+  docs/PERMISSION-MODEL.md, draft v0.1: the publishable model (identity,
+  grants, nine rules, queue, revocation, audit, transport) in RFC-2119
+  voice for other gateway builders, fact-checked claim-by-claim against
+  the code (five corrections applied). Placement/license remain G1's.
+- [M8 conversation controls](tickets/M8-conversation-controls.md) charted
+  from Nick's in-thread sorting ask; Nick has directed autonomous
+  continuation down the roadmap ("keep going... check and optimize").
 
 ## Not yet specified
 

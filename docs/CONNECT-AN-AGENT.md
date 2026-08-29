@@ -187,7 +187,9 @@ queue. Every connection, every tool call, every refusal, per agent, append-only.
 
 ## 5. How it actually connects
 
-Worth knowing if you are auditing this rather than using it.
+Worth knowing if you are auditing this rather than using it. The full
+model — identity, grants, evaluation rules, queue, audit — is specified in
+[PERMISSION-MODEL.md](PERMISSION-MODEL.md).
 
 ```
 agent  ──stdio──▶  wren-mcp.mjs  ──unix socket──▶  Wren (Rust relay)  ──event──▶  Wren (webview)
