@@ -16,12 +16,14 @@
 // view it now carries a full-chroma hairline of it too. One saturated chip
 // leads the row and answers "whose is this" — DIRECTION §2, Family 3.
 
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 
 import { Icon } from '@/components/ui/icon'
 import { AccountAvatar, IconButton } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
+import { THREAD_ACTION_ORDER, threadActions } from '@/features/mail/thread-actions'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 export interface ThreadRowProps {
@@ -29,10 +31,15 @@ export interface ThreadRowProps {
   account: Account | undefined
   selected: boolean
   showAccount: boolean
-  now: number
   selfEmails: string[]
-  onSelect: () => void
-  onAction: (type: MailActionType) => void
+  /**
+   * Both take the thread rather than closing over it, so the list can hand
+   * every row the same two function identities and `memo` actually holds. A
+   * per-row arrow made the memo a no-op and re-rendered the whole viewport on
+   * every keystroke in the search field.
+   */
+  onSelect: (thread: Thread) => void
+  onAction: (thread: Thread, type: MailActionType) => void
 }
 
 export const ThreadRow = memo(function ThreadRow({
@@ -40,15 +47,17 @@ export const ThreadRow = memo(function ThreadRow({
   account,
   selected,
   showAccount,
-  now,
   selfEmails,
   onSelect,
   onAction,
 }: ThreadRowProps) {
+  // The row owns its own clock. Held by the list, the minute tick re-rendered
+  // every row in the viewport; here it re-renders only the timestamps.
+  const now = useNow()
   const people = correspondents(thread.participants, selfEmails)
   const sender = participantLine(people)
   const lead = people[0] ?? { email: sender }
-  const inTrash = thread.labelIds.includes('TRASH')
+  const act = useCallback((type: MailActionType) => onAction(thread, type), [onAction, thread])
 
   return (
     <div
@@ -56,7 +65,7 @@ export const ThreadRow = memo(function ThreadRow({
       aria-selected={selected}
       data-thread-key={thread.key}
       data-unread={thread.unread || undefined}
-      onClick={onSelect}
+      onClick={() => onSelect(thread)}
       className={cn(
         'group relative flex h-(--wren-row-h) w-full cursor-default items-center gap-3 px-4',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
@@ -130,7 +139,7 @@ export const ThreadRow = memo(function ThreadRow({
                 title="Unstar"
                 onClick={(e) => {
                   e.stopPropagation()
-                  onAction('unstar')
+                  act('unstar')
                 }}
                 // The visible glyph is 16 px; the pseudo-element restores the
                 // 32 px hit box without changing the row's metrics.
@@ -149,7 +158,7 @@ export const ThreadRow = memo(function ThreadRow({
         </div>
       </div>
 
-      <QuickActions thread={thread} inTrash={inTrash} onAction={onAction} />
+      <QuickActions thread={thread} onAction={act} />
     </div>
   )
 })
@@ -158,13 +167,12 @@ export const ThreadRow = memo(function ThreadRow({
  *  glass over text. Padding 4 puts the icon boxes back on the row's 16 px edge. */
 function QuickActions({
   thread,
-  inTrash,
   onAction,
 }: {
   thread: Thread
-  inTrash: boolean
   onAction: (type: MailActionType) => void
 }) {
+  const actions = threadActions(thread)
   return (
     <div
       className={cn(
@@ -179,35 +187,22 @@ function QuickActions({
       )}
       onClick={(e) => e.stopPropagation()}
     >
-      <IconButton
-        name="archive"
-        label="Archive"
-        size={16}
-        onClick={() => onAction('archive')}
-        disabled={inTrash}
-      />
-      <IconButton
-        name="trash"
-        label={inTrash ? 'Restore from trash' : 'Move to trash'}
-        size={16}
-        tone="danger"
-        onClick={() => onAction(inTrash ? 'untrash' : 'trash')}
-      />
-      <IconButton
-        name={thread.unread ? 'read' : 'unread'}
-        label={thread.unread ? 'Mark as read' : 'Mark as unread'}
-        size={16}
-        onClick={() => onAction(thread.unread ? 'markRead' : 'markUnread')}
-      />
-      <IconButton
-        name="star"
-        label={thread.starred ? 'Unstar' : 'Star'}
-        size={16}
-        tone={thread.starred ? 'star' : 'default'}
-        filled={thread.starred}
-        pop
-        onClick={() => onAction(thread.starred ? 'unstar' : 'star')}
-      />
+      {THREAD_ACTION_ORDER.map((id) => {
+        const spec = actions[id]
+        return (
+          <IconButton
+            key={spec.id}
+            name={spec.icon}
+            label={spec.label}
+            size={16}
+            tone={spec.tone}
+            filled={spec.filled}
+            pop={spec.pop}
+            disabled={spec.disabled}
+            onClick={() => onAction(spec.type)}
+          />
+        )
+      })}
     </div>
   )
 }

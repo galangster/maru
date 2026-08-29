@@ -4,7 +4,7 @@
 // keycap footer. Selection is a soft fill and an accent-tinted icon; there is
 // no left bar, which is the one thing that reference set gets wrong.
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Command } from 'cmdk'
 
 import { Icon, type IconName } from '@/components/ui/icon'
@@ -14,15 +14,22 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { Account, MailView, Thread } from '@/core/types'
+import { Keycap } from '@/components/wren-controls'
+import { FOLDERS } from '@/core/defaults'
+import type { MailView, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import {
   MIN_SEARCH_LENGTH,
-  useAccounts,
+  useAccountsById,
   usePerformAction,
   useSearch,
   useThreads,
 } from '@/features/mail/queries'
+import { MOD } from '@/features/keyboard/keymap'
+import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
+
+/** The palette lists state changes after triage, unlike the row's cluster. */
+const PALETTE_ACTIONS: ThreadActionId[] = ['archive', 'trash', 'star', 'read']
 import { useMailService } from '@/features/mail/service'
 import { useUi } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/features/search/thread-result'
@@ -47,7 +54,7 @@ export function CommandPalette() {
       <DialogContent
         showCloseButton={false}
         aria-label="Command palette"
-        className="glass-strong wren-fixed top-[16%] flex w-[600px] max-w-[calc(100%-2rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 ring-0 sm:max-w-[600px]"
+        className="glass-strong top-[16%] flex w-[600px] max-w-[calc(100%-2rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 ring-0 sm:max-w-[600px]"
       >
         <DialogTitle className="sr-only">Command palette</DialogTitle>
         <DialogDescription className="sr-only">
@@ -70,7 +77,6 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const setSelected = useUi((s) => s.setSelected)
 
   const service = useMailService()
-  const accounts = useAccounts()
   const threads = useThreads(view)
   const action = usePerformAction()
   const results = useSearch(debounced)
@@ -78,13 +84,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const { compose } = useComposeActions()
   const theme = useThemeToggle()
 
-  const accountList = accounts.data ?? []
-  const accountsById = useMemo(() => {
-    const map = new Map<string, Account>()
-    for (const a of accountList) map.set(a.id, a)
-    return map
-  }, [accountList])
-  const selfEmails = useMemo(() => accountList.map((a) => a.email), [accountList])
+  const { accounts: accountList, byId: accountsById, selfEmails } = useAccountsById()
 
   const current = (threads.data ?? []).find((t) => t.key === selected)
 
@@ -132,56 +132,22 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 
         <Group heading="Actions">
           <Row icon="compose" label="Compose" hint="C" onSelect={() => run(compose)} />
-          {current && (
-            <>
-              <Row
-                icon="archive"
-                label="Archive"
-                hint="E"
-                onSelect={() =>
-                  run(() => action.mutate({ type: 'archive', threadKey: current.key }))
-                }
-              />
-              <Row
-                icon="trash"
-                label={current.labelIds.includes('TRASH') ? 'Restore from trash' : 'Move to trash'}
-                onSelect={() =>
-                  run(() =>
-                    action.mutate({
-                      type: current.labelIds.includes('TRASH') ? 'untrash' : 'trash',
-                      threadKey: current.key,
-                    }),
-                  )
-                }
-              />
-              <Row
-                icon="star"
-                label={current.starred ? 'Unstar' : 'Star'}
-                hint="S"
-                onSelect={() =>
-                  run(() =>
-                    action.mutate({
-                      type: current.starred ? 'unstar' : 'star',
-                      threadKey: current.key,
-                    }),
-                  )
-                }
-              />
-              <Row
-                icon={current.unread ? 'read' : 'unread'}
-                label={current.unread ? 'Mark as read' : 'Mark as unread'}
-                hint="U"
-                onSelect={() =>
-                  run(() =>
-                    action.mutate({
-                      type: current.unread ? 'markRead' : 'markUnread',
-                      threadKey: current.key,
-                    }),
-                  )
-                }
-              />
-            </>
-          )}
+          {current &&
+            PALETTE_ACTIONS.map((id) => {
+              const spec = threadActions(current)[id]
+              if (spec.disabled) return null
+              return (
+                <Row
+                  key={spec.id}
+                  icon={spec.icon}
+                  label={spec.label}
+                  hint={spec.hint}
+                  onSelect={() =>
+                    run(() => action.mutate({ type: spec.type, threadKey: current.key }))
+                  }
+                />
+              )
+            })}
           <Row
             icon={theme.next === 'dark' ? 'themeDark' : theme.next === 'light' ? 'themeLight' : 'themeSystem'}
             label={`Switch theme to ${theme.next}`}
@@ -192,30 +158,18 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         </Group>
 
         <Group heading="Go to">
-          <Row
-            icon="inbox"
-            label="Inbox"
-            hint="⌘1"
-            onSelect={() => goTo({ kind: 'unified', folder: 'inbox' })}
-          />
-          <Row
-            icon="star"
-            label="Starred"
-            hint="⌘2"
-            onSelect={() => goTo({ kind: 'unified', folder: 'starred' })}
-          />
-          <Row
-            icon="sent"
-            label="Sent"
-            hint="⌘3"
-            onSelect={() => goTo({ kind: 'unified', folder: 'sent' })}
-          />
-          <Row
-            icon="trash"
-            label="Trash"
-            hint="⌘4"
-            onSelect={() => goTo({ kind: 'unified', folder: 'trash' })}
-          />
+          {/* The folders, their names, their glyphs and their order are the
+              engine's one folder table — the same one the sidebar reads, so
+              ⌘1..⌘4 here cannot drift from what those keys actually do. */}
+          {FOLDERS.map((folder, index) => (
+            <Row
+              key={folder.folder}
+              icon={folder.icon}
+              label={folder.name}
+              hint={`${MOD}${index + 1}`}
+              onSelect={() => goTo({ kind: 'unified', folder: folder.folder })}
+            />
+          ))}
           {accountList.map((account) => (
             <Row
               key={account.id}
@@ -299,14 +253,6 @@ function Row({
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {hint && <Keycap>{hint}</Keycap>}
     </Command.Item>
-  )
-}
-
-function Keycap({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="font-ui text-ink-3 bg-sunken inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-xs px-1 text-xs">
-      {children}
-    </kbd>
   )
 }
 

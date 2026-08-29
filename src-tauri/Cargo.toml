@@ -18,6 +18,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
+# std's TcpListener cannot bound an accept(); socket2 sets SO_RCVTIMEO on the
+# listening socket so the OAuth wait blocks instead of polling.
+socket2 = "0.6"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"

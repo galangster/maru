@@ -10,10 +10,10 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Icon } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
-import type { Account, MailActionType, Thread } from '@/core/types'
+import type { MailActionType, Thread } from '@/core/types'
 import {
   MIN_SEARCH_LENGTH,
-  useAccounts,
+  useAccountsById,
   useLabels,
   usePerformAction,
   useSearch,
@@ -66,19 +66,9 @@ export function ThreadList() {
   const results = useSearch(searchOpen ? debounced : '')
 
   const threads = useThreads(view)
-  const accounts = useAccounts()
+  const { accounts, byId: accountsById, selfEmails } = useAccountsById()
   const labels = useLabels(view.kind === 'account' ? view.accountId : undefined)
   const action = usePerformAction()
-
-  const accountsById = useMemo(() => {
-    const map = new Map<string, Account>()
-    for (const a of accounts.data ?? []) map.set(a.id, a)
-    return map
-  }, [accounts.data])
-  const selfEmails = useMemo(
-    () => (accounts.data ?? []).map((a) => a.email.toLowerCase()),
-    [accounts.data],
-  )
 
   const rows = useMemo(() => buildRows(threads.data ?? [], now), [threads.data, now])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -104,17 +94,23 @@ export function ThreadList() {
     if (index >= 0) virtualizer.scrollToIndex(index, { align: 'auto' })
   }, [selected, rows, virtualizer, searching])
 
+  // The mutation object is a fresh identity on every render, so it is held in
+  // a ref rather than in the callbacks' dependency lists: the two handlers
+  // below have to stay referentially stable or memo(ThreadRow) never holds.
+  const actionRef = useRef(action)
+  actionRef.current = action
+
   const onSelect = useCallback(
     (thread: Thread) => {
       setSelected(thread.key)
-      if (thread.unread) action.mutate({ type: 'markRead', threadKey: thread.key })
+      if (thread.unread) actionRef.current.mutate({ type: 'markRead', threadKey: thread.key })
     },
-    [setSelected, action],
+    [setSelected],
   )
 
   const onAction = useCallback(
-    (thread: Thread, type: MailActionType) => action.mutate({ type, threadKey: thread.key }),
-    [action],
+    (thread: Thread, type: MailActionType) => actionRef.current.mutate({ type, threadKey: thread.key }),
+    [],
   )
 
   const labelName =
@@ -129,7 +125,7 @@ export function ThreadList() {
   const subtitle =
     view.kind === 'account' ? accountsById.get(view.accountId)?.email : undefined
 
-  const showAccount = view.kind === 'unified' && (accounts.data?.length ?? 0) > 1
+  const showAccount = view.kind === 'unified' && accounts.length > 1
   const hits = searching ? (results.data ?? []) : []
 
   return (
@@ -238,10 +234,9 @@ export function ThreadList() {
                       account={accountsById.get(row.thread.accountId)}
                       selected={selected === row.thread.key}
                       showAccount={showAccount}
-                      now={now}
                       selfEmails={selfEmails}
-                      onSelect={() => onSelect(row.thread)}
-                      onAction={(type) => onAction(row.thread, type)}
+                      onSelect={onSelect}
+                      onAction={onAction}
                     />
                   )}
                 </div>

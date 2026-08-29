@@ -57,6 +57,10 @@ export class ThreadSearchIndex {
     return this.threads.size
   }
 
+  has(key: string): boolean {
+    return this.threads.has(key)
+  }
+
   /** Full rebuild — used on startup from the store. */
   replaceAll(threads: Thread[], bodies?: Map<string, string>): void {
     this.mini = this.fresh()
@@ -80,6 +84,19 @@ export class ThreadSearchIndex {
 
   upsertMany(threads: Thread[]): void {
     for (const t of threads) this.upsert(t)
+  }
+
+  /**
+   * Re-indexes one thread against a body that has just been hydrated. A thread
+   * the index has never seen is remembered as a body only, so the row picks it
+   * up when it arrives.
+   */
+  setBody(key: string, bodyText: string): void {
+    this.bodies.set(key, bodyText)
+    const thread = this.threads.get(key)
+    if (!thread) return
+    if (this.mini.has(key)) this.mini.discard(key)
+    this.mini.add(toDoc(thread, bodyText))
   }
 
   remove(key: string): void {

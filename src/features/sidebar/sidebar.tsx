@@ -5,8 +5,9 @@
 // DIRECTION §2 (Juicebox) and §10.2.
 
 import { Icon, type IconName } from '@/components/ui/icon'
-import { AccountDot, IconButton } from '@/components/wren-controls'
-import type { Account, MailView, UnifiedFolder } from '@/core/types'
+import { AccountDot, IconButton, PrimaryButton } from '@/components/wren-controls'
+import { FOLDERS, FOLDER_BY_LABEL } from '@/core/defaults'
+import type { Account, MailView } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import { useAccounts, useLabels, useSyncStatus, useUnreadCount } from '@/features/mail/queries'
 import { useMailMode } from '@/features/mail/service'
@@ -15,25 +16,17 @@ import { useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { cn } from '@/lib/utils'
 
-const UNIFIED: { folder: UnifiedFolder; label: string; icon: IconName }[] = [
-  { folder: 'inbox', label: 'Inbox', icon: 'inbox' },
-  { folder: 'starred', label: 'Starred', icon: 'star' },
-  { folder: 'sent', label: 'Sent', icon: 'sent' },
-  { folder: 'trash', label: 'Trash', icon: 'trash' },
-]
+/** The order the per-account label tree puts the system labels in. */
+const SYSTEM_ORDER = FOLDERS.map((f) => f.label)
 
-const SYSTEM_LABEL_NAMES: Record<string, { label: string; icon: IconName }> = {
-  INBOX: { label: 'Inbox', icon: 'inbox' },
-  STARRED: { label: 'Starred', icon: 'star' },
-  SENT: { label: 'Sent', icon: 'sent' },
-  TRASH: { label: 'Trash', icon: 'trash' },
-}
-
-const SYSTEM_ORDER = ['INBOX', 'STARRED', 'SENT', 'TRASH']
+const INBOX_VIEW: MailView = { kind: 'unified', folder: 'inbox' }
 
 export function Sidebar() {
   const collapsed = useUi((s) => s.sidebarCollapsed)
   const accounts = useAccounts()
+  // Only the inbox shows a count, so only the inbox is subscribed to one. The
+  // sidebar used to run a countUnread query per folder and render one of them.
+  const inboxUnread = useUnreadCount(INBOX_VIEW).data ?? 0
 
   return (
     <nav
@@ -46,8 +39,15 @@ export function Sidebar() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
         <ul className="flex flex-col gap-1">
-          {UNIFIED.map((item) => (
-            <UnifiedItem key={item.folder} {...item} collapsed={collapsed} />
+          {FOLDERS.map((item) => (
+            <NavRow
+              key={item.folder}
+              view={{ kind: 'unified', folder: item.folder }}
+              label={item.name}
+              icon={item.icon}
+              collapsed={collapsed}
+              unread={item.folder === 'inbox' && inboxUnread > 0 ? inboxUnread : undefined}
+            />
           ))}
         </ul>
 
@@ -82,48 +82,17 @@ function ComposeButton({ collapsed }: { collapsed: boolean }) {
   const { compose } = useComposeActions()
 
   return (
-    <button
-      type="button"
+    <PrimaryButton
       onClick={compose}
       title="Compose (C)"
       // The label has to survive the collapse: at 64 px the word goes away and
       // `title` alone is not an accessible name.
       aria-label="Compose"
-      className={cn(
-        'font-ui bg-primary text-primary-foreground inline-flex h-9 items-center rounded-md text-base font-medium',
-        'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-        'hover:bg-brand-hover focus-visible:ring-3 focus-visible:ring-ring/50 outline-none',
-        collapsed ? 'w-9 justify-center' : 'w-full justify-center gap-2',
-      )}
+      className={cn('h-9', collapsed ? 'w-9' : 'w-full gap-2')}
     >
       <Icon name="compose" size={collapsed ? 18 : 16} />
       {!collapsed && 'Compose'}
-    </button>
-  )
-}
-
-function UnifiedItem({
-  folder,
-  label,
-  icon,
-  collapsed,
-}: {
-  folder: UnifiedFolder
-  label: string
-  icon: IconName
-  collapsed: boolean
-}) {
-  const view: MailView = { kind: 'unified', folder }
-  const unread = useUnreadCount(view)
-  const count = folder === 'inbox' ? (unread.data ?? 0) : 0
-  return (
-    <NavRow
-      view={view}
-      label={label}
-      icon={icon}
-      collapsed={collapsed}
-      unread={count > 0 ? count : undefined}
-    />
+    </PrimaryButton>
   )
 }
 
@@ -237,8 +206,8 @@ function AccountSection({ account }: { account: Account }) {
             <NavRow
               key={label.id}
               view={{ kind: 'account', accountId: account.id, labelId: label.id }}
-              label={SYSTEM_LABEL_NAMES[label.id]?.label ?? label.name}
-              icon={SYSTEM_LABEL_NAMES[label.id]?.icon}
+              label={FOLDER_BY_LABEL[label.id]?.name ?? label.name}
+              icon={FOLDER_BY_LABEL[label.id]?.icon}
               dot={account.color}
               collapsed={false}
               indent

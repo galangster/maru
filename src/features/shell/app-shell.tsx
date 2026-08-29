@@ -1,7 +1,7 @@
 // The three-pane frame. Measures come from DIRECTION §5 and are passed in
 // pixels, so the panes hold their decided widths at any window size.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { PanelImperativeHandle } from 'react-resizable-panels'
 
 import {
@@ -16,12 +16,33 @@ import { Sidebar } from '@/features/sidebar/sidebar'
 
 import { Titlebar } from './titlebar'
 
-const SIDEBAR_COLLAPSED = 64
+/**
+ * The panel library wants numbers, and the measures are tokens — so they are
+ * read off the document rather than restated here. The fallbacks are the same
+ * values tokens.css holds, for the case where the stylesheet has not landed.
+ */
+function pxToken(name: string, fallback: number): number {
+  if (typeof window === 'undefined') return fallback
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name)
+  const value = Number.parseFloat(raw)
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
 
 export function AppShell() {
   const collapsed = useUi((s) => s.sidebarCollapsed)
   const setCollapsed = useUi((s) => s.setSidebarCollapsed)
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
+
+  const measures = useMemo(
+    () => ({
+      sidebar: pxToken('--wren-sidebar-w', 248),
+      sidebarCollapsed: pxToken('--wren-sidebar-w-collapsed', 64),
+      list: pxToken('--wren-list-w', 400),
+      listMin: pxToken('--wren-list-w-min', 340),
+      listMax: pxToken('--wren-list-w-max', 520),
+    }),
+    [],
+  )
 
   // The titlebar button drives the panel; dragging the handle past the min
   // drives the store. Both end up at the same place.
@@ -38,17 +59,21 @@ export function AppShell() {
       <ResizablePanelGroup className="min-h-0 flex-1">
         <ResizablePanel
           panelRef={sidebarRef}
-          defaultSize={248}
+          defaultSize={measures.sidebar}
           minSize={200}
           maxSize={320}
           collapsible
-          collapsedSize={SIDEBAR_COLLAPSED}
-          onResize={(size) => setCollapsed(size.inPixels <= SIDEBAR_COLLAPSED + 8)}
+          collapsedSize={measures.sidebarCollapsed}
+          onResize={(size) => setCollapsed(size.inPixels <= measures.sidebarCollapsed + 8)}
         >
           <Sidebar />
         </ResizablePanel>
         <ResizableHandle className="bg-hairline hover:bg-brand/40 transition-colors duration-(--wren-dur-fast)" />
-        <ResizablePanel defaultSize={400} minSize={340} maxSize={520}>
+        <ResizablePanel
+          defaultSize={measures.list}
+          minSize={measures.listMin}
+          maxSize={measures.listMax}
+        >
           <ThreadList />
         </ResizablePanel>
         <ResizableHandle className="bg-hairline hover:bg-brand/40 transition-colors duration-(--wren-dur-fast)" />

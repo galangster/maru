@@ -7,6 +7,7 @@
 // Nothing in this file logs a token, a code, or a secret.
 
 import type { Platform } from '../platform'
+import { base64UrlEncodeBytes } from '../mime'
 
 export const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 export const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
@@ -63,12 +64,6 @@ function randomBytes(n: number): Uint8Array {
   return bytes
 }
 
-function base64UrlFromBytes(bytes: Uint8Array): string {
-  let binary = ''
-  for (const b of bytes) binary += String.fromCharCode(b)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
 /** RFC 7636 §4.1: 43-128 characters from the unreserved alphabet. */
 export function generateCodeVerifier(length = 64): string {
   const size = Math.min(128, Math.max(43, length))
@@ -81,11 +76,11 @@ export function generateCodeVerifier(length = 64): string {
 /** RFC 7636 §4.2: BASE64URL(SHA256(ASCII(verifier))), unpadded. */
 export async function deriveCodeChallenge(verifier: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
-  return base64UrlFromBytes(new Uint8Array(digest))
+  return base64UrlEncodeBytes(new Uint8Array(digest))
 }
 
 export function generateState(): string {
-  return base64UrlFromBytes(randomBytes(24))
+  return base64UrlEncodeBytes(randomBytes(24))
 }
 
 export function pickLoopbackPort(random: () => number = Math.random): number {
@@ -266,24 +261,37 @@ export interface TokenManagerOptions {
 }
 
 /**
- * Owns one account's access token. Every 401 in the API client funnels into
- * `forceRefresh`, and concurrent callers share a single in-flight request so a
- * burst of parallel batch calls cannot spend the refresh token many times.
+ * Owns one account's access token — the only thing that reads or writes it.
+ *
+ * The live token is held in memory: every Gmail request asks for it, and going
+ * to the OS keychain per request costs an IPC round trip to answer a question
+ * this object already knows the answer to. The keychain stays the durable
+ * copy, read once on the first call and written on every refresh.
+ *
+ * Every 401 in the API client funnels into `forceRefresh`, and concurrent
+ * callers share a single in-flight request so a burst of parallel batch calls
+ * cannot spend the refresh token many times.
  */
 export class TokenManager {
   private inFlight: Promise<string> | null = null
+  /** The keychain's contents, once read. Null means "not read yet". */
+  private cached: StoredAccountTokens | null = null
   private readonly now: () => number
 
   constructor(private readonly opts: TokenManagerOptions) {
     this.now = opts.now ?? Date.now
   }
 
+  private isLive(tokens: StoredAccountTokens | null): tokens is StoredAccountTokens {
+    return Boolean(
+      tokens?.accessToken && tokens.expiresAt && tokens.expiresAt - this.now() > EXPIRY_MARGIN_MS,
+    )
+  }
+
   async getAccessToken(): Promise<string> {
-    const stored = await this.opts.store.load(this.opts.accountId)
-    if (!stored) throw new OAuthError('no_account', 'This account is not signed in', true)
-    if (stored.accessToken && stored.expiresAt && stored.expiresAt - this.now() > EXPIRY_MARGIN_MS) {
-      return stored.accessToken
-    }
+    if (this.isLive(this.cached)) return this.cached.accessToken as string
+    const stored = await this.load()
+    if (this.isLive(stored)) return stored.accessToken as string
     return this.forceRefresh()
   }
 
@@ -296,21 +304,32 @@ export class TokenManager {
     return run
   }
 
-  private async doRefresh(): Promise<string> {
+  private async load(): Promise<StoredAccountTokens> {
     const stored = await this.opts.store.load(this.opts.accountId)
-    if (!stored) throw new OAuthError('no_account', 'This account is not signed in', true)
+    if (!stored) {
+      this.cached = null
+      throw new OAuthError('no_account', 'This account is not signed in', true)
+    }
+    this.cached = stored
+    return stored
+  }
+
+  private async doRefresh(): Promise<string> {
+    const stored = this.cached ?? (await this.load())
     const tokens = await refreshAccessToken(this.opts.platform, {
       clientId: this.opts.clientId,
       clientSecret: this.opts.clientSecret,
       refreshToken: stored.refreshToken,
       now: this.now(),
     })
-    await this.opts.store.save(this.opts.accountId, {
+    const next: StoredAccountTokens = {
       refreshToken: tokens.refreshToken,
       accessToken: tokens.accessToken,
       expiresAt: tokens.expiresAt,
       clientId: this.opts.clientId,
-    })
+    }
+    this.cached = next
+    await this.opts.store.save(this.opts.accountId, next)
     return tokens.accessToken
   }
 }

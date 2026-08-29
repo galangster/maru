@@ -9,15 +9,46 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
+import { base64EncodeBytes } from '@/core/mime'
 import type { Message } from '@/core/types'
 import { useMailService } from '@/features/mail/service'
+import { escapeHtml } from '@/lib/compose'
 import { openExternalUrl } from '@/lib/env'
 import { buildSrcdoc, sanitizeBody } from '@/lib/sanitize'
 
 function toDataUrl(bytes: Uint8Array, mimeType: string): string {
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-  return `data:${mimeType};base64,${btoa(binary)}`
+  // core/mime's encoder chunks the byte run: a spread over a megabyte-sized
+  // image blows the argument stack, which is exactly what an inline image is.
+  return `data:${mimeType};base64,${base64EncodeBytes(bytes)}`
+}
+
+/**
+ * Sanitizing is the one main-thread-blocking step in opening a thread, and the
+ * reading pane remounts every card on the crossfade between threads — so
+ * re-reading a thread you just left used to re-run DOMPurify over every
+ * message in it. Keyed by the message and by the two inputs that change what
+ * sanitizing produces.
+ *
+ * Bounded, and oldest-out: a long session must not hold every body it has ever
+ * rendered.
+ */
+const SANITIZE_CACHE_LIMIT = 64
+const sanitized = new Map<string, ReturnType<typeof sanitizeBody>>()
+
+function sanitizeCached(
+  cacheKey: string,
+  raw: string,
+  options: { allowRemoteImages: boolean; inlineImages: Map<string, string> | undefined },
+): ReturnType<typeof sanitizeBody> {
+  const hit = sanitized.get(cacheKey)
+  if (hit) return hit
+  const result = sanitizeBody(raw, options)
+  if (sanitized.size >= SANITIZE_CACHE_LIMIT) {
+    const oldest = sanitized.keys().next().value
+    if (oldest !== undefined) sanitized.delete(oldest)
+  }
+  sanitized.set(cacheKey, result)
+  return result
 }
 
 /** cid: sources resolve from the message's own inline attachments. */
@@ -59,8 +90,12 @@ export function MessageBody({
   const [height, setHeight] = useState(120)
 
   const { html, blockedImages } = useMemo(
-    () => sanitizeBody(raw, { allowRemoteImages, inlineImages }),
-    [raw, allowRemoteImages, inlineImages],
+    () =>
+      sanitizeCached(`${message.id}:${allowRemoteImages}:${inlineImages?.size ?? 0}`, raw, {
+        allowRemoteImages,
+        inlineImages,
+      }),
+    [message.id, raw, allowRemoteImages, inlineImages],
   )
   const srcDoc = useMemo(() => buildSrcdoc(html), [html])
 
@@ -134,11 +169,7 @@ export function MessageBody({
   )
 }
 
+/** A plain-text body, made safe to put in the frame. */
 function escapeText(text: string): string {
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>')
-  return `<div style="white-space:pre-wrap">${escaped}</div>`
+  return `<div style="white-space:pre-wrap">${escapeHtml(text).replace(/\n/g, '<br>')}</div>`
 }

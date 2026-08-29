@@ -125,7 +125,12 @@ export interface SyncStatus {
 }
 
 export type MailEvent =
-  | { type: 'threadsChanged'; accountId?: string }
+  /**
+   * Something in the thread store moved. `threadKeys` names the threads the
+   * emitter knows changed, so a listener can invalidate those and leave the
+   * rest alone; absent means "unknown, assume everything".
+   */
+  | { type: 'threadsChanged'; accountId?: string; threadKeys?: string[] }
   | { type: 'syncStatus'; status: SyncStatus }
   | { type: 'newMail'; accountId: string; threadKey: string; from: string; subject: string }
   | { type: 'accountsChanged' }
@@ -143,6 +148,15 @@ export interface ListThreadsOptions {
   before?: number // lastMessageAt cursor for paging
 }
 
+export interface GetThreadOptions {
+  /**
+   * Hydrate any metadata-only bodies as part of the same read. Opening a
+   * thread wants this: without it the caller has to read the messages, call
+   * ensureBodies, and read them a third time.
+   */
+  hydrate?: boolean
+}
+
 export interface MailService {
   listAccounts(): Promise<Account[]>
   /** Runs the OAuth flow (real) or adds the next fixture account (demo). */
@@ -150,7 +164,10 @@ export interface MailService {
   removeAccount(accountId: string): Promise<void>
 
   listThreads(view: MailView, opts?: ListThreadsOptions): Promise<Thread[]>
-  getThread(threadKey: string): Promise<{ thread: Thread; messages: Message[] }>
+  getThread(
+    threadKey: string,
+    opts?: GetThreadOptions,
+  ): Promise<{ thread: Thread; messages: Message[] }>
   /** Hydrates full bodies for a thread's messages if still metadata-only. */
   ensureBodies(threadKey: string): Promise<Message[]>
   getAttachment(threadKey: string, messageId: string, attachmentId: string): Promise<Uint8Array>

@@ -6453,6 +6453,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "socket2",
  "tauri",
  "tauri-build",
  "tauri-plugin-http",

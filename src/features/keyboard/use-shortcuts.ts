@@ -1,28 +1,33 @@
-// The keymap. Registered once, at the root.
+// The keymap, bound once, at the root.
 //
-//   j / k        move down / up the list
-//   Enter        open the selection (and hand focus to the reading pane)
-//   e            archive        #  trash
-//   s            star           u  toggle read
-//   c            compose        r  reply      a  reply all   f  forward
-//   /            focus search   ?  this list
-//   cmd/ctrl k   command palette
-//   cmd/ctrl 1-4 unified views
-//   Esc          close the topmost surface
+// What each key does is in ./keymap.ts — the same table the "?" sheet prints,
+// so a shortcut cannot be bound and undocumented. This file is only the
+// binding: which handler an id runs, and the three rules about when the keymap
+// stands down.
 //
 // Everything is ignored while the user is typing, and while a dialog owns the
 // screen. Cmd/Ctrl+K is the one exception: a palette you cannot reach from a
 // text field is not a palette. Cmd/Ctrl+Enter is composer-scoped and lives in
 // the composer, which is the only place it means anything.
+//
+// The listener is registered once, with no dependencies. It reads the current
+// view, selection and thread list at the moment a key is pressed rather than
+// closing over them: a handler rebuilt on every keystroke of the search field
+// tore down and re-added a window listener each time.
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
+import { UNIFIED_ORDER } from '@/core/defaults'
 import type { MailActionType, Thread } from '@/core/types'
 import { requestComposerClose } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
-import { usePerformAction, useThreads } from '@/features/mail/queries'
-import { UNIFIED_ORDER, useUi } from '@/features/mail/ui-store'
+import { keys as queryKeys, usePerformAction } from '@/features/mail/queries'
+import { threadActions } from '@/features/mail/thread-actions'
+import { useUi } from '@/features/mail/ui-store'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
+
+import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
 
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -31,36 +36,88 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
 }
 
+/** The per-render values a handler needs but must not close over. */
+interface Live {
+  act: (type: MailActionType) => void
+  markRead: (threadKey: string) => void
+  compose: () => void
+  reply: (mode: 'reply' | 'replyAll' | 'forward') => void
+  threads: () => Thread[]
+}
+
 export function useShortcuts() {
-  const view = useUi((s) => s.view)
-  const selected = useUi((s) => s.selected)
-  const setSelected = useUi((s) => s.setSelected)
-  const setView = useUi((s) => s.setView)
-  const threads = useThreads(view)
   const action = usePerformAction()
   const { compose, replyToSelected } = useComposeActions()
+  const client = useQueryClient()
 
-  const setPalette = useSurfaces((s) => s.setPalette)
-  const setShortcuts = useSurfaces((s) => s.setShortcuts)
-  const openSearch = useSurfaces((s) => s.openSearch)
-  const closeSearch = useSurfaces((s) => s.closeSearch)
+  const live = useRef<Live>(null as unknown as Live)
+  live.current = {
+    act: (type) => {
+      const selected = useUi.getState().selected
+      if (selected) action.mutate({ type, threadKey: selected })
+    },
+    markRead: (threadKey) => action.mutate({ type: 'markRead', threadKey }),
+    compose,
+    reply: replyToSelected,
+    threads: () => client.getQueryData<Thread[]>(queryKeys.threads(useUi.getState().view)) ?? [],
+  }
 
   useEffect(() => {
-    const list: Thread[] = threads.data ?? []
-
     const move = (delta: number) => {
+      const list = live.current.threads()
       if (list.length === 0) return
+      const { selected, setSelected } = useUi.getState()
       const index = list.findIndex((t) => t.key === selected)
       const next = index === -1 ? (delta > 0 ? 0 : list.length - 1) : index + delta
-      const clamped = Math.min(Math.max(next, 0), list.length - 1)
-      const thread = list[clamped]
+      const thread = list[Math.min(Math.max(next, 0), list.length - 1)]
       setSelected(thread.key)
-      if (thread.unread) action.mutate({ type: 'markRead', threadKey: thread.key })
+      if (thread.unread) live.current.markRead(thread.key)
     }
 
-    const act = (type: MailActionType) => {
-      if (!selected) return
-      action.mutate({ type, threadKey: selected })
+    /** The thread the keymap is about: the selected row, as it stands now. */
+    const currentThread = (): Thread | undefined => {
+      const selected = useUi.getState().selected
+      return selected ? live.current.threads().find((t) => t.key === selected) : undefined
+    }
+
+    const run: Record<ShortcutId, () => void> = {
+      next: () => move(1),
+      prev: () => move(-1),
+      open: () => {
+        const selected = useUi.getState().selected
+        if (!selected) {
+          move(1)
+          return
+        }
+        const current = currentThread()
+        if (current?.unread) live.current.act('markRead')
+        document.querySelector<HTMLElement>('section[aria-label="Reading"]')?.focus()
+      },
+      // The four triage keys read their action off the same descriptor the
+      // row, the toolbar and the palette render, so `#` on a trashed thread
+      // restores it for exactly the reason the button says it will.
+      archive: () => live.current.act('archive'),
+      trash: () => withThread((t) => live.current.act(threadActions(t).trash.type)),
+      star: () => withThread((t) => live.current.act(threadActions(t).star.type)),
+      read: () => withThread((t) => live.current.act(threadActions(t).read.type)),
+      compose: () => live.current.compose(),
+      reply: () => live.current.reply('reply'),
+      replyAll: () => live.current.reply('replyAll'),
+      forward: () => live.current.reply('forward'),
+      search: () => useSurfaces.getState().openSearch(),
+      help: () => useSurfaces.getState().setShortcuts(true),
+      // Handled ahead of the table, because they must also fire while typing
+      // or while a surface is up. Listed so the record stays exhaustive.
+      folders: () => {},
+      palette: () => {},
+      send: () => {},
+      escape: () => {},
+    }
+
+    /** A triage key with nothing selected is a no-op, not a crash. */
+    function withThread(fn: (thread: Thread) => void): void {
+      const thread = currentThread()
+      if (thread) fn(thread)
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -69,7 +126,7 @@ export function useShortcuts() {
       // The palette answers from anywhere, including a text field.
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        setPalette(!useSurfaces.getState().palette)
+        useSurfaces.getState().setPalette(!useSurfaces.getState().palette)
         return
       }
 
@@ -80,7 +137,7 @@ export function useShortcuts() {
         const index = Number(event.key) - 1
         if (Number.isInteger(index) && index >= 0 && index < UNIFIED_ORDER.length) {
           event.preventDefault()
-          setView({ kind: 'unified', folder: UNIFIED_ORDER[index] })
+          useUi.getState().setView({ kind: 'unified', folder: UNIFIED_ORDER[index] })
         }
         return
       }
@@ -91,91 +148,20 @@ export function useShortcuts() {
       if (event.key === 'Escape') {
         if (useSurfaces.getState().searchOpen) {
           event.preventDefault()
-          closeSearch()
+          useSurfaces.getState().closeSearch()
           return
         }
         if (requestComposerClose()) event.preventDefault()
         return
       }
 
-      const current = list.find((t) => t.key === selected)
-
-      switch (event.key) {
-        case 'j':
-          event.preventDefault()
-          move(1)
-          break
-        case 'k':
-          event.preventDefault()
-          move(-1)
-          break
-        case 'Enter': {
-          if (!selected) {
-            event.preventDefault()
-            move(1)
-            break
-          }
-          event.preventDefault()
-          if (current?.unread) act('markRead')
-          document.querySelector<HTMLElement>('section[aria-label="Reading"]')?.focus()
-          break
-        }
-        case 'e':
-          event.preventDefault()
-          act('archive')
-          break
-        case '#':
-          event.preventDefault()
-          act(current?.labelIds.includes('TRASH') ? 'untrash' : 'trash')
-          break
-        case 's':
-          event.preventDefault()
-          act(current?.starred ? 'unstar' : 'star')
-          break
-        case 'u':
-          event.preventDefault()
-          act(current?.unread ? 'markRead' : 'markUnread')
-          break
-        case 'c':
-          event.preventDefault()
-          compose()
-          break
-        case 'r':
-          event.preventDefault()
-          replyToSelected('reply')
-          break
-        case 'a':
-          event.preventDefault()
-          replyToSelected('replyAll')
-          break
-        case 'f':
-          event.preventDefault()
-          replyToSelected('forward')
-          break
-        case '/':
-          event.preventDefault()
-          openSearch()
-          break
-        case '?':
-          event.preventDefault()
-          setShortcuts(true)
-          break
-      }
+      const id = SHORTCUTS_BY_KEY[event.key]
+      if (!id) return
+      event.preventDefault()
+      run[id]()
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [
-    threads.data,
-    selected,
-    setSelected,
-    setView,
-    action,
-    compose,
-    replyToSelected,
-    setPalette,
-    setShortcuts,
-    openSearch,
-    closeSearch,
-  ])
+  }, [])
 }

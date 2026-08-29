@@ -3,7 +3,7 @@
 
 import { create } from 'zustand'
 
-import type { MailView, UnifiedFolder } from '@/core/types'
+import type { MailView } from '@/core/types'
 import { viewOverride } from '@/lib/env'
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
@@ -13,7 +13,8 @@ export function viewKey(view: MailView): string {
   return view.kind === 'unified' ? view.folder : `account:${view.accountId}:${view.labelId}`
 }
 
-export const UNIFIED_ORDER: UnifiedFolder[] = ['inbox', 'starred', 'sent', 'trash']
+// The folder order is the engine's one folder table, not a second list here.
+export { UNIFIED_ORDER } from '@/core/defaults'
 
 const INITIAL_VIEW: MailView = viewOverride() ?? { kind: 'unified', folder: 'inbox' }
 

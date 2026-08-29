@@ -3,135 +3,23 @@
 
 import type { Attachment, EmailAddress, Message, Thread } from '../types'
 import { threadKey } from '../types'
+import { decodeBase64UrlText, decodeRfc2047, parseAddressList } from '../mime'
 import type { GmailMessage, GmailPart, GmailThread } from './types'
+
+// The RFC 2047 decoder, the base64url codec and the address parser are the
+// wire format, not a Gmail concern: core/mime.ts owns them alongside the
+// encoders they invert. Re-exported here so the Gmail layer stays the one
+// import site for everything that reads a Gmail payload.
+export {
+  decodeBase64Url,
+  decodeBase64UrlText,
+  decodeRfc2047,
+  parseAddress,
+  parseAddressList,
+} from '../mime'
 
 const LABEL_UNREAD = 'UNREAD'
 const LABEL_STARRED = 'STARRED'
-
-// ---------------------------------------------------------------------------
-// base64url
-// ---------------------------------------------------------------------------
-
-/** base64url (RFC 4648 §5) -> bytes. Works in Node and in a WebView. */
-export function decodeBase64Url(input: string): Uint8Array {
-  const normalized = input.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
-  const binary = atob(padded)
-  const out = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
-  return out
-}
-
-const utf8 = new TextDecoder('utf-8')
-
-export function decodeBase64UrlText(input: string): string {
-  return utf8.decode(decodeBase64Url(input))
-}
-
-// ---------------------------------------------------------------------------
-// Header decoding (RFC 2047)
-// ---------------------------------------------------------------------------
-
-function decodeQEncoded(text: string, charset: string): string {
-  const bytes: number[] = []
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]
-    if (c === '_') {
-      bytes.push(0x20)
-    } else if (c === '=' && i + 2 < text.length) {
-      bytes.push(parseInt(text.slice(i + 1, i + 3), 16))
-      i += 2
-    } else {
-      bytes.push(text.charCodeAt(i))
-    }
-  }
-  return decodeCharset(new Uint8Array(bytes), charset)
-}
-
-function decodeCharset(bytes: Uint8Array, charset: string): string {
-  try {
-    return new TextDecoder(charset.toLowerCase()).decode(bytes)
-  } catch {
-    return utf8.decode(bytes)
-  }
-}
-
-/**
- * Decodes RFC 2047 encoded-words. Whitespace *between* two encoded words is
- * dropped, per the spec, so a name split across words rejoins cleanly.
- */
-export function decodeRfc2047(input: string): string {
-  if (!input.includes('=?')) return input
-  const pattern = /=\?([^?]+)\?([bBqQ])\?([^?]*)\?=/g
-  let out = ''
-  let last = 0
-  let previousWasEncoded = false
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(input)) !== null) {
-    const between = input.slice(last, match.index)
-    if (!(previousWasEncoded && between.trim() === '')) out += between
-    const [, charset, encoding, text] = match
-    out +=
-      encoding.toLowerCase() === 'b'
-        ? decodeCharset(decodeBase64Url(text), charset)
-        : decodeQEncoded(text, charset)
-    last = match.index + match[0].length
-    previousWasEncoded = true
-  }
-  out += input.slice(last)
-  return out
-}
-
-// ---------------------------------------------------------------------------
-// Address parsing
-// ---------------------------------------------------------------------------
-
-/** Splits an address header on top-level commas (quotes and <> are respected). */
-function splitAddressList(header: string): string[] {
-  const parts: string[] = []
-  let current = ''
-  let inQuotes = false
-  let inAngle = false
-  for (let i = 0; i < header.length; i++) {
-    const c = header[i]
-    if (c === '"' && header[i - 1] !== '\\') inQuotes = !inQuotes
-    else if (c === '<' && !inQuotes) inAngle = true
-    else if (c === '>' && !inQuotes) inAngle = false
-    if (c === ',' && !inQuotes && !inAngle) {
-      parts.push(current)
-      current = ''
-      continue
-    }
-    current += c
-  }
-  parts.push(current)
-  return parts.map((p) => p.trim()).filter((p) => p.length > 0)
-}
-
-export function parseAddress(raw: string): EmailAddress | null {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  const angle = trimmed.match(/^(.*)<([^>]*)>\s*$/)
-  if (angle) {
-    let name = decodeRfc2047(angle[1].trim()).trim()
-    if (name.startsWith('"') && name.endsWith('"') && name.length > 1) name = name.slice(1, -1)
-    name = name.replace(/\\"/g, '"').trim()
-    const email = angle[2].trim()
-    if (!email) return null
-    return name ? { name, email } : { email }
-  }
-  return { email: trimmed }
-}
-
-export function parseAddressList(header: string | undefined): EmailAddress[] {
-  if (!header) return []
-  const out: EmailAddress[] = []
-  for (const chunk of splitAddressList(header)) {
-    const addr = parseAddress(chunk)
-    if (addr) out.push(addr)
-  }
-  return out
-}
 
 // ---------------------------------------------------------------------------
 // Payload walking

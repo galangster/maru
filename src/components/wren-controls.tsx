@@ -1,6 +1,7 @@
-// The three chrome atoms every pane repeats: an icon button on the 32 px hit
-// box, an account-tinted avatar, and the account dot. Kept together because
-// they are the only places a saturated colour is allowed to appear at rest.
+// The chrome atoms every pane repeats: the primary button, an icon button on
+// the 32 px hit box, a keycap, an account-tinted avatar, and the account dot.
+// Kept together because they are the only places a saturated colour is allowed
+// to appear at rest.
 
 import { useState, type CSSProperties } from 'react'
 
@@ -9,13 +10,71 @@ import type { EmailAddress } from '@/core/types'
 import { initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-type Tone = 'default' | 'star' | 'danger' | 'brand'
+export type Tone = 'default' | 'star' | 'danger' | 'brand'
 
 const TONES: Record<Tone, string> = {
   default: 'text-ink-3 hover:text-ink',
   brand: 'text-brand hover:text-brand',
   star: 'text-star hover:text-star',
   danger: 'text-ink-3 hover:text-destructive',
+}
+
+const ICON_BUTTON_BASE =
+  'inline-flex size-8 items-center justify-center rounded-md outline-none ' +
+  'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) ' +
+  'hover:bg-fill-hover focus-visible:ring-3 focus-visible:ring-ring/50 ' +
+  'disabled:pointer-events-none disabled:opacity-40'
+
+/**
+ * The icon-button recipe, for the few places that cannot render <IconButton>
+ * itself — a Base UI trigger needs to own the element it clones.
+ */
+export function iconButtonClass(tone: Tone = 'default', className?: string): string {
+  return cn(ICON_BUTTON_BASE, TONES[tone], className)
+}
+
+/**
+ * The one primary action on a surface: compose, send, add account, get
+ * started. Height and padding are the caller's — the colour, the elevation,
+ * the hover, the focus ring and the disabled state are not.
+ */
+export function PrimaryButton({
+  className,
+  ...props
+}: React.ComponentProps<'button'>) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        'font-ui bg-primary text-primary-foreground inline-flex items-center justify-center rounded-md text-base font-medium',
+        'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        'hover:bg-brand-hover focus-visible:ring-3 focus-visible:ring-ring/50 outline-none',
+        'disabled:pointer-events-none disabled:opacity-40',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+/** A key, as printed. The palette's footer and the "?" sheet share it. */
+export function Keycap({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <kbd
+      className={cn(
+        'font-ui text-ink-3 bg-sunken inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-xs px-1 text-xs',
+        className,
+      )}
+    >
+      {children}
+    </kbd>
+  )
 }
 
 export interface IconButtonProps extends Omit<React.ComponentProps<'button'>, 'children'> {
@@ -58,15 +117,7 @@ export function IconButton({
         if (pop) setPresses((n) => n + 1)
         onClick?.(event)
       }}
-      className={cn(
-        'inline-flex size-8 items-center justify-center rounded-md outline-none',
-        'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-        'hover:bg-fill-hover focus-visible:ring-3 focus-visible:ring-ring/50',
-        'disabled:pointer-events-none disabled:opacity-40',
-        TONES[tone],
-        active && 'text-brand',
-        className,
-      )}
+      className={iconButtonClass(tone, cn(active && 'text-brand', className))}
       {...props}
     >
       <span
@@ -101,7 +152,7 @@ export function AccountAvatar({
       aria-hidden
       style={{ '--dot': color } as CSSProperties}
       className={cn(
-        'font-ui inline-flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+        'font-ui inline-flex size-(--wren-avatar) shrink-0 items-center justify-center rounded-full text-xs font-semibold',
         'bg-[color-mix(in_oklab,var(--dot)_16%,transparent)] text-[color-mix(in_oklab,var(--dot)_86%,black)]',
         'dark:bg-[color-mix(in_oklab,var(--dot)_28%,transparent)] dark:text-[color-mix(in_oklab,var(--dot)_55%,white)]',
         // An inset hairline, not a `ring`: it costs no layout, needs no offset

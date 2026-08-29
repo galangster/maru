@@ -11,11 +11,54 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const DEFAULT_PAGE_SIZE = 100
 
-export const FOLDER_LABELS: Record<UnifiedFolder, string> = {
-  inbox: 'INBOX',
-  starred: 'STARRED',
-  sent: 'SENT',
-  trash: 'TRASH',
+/**
+ * Icon names the UI resolves against its own glyph map. Declared here as a
+ * literal union rather than imported, because core must not depend on the
+ * component layer — the four names below are a subset of IconName, so the
+ * compiler still checks the join at the point of use.
+ */
+export type FolderIcon = 'inbox' | 'star' | 'sent' | 'trash'
+
+export interface FolderSpec {
+  folder: UnifiedFolder
+  /** The Gmail system label this folder *is*. */
+  label: string
+  /** What the sidebar, the palette and the list header call it. */
+  name: string
+  icon: FolderIcon
+}
+
+/**
+ * The one folder table. Its order is the sidebar's order, the per-account
+ * label tree's order, and ⌘1..⌘4. Everything that names, orders, icons or
+ * label-maps a unified folder derives from here.
+ */
+export const FOLDERS: FolderSpec[] = [
+  { folder: 'inbox', label: 'INBOX', name: 'Inbox', icon: 'inbox' },
+  { folder: 'starred', label: 'STARRED', name: 'Starred', icon: 'star' },
+  { folder: 'sent', label: 'SENT', name: 'Sent', icon: 'sent' },
+  { folder: 'trash', label: 'TRASH', name: 'Trash', icon: 'trash' },
+]
+
+export const UNIFIED_ORDER: UnifiedFolder[] = FOLDERS.map((f) => f.folder)
+
+export const FOLDER_LABELS = Object.fromEntries(
+  FOLDERS.map((f) => [f.folder, f.label]),
+) as Record<UnifiedFolder, string>
+
+/** Gmail system label id -> folder spec. Empty for a user label. */
+export const FOLDER_BY_LABEL: Record<string, FolderSpec | undefined> = Object.fromEntries(
+  FOLDERS.map((f) => [f.label, f]),
+)
+
+/**
+ * Which folder owns a thread that carries several folder labels at once.
+ * Trash first: a trashed thread lives in trash whatever else it is in.
+ */
+export const FOLDER_PRECEDENCE: UnifiedFolder[] = ['trash', 'inbox', 'sent', 'starred']
+
+export function isUnifiedFolder(value: string): value is UnifiedFolder {
+  return (UNIFIED_ORDER as string[]).includes(value)
 }
 
 export function viewLabel(view: MailView): string {

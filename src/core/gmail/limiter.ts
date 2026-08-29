@@ -4,7 +4,6 @@
 // budgets 4,500 (75%) so that a manual refresh, a send, or a body prefetch
 // racing the poll loop still lands inside the real ceiling.
 
-export const GMAIL_QUOTA_PER_MINUTE = 6000
 export const GMAIL_BUDGET_PER_MINUTE = 4500
 
 export interface Clock {

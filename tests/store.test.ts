@@ -218,6 +218,39 @@ describe('messages', () => {
     expect(messages[0].bodyState).toBe('full')
   })
 
+  it('moves flags without touching the body, and hands back what was there', async () => {
+    const { store } = await openStore()
+    await store.upsertMessages([
+      makeMessage({ id: 'm-1', bodyHtml: '<p>keep me</p>', bodyState: 'full', labelIds: ['INBOX'], unread: false }),
+      makeMessage({ id: 'm-2', date: 1_755_000_100_000, labelIds: ['INBOX', 'UNREAD'], unread: true }),
+    ])
+
+    const before = await store.setMessageFlags('acct-1/t-1', { add: ['UNREAD'], remove: [] })
+    expect(before.map((f) => f.unread)).toEqual([false, true])
+
+    const after = await store.listMessages('acct-1/t-1')
+    expect(after.map((m) => m.unread)).toEqual([true, true])
+    // The columns an action never names must survive it untouched.
+    expect(after[0].bodyHtml).toBe('<p>keep me</p>')
+    expect(after[0].bodyState).toBe('full')
+  })
+
+  it('restores the exact prior flags rather than inverting the delta', async () => {
+    const { store } = await openStore()
+    await store.upsertMessages([
+      makeMessage({ id: 'm-1', labelIds: ['INBOX'], unread: false }),
+      makeMessage({ id: 'm-2', date: 1_755_000_100_000, labelIds: ['INBOX', 'UNREAD'], unread: true }),
+    ])
+
+    const before = await store.setMessageFlags('acct-1/t-1', { add: [], remove: ['UNREAD'] })
+    await store.restoreMessageFlags(before)
+
+    const back = await store.listMessages('acct-1/t-1')
+    expect(back.map((m) => m.unread)).toEqual([false, true])
+    expect(back[0].labelIds).toEqual(['INBOX'])
+    expect(back[1].labelIds.sort()).toEqual(['INBOX', 'UNREAD'])
+  })
+
   it('lists the thread keys whose bodies are still metadata-only', async () => {
     const { store } = await openStore()
     await store.upsertThreads([makeThread({ gmailThreadId: 'a', lastMessageAt: 100 }), makeThread({ gmailThreadId: 'b', lastMessageAt: 200 })])

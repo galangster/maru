@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
+import { ConfirmPopover } from '@/components/confirm-popover'
 import { Icon, type IconName } from '@/components/ui/icon'
 import {
   Dialog,
@@ -19,20 +20,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverTitle,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { AccountAvatar } from '@/components/wren-controls'
+import { AccountAvatar, IconButton, PrimaryButton } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { keys, useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
@@ -73,7 +67,7 @@ export function SettingsDialog() {
         // A fixed height, deliberately: the sections are wildly different
         // lengths and a content-sized dialog would jump every time the nav is
         // used. 440 is the shortest height the tallest section still reads in.
-        className="glass-strong wren-fixed flex h-[440px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 ring-0 sm:max-w-[680px]"
+        className="glass-strong flex h-[440px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 ring-0 sm:max-w-[680px]"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
@@ -130,14 +124,13 @@ function SettingsBody({ section }: { section: SettingsSection }) {
           <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
             {SETTINGS_SECTIONS.find((s) => s.id === section)?.label}
           </h2>
-          <button
-            type="button"
-            aria-label="Close settings"
+          <IconButton
+            name="close"
+            label="Close settings"
+            size={16}
+            className="shrink-0"
             onClick={closeSettings}
-            className="text-ink-3 hover:bg-fill-hover hover:text-ink focus-visible:ring-ring/50 inline-flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-3"
-          >
-            <Icon name="close" size={16} />
-          </button>
+          />
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
@@ -260,24 +253,14 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
       )}
 
       <div>
-        <button
-          type="button"
-          onClick={() => void add()}
-          disabled={busy}
-          className={cn(
-            'font-ui bg-primary text-primary-foreground inline-flex h-9 items-center gap-2 rounded-md px-3 text-base font-medium',
-            'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-            'hover:bg-brand-hover focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
-            'disabled:pointer-events-none disabled:opacity-40',
-          )}
-        >
+        <PrimaryButton onClick={() => void add()} disabled={busy} className="h-9 gap-2 px-3">
           <Icon
             name={busy ? 'sync' : 'add'}
             size={16}
             className={busy ? 'motion-safe:animate-spin' : ''}
           />
           {busy ? 'Waiting for Google…' : 'Add account'}
-        </button>
+        </PrimaryButton>
       </div>
     </div>
   )
@@ -311,46 +294,25 @@ function AccountRow({ account }: { account: Account }) {
         </span>
         <span className="text-ink-3 truncate text-sm">{account.email}</span>
       </div>
-      <Popover open={confirming} onOpenChange={setConfirming}>
-        <PopoverTrigger
-          render={
-            <button
-              type="button"
-              // Every account row says "Remove". Read out of context that is
-              // two identical buttons; the label says which one.
-              aria-label={`Remove ${account.email}`}
-              className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-visible:ring-ring/50 h-8 shrink-0 rounded-md px-3 text-base font-medium outline-none transition-colors duration-(--wren-dur-fast) focus-visible:ring-3"
-            />
-          }
-        >
-          Remove
-        </PopoverTrigger>
-        <PopoverContent side="bottom" align="end" className="w-72">
-          <PopoverTitle className="font-ui text-ink text-base">
-            Remove {account.email}?
-          </PopoverTitle>
-          <PopoverDescription className="text-ink-3 text-sm">
-            Its mail leaves Wren and its tokens are deleted. Nothing at Google changes, and you can
-            add it back.
-          </PopoverDescription>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="font-ui text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 h-8 rounded-md px-3 text-base font-medium outline-none focus-visible:ring-3"
-            >
-              Keep it
-            </button>
-            <button
-              type="button"
-              onClick={() => void remove()}
-              className="font-ui bg-destructive h-8 rounded-md px-3 text-base font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-destructive/50"
-            >
-              Remove
-            </button>
-          </div>
-        </PopoverContent>
-      </Popover>
+      <ConfirmPopover
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Remove ${account.email}?`}
+        description="Its mail leaves Wren and its tokens are deleted. Nothing at Google changes, and you can add it back."
+        cancelLabel="Keep it"
+        confirmLabel="Remove"
+        onConfirm={() => void remove()}
+        trigger={
+          <button
+            type="button"
+            // Every account row says "Remove". Read out of context that is
+            // two identical buttons; the label says which one.
+            aria-label={`Remove ${account.email}`}
+            className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-visible:ring-ring/50 h-8 shrink-0 rounded-md px-3 text-base font-medium outline-none transition-colors duration-(--wren-dur-fast) focus-visible:ring-3"
+          />
+        }
+        triggerContent="Remove"
+      />
     </li>
   )
 }

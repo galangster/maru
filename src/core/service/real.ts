@@ -12,14 +12,15 @@ import { GMAIL_BUDGET_PER_MINUTE, TokenBucket } from '../gmail/limiter'
 import { SyncEngine, type SyncGmailClient } from '../sync/engine'
 import { ThreadSearchIndex } from '../search/index'
 import { TokenManager, TokenStore, runAuthFlow as defaultRunAuthFlow, type AuthFlowResult } from '../auth/oauth'
-import { buildRawMessage, htmlToText } from '../mime'
-import { applyActionToMessage, applyActionToThread, isTrashAction, labelDelta } from './actions'
+import { buildRawMessage } from '../mime'
+import { applyActionToThread, isTrashAction, labelDelta } from './actions'
+import { bodyTextOf, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
-import { mergeParticipants } from '../gmail/mapping'
 import type { GmailMessage, GmailThread } from '../gmail/types'
 import type {
   Account,
   ComposeDraft,
+  GetThreadOptions,
   Label,
   MailAction,
   MailEvent,
@@ -86,6 +87,8 @@ export class RealMailService implements MailService {
   private readonly autoStart: boolean
   private readonly newId: () => string
   private readonly now: () => number
+  /** Resolves once the startup index is built. See buildIndex. */
+  private indexReady: Promise<void> = Promise.resolve()
 
   private constructor(opts: RealMailServiceOptions) {
     this.platform = opts.platform
@@ -121,12 +124,45 @@ export class RealMailService implements MailService {
   }
 
   private async start(): Promise<void> {
-    this.index.replaceAll(await this.store.allThreads())
-    const settings = await this.store.getSettings()
-    for (const account of await this.store.listAccounts()) {
+    // Three independent reads of three tables: the window opens a full SQLite
+    // round trip sooner for doing them at once.
+    const [threads, settings, accounts] = await Promise.all([
+      this.store.allThreads(),
+      this.store.getSettings(),
+      this.store.listAccounts(),
+    ])
+    for (const account of accounts) {
       const runtime = this.attach(account, settings)
       if (this.autoStart) this.beginSync(runtime, settings)
     }
+    this.indexReady = this.buildIndex(threads)
+  }
+
+  /**
+   * Building the MiniSearch index over a 90-day window is the one long
+   * synchronous block on startup, and nothing on the first frame needs it —
+   * only search does. It runs when the main thread is next free, and `search`
+   * waits for it rather than answering from a half-built index.
+   *
+   * Threads the sync engine has already indexed are skipped: this snapshot is
+   * the older of the two by then.
+   */
+  private buildIndex(threads: Thread[]): Promise<void> {
+    const fill = () => this.index.upsertMany(threads.filter((t) => !this.index.has(t.key)))
+    if (!this.autoStart) {
+      fill()
+      return Promise.resolve()
+    }
+    return new Promise<void>((resolve) => {
+      const run = () => {
+        fill()
+        resolve()
+      }
+      const idle = (globalThis as { requestIdleCallback?: (cb: () => void, o?: object) => number })
+        .requestIdleCallback
+      if (typeof idle === 'function') idle(run, { timeout: 2000 })
+      else setTimeout(run, 0)
+    })
   }
 
   private attach(account: Account, settings: Settings): AccountRuntime {
@@ -142,6 +178,10 @@ export class RealMailService implements MailService {
       now: this.now,
       onThreadsUpserted: (threads) => this.index.upsertMany(threads),
       onThreadsRemoved: (keys) => this.index.removeMany(keys),
+      // Bodies are lazy, so this is the only moment real mode ever sees one.
+      // Without it the palette would promise to search the message and match
+      // subjects and snippets only.
+      onBodiesHydrated: (key, messages) => this.index.setBody(key, bodyTextOf(messages)),
     })
     const runtime: AccountRuntime = { account, client, engine }
     this.runtimes.set(account.id, runtime)
@@ -236,10 +276,20 @@ export class RealMailService implements MailService {
     return this.store.listThreads(view, opts)
   }
 
-  async getThread(key: string): Promise<{ thread: Thread; messages: Message[] }> {
-    const thread = await this.store.getThread(key)
+  async getThread(
+    key: string,
+    opts: GetThreadOptions = {},
+  ): Promise<{ thread: Thread; messages: Message[] }> {
+    const [thread, messages] = await Promise.all([
+      this.store.getThread(key),
+      this.store.listMessages(key),
+    ])
     if (!thread) throw new UnknownThreadError(key)
-    return { thread, messages: await this.store.listMessages(key) }
+    if (!opts.hydrate) return { thread, messages }
+    const { accountId } = parseThreadKey(key)
+    // Hand the rows we already hold to the engine, so a thread whose bodies
+    // are warm is one read of the messages table instead of three.
+    return { thread, messages: await this.runtime(accountId).engine.hydrate(key, messages) }
   }
 
   async ensureBodies(key: string): Promise<Message[]> {
@@ -261,6 +311,7 @@ export class RealMailService implements MailService {
   }
 
   async search(q: string): Promise<Thread[]> {
+    await this.indexReady
     return this.index.search(q)
   }
 
@@ -282,14 +333,14 @@ export class RealMailService implements MailService {
     const { accountId, gmailThreadId } = parseThreadKey(action.threadKey)
     const before = await this.store.getThread(action.threadKey)
     if (!before) throw new UnknownThreadError(action.threadKey)
-    const beforeMessages = await this.store.listMessages(action.threadKey)
 
     const after = applyActionToThread(before, action.type)
-    const afterMessages = beforeMessages.map((m) => applyActionToMessage(m, action.type))
     await this.store.upsertThreads([after])
-    if (afterMessages.length) await this.store.upsertMessages(afterMessages)
+    // Only the flag columns move: a star must not rewrite every body, every
+    // address list and every attachment row in the thread.
+    const beforeFlags = await this.store.setMessageFlags(action.threadKey, labelDelta(action.type))
     this.index.upsert(after)
-    this.emit({ type: 'threadsChanged', accountId })
+    this.emit({ type: 'threadsChanged', accountId, threadKeys: [action.threadKey] })
 
     try {
       const client = this.runtime(accountId).client
@@ -302,10 +353,12 @@ export class RealMailService implements MailService {
       }
     } catch (err) {
       // Put back exactly what was there; the optimistic write never sticks.
+      // The prior flags are restored verbatim rather than by inverting the
+      // delta, so a message that was already read stays read.
       await this.store.upsertThreads([before])
-      if (beforeMessages.length) await this.store.upsertMessages(beforeMessages)
+      await this.store.restoreMessageFlags(beforeFlags)
       this.index.upsert(before)
-      this.emit({ type: 'threadsChanged', accountId })
+      this.emit({ type: 'threadsChanged', accountId, threadKeys: [action.threadKey] })
       this.emit({
         type: 'syncStatus',
         status: {
@@ -328,13 +381,16 @@ export class RealMailService implements MailService {
     let gmailThreadId: string | undefined
     let inReplyTo: string | undefined
     let references: string | undefined
+    let parentMessages: Message[] = []
 
     if (draft.reply) {
       const parent = await this.store.getThread(draft.reply.threadKey)
       if (!parent) throw new UnknownThreadError(draft.reply.threadKey)
       gmailThreadId = parent.gmailThreadId
-      const messages = await this.store.listMessages(draft.reply.threadKey)
-      const target = messages.find((m) => m.id === draft.reply!.messageId) ?? messages[messages.length - 1]
+      parentMessages = await this.store.listMessages(draft.reply.threadKey)
+      const target =
+        parentMessages.find((m) => m.id === draft.reply!.messageId) ??
+        parentMessages[parentMessages.length - 1]
       inReplyTo = target?.rfcMessageId
       references = [target?.references, target?.rfcMessageId].filter(Boolean).join(' ') || undefined
     }
@@ -350,68 +406,36 @@ export class RealMailService implements MailService {
     const sent = await this.runtime(account.id).client.sendMessage(raw, gmailThreadId)
 
     // Gmail's send response is minimal (id, threadId, labelIds), so the local
-    // row is built from the draft rather than round-tripping the message.
+    // rows are built from the draft rather than round-tripping the message.
     const resolvedThreadId = sent.threadId ?? gmailThreadId ?? sent.id
-    const key = threadKey(account.id, resolvedThreadId)
-    const date = this.now()
-    const bodyText = htmlToText(draft.bodyHtml)
-    const message: Message = {
-      id: sent.id,
-      threadId: resolvedThreadId,
-      accountId: account.id,
-      from: { name: account.displayName, email: account.email },
-      to: draft.to,
-      cc: draft.cc,
-      bcc: draft.bcc,
-      replyTo: [],
-      date,
-      subject: draft.subject,
-      snippet: bodyText.slice(0, 140),
-      bodyHtml: draft.bodyHtml,
-      bodyText,
-      bodyState: 'full',
-      labelIds: sent.labelIds ?? ['SENT'],
-      attachments: draft.attachments.map((a, i) => ({
-        id: `${sent.id}-att${i}`,
-        messageId: sent.id,
-        filename: a.filename,
-        mimeType: a.mimeType,
-        sizeBytes: Math.ceil((a.dataBase64.length * 3) / 4),
-        inline: false,
-      })),
-      rfcMessageId: undefined,
+    const sentKey = threadKey(account.id, resolvedThreadId)
+    // Gmail can answer with a thread we already hold even when the draft was
+    // not a reply, so the prior rows are read by key rather than assumed.
+    const existingThread = await this.store.getThread(sentKey)
+    const existingMessages =
+      resolvedThreadId === gmailThreadId
+        ? parentMessages
+        : existingThread
+          ? await this.store.listMessages(sentKey)
+          : []
+
+    const { key, message, messages, thread } = sentRowsFor(draft, {
+      account,
+      gmailThreadId: resolvedThreadId,
+      messageId: sent.id,
+      date: this.now(),
+      labelIds: sent.labelIds,
       references,
       inReplyTo,
-      unread: false,
-      starred: false,
-    }
+      attachmentId: (i) => `${sent.id}-att${i}`,
+      existingThread,
+      existingMessages,
+    })
 
     await this.store.upsertMessages([message])
-    const messages = await this.store.listMessages(key)
-    const existing = await this.store.getThread(key)
-    const participants = mergeParticipants(existing ? existing.participants.slice() : [], [
-      message.from,
-      ...draft.to,
-      ...draft.cc,
-    ])
-
-    const thread: Thread = {
-      key,
-      gmailThreadId: resolvedThreadId,
-      accountId: account.id,
-      subject: existing?.subject ?? draft.subject,
-      snippet: message.snippet,
-      lastMessageAt: date,
-      participants,
-      labelIds: [...new Set([...(existing?.labelIds ?? []), 'SENT'])],
-      unread: false,
-      starred: existing?.starred ?? false,
-      messageCount: messages.length,
-      hasAttachments: messages.some((m) => m.attachments.some((a) => !a.inline)),
-    }
     await this.store.upsertThreads([thread])
-    this.index.upsert(thread)
-    this.emit({ type: 'threadsChanged', accountId: account.id })
+    this.index.upsert(thread, bodyTextOf(messages))
+    this.emit({ type: 'threadsChanged', accountId: account.id, threadKeys: [key] })
   }
 
   // -- settings -------------------------------------------------------------

@@ -1,5 +1,6 @@
-use std::io::{BufRead, BufReader, Write};
-use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
+use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
 use std::time::{Duration, Instant};
 
 /// Service name used for every Wren keychain entry.
@@ -86,31 +87,48 @@ fn read_request_target(stream: &TcpStream) -> Option<String> {
   Some(target.to_string())
 }
 
+const OAUTH_TIMEOUT_MESSAGE: &str = "timed out waiting for the OAuth redirect";
+
+/// Block on `accept()` until the browser arrives or the deadline passes.
+///
+/// This used to poll: a non-blocking accept and a 100 ms sleep, which woke the
+/// thread 1,800 times over the three-minute window and still answered the real
+/// redirect up to 100 ms late. A read timeout on the *listening* socket bounds
+/// the accept directly, so the thread sleeps in the kernel until there is
+/// something to do.
 fn oauth_listen_blocking(port: u16) -> Result<String, String> {
   let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-  let listener = TcpListener::bind(addr).map_err(|e| format!("failed to bind {addr}: {e}"))?;
-  listener
-    .set_nonblocking(true)
-    .map_err(|e| format!("failed to set non-blocking mode: {e}"))?;
+  let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))
+    .map_err(|e| format!("failed to open a socket: {e}"))?;
+  socket
+    .bind(&SockAddr::from(addr))
+    .map_err(|e| format!("failed to bind {addr}: {e}"))?;
+  socket
+    .listen(16)
+    .map_err(|e| format!("failed to listen on {addr}: {e}"))?;
 
   let deadline = Instant::now() + OAUTH_TIMEOUT;
 
   loop {
-    if Instant::now() >= deadline {
-      return Err("timed out waiting for the OAuth redirect".to_string());
+    // Browsers probe /favicon.ico first, so several connections can land
+    // inside one window; each pass gets what is left of the deadline.
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+      return Err(OAUTH_TIMEOUT_MESSAGE.to_string());
     }
+    socket
+      .set_read_timeout(Some(remaining))
+      .map_err(|e| format!("failed to set the accept timeout: {e}"))?;
 
-    let mut stream = match listener.accept() {
+    let accepted = match socket.accept() {
       Ok((stream, _addr)) => stream,
-      Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-        std::thread::sleep(Duration::from_millis(100));
-        continue;
+      Err(ref e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {
+        return Err(OAUTH_TIMEOUT_MESSAGE.to_string());
       }
       Err(e) => return Err(format!("accept failed: {e}")),
     };
 
-    // The accepted socket inherits non-blocking mode on some platforms.
-    let _ = stream.set_nonblocking(false);
+    let mut stream: TcpStream = accepted.into();
     let _ = stream.set_read_timeout(Some(OAUTH_SOCKET_TIMEOUT));
     let _ = stream.set_write_timeout(Some(OAUTH_SOCKET_TIMEOUT));
 

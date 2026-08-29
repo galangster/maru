@@ -81,7 +81,6 @@
     --wren-accent-fg: oklch(1 0 0); /* white on accent = 5.17                 */
 
     /* --- Semantic --------------------------------------------------------- */
-    --wren-unread: var(--wren-accent);
     --wren-star: oklch(0.63 0.15 58); /* #CA6E03  3.66 non-text on surface    */
     --wren-destructive: oklch(0.56 0.21 25); /* #D4212D                       */
     --wren-success: oklch(0.515 0.125 155); /* #087C46                        */
@@ -181,7 +180,6 @@
     --wren-accent-hover: oklch(0.815 0.09 268); /* #A9C1FE                    */
     --wren-accent-fg: oklch(0.185 0.013 268);
 
-    --wren-unread: var(--wren-accent);
     --wren-star: oklch(0.8 0.135 80); /* #EBB34B                              */
     --wren-destructive: oklch(0.705 0.175 22); /* #FA6B6D                     */
     --wren-success: oklch(0.76 0.15 158); /* #48CD8C                          */
@@ -275,21 +273,14 @@
     --text-xl--line-height: 1.6875rem; /* 27px   */
     --text-xl--letter-spacing: -0.018em;
 
+    /* The two weights the base rules below set. Tailwind's font-* utilities
+       carry the rest of the scale; a parallel token per weight was a second
+       spelling of the same number, and nothing ever read it. */
     --wren-weight-regular: 400;
     --wren-weight-medium: 500;
-    --wren-weight-semibold: 600;
 
-    /* --- Spacing: 4px grid ------------------------------------------------ */
-    --wren-space-1: 4px;
-    --wren-space-2: 8px;
-    --wren-space-3: 12px;
-    --wren-space-4: 16px;
-    --wren-space-5: 20px;
-    --wren-space-6: 24px;
-    --wren-space-8: 32px;
-    --wren-space-10: 40px;
-    --wren-space-12: 48px;
-    --wren-space-16: 64px;
+    /* Spacing is Tailwind's 4px scale — `gap-2` is the spelling, and a
+       --wren-space-* mirror of it went unread in every component. */
 
     /* --- Pane measures: alignment decided once ---------------------------- */
     --wren-titlebar-h: 36px;
@@ -302,7 +293,6 @@
     --wren-row-h: 68px;
     --wren-row-h-compact: 52px;
     --wren-list-sender-w: 152px;
-    --wren-pane-px: 16px;
     --wren-read-px: 32px;
     --wren-read-pt: 24px;
     --wren-read-measure: 68ch;
@@ -319,12 +309,10 @@
     --wren-radius-2xl: 28px;
     --wren-radius-full: 999px;
 
-    /* --- Icons (lucide interim, tuned toward Anron) ------------------------ */
-    --wren-icon-sm: 16px;
-    --wren-icon-md: 18px;
-    --wren-icon-lg: 20px;
-    --wren-icon-stroke: 1.75;
-    --wren-icon-stroke-lg: 1.5;
+    /* Icon glyph sizes and stroke widths are SVG attributes, not CSS: they
+       live in components/ui/icon.tsx, which is the one file that draws one.
+       --wren-icon-box above is the *box* an icon sits in, which is layout, and
+       is read by the palette, settings and onboarding rows. */
 
     /* --- Motion: DIRECTION §9 ---------------------------------------------- */
     --wren-dur-fast: 120ms;
@@ -360,9 +348,15 @@
    Budget:  max 2 concurrent glass layers. Never animate the blur.
    -------------------------------------------------------------------------- */
 
+/* No `position` here on purpose. The recipe is the *material*; where a surface
+   sits is the surface's own business, and every one of them places itself —
+   the composer docks to the window, the dialogs are centred by the primitive.
+   Hard-coding `relative` meant each consumer had to undo it, and unlayered CSS
+   beats a Tailwind utility, so undoing it took a second class to do at all.
+   `contain: paint` below already makes this a containing block for the noise
+   layer, which is the only thing that needed `relative`. */
 .glass,
 .glass-strong {
-    position: relative;
     background-color: var(--wren-glass-tint);
     border: 1px solid var(--wren-glass-edge);
     border-radius: var(--wren-radius-xl);

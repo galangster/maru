@@ -55,10 +55,20 @@ export const useSurfaces = create<SurfaceState>((set) => ({
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 }))
 
-/** True while a focus-trapping dialog is up. The global keymap stands down. */
+/**
+ * True while a focus-trapping dialog is up. One predicate, two call shapes:
+ * the keymap asks once per keypress, and the composer has to re-render when
+ * the answer changes — it drops its blur so glass never stacks three deep.
+ */
+export const selectAnyDialogOpen = (s: SurfaceState): boolean =>
+  s.palette || s.settings !== null || s.shortcuts || s.onboarding
+
 export function anyDialogOpen(): boolean {
-  const s = useSurfaces.getState()
-  return s.palette || s.settings !== null || s.shortcuts || s.onboarding
+  return selectAnyDialogOpen(useSurfaces.getState())
+}
+
+export function useAnyDialogOpen(): boolean {
+  return useSurfaces(selectAnyDialogOpen)
 }
 
 /** Where focus goes when a surface closes: back to the list, per DIRECTION. */

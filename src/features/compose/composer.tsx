@@ -9,14 +9,8 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { toast } from 'sonner'
 
+import { ConfirmPopover } from '@/components/confirm-popover'
 import { Icon } from '@/components/ui/icon'
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverTitle,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -24,11 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { IconButton, PrimaryButton, iconButtonClass } from '@/components/wren-controls'
 import type { Account } from '@/core/types'
 import { useAccounts } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
-import { useSurfaces } from '@/features/shell/surface-store'
-import { ATTACHMENT_WARN_BYTES, totalBytes } from '@/lib/compose'
+import { useAnyDialogOpen } from '@/features/shell/surface-store'
+import { ATTACHMENT_WARN_BYTES, totalBytes, type ReplyMode } from '@/lib/compose'
 import { formatBytes } from '@/lib/format'
 import { exitTransition, sheetPreset, useMotionMode } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -42,7 +37,7 @@ import {
   type DraftAttachment,
 } from './compose-store'
 
-const TITLES: Record<string, string> = {
+const TITLES: Record<ReplyMode, string> = {
   reply: 'Reply',
   replyAll: 'Reply all',
   forward: 'Forward',
@@ -89,9 +84,7 @@ function ComposerSheet() {
 
   const accounts = useAccounts()
   const service = useMailService()
-  const dialogOpen = useSurfaces(
-    (s) => s.palette || s.settings !== null || s.shortcuts || s.onboarding,
-  )
+  const dialogOpen = useAnyDialogOpen()
   const fileRef = useRef<HTMLInputElement>(null)
 
   const onBody = useCallback((bodyHtml: string) => edit({ bodyHtml }), [edit])
@@ -179,7 +172,7 @@ function ComposerSheet() {
           animate={preset.animate}
           exit={{ ...preset.exit, transition: exitTransition(mode) }}
           transition={preset.transition}
-          className="glass wren-fixed right-4 bottom-4 z-40 flex h-10 w-72 items-center gap-2 pr-1 pl-4"
+          className="glass fixed right-4 bottom-4 z-40 flex h-10 w-72 items-center gap-2 pr-1 pl-4"
           style={glassOff}
           onKeyDown={onKeyDown}
         >
@@ -209,7 +202,7 @@ function ComposerSheet() {
           transition={preset.transition}
           style={glassOff}
           className={cn(
-            'glass wren-fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
+            'glass fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
             // A fresh compose used to collapse to the height of its own
             // chrome, which made the writing surface an afterthought.
             'min-h-[440px] max-h-[calc(100vh-var(--wren-titlebar-h)-32px)]',
@@ -219,9 +212,11 @@ function ComposerSheet() {
         <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
           {title}
         </h2>
-        <SheetButton
+        <IconButton
           name="minimize"
           label="Minimize"
+          size={16}
+          className="shrink-0"
           onClick={() => setMinimized(true)}
         />
         <CloseControl
@@ -319,9 +314,11 @@ function ComposerSheet() {
       <footer className="border-hairline flex h-12 shrink-0 items-center gap-2 border-t px-4">
         <FormatToolbar editor={editor} />
         <span className="bg-hairline h-4 w-px shrink-0" aria-hidden />
-        <SheetButton
+        <IconButton
           name="attachment"
           label="Attach files"
+          size={16}
+          className="shrink-0"
           onClick={() => fileRef.current?.click()}
         />
         <input
@@ -333,21 +330,15 @@ function ComposerSheet() {
           onChange={(event) => void addFiles(event.target.files)}
         />
         <div className="flex-1" />
-        <button
-          type="button"
+        <PrimaryButton
           onClick={() => void send()}
           disabled={!canSend}
           title="Send (⌘↵)"
-          className={cn(
-            'font-ui bg-primary text-primary-foreground inline-flex h-8 items-center gap-2 rounded-md px-3 text-base font-medium',
-            'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-            'hover:bg-brand-hover focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
-            'disabled:pointer-events-none disabled:opacity-40',
-          )}
+          className="h-8 gap-2 px-3"
         >
           <Icon name="sent" size={16} />
           Send
-        </button>
+        </PrimaryButton>
       </footer>
         </motion.section>
       )}
@@ -389,28 +380,6 @@ function FromRow({
   )
 }
 
-function SheetButton({
-  name,
-  label,
-  onClick,
-}: {
-  name: 'minimize' | 'attachment'
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="text-ink-3 hover:bg-fill-hover hover:text-ink focus-visible:ring-ring/50 inline-flex size-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3"
-    >
-      <Icon name={name} size={16} />
-    </button>
-  )
-}
-
 /** Close, plus the discard confirm it raises when there is something to lose. */
 function CloseControl({
   confirming,
@@ -424,47 +393,32 @@ function CloseControl({
   onClose: () => void
 }) {
   return (
-    <Popover open={confirming} onOpenChange={setConfirming}>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            aria-label="Close"
-            title="Close"
-            onClick={(event) => {
-              if (dirty) return
-              event.preventDefault()
-              onClose()
-            }}
-            className="text-ink-3 hover:bg-fill-hover hover:text-ink focus-visible:ring-ring/50 inline-flex size-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3"
-          />
-        }
-      >
-        <Icon name="close" size={16} />
-      </PopoverTrigger>
-      <PopoverContent side="bottom" align="end" className="w-64">
-        <PopoverTitle className="font-ui text-ink text-base">Discard this draft?</PopoverTitle>
-        <PopoverDescription className="text-ink-3 text-sm">
-          Wren does not keep drafts yet. Closing loses what you wrote.
-        </PopoverDescription>
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            className="font-ui text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 h-8 rounded-md px-3 text-base font-medium outline-none focus-visible:ring-3"
-          >
-            Keep writing
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="font-ui bg-destructive h-8 rounded-md px-3 text-base font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-destructive/50"
-          >
-            Discard
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <ConfirmPopover
+      open={confirming}
+      onOpenChange={setConfirming}
+      title="Discard this draft?"
+      description="Wren does not keep drafts yet. Closing loses what you wrote."
+      cancelLabel="Keep writing"
+      confirmLabel="Discard"
+      onConfirm={onClose}
+      className="w-64"
+      // A Base UI trigger clones the element it is given, so this is a plain
+      // button wearing the IconButton recipe rather than the component.
+      trigger={
+        <button
+          type="button"
+          aria-label="Close"
+          title="Close"
+          onClick={(event) => {
+            if (dirty) return
+            event.preventDefault()
+            onClose()
+          }}
+          className={iconButtonClass('default', 'shrink-0')}
+        />
+      }
+      triggerContent={<Icon name="close" size={16} />}
+    />
   )
 }
 

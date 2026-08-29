@@ -2,15 +2,15 @@
 // the whole thread. Archive / trash / star / read go through performAction;
 // reply / reply all / forward open the composer on the newest message.
 
-import { useMemo } from 'react'
 import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
-import type { Account, MailActionType, Message, Thread } from '@/core/types'
+import type { Message, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import type { ReplyMode } from '@/lib/compose'
-import { useAccounts, useLabels, usePerformAction, useThread } from '@/features/mail/queries'
+import { useAccountsById, useLabels, usePerformAction, useThread } from '@/features/mail/queries'
+import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
 import { EmptyState } from '@/features/list/empty-state'
 import { displayName } from '@/lib/format'
@@ -27,16 +27,10 @@ export function ReadingPane() {
   const now = useNow()
 
   const detail = useThread(selectedKey)
-  const accounts = useAccounts()
+  const { byId: accountsById } = useAccountsById()
   const action = usePerformAction()
   const mode = useMotionMode()
   const fade = crossfadePreset(mode)
-
-  const accountsById = useMemo(() => {
-    const map = new Map<string, Account>()
-    for (const a of accounts.data ?? []) map.set(a.id, a)
-    return map
-  }, [accounts.data])
 
   const thread = detail.data?.thread
   const labels = useLabels(thread?.accountId)
@@ -65,41 +59,34 @@ export function ReadingPane() {
 
   const messages = detail.data?.messages ?? []
   const account = accountsById.get(thread.accountId)
-  const inTrash = thread.labelIds.includes('TRASH')
   const chips = (labels.data ?? []).filter(
     (l) => l.type === 'user' && thread.labelIds.includes(l.id),
   )
 
-  const run = (type: MailActionType) => action.mutate({ type, threadKey: thread.key })
+  // The same descriptor the row's hover cluster and the palette read; only the
+  // order differs here, because the toolbar reads left to right as triage then
+  // state rather than as the row's four-in-a-cluster.
+  const actions = threadActions(thread)
+  const toolbar: ThreadActionId[] = ['archive', 'trash', 'star', 'read']
 
   return (
     <section aria-label="Reading" tabIndex={-1} className="bg-canvas flex h-full min-w-0 flex-col outline-none">
       <header className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-1 border-b px-4">
-        <IconButton
-          name="archive"
-          label="Archive"
-          onClick={() => run('archive')}
-          disabled={inTrash}
-        />
-        <IconButton
-          name="trash"
-          label={inTrash ? 'Restore from trash' : 'Move to trash'}
-          tone="danger"
-          onClick={() => run(inTrash ? 'untrash' : 'trash')}
-        />
-        <IconButton
-          name="star"
-          label={thread.starred ? 'Unstar' : 'Star'}
-          tone={thread.starred ? 'star' : 'default'}
-          filled={thread.starred}
-          pop
-          onClick={() => run(thread.starred ? 'unstar' : 'star')}
-        />
-        <IconButton
-          name={thread.unread ? 'read' : 'unread'}
-          label={thread.unread ? 'Mark as read' : 'Mark as unread'}
-          onClick={() => run(thread.unread ? 'markRead' : 'markUnread')}
-        />
+        {toolbar.map((id) => {
+          const spec = actions[id]
+          return (
+            <IconButton
+              key={spec.id}
+              name={spec.icon}
+              label={spec.label}
+              tone={spec.tone}
+              filled={spec.filled}
+              pop={spec.pop}
+              disabled={spec.disabled}
+              onClick={() => action.mutate({ type: spec.type, threadKey: thread.key })}
+            />
+          )
+        })}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

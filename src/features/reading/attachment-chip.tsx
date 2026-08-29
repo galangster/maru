@@ -10,7 +10,9 @@ export function AttachmentChip({ attachment }: { attachment: Attachment }) {
       type="button"
       onClick={() =>
         toast(`${attachment.filename} stays put for now`, {
-          description: 'Saving and previewing attachments arrive with T4.',
+          // It said "arrive with T4" — a ticket number, to a user, after T4
+          // shipped without them. Say what is true instead.
+          description: 'Saving and previewing attachments are coming soon.',
         })
       }
       className="bg-sunken text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 inline-flex h-8 max-w-64 items-center gap-2 rounded-xs px-2 text-sm outline-none transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3"

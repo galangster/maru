@@ -6,11 +6,16 @@
 
 import { useEffect } from 'react'
 
-import { useMailService } from '@/features/mail/service'
+import type { Platform } from '@/core/platform'
+import { useMailService, usePlatform } from '@/features/mail/service'
 import { isScreenshot, isTauri } from '@/lib/env'
 
 export function useNotifications(): void {
   const service = useMailService()
+  // The app's own Platform, not a fresh one. Building a TauriPlatform per
+  // toast threw away the permission answer it had already been given and
+  // opened a second object holding a second SQLite handle.
+  const platform = usePlatform()
 
   useEffect(() => {
     if (isScreenshot) return
@@ -25,21 +30,20 @@ export function useNotifications(): void {
     const unsubscribe = service.onEvent((event) => {
       if (event.type !== 'newMail') return
       if (document.hasFocus()) return
-      void notify(event.from, event.subject)
+      void notify(platform, event.from, event.subject)
     })
 
     return () => {
       unsubscribe()
       stopAction?.()
     }
-  }, [service])
+  }, [service, platform])
 }
 
-async function notify(from: string, subject: string): Promise<void> {
+async function notify(platform: Platform | null, from: string, subject: string): Promise<void> {
   const body = subject || '(no subject)'
-  if (isTauri()) {
-    const { createTauriPlatform } = await import('@/platform/tauri')
-    await createTauriPlatform().notify(from, body)
+  if (platform) {
+    await platform.notify(from, body)
     return
   }
   // Browser: only if the user has already said yes somewhere else. Wren does

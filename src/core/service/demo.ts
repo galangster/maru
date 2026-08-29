@@ -7,11 +7,11 @@
 import { ThreadSearchIndex } from '../search/index'
 import { buildDemoData, buildExtraAccount, labelsFor } from '../demo/fixtures'
 import { applyActionToMessage, applyActionToThread } from './actions'
-import { mergeParticipants } from '../gmail/mapping'
-import { htmlToText } from '../mime'
+import { bodyTextOf, sentRowsFor } from './sent'
 import type {
   Account,
   ComposeDraft,
+  GetThreadOptions,
   Label,
   MailAction,
   MailEvent,
@@ -60,9 +60,7 @@ export class DemoMailService implements MailService {
 
   private reindex(): void {
     const bodies = new Map<string, string>()
-    for (const [key, messages] of this.messages) {
-      bodies.set(key, messages.map((m) => m.bodyText ?? '').join(' '))
-    }
+    for (const [key, messages] of this.messages) bodies.set(key, bodyTextOf(messages))
     this.index.replaceAll([...this.threads.values()], bodies)
   }
 
@@ -118,7 +116,11 @@ export class DemoMailService implements MailService {
     return thread
   }
 
-  async getThread(key: string): Promise<{ thread: Thread; messages: Message[] }> {
+  /** Demo bodies are always hydrated, so `hydrate` costs nothing extra here. */
+  async getThread(
+    key: string,
+    _opts: GetThreadOptions = {},
+  ): Promise<{ thread: Thread; messages: Message[] }> {
     const thread = this.require(key)
     const messages = (this.messages.get(key) ?? []).slice().sort((a, b) => a.date - b.date)
     return { thread: { ...thread }, messages: messages.map((m) => ({ ...m })) }
@@ -169,81 +171,40 @@ export class DemoMailService implements MailService {
       (this.messages.get(next.key) ?? []).map((m) => applyActionToMessage(m, action.type)),
     )
     this.index.upsert(next)
-    this.emit({ type: 'threadsChanged', accountId: next.accountId })
+    this.emit({ type: 'threadsChanged', accountId: next.accountId, threadKeys: [next.key] })
   }
 
   async send(draft: ComposeDraft): Promise<void> {
     const account = this.accounts.find((a) => a.id === draft.accountId)
     if (!account) throw new Error(`No such account: ${draft.accountId}`)
 
-    const date = Date.now()
     this.sendCounter++
+    const n = this.sendCounter
     const gmailThreadId = draft.reply
       ? this.require(draft.reply.threadKey).gmailThreadId
-      : `demo-sent-${this.sendCounter}`
-    const key = threadKey(account.id, gmailThreadId)
-    const existing = this.messages.get(key) ?? []
-    const previous = existing[existing.length - 1]
+      : `demo-sent-${n}`
+    const existingMessages = this.messages.get(threadKey(account.id, gmailThreadId)) ?? []
+    const previous = existingMessages[existingMessages.length - 1]
 
-    const message: Message = {
-      id: `demo-sent-msg-${this.sendCounter}`,
-      threadId: gmailThreadId,
-      accountId: account.id,
-      from: { name: account.displayName, email: account.email },
-      to: draft.to,
-      cc: draft.cc,
-      bcc: draft.bcc,
-      replyTo: [],
-      date,
-      subject: draft.subject,
-      snippet: htmlToText(draft.bodyHtml).slice(0, 140),
-      bodyHtml: draft.bodyHtml,
-      bodyText: htmlToText(draft.bodyHtml),
-      bodyState: 'full',
-      labelIds: ['SENT'],
-      attachments: draft.attachments.map((a, i) => ({
-        id: `demo-sent-att-${this.sendCounter}-${i}`,
-        messageId: `demo-sent-msg-${this.sendCounter}`,
-        filename: a.filename,
-        mimeType: a.mimeType,
-        sizeBytes: Math.ceil((a.dataBase64.length * 3) / 4),
-        inline: false,
-      })),
-      rfcMessageId: `<demo-sent-${this.sendCounter}@wren.demo>`,
-      inReplyTo: previous?.rfcMessageId,
-      references: previous ? [previous.references, previous.rfcMessageId].filter(Boolean).join(' ') : undefined,
-      unread: false,
-      starred: false,
-    }
-
-    const messages = [...existing, message]
-    this.messages.set(key, messages)
-
-    const base = this.threads.get(key)
-    const labelIds = base ? [...new Set([...base.labelIds, 'SENT'])] : ['SENT']
-    const participants = mergeParticipants(base ? base.participants.slice() : [], [
-      message.from,
-      ...draft.to,
-      ...draft.cc,
-    ])
-
-    this.threads.set(key, {
-      key,
+    const { key, messages, thread } = sentRowsFor(draft, {
+      account,
       gmailThreadId,
-      accountId: account.id,
-      subject: base?.subject ?? draft.subject,
-      snippet: message.snippet,
-      lastMessageAt: date,
-      participants,
-      labelIds,
-      unread: false,
-      starred: base?.starred ?? false,
-      messageCount: messages.length,
-      hasAttachments: messages.some((m) => m.attachments.some((a) => !a.inline)),
+      messageId: `demo-sent-msg-${n}`,
+      date: Date.now(),
+      rfcMessageId: `<demo-sent-${n}@wren.demo>`,
+      inReplyTo: previous?.rfcMessageId,
+      references: previous
+        ? [previous.references, previous.rfcMessageId].filter(Boolean).join(' ')
+        : undefined,
+      attachmentId: (i) => `demo-sent-att-${n}-${i}`,
+      existingThread: this.threads.get(threadKey(account.id, gmailThreadId)) ?? null,
+      existingMessages,
     })
 
-    this.index.upsert(this.threads.get(key)!, messages.map((m) => m.bodyText ?? '').join(' '))
-    this.emit({ type: 'threadsChanged', accountId: account.id })
+    this.messages.set(key, messages)
+    this.threads.set(key, thread)
+    this.index.upsert(thread, bodyTextOf(messages))
+    this.emit({ type: 'threadsChanged', accountId: account.id, threadKeys: [key] })
   }
 
   // -- settings -------------------------------------------------------------

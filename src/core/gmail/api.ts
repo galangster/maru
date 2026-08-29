@@ -257,10 +257,6 @@ export class GmailApi {
     return this.json<GmailThread>(QUOTA_COST.threadsGet, this.url(`/threads/${encodeURIComponent(id)}`, { format }))
   }
 
-  getMessage(id: string, format: MessageFormat = 'full'): Promise<GmailMessage> {
-    return this.json<GmailMessage>(QUOTA_COST.messagesGet, this.url(`/messages/${encodeURIComponent(id)}`, { format }))
-  }
-
   async getAttachment(messageId: string, attachmentId: string): Promise<Uint8Array> {
     const res = await this.json<GmailAttachmentBody>(
       QUOTA_COST.attachmentsGet,
@@ -351,14 +347,6 @@ export class GmailApi {
   }
 
   // -- writes ---------------------------------------------------------------
-
-  modifyMessage(id: string, labels: ModifyLabels): Promise<GmailMessage> {
-    return this.postJson<GmailMessage>(
-      QUOTA_COST.messagesModify,
-      this.url(`/messages/${encodeURIComponent(id)}/modify`),
-      { addLabelIds: labels.addLabelIds ?? [], removeLabelIds: labels.removeLabelIds ?? [] },
-    )
-  }
 
   modifyThread(id: string, labels: ModifyLabels): Promise<GmailThread> {
     return this.postJson<GmailThread>(QUOTA_COST.threadsModify, this.url(`/threads/${encodeURIComponent(id)}/modify`), {

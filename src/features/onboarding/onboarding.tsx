@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
+import { PrimaryButton } from '@/components/wren-controls'
 import { CloudMark } from '@/features/list/empty-state'
 import { useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
@@ -68,19 +69,9 @@ export function Onboarding() {
               except what goes to Google.
             </p>
           </div>,
-          <button
-            key="start"
-            type="button"
-            autoFocus
-            onClick={() => setStep('choose')}
-            className={cn(
-              'font-ui bg-primary text-primary-foreground inline-flex h-9 items-center rounded-md px-4 text-base font-medium',
-              'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-              'hover:bg-brand-hover focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
-            )}
-          >
+          <PrimaryButton key="start" autoFocus onClick={() => setStep('choose')} className="h-9 px-4">
             Get started
-          </button>,
+          </PrimaryButton>,
         ]
       : [
           <CloudMark key="mark" />,
@@ -122,7 +113,9 @@ export function Onboarding() {
         initial={card.initial}
         animate={card.animate}
         transition={card.transition}
-        className="glass-strong flex w-[480px] max-w-full flex-col items-center gap-6 p-8"
+        // The one glass surface the app does not place itself, so it says so:
+        // the recipe no longer hands out a `position` nobody wanted.
+        className="glass-strong relative flex w-[480px] max-w-full flex-col items-center gap-6 p-8"
       >
         {rows.map((row, index) => (
           <motion.div

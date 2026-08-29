@@ -61,6 +61,13 @@ export interface SyncEngineOptions {
   /** Lets the search index track exactly what changed. */
   onThreadsUpserted?: (threads: Thread[]) => void
   onThreadsRemoved?: (keys: string[]) => void
+  /**
+   * Fires whenever a thread's bodies go from metadata to full, on demand or
+   * on prefetch. The search index feeds on this: without it, real mode would
+   * only ever match subjects and snippets while the palette promises to search
+   * the message.
+   */
+  onBodiesHydrated?: (key: string, messages: Message[]) => void
 }
 
 function mapLabel(accountId: string, l: GmailLabel): Label {
@@ -81,6 +88,7 @@ export class SyncEngine {
   private readonly now: () => number
   private readonly onThreadsUpserted?: (threads: Thread[]) => void
   private readonly onThreadsRemoved?: (keys: string[]) => void
+  private readonly onBodiesHydrated?: (key: string, messages: Message[]) => void
 
   private timer: ReturnType<typeof setInterval> | null = null
   private running = false
@@ -94,6 +102,7 @@ export class SyncEngine {
     this.now = opts.now ?? Date.now
     this.onThreadsUpserted = opts.onThreadsUpserted
     this.onThreadsRemoved = opts.onThreadsRemoved
+    this.onBodiesHydrated = opts.onBodiesHydrated
   }
 
   // -- status ---------------------------------------------------------------
@@ -262,7 +271,13 @@ export class SyncEngine {
     const present = new Set(fetched.map((t) => t.id))
     await this.removeThreads(ids.filter((id) => !present.has(id)).map((id) => threadKey(this.accountId, id)))
 
-    this.emit({ type: 'threadsChanged', accountId: this.accountId })
+    // History names exactly which threads moved, so say so: a listener can
+    // then refresh those and leave every other open thread alone.
+    this.emit({
+      type: 'threadsChanged',
+      accountId: this.accountId,
+      threadKeys: ids.map((id) => threadKey(this.accountId, id)),
+    })
 
     const byKey = new Map(stored.map((t) => [t.key, t]))
     for (const [gmailThreadId, message] of newMailThreads) {
@@ -298,7 +313,15 @@ export class SyncEngine {
   // -- bodies ---------------------------------------------------------------
 
   async ensureBodies(key: string): Promise<Message[]> {
-    const messages = await this.store.listMessages(key)
+    return this.hydrate(key, await this.store.listMessages(key))
+  }
+
+  /**
+   * The same work as ensureBodies, for a caller that has already read the
+   * thread's messages. Opening a thread used to cost three reads of the same
+   * rows — one to show the thread, one here, one after the write.
+   */
+  async hydrate(key: string, messages: Message[]): Promise<Message[]> {
     const missing = messages.filter((m) => m.bodyState !== 'full')
     if (missing.length === 0) return messages
 
@@ -306,8 +329,11 @@ export class SyncEngine {
       missing.map((m) => m.id),
       'full',
     )
-    if (raw.length) await this.store.upsertMessages(raw.map((m) => mapGmailMessage(this.accountId, m)))
-    return this.store.listMessages(key)
+    if (!raw.length) return messages
+    await this.store.upsertMessages(raw.map((m) => mapGmailMessage(this.accountId, m)))
+    const hydrated = await this.store.listMessages(key)
+    this.onBodiesHydrated?.(key, hydrated)
+    return hydrated
   }
 
   /** Low-priority warm-up so opening a recent thread is instant. */

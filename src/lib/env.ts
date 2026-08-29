@@ -3,7 +3,8 @@
 // The UI never branches on Tauri anywhere else. Everything native goes through
 // MailService or through openExternalUrl() below.
 
-import type { MailView, UnifiedFolder } from '@/core/types'
+import { isUnifiedFolder } from '@/core/defaults'
+import type { MailView } from '@/core/types'
 
 const params = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
 
@@ -46,8 +47,6 @@ export function themeOverride(): 'light' | 'dark' | null {
   return value === 'light' || value === 'dark' ? value : null
 }
 
-const FOLDERS: UnifiedFolder[] = ['inbox', 'starred', 'sent', 'trash']
-
 /**
  * `?view=inbox` or `?view=account:<accountId>:<labelId>` picks the opening
  * view. Captures need to land on a named view without driving the sidebar.
@@ -55,9 +54,7 @@ const FOLDERS: UnifiedFolder[] = ['inbox', 'starred', 'sent', 'trash']
 export function viewOverride(): MailView | null {
   const value = params.get('view')
   if (!value) return null
-  if ((FOLDERS as string[]).includes(value)) {
-    return { kind: 'unified', folder: value as UnifiedFolder }
-  }
+  if (isUnifiedFolder(value)) return { kind: 'unified', folder: value }
   const [kind, accountId, ...rest] = value.split(':')
   if (kind === 'account' && accountId && rest.length > 0) {
     return { kind: 'account', accountId, labelId: rest.join(':') }

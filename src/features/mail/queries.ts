@@ -2,19 +2,12 @@
 // performAction, and MailService.onEvent is what invalidates. No component
 // calls the service directly.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { FOLDER_LABELS } from '@/core'
-import type {
-  MailAction,
-  MailActionType,
-  MailView,
-  Message,
-  SyncStatus,
-  Thread,
-  UnifiedFolder,
-} from '@/core/types'
+import { threadMatchesView } from '@/core/defaults'
+import { applyActionToThread } from '@/core/service/actions'
+import type { Account, MailAction, MailView, Message, SyncStatus, Thread } from '@/core/types'
 
 import { useMailService } from './service'
 import { viewKey } from './ui-store'
@@ -22,7 +15,13 @@ import { viewKey } from './ui-store'
 export const keys = {
   accounts: ['accounts'] as const,
   labels: (accountId: string) => ['labels', accountId] as const,
-  threads: (view: MailView) => ['threads', viewKey(view)] as const,
+  /**
+   * The view rides in the key, not just its string form. The optimistic
+   * updater has to know whether a thread still belongs in this list, and that
+   * is a question for `threadMatchesView` — not for a parser that takes the
+   * key apart again and re-derives the label from its shape.
+   */
+  threads: (view: MailView) => ['threads', viewKey(view), view] as const,
   thread: (threadKey: string) => ['thread', threadKey] as const,
   unread: (view: MailView) => ['unread', viewKey(view)] as const,
   settings: ['settings'] as const,
@@ -32,6 +31,30 @@ export const keys = {
 export function useAccounts() {
   const service = useMailService()
   return useQuery({ queryKey: keys.accounts, queryFn: () => service.listAccounts() })
+}
+
+const NO_ACCOUNTS: Account[] = []
+
+export interface AccountLookup {
+  accounts: Account[]
+  byId: Map<string, Account>
+  /** Every address the user owns, lower-cased — what `correspondents` wants. */
+  selfEmails: string[]
+}
+
+/**
+ * The account list in the three shapes the UI reads it in. Three panes used to
+ * build the same Map in three `useMemo`s, and one of them forgot to lower-case
+ * the addresses, so the palette's rows credited the user as a correspondent.
+ */
+export function useAccountsById(): AccountLookup {
+  const { data } = useAccounts()
+  return useMemo(() => {
+    const accounts = data ?? NO_ACCOUNTS
+    const byId = new Map<string, Account>()
+    for (const a of accounts) byId.set(a.id, a)
+    return { accounts, byId, selfEmails: accounts.map((a) => a.email.toLowerCase()) }
+  }, [data])
 }
 
 export function useLabels(accountId: string | undefined) {
@@ -52,11 +75,11 @@ export function useThread(threadKey: string | null) {
   const service = useMailService()
   return useQuery({
     queryKey: keys.thread(threadKey ?? ''),
-    queryFn: async () => {
-      const detail = await service.getThread(threadKey as string)
-      const messages = await service.ensureBodies(threadKey as string)
-      return { thread: detail.thread, messages }
-    },
+    // One call, one read: `hydrate` asks the service to fetch any missing
+    // bodies as part of the same trip. Reading the thread and then calling
+    // ensureBodies made opening a thread read the same message rows three
+    // times over.
+    queryFn: () => service.getThread(threadKey as string, { hydrate: true }),
     enabled: Boolean(threadKey),
   })
 }
@@ -100,11 +123,21 @@ export function useMailEvents() {
     return service.onEvent((event) => {
       switch (event.type) {
         case 'threadsChanged':
-        case 'newMail':
+        case 'newMail': {
+          // Folder membership can change for any list, so those always refetch.
           void client.invalidateQueries({ queryKey: ['threads'] })
           void client.invalidateQueries({ queryKey: ['unread'] })
-          void client.invalidateQueries({ queryKey: ['thread'] })
+          // Open threads are a different matter: when the emitter names the
+          // threads it moved, only those reload. Starring one thread used to
+          // refetch every thread the cache held, bodies and all.
+          const named = event.type === 'threadsChanged' ? event.threadKeys : [event.threadKey]
+          if (named?.length) {
+            for (const key of named) void client.invalidateQueries({ queryKey: keys.thread(key) })
+          } else {
+            void client.invalidateQueries({ queryKey: ['thread'] })
+          }
           break
+        }
         case 'accountsChanged':
           void client.invalidateQueries({ queryKey: keys.accounts })
           void client.invalidateQueries({ queryKey: ['labels'] })
@@ -133,56 +166,10 @@ export function useSyncStatus() {
 
 /**
  * The visible half of an action, applied to a cached thread before the service
- * answers. The service is the authority; this only has to be right for the one
- * frame before `threadsChanged` invalidates.
+ * answers. The label arithmetic and the folder rule are the engine's, imported
+ * rather than restated: a third copy of "what archive does" is a third thing
+ * that can disagree with Gmail.
  */
-function applyOptimistic(thread: Thread, type: MailActionType): Thread {
-  const labels = new Set(thread.labelIds)
-  const next: Thread = { ...thread }
-  switch (type) {
-    case 'archive':
-      labels.delete('INBOX')
-      break
-    case 'trash':
-      labels.delete('INBOX')
-      labels.add('TRASH')
-      break
-    case 'untrash':
-      labels.delete('TRASH')
-      labels.add('INBOX')
-      break
-    case 'star':
-      labels.add('STARRED')
-      next.starred = true
-      break
-    case 'unstar':
-      labels.delete('STARRED')
-      next.starred = false
-      break
-    case 'markRead':
-      labels.delete('UNREAD')
-      next.unread = false
-      break
-    case 'markUnread':
-      labels.add('UNREAD')
-      next.unread = true
-      break
-  }
-  next.labelIds = [...labels]
-  return next
-}
-
-function labelOfViewKey(key: string): string {
-  if (key.startsWith('account:')) return key.split(':').slice(2).join(':')
-  return FOLDER_LABELS[key as UnifiedFolder] ?? 'INBOX'
-}
-
-/** Same rule the engine uses: in the folder, and not in the trash unless it is. */
-function stillBelongs(thread: Thread, label: string): boolean {
-  if (!thread.labelIds.includes(label)) return false
-  return label === 'TRASH' || !thread.labelIds.includes('TRASH')
-}
-
 interface ActionContext {
   lists: [readonly unknown[], Thread[] | undefined][]
   detail: { thread: Thread; messages: Message[] } | undefined
@@ -203,15 +190,15 @@ export function usePerformAction() {
 
       for (const [queryKey, threads] of lists) {
         if (!threads) continue
-        const label = labelOfViewKey(String(queryKey[1]))
+        const view = queryKey[2] as MailView | undefined
         const updated = threads
-          .map((t) => (t.key === action.threadKey ? applyOptimistic(t, action.type) : t))
-          .filter((t) => t.key !== action.threadKey || stillBelongs(t, label))
+          .map((t) => (t.key === action.threadKey ? applyActionToThread(t, action.type) : t))
+          .filter((t) => t.key !== action.threadKey || !view || threadMatchesView(t, view))
         client.setQueryData(queryKey, updated)
       }
 
       if (detail) {
-        const thread = applyOptimistic(detail.thread, action.type)
+        const thread = applyActionToThread(detail.thread, action.type)
         client.setQueryData(keys.thread(action.threadKey), {
           thread,
           messages: detail.messages.map((m) => ({

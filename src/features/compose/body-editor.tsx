@@ -10,6 +10,7 @@ import StarterKit from '@tiptap/starter-kit'
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { iconButtonClass } from '@/components/wren-controls'
 import { cn } from '@/lib/utils'
 
 import './editor.css'
@@ -44,33 +45,51 @@ export function BodyEditor({ editor }: { editor: Editor | null }) {
   )
 }
 
-interface Control {
+interface MarkControl {
+  kind: 'mark'
   name: IconName
   label: string
   isActive: (editor: Editor) => boolean
   run: (editor: Editor) => void
 }
 
+/** Link is its own control — it asks for a target — but it is still a control. */
+interface LinkControl {
+  kind: 'link'
+}
+
+type Control = MarkControl | LinkControl
+
+/**
+ * The toolbar, in order. Link used to sit outside this array and the toolbar
+ * spliced it back in with a `slice(2)`, so the order lived in two places and
+ * neither of them read as the order.
+ */
 const CONTROLS: Control[] = [
   {
+    kind: 'mark',
     name: 'bold',
     label: 'Bold',
     isActive: (e) => e.isActive('bold'),
     run: (e) => e.chain().focus().toggleBold().run(),
   },
   {
+    kind: 'mark',
     name: 'italic',
     label: 'Italic',
     isActive: (e) => e.isActive('italic'),
     run: (e) => e.chain().focus().toggleItalic().run(),
   },
+  { kind: 'link' },
   {
+    kind: 'mark',
     name: 'listBullet',
     label: 'Bulleted list',
     isActive: (e) => e.isActive('bulletList'),
     run: (e) => e.chain().focus().toggleBulletList().run(),
   },
   {
+    kind: 'mark',
     name: 'listOrdered',
     label: 'Numbered list',
     isActive: (e) => e.isActive('orderedList'),
@@ -78,29 +97,28 @@ const CONTROLS: Control[] = [
   },
 ]
 
-const TOOL_CLASSES =
-  'inline-flex size-8 items-center justify-center rounded-md outline-none ' +
-  'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) ' +
-  'hover:bg-fill-hover focus-visible:ring-ring/50 focus-visible:ring-3 ' +
-  'disabled:pointer-events-none disabled:opacity-40'
+/** Same 32 px box and the same states as every other icon button in Wren. */
+function toolClass(active: boolean): string {
+  return active
+    ? cn(iconButtonClass(), 'bg-fill-selected text-brand')
+    : iconButtonClass()
+}
 
 export function FormatToolbar({ editor }: { editor: Editor | null }) {
-  const [bold, italic] = CONTROLS
-  const rest = CONTROLS.slice(2)
-
   return (
     <div className="flex items-center gap-1" role="group" aria-label="Formatting">
-      <ToolButton editor={editor} control={bold} />
-      <ToolButton editor={editor} control={italic} />
-      <LinkButton editor={editor} />
-      {rest.map((control) => (
-        <ToolButton key={control.name} editor={editor} control={control} />
-      ))}
+      {CONTROLS.map((control) =>
+        control.kind === 'link' ? (
+          <LinkButton key="link" editor={editor} />
+        ) : (
+          <ToolButton key={control.name} editor={editor} control={control} />
+        ),
+      )}
     </div>
   )
 }
 
-function ToolButton({ editor, control }: { editor: Editor | null; control: Control }) {
+function ToolButton({ editor, control }: { editor: Editor | null; control: MarkControl }) {
   const active = editor ? control.isActive(editor) : false
   return (
     <button
@@ -112,10 +130,7 @@ function ToolButton({ editor, control }: { editor: Editor | null; control: Contr
       // The editor must not lose the selection to the button.
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => editor && control.run(editor)}
-      className={cn(
-        TOOL_CLASSES,
-        active ? 'bg-fill-selected text-brand' : 'text-ink-3 hover:text-ink',
-      )}
+      className={toolClass(active)}
     >
       <Icon name={control.name} size={16} />
     </button>
@@ -161,10 +176,7 @@ function LinkButton({ editor }: { editor: Editor | null }) {
             aria-pressed={active}
             disabled={!editor}
             onMouseDown={(event) => event.preventDefault()}
-            className={cn(
-              TOOL_CLASSES,
-              active ? 'bg-fill-selected text-brand' : 'text-ink-3 hover:text-ink',
-            )}
+            className={toolClass(active)}
           />
         }
       >
