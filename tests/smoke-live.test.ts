@@ -34,7 +34,10 @@ const BASE = Date.parse('2026-08-29T09:00:00Z')
 
 const boot = useLiveRig()
 
-describe('live smoke: shim, socket, tools, approval, send', () => {
+// The rig binds a unix socket path; on Windows the app uses a named pipe
+// through the Rust relay, which the windows-build workflow compiles. These
+// two suites are the macOS/Linux arc.
+describe.runIf(process.platform !== 'win32')('live smoke: shim, socket, tools, approval, send', () => {
   it('carries an agent from search to a sent message, and writes the arc down', async () => {
     const { client, gateway, mail } = await boot(BASE, APP_VERSION)
 

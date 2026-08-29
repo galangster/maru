@@ -62,7 +62,10 @@ async function inbox(client: Rig['client']): Promise<string[]> {
   return found.threads.map((t) => t.thread_key)
 }
 
-describe('live triage morning: survey, archive, star, draft, refusal, approvals', () => {
+// The rig binds a unix socket path; on Windows the app uses a named pipe
+// through the Rust relay, which the windows-build workflow compiles. These
+// two suites are the macOS/Linux arc.
+describe.runIf(process.platform !== 'win32')('live triage morning: survey, archive, star, draft, refusal, approvals', () => {
   it('leaves a tidy inbox, two approved sends, one refusal, and a readable trail', async () => {
     const { client, gateway, mail } = await boot(BASE, APP_VERSION)
 
