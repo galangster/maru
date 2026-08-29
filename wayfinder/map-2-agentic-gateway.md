@@ -53,14 +53,23 @@ model becomes the reference for how agents touch a person's mailbox.
   surfaces, 2 blocking + 11 should-fix — all fixed same night, including
   approval-focus/announcement, the credential moment, and `w` ("waiting on
   you") as the queue's keyboard entry.
+- [M4 triage morning](tickets/M4-triage-morning.md): shipped — the whole
+  morning as a live test over the real socket + shim (survey, archive,
+  star, two queued replies, the out-of-scope refusal, approvals, tidy
+  inbox, trail asserted row by row), docs/TRIAGE-MORNING.md playbook with
+  the paste-ready prompt and filming runbook, the recorded demo of the
+  human half (docs/captures/triage-morning-demo.webm), and the gateway
+  surfaced in the README. Graduates the spec fog item as
+  [M5](tickets/M5-permission-spec.md). The live split-screen film with a
+  real Claude stays an owner gate — it needs Nick at the keyboard.
 
 ## Not yet specified
 
 - The permission-grant data model's exact shape (per-agent × capability ×
   scope: recipient/domain/label) — sharpens in M1.
 - Standing-permission UX ("always allow X for this agent") and revocation.
-- The spec document that makes "defacto" claimable (publishable permission
-  + audit model) — graduates after M4 proves the model.
+- ~~The spec document that makes "defacto" claimable~~ — graduated to
+  [M5](tickets/M5-permission-spec.md) by M4's close.
 - Outlook (Graph) and IMAP providers behind the provider seam.
 - Agent identity: how a connecting MCP client names itself trustworthily.
 - Windows/Linux hand-verification of the gateway era.

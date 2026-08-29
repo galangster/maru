@@ -56,5 +56,18 @@ where, why, proof.
    contrast 14.63:1, anchored dialog growth, virtualized audit table).
    Proof: 28f093b + the theme-picker mirror fix.
 
+10. **M4, the triage morning.** The gateway's first story shipped three
+    ways: a live E2E test of the whole morning over the real socket + shim
+    (survey, noise archives, star, two queued replies, the out-of-scope
+    refusal, approvals, tidy inbox, 22-row trail asserted in order); the
+    docs/TRIAGE-MORNING.md playbook (grants, paste-ready prompt, filming
+    runbook); the recorded demo of the human half
+    (docs/captures/triage-morning-demo.webm, re-recordable via
+    scripts/record-triage.mjs). README gains its gateway section. Where:
+    tests/triage-live.test.ts, tests/helpers/live-rig.ts (rig extracted
+    from the M3 smoke), scripts/. Why: map 2 M4; the map's "one filmable
+    story". Proof: 9d1db86; 388 tests; frame-verified webm. Spec fog item
+    graduated as ticket M5.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.
