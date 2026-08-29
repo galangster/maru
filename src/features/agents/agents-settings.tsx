@@ -16,8 +16,8 @@ import { ConfirmPopover } from '@/components/confirm-popover'
 import { Icon } from '@/components/ui/icon'
 import { PRESS, PrimaryButton } from '@/components/wren-controls'
 import type { Agent, Capability, Grant } from '@/core/agents'
-import { CAPABILITIES } from '@/core/agents'
-import { useAgentGateway } from '@/features/mail/service'
+import { CAPABILITIES, DEMO_AGENT, DEMO_AGENT_CREDENTIAL } from '@/core/agents'
+import { useAgentGateway, useMailMode } from '@/features/mail/service'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { relativeTime } from '@/lib/format'
 import { now } from '@/lib/env'
@@ -148,9 +148,38 @@ function AgentCard({
         <>
           <CapabilityToggles agentId={agent.id} held={held} />
           {send && <SendScopeEditor agentId={agent.id} grant={send} />}
+          <FixtureCredential agent={agent} />
         </>
       )}
     </li>
+  )
+}
+
+/**
+ * Demo mode's connect affordance.
+ *
+ * A real credential is shown once and then only its digest exists, so there is
+ * nothing to print here for a real agent — that is the whole design. Scout is
+ * different: its credential is a fixture in the source tree, seeded into an
+ * in-memory store that holds no real mail and reaches no real network. Showing
+ * it is what lets someone connect a real agent to the gateway and watch the
+ * grant model refuse things, before they have trusted Wren with a mailbox.
+ */
+function FixtureCredential({ agent }: { agent: Agent }) {
+  const { demo } = useMailMode()
+  if (!demo || agent.id !== DEMO_AGENT.id) return null
+
+  return (
+    <div className="border-hairline flex flex-col gap-2 rounded-md border p-3">
+      <p className="font-ui text-ink text-sm font-medium">Demo credential</p>
+      <p className="text-ink-3 text-sm text-pretty">
+        Scout is a fixture, so its credential is printed rather than issued. Point an agent at it to
+        try the gateway against demo mail.
+      </p>
+      <p className="bg-sunken text-ink rounded-sm px-3 py-2 text-sm break-all select-all">
+        {DEMO_AGENT_CREDENTIAL}
+      </p>
+    </div>
   )
 }
 

@@ -35,3 +35,4 @@ keyring = { version = "3", features = [
   "windows-native",
   "sync-secret-service",
 ] }
+interprocess = "2.4.3"

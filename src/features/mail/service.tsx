@@ -9,9 +9,10 @@ import { createContext, use, useCallback, useEffect, useState } from 'react'
 
 import { createAgentGateway, createMailService } from '@/core'
 import type { AgentGateway } from '@/core/agents'
+import type { GatewayServer } from '@/core/gateway-server'
 import type { Platform } from '@/core/platform'
 import type { MailService } from '@/core/types'
-import { isDemo, isTauri, NOW } from '@/lib/env'
+import { isDemo, isTauri, now, NOW } from '@/lib/env'
 
 const ServiceContext = createContext<MailService | null>(null)
 /**
@@ -51,18 +52,36 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     let alive = true
+    let gatewayServer: GatewayServer | null = null
     void (async () => {
       try {
         const platform = !demo && isTauri() ? await loadTauriPlatform() : null
         const service = await createMailService(platform, { demo, now: NOW })
         const agents = await createAgentGateway(platform, { demo, now: NOW, mail: service })
-        if (alive) setRuntime({ service, agents, platform })
+        if (!alive) return
+        setRuntime({ service, agents, platform })
+
+        // M2's socket. Additive on purpose: a gateway that cannot open must
+        // not stop Wren being a mail client, so this failure is logged and
+        // swallowed rather than raised into the error state above.
+        if (isTauri()) {
+          try {
+            gatewayServer = await startGatewayServer(agents, service)
+          } catch (cause) {
+            console.error('The agent gateway did not start:', cause)
+          }
+          if (!alive) {
+            void gatewayServer?.stop()
+            gatewayServer = null
+          }
+        }
       } catch (cause) {
         if (alive) setError(cause instanceof Error ? cause : new Error(String(cause)))
       }
     })()
     return () => {
       alive = false
+      void gatewayServer?.stop()
     }
   }, [demo])
 
@@ -96,6 +115,33 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
 async function loadTauriPlatform() {
   const { createTauriPlatform } = await import('@/platform/tauri')
   return createTauriPlatform()
+}
+
+/**
+ * Opens the app's half of the agent gateway.
+ *
+ * Both halves are loaded lazily: the MCP SDK is a few hundred kilobytes that a
+ * plain browser build has no listener for, and the relay cannot exist outside
+ * a Tauri window at all.
+ *
+ * It runs in demo mode too. That is what makes the whole path testable before
+ * a real account exists — Scout's fixture credential resolves against the
+ * seeded in-memory store exactly as a real one resolves against SQLite.
+ */
+async function startGatewayServer(agents: AgentGateway, mail: MailService) {
+  const [{ GatewayServer }, { createTauriGatewayRelay }] = await Promise.all([
+    import('@/core/gateway-server'),
+    import('@/platform/tauri-gateway'),
+  ])
+  const relay = createTauriGatewayRelay()
+  const info = await relay.info()
+  return GatewayServer.start({
+    relay,
+    gateway: agents,
+    mail,
+    appVersion: info.version,
+    now,
+  })
 }
 
 export function useMailService(): MailService {

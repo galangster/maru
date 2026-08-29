@@ -49,4 +49,4 @@ export {
   type AgentGatewayOptions,
   type AuthorizeResult,
 } from './gateway'
-export { seedDemoAgents, DEMO_AGENT } from './demo-fixtures'
+export { seedDemoAgents, DEMO_AGENT, DEMO_AGENT_CREDENTIAL } from './demo-fixtures'

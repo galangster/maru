@@ -1,3 +1,5 @@
+mod gateway;
+
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
@@ -185,11 +187,16 @@ pub fn run() {
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_opener::init())
+    .manage(gateway::GatewayState::default())
     .invoke_handler(tauri::generate_handler![
       secret_set,
       secret_get,
       secret_delete,
-      oauth_listen
+      oauth_listen,
+      gateway::gateway_auth_result,
+      gateway::gateway_reply,
+      gateway::gateway_close,
+      gateway::gateway_info
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -198,6 +205,12 @@ pub fn run() {
             .level(log::LevelFilter::Info)
             .build(),
         )?;
+      }
+      // The agent gateway. A failure here must not stop Wren from being a mail
+      // client — the socket is an extra surface, not a dependency of the app.
+      match gateway::start(app.handle()) {
+        Ok(path) => log::info!("gateway: listening on {path}"),
+        Err(e) => log::error!("gateway: {e}"),
       }
       Ok(())
     })
