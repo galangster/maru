@@ -83,6 +83,10 @@ export interface Label {
 
 export type MailActionType =
   | 'archive'
+  // Archive's inverse: put INBOX back. Gmail has no "unarchive" verb — it is a
+  // label modify like every other non-trash action — but undo needs a name for
+  // it, and naming it here is what lets `reverseAction` stay total.
+  | 'unarchive'
   | 'trash'
   | 'untrash'
   | 'star'

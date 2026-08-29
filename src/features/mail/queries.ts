@@ -6,12 +6,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { threadMatchesView } from '@/core/defaults'
-import { applyActionToThread } from '@/core/service/actions'
-import type { Account, MailAction, MailView, Message, SyncStatus, Thread } from '@/core/types'
+import { applyActionToThread, reverseAction } from '@/core/service/actions'
+import type {
+  Account,
+  MailAction,
+  MailActionType,
+  MailView,
+  Message,
+  SyncStatus,
+  Thread,
+} from '@/core/types'
 import { playSound } from '@/lib/sound'
 
 import { useMailService } from './service'
-import { viewKey } from './ui-store'
+import { useUi, viewKey } from './ui-store'
 
 export const keys = {
   accounts: ['accounts'] as const,
@@ -174,6 +182,41 @@ export function useSyncStatus() {
 interface ActionContext {
   lists: [readonly unknown[], Thread[] | undefined][]
   detail: { thread: Thread; messages: Message[] } | undefined
+}
+
+/** Past tense, because it is what the confirmation says happened. */
+const UNDO_LABELS: Record<MailActionType, string> = {
+  archive: 'Archived',
+  unarchive: 'Moved to Inbox',
+  trash: 'Moved to trash',
+  untrash: 'Restored from trash',
+  star: 'Starred',
+  unstar: 'Unstarred',
+  markRead: 'Marked read',
+  markUnread: 'Marked unread',
+}
+
+/**
+ * Offer ⌘Z on a mail action that has already been dispatched.
+ *
+ * Called at the *deliberate* action sites — the row's hover cluster, the
+ * reading toolbar, the triage keys — and deliberately not inside
+ * `usePerformAction`. Opening a thread marks it read through the same
+ * mutation, and if that registered, ⌘Z after a morning of j/k would offer to
+ * mark one thread unread rather than to put back the thing you just archived.
+ *
+ * The reverse is dispatched through `mutate` and not through this function, so
+ * an undo never registers a redo: ⌘Z twice is one undo, not a loop.
+ */
+export function registerActionUndo(
+  mutate: (action: MailAction) => void,
+  action: MailAction,
+): void {
+  useUi.getState().registerUndo({
+    id: `${action.type}:${action.threadKey}`,
+    label: UNDO_LABELS[action.type],
+    run: () => mutate({ type: reverseAction(action.type), threadKey: action.threadKey }),
+  })
 }
 
 export function usePerformAction() {

@@ -47,3 +47,34 @@ describe('Icon filled', () => {
     expect(warn.mock.calls.length).toBeLessThanOrEqual(1)
   })
 })
+
+type Styled = { props: { style?: { color?: string } } }
+
+function styleOf(
+  name: Parameters<typeof Icon>[0]['name'],
+  filled: boolean,
+  props: Record<string, unknown> = {},
+): { color?: string } | undefined {
+  return (Icon({ name, filled, ...props }) as unknown as Styled).props.style
+}
+
+describe('Icon semantic fill', () => {
+  it('gives each filled glyph its own meaning, not one shared colour', () => {
+    // The whole point: three filled glyphs, three different answers.
+    expect(styleOf('star', true)?.color).toBe('var(--wren-star)')
+    expect(styleOf('trash', true)?.color).toBe('var(--wren-destructive)')
+    expect(styleOf('inbox', true)?.color).toBe('var(--wren-accent)')
+    expect(styleOf('sent', true)?.color).toBe('var(--wren-accent)')
+  })
+
+  it('leaves a resting Line glyph inheriting its text tier', () => {
+    // Colour is what "filled" adds. Unfilled, the glyph is the row it sits in.
+    expect(styleOf('star', false)?.color).toBeUndefined()
+    expect(styleOf('inbox', false)?.color).toBeUndefined()
+  })
+
+  it("lets a call site's own colour win — the account hue, the current mailbox", () => {
+    const hue = styleOf('inbox', true, { style: { color: 'var(--wren-hue-teal)' } })
+    expect(hue?.color).toBe('var(--wren-hue-teal)')
+  })
+})

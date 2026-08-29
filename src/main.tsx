@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import App from "@/App";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/sonner";
 import { MailServiceProvider } from "@/features/mail/service";
 import "./index.css";
@@ -26,11 +27,15 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <MailServiceProvider>
-        <App />
-      </MailServiceProvider>
-      <Toaster position="bottom-left" closeButton />
-    </QueryClientProvider>
+    {/* Outside the providers, not inside: a throw while MailServiceProvider is
+        setting up is exactly the case that must not reach a white window. */}
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <MailServiceProvider>
+          <App />
+        </MailServiceProvider>
+        <Toaster position="bottom-left" closeButton />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

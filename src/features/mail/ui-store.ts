@@ -5,6 +5,7 @@ import { create } from 'zustand'
 
 import type { MailView } from '@/core/types'
 import { viewOverride } from '@/lib/env'
+import { clearedUndoable, liveUndoable, type Undoable } from '@/lib/undo'
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
 
@@ -37,6 +38,13 @@ interface UiState {
   expandedAccounts: Record<string, boolean>
   /** Thread keys the user has un-blocked images for. Session scoped, on purpose. */
   imagesAllowed: Set<string>
+  /**
+   * The one thing ⌘Z would put back. One slot, not a stack — see lib/undo.ts.
+   *
+   * It is UI state and not mail data: the mutation itself has already gone
+   * through react-query, and what is held here is only the offer to reverse it.
+   */
+  undoable: Undoable | null
 
   setView: (view: MailView) => void
   setSelected: (key: string | null, source?: SelectionSource) => void
@@ -44,9 +52,19 @@ interface UiState {
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleAccount: (accountId: string) => void
   allowImages: (threadKey: string) => void
+  /** Offer an undo. Stamps `at` here so no caller can hand in its own clock. */
+  registerUndo: (entry: Omit<Undoable, 'at'>) => void
+  /** Withdraw the offer, if it is still the one on the table. */
+  clearUndo: (id: string) => void
+  /**
+   * Run the pending undo if it is still inside its window, and report what it
+   * was so the caller can say so. The entry is cleared *before* it runs, which
+   * is what stops a double ⌘Z reversing the same action twice.
+   */
+  runUndo: (now?: number) => string | null
 }
 
-export const useUi = create<UiState>((set) => ({
+export const useUi = create<UiState>((set, get) => ({
   view: INITIAL_VIEW,
   selected: null,
   selectionSource: 'pointer',
@@ -55,6 +73,7 @@ export const useUi = create<UiState>((set) => ({
   expandedAccounts:
     INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
   imagesAllowed: new Set<string>(),
+  undoable: null,
 
   // Changing view always drops the selection: keeping a thread from another
   // folder open while its row is gone reads as a bug. Opening a label also
@@ -77,4 +96,14 @@ export const useUi = create<UiState>((set) => ({
     })),
   allowImages: (threadKey) =>
     set((s) => ({ imagesAllowed: new Set(s.imagesAllowed).add(threadKey) })),
+
+  registerUndo: (entry) => set({ undoable: { ...entry, at: Date.now() } }),
+  clearUndo: (id) => set((s) => ({ undoable: clearedUndoable(s.undoable, id) })),
+  runUndo: (now = Date.now()) => {
+    const entry = liveUndoable(get().undoable, now)
+    if (!entry) return null
+    set({ undoable: null })
+    entry.run()
+    return entry.label
+  },
 }))

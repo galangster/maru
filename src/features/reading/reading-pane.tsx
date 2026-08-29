@@ -9,7 +9,7 @@ import { IconButton, Keycap, PRESS } from '@/components/wren-controls'
 import type { Message, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import type { ReplyMode } from '@/lib/compose'
-import { useLabels, usePerformAction, useThread } from '@/features/mail/queries'
+import { registerActionUndo, useLabels, usePerformAction, useThread } from '@/features/mail/queries'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
 import { EmptyState } from '@/features/list/empty-state'
@@ -47,7 +47,9 @@ export function ReadingPane() {
       <section
         aria-label="Reading"
         tabIndex={-1}
-        className="bg-canvas flex h-full flex-col outline-none"
+        // `border-t` matches the list's, so the hairline under the titlebar
+        // runs unbroken across both panes whether or not a thread is open.
+        className="bg-canvas border-hairline flex h-full flex-col border-t outline-none"
       >
         {/* Empty, but it keeps the toolbar hairline level across all three panes. */}
         <div className="border-hairline h-(--wren-toolbar-h) shrink-0 border-b" />
@@ -76,7 +78,11 @@ export function ReadingPane() {
   const toolbar: ThreadActionId[] = ['archive', 'trash', 'star', 'read']
 
   return (
-    <section aria-label="Reading" tabIndex={-1} className="bg-canvas flex h-full min-w-0 flex-col outline-none">
+    <section
+      aria-label="Reading"
+      tabIndex={-1}
+      className="bg-canvas border-hairline flex h-full min-w-0 flex-col border-t outline-none"
+    >
       <header className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-1 border-b px-4">
         {toolbar.map((id) => {
           const spec = actions[id]
@@ -90,13 +96,22 @@ export function ReadingPane() {
               filled={spec.filled}
               pop={spec.pop}
               disabled={spec.disabled}
-              onClick={() => action.mutate({ type: spec.type, threadKey: thread.key })}
+              onClick={() => {
+                const next = { type: spec.type, threadKey: thread.key }
+                action.mutate(next)
+                // A deliberate press, so it is worth a ⌘Z. The mark-read that
+                // fires on merely opening a thread is not, and does not
+                // register — see registerActionUndo.
+                registerActionUndo(action.mutate, next)
+              }}
             />
           )
         })}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* `scroll-fade`: the body runs to the window frame, so a line of mail
+          straddling the bottom edge dissolves rather than being sliced. */}
+      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
         {/* Keyed on the thread, so switching threads is a crossfade rather
             than a hard cut. No AnimatePresence: the outgoing thread would have
             to be absolutely positioned over the incoming one, which fights the

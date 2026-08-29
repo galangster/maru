@@ -56,7 +56,17 @@ function hueWash(hue: Hue): string {
 }
 
 /**
- * The three states as local custom properties, so a call site can write
+ * The ink that sits *on* the solid, as opposed to `hueInk`, which sits on the
+ * wash. White where white clears 3:1 on that hue, the fixed dark ink where it
+ * does not — decided per hue and per theme, with the measurements, in
+ * tokens.css §3. A tile never has to know which of the two it got.
+ */
+function hueOnSolid(hue: Hue): string {
+  return `var(--wren-hue-${hue}-fg)`
+}
+
+/**
+ * The four states as local custom properties, so a call site can write
  * `bg-[var(--hue-wash)] text-[var(--hue-ink)]` once and stay theme-aware —
  * every value below resolves through a token that `.dark` redefines.
  */
@@ -65,5 +75,6 @@ export function hueVars(hue: Hue): CSSProperties {
     '--hue': hueSolid(hue),
     '--hue-ink': hueInk(hue),
     '--hue-wash': hueWash(hue),
+    '--hue-fg': hueOnSolid(hue),
   } as CSSProperties
 }

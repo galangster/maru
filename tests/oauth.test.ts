@@ -73,7 +73,16 @@ describe('buildAuthUrl', () => {
   it('asks for offline access so a refresh token comes back', () => {
     const u = url()
     expect(u.searchParams.get('access_type')).toBe('offline')
-    expect(u.searchParams.get('prompt')).toBe('consent')
+    // `consent` is the half that guarantees the refresh token.
+    expect(u.searchParams.get('prompt')?.split(' ')).toContain('consent')
+  })
+
+  it('forces the account picker, so a second mailbox can be added at all', () => {
+    // Without `select_account`, Google resolves a live browser session
+    // silently and every Add account lands on the address already signed in.
+    const prompt = url().searchParams.get('prompt')?.split(' ') ?? []
+    expect(prompt).toContain('select_account')
+    expect(prompt).toContain('consent')
   })
 
   it('requests exactly the four scopes Wren needs', () => {

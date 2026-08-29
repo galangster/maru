@@ -17,16 +17,18 @@
 
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import { UNIFIED_ORDER } from '@/core/defaults'
 import type { MailActionType, Thread } from '@/core/types'
 import { requestComposerClose } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
-import { keys as queryKeys, usePerformAction } from '@/features/mail/queries'
+import { keys as queryKeys, registerActionUndo, usePerformAction } from '@/features/mail/queries'
 import { threadActions } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
+import { UNDO_TOAST_ID } from '@/lib/undo'
 
 import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
 
@@ -55,7 +57,18 @@ export function useShortcuts() {
   live.current = {
     act: (type) => {
       const selected = useUi.getState().selected
-      if (selected) action.mutate({ type, threadKey: selected })
+      if (!selected) return
+      const next = { type, threadKey: selected }
+      action.mutate(next)
+      // Every triage key is a deliberate press, so every one is undoable. The
+      // two that remove a thread from view also say so out loud, because the
+      // keyboard path has no row animation to stand in for the confirmation.
+      registerActionUndo(action.mutate, next)
+      if (type !== 'archive' && type !== 'trash') return
+      toast(type === 'archive' ? 'Archived' : 'Moved to trash', {
+        id: UNDO_TOAST_ID,
+        action: { label: 'Undo', onClick: () => useUi.getState().runUndo() },
+      })
     },
     markRead: (threadKey) => action.mutate({ type: 'markRead', threadKey }),
     compose,
@@ -94,7 +107,10 @@ export function useShortcuts() {
           return
         }
         const current = currentThread()
-        if (current?.unread) live.current.act('markRead')
+        // `markRead`, not `act('markRead')`: opening a thread is not a triage
+        // decision, and offering to undo it would put ⌘Z on the last thing the
+        // user *read* rather than on the last thing they did.
+        if (current?.unread) live.current.markRead(selected)
         document.querySelector<HTMLElement>('section[aria-label="Reading"]')?.focus()
       },
       // The four triage keys read their action off the same descriptor the
@@ -116,6 +132,7 @@ export function useShortcuts() {
       palette: () => {},
       send: () => {},
       escape: () => {},
+      undo: () => {},
     }
 
     /** A triage key with nothing selected is a no-op, not a crash. */
@@ -152,6 +169,22 @@ export function useShortcuts() {
 
       // A dialog owns the screen and its own Escape.
       if (anyDialogOpen()) return
+
+      // ⌘Z / Ctrl+Z — the most recent undoable, if it is still inside its 10 s
+      // window. Ignored while typing, without exception: inside a text field
+      // and inside the composer's editor ⌘Z belongs to that field's own
+      // history, and stealing it to unarchive something across the app is the
+      // worst possible answer to the key.
+      //
+      // ⇧⌘Z is left alone. There is no redo, and swallowing the key to do
+      // nothing is worse than letting it through.
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
+        if (isTyping(event.target)) return
+        event.preventDefault()
+        const label = useUi.getState().runUndo()
+        if (label) toast('Undone', { id: UNDO_TOAST_ID, description: label })
+        return
+      }
 
       if (event.metaKey || event.ctrlKey) {
         const index = Number(event.key) - 1

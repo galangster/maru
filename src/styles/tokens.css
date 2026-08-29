@@ -149,6 +149,35 @@
     --wren-hue-orange-wash: color-mix(in oklch, var(--wren-hue-orange) 12%, transparent);
     --wren-hue-yellow-wash: color-mix(in oklch, var(--wren-hue-yellow) 12%, transparent);
 
+    /* The ink that sits ON a hue solid — a settings tile's glyph, a label
+       chip's mark. Decided per hue, by measurement, not by one blanket answer.
+       The blanket answer was a fixed dark ink everywhere, and on the four
+       darkest solids it put a near-black glyph on a saturated field: legible,
+       and heavy enough that the tile read as a hole rather than as a colour.
+
+       The rule is WCAG 3:1, the floor for a non-text glyph. White is used
+       wherever it clears that on this theme's solid, and the dark ink only
+       where white fails. Computed, not estimated — white on the light solids:
+
+         green 2.90 · teal 2.92 · blue 3.71 · violet 4.10
+         magenta 3.75 · red 3.86 · orange 2.62 · yellow 1.88
+
+       so blue, violet, magenta and red take white; green, teal, orange and
+       yellow keep the ink, which clears 6.18 / 6.14 / 6.85 / 9.53 on them.
+       Yellow is the extreme case and the reason the split exists at all.
+
+       DIRECTION §3 refused white *as a single value for all eight*, and that
+       refusal stands — it fails on half of them. This is the per-hue reading of
+       the same measurements, not a reversal of the ruling. */
+    --wren-hue-green-fg: var(--wren-hue-fg); /* white 2.90 fails · ink 6.18   */
+    --wren-hue-teal-fg: var(--wren-hue-fg); /* white 2.92 fails · ink 6.14    */
+    --wren-hue-blue-fg: oklch(1 0 0); /* white 3.71                           */
+    --wren-hue-violet-fg: oklch(1 0 0); /* white 4.10                         */
+    --wren-hue-magenta-fg: oklch(1 0 0); /* white 3.75                        */
+    --wren-hue-red-fg: oklch(1 0 0); /* white 3.86                            */
+    --wren-hue-orange-fg: var(--wren-hue-fg); /* white 2.62 fails · ink 6.85  */
+    --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.88 fails · ink 9.53  */
+
     /* --- Lines and fills --------------------------------------------------- */
     --wren-hairline: oklch(0.923 0.003 286); /* #E6E6E9                       */
     --wren-hairline-strong: oklch(0.872 0.004 286); /* #D6D6DA               */
@@ -305,6 +334,25 @@
     --wren-hue-orange-wash: color-mix(in oklch, var(--wren-hue-orange) 22%, transparent);
     --wren-hue-yellow-wash: color-mix(in oklch, var(--wren-hue-yellow) 22%, transparent);
 
+    /* Same 3:1 rule, re-measured against the dark theme's solids — which are
+       deliberately lighter than the light theme's, so white clears the floor on
+       fewer of them. White on the dark solids:
+
+         green 2.33 · teal 2.34 · blue 2.91 · violet 3.19
+         magenta 2.94 · red 3.02 · orange 2.17 · yellow 1.59
+
+       Only violet and red pass, so only they take white here. Blue and magenta
+       cross back to the ink at 2.91 and 2.94 — a hair under, and the floor is
+       not a suggestion. The ink clears 5.62–11.29 on all eight. */
+    --wren-hue-green-fg: var(--wren-hue-fg); /* white 2.33 fails · ink 7.69   */
+    --wren-hue-teal-fg: var(--wren-hue-fg); /* white 2.34 fails · ink 7.67    */
+    --wren-hue-blue-fg: var(--wren-hue-fg); /* white 2.91 fails · ink 6.15    */
+    --wren-hue-violet-fg: oklch(1 0 0); /* white 3.19                         */
+    --wren-hue-magenta-fg: var(--wren-hue-fg); /* white 2.94 fails · ink 6.10 */
+    --wren-hue-red-fg: oklch(1 0 0); /* white 3.02                            */
+    --wren-hue-orange-fg: var(--wren-hue-fg); /* white 2.17 fails · ink 8.27  */
+    --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.59 fails · ink 11.29 */
+
     --wren-hairline: oklch(1 0 0 / 0.08);
     --wren-hairline-strong: oklch(1 0 0 / 0.16);
     --wren-fill-hover: oklch(1 0 0 / 0.05);
@@ -389,12 +437,17 @@
     --font-sans: var(--wren-font-body);
     --font-heading: var(--wren-font-ui);
 
-    /* The one place a hue solid is used as a *background*: a category tile,
-       a filled mark, a celebration disc. It does NOT flip with the theme —
-       every hue solid in both themes is light enough that a fixed dark ink
-       clears 5.1:1 on it, where white clears only 1.6–4.1 and fails outright
-       on green, teal, orange and yellow. Amie sets white here; Wren does not,
-       for that reason (AMIE-STUDY §7d, extending the meta-contrast refusal). */
+    /* The dark ink for a glyph on a hue solid, and the *fallback* half of the
+       per-hue `--wren-hue-<h>-fg` set in §3. It does not flip with the theme:
+       every hue solid in both themes is light enough that this one ink clears
+       at least 4.38:1 on all sixteen, which is what makes it the safe answer
+       wherever white is not (AMIE-STUDY §7d).
+
+       It is still the direct value at the two call sites with a *fixed* hue —
+       the archive tick and the send button's confirmation, both on green, where
+       the per-hue answer resolves to this same ink anyway. Everything that
+       takes its hue at runtime goes through `hueVars`, which hands over the
+       per-hue token instead. */
     --wren-hue-fg: oklch(0.205 0.004 286);
 
     --text-xs: 0.71875rem; /* 11.5px */
@@ -429,6 +482,16 @@
 
     /* --- Pane measures: alignment decided once ---------------------------- */
     --wren-titlebar-h: 36px;
+    /* The macOS overlay traffic lights, as a measure the strip can reserve.
+       tauri.conf.json pins them at (16, 11) and macOS draws three 12 px discs
+       at a 20 px pitch, so they occupy 16 + 12 + 8 + 12 + 8 + 12 = 68 px. The
+       zone is that plus a 12 px gutter — the same gutter the sidebar gives its
+       own content — which lands on 80 and stays on DIRECTION §5's 4 px grid.
+       Change it here if `trafficLightPosition` ever moves. */
+    --wren-titlebar-lights-w: 80px;
+    /* Windows draws minimise / maximise / close on the trailing edge and
+       reserves 140 px for them. Same idea, other end, other platform. */
+    --wren-titlebar-overlay-w: 140px;
     --wren-toolbar-h: 52px;
     --wren-sidebar-w: 248px;
     --wren-sidebar-w-collapsed: 64px;

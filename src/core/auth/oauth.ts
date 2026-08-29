@@ -114,7 +114,19 @@ export function buildAuthUrl(params: AuthUrlParams): string {
     code_challenge_method: 'S256',
     state: params.state,
     access_type: 'offline',
-    prompt: 'consent',
+    // Two prompts, space-separated, and the order is Google's not ours.
+    //
+    // `consent` alone re-asks for the scopes but not for the *identity*: with
+    // one Google session live in the system browser, Google resolves the
+    // account silently and every Add account lands on whichever address was
+    // signed in — which is the wrong answer for an app whose whole premise is
+    // several mailboxes at once. `select_account` is what forces the picker,
+    // so a second, third and fourth account can be added at all.
+    //
+    // `consent` stays alongside it: it is what guarantees a refresh token comes
+    // back, and Google only issues one on a consent grant. Dropping it to get a
+    // cleaner second run would give an account that cannot be refreshed.
+    prompt: 'select_account consent',
   })
   if (params.loginHint) q.set('login_hint', params.loginHint)
   return `${AUTH_ENDPOINT}?${q.toString()}`

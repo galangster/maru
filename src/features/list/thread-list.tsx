@@ -8,13 +8,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { toast } from 'sonner'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { Icon } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
-import type { MailActionType, Thread } from '@/core/types'
+import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
   MIN_SEARCH_LENGTH,
+  registerActionUndo,
   useAccountsById,
   useLabels,
   usePerformAction,
@@ -28,6 +30,7 @@ import { useSurfaces } from '@/features/shell/surface-store'
 import { HeldMutations } from '@/lib/deferred'
 import { dateGroup, type DateGroup } from '@/lib/format'
 import { DUR } from '@/lib/motion'
+import { UNDO_TOAST_ID } from '@/lib/undo'
 import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
@@ -146,19 +149,53 @@ export function ThreadList() {
       // CSS, and the tokens the reduced-motion block zeroes already turn both
       // into a 120 ms crossfade. A JS copy of that rule was a second answer to
       // a question tokens.css had already settled.
+      // Through the ref, so an undo registered now still reaches the mutation
+      // that exists when the user presses ⌘Z ten seconds later.
+      const mutate = (next: MailAction) => actionRef.current.mutate(next)
+
       if (type !== 'archive' || held.has(thread.key)) {
-        actionRef.current.mutate({ type, threadKey: thread.key })
+        mutate({ type, threadKey: thread.key })
+        registerActionUndo(mutate, { type, threadKey: thread.key })
         return
       }
       setTicking(thread.key)
-      held.hold(
+      const cancel = held.hold(
         thread.key,
         () => {
           setTicking((current) => (current === thread.key ? null : current))
-          actionRef.current.mutate({ type: 'archive', threadKey: thread.key })
+          mutate({ type: 'archive', threadKey: thread.key })
         },
         TICK_MS,
       )
+
+      // The archive's UNDO has two halves, and which one runs is a question of
+      // *when*. Inside the tick the mutation has not been dispatched yet, so
+      // undo cancels the hold and the row simply stays — nothing ever left, and
+      // nothing has to be put back. After it flushes there is nothing left to
+      // cancel and undo sends the reverse action, which is the whole reason
+      // `unarchive` exists. Registered rather than closed over by the toast, so
+      // ⌘Z reaches the same two halves.
+      useUi.getState().registerUndo({
+        id: `archive:${thread.key}`,
+        label: 'Archived',
+        run: () => {
+          if (held.has(thread.key)) {
+            cancel()
+            setTicking((current) => (current === thread.key ? null : current))
+            return
+          }
+          mutate({ type: 'unarchive', threadKey: thread.key })
+        },
+      })
+
+      // DIRECTION §2 (Superhuman 5): small, bottom-left, inline UNDO. The
+      // affordance is on screen for the toast's own life; ⌘Z keeps offering the
+      // same undo for the rest of the 10 s window.
+      toast('Archived', {
+        id: UNDO_TOAST_ID,
+        description: thread.subject || '(no subject)',
+        action: { label: 'Undo', onClick: () => useUi.getState().runUndo() },
+      })
     },
     [held],
   )
@@ -186,7 +223,13 @@ export function ThreadList() {
       aria-label="Threads"
       tabIndex={-1}
       // `@container` so a row can ask how wide the *list* is, not the window.
-      className="bg-surface @container flex h-full min-w-0 flex-col outline-none"
+      //
+      // `border-t` closes the horizon. The pane's left and right edges are real
+      // hairlines (the two resize handles) and its top was open, so a white
+      // surface met the canvas titlebar with nothing drawn between them and the
+      // two vertical rules ran up into nothing. The reading pane carries the
+      // same edge, so the line is continuous across both panes.
+      className="bg-surface border-hairline @container flex h-full min-w-0 flex-col border-t outline-none"
     >
       <header className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-2 border-b px-4">
         {searchOpen ? (
@@ -222,7 +265,13 @@ export function ThreadList() {
         </div>
       )}
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+      {/* `scroll-fade`: the pane runs to the window frame, so the row that
+          happens to straddle the bottom edge was being sliced mid-line and read
+          as a stray fragment stuck to the bottom of the app. */}
+      <div
+        ref={scrollRef}
+        className="scroll-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+      >
         {searching ? (
           hits.length === 0 ? (
             <EmptyState

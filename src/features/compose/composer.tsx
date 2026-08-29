@@ -23,6 +23,7 @@ import { IconButton, PrimaryButton, iconButtonClass } from '@/components/wren-co
 import type { Account } from '@/core/types'
 import { useAccounts } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
+import { useUi } from '@/features/mail/ui-store'
 import { useAnyDialogOpen } from '@/features/shell/surface-store'
 import { ATTACHMENT_WARN_BYTES, totalBytes, type ReplyMode } from '@/lib/compose'
 import { HeldMutations } from '@/lib/deferred'
@@ -51,6 +52,10 @@ const TITLES: Record<ReplyMode, string> = {
  * How long the mail is genuinely held before it goes — MAGIC §3.3, Superhuman's
  * pattern 10. An undo affordance is what licenses instant, un-confirmed action;
  * without a real hold the toast would be decoration.
+ *
+ * Shorter than the registry's own window in lib/undo.ts, and it has to be: a
+ * mail action can be reversed after the fact, and a send cannot. This number is
+ * the whole of the send's undo, not a display duration on top of one.
  */
 const UNDO_WINDOW_MS = 4000
 
@@ -67,6 +72,9 @@ const SEND_TOAST = 'wren-send'
  */
 const heldSend = new HeldMutations()
 const SEND_KEY = 'send'
+
+/** The send's slot in the ⌘Z registry. Withdrawn the moment the mail goes. */
+const SEND_UNDO = 'send'
 
 if (typeof window !== 'undefined') {
   // Closing the window must not eat a held message. Whatever is waiting goes
@@ -179,6 +187,10 @@ function ComposerSheet() {
     window.setTimeout(() => {
       close()
       const cancel = heldSend.hold(SEND_KEY, () => {
+        // The window is over and the mail is going. Withdraw the offer before
+        // the request, not after it: ⌘Z landing on a send that is already in
+        // flight would reopen a composer for a message the server has.
+        useUi.getState().clearUndo(SEND_UNDO)
         void (async () => {
           try {
             await service.send(payload)
@@ -198,18 +210,32 @@ function ComposerSheet() {
         })()
       }, UNDO_WINDOW_MS)
 
+      /**
+       * Take the send back: cancel the held mutation and put the draft on
+       * screen exactly as it was.
+       *
+       * The guard is the whole contract. `cancel()` on a hold that has already
+       * fired is a no-op by design, so without it a late press would reopen the
+       * composer on mail that has already left — an undo that un-does nothing
+       * and loses the user's place. If the hold is gone, so is the offer.
+       */
+      const undoSend = () => {
+        if (!heldSend.has(SEND_KEY)) return
+        cancel()
+        useUi.getState().clearUndo(SEND_UNDO)
+        openWith(kept)
+      }
+
+      // ⌘Z reaches the same function the toast's button does, so the two can
+      // never disagree about what "undo" means here.
+      useUi.getState().registerUndo({ id: SEND_UNDO, label: 'Send', run: undoSend })
+
       window.setTimeout(() => {
         toast('Sending…', {
           id: SEND_TOAST,
           description: payload.subject || '(no subject)',
           duration: UNDO_WINDOW_MS,
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              cancel()
-              openWith(kept)
-            },
-          },
+          action: { label: 'Undo', onClick: undoSend },
         })
       }, 80)
     }, beat)
@@ -303,11 +329,21 @@ function ComposerSheet() {
           {title}
         </h2>
         {/* Toolbar chrome sits at 18 on DIRECTION §8's grid; the 16 px
-            overrides here and in the footer were the composer half of S8. */}
+            overrides here and in the footer were the composer half of S8.
+
+            `rounded-full`, not the recipe's `rounded-md`. DIRECTION §6 wants
+            nested radii concentric — inner = outer − inset. The sheet is 24 and
+            these two 32 px boxes sit 4 px in from its top-right corner on both
+            axes, which asks for 20; 16 is all a 32 px box has, and a box at its
+            own maximum radius *is* a circle. So the honest nesting here is a
+            circle, which is also the one shape that can never disagree with the
+            corner beside it — the same call surfaces.css already makes for the
+            toast's dismiss control. Minimize takes it too: it is the pair's
+            other half and a rounded-rect next to a circle reads as a mistake. */}
         <IconButton
           name="minimize"
           label="Minimize"
-          className="shrink-0"
+          className="shrink-0 rounded-full"
           onClick={() => setMinimized(true)}
         />
         <CloseControl
@@ -554,7 +590,11 @@ function CloseControl({
             event.preventDefault()
             onClose()
           }}
-          className={iconButtonClass('default', 'shrink-0')}
+          // A circle, for the concentricity reason spelled out beside the
+          // minimize button above. It is the corner-most control on both the
+          // 24 px sheet and the 18 px minimized chip, and a circle nests
+          // correctly in either without knowing which one it is in.
+          className={iconButtonClass('default', 'shrink-0 rounded-full')}
         />
       }
       triggerContent={<Icon name="close" size={16} />}

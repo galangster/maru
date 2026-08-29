@@ -145,6 +145,22 @@
     }
 }
 
+/* The bottom edge of a scrolling pane.
+   A pane runs flush to the window frame, so whatever row happens to straddle
+   that line is sliced mid-glyph and reads as a stray half-sentence stuck to
+   the bottom of the app rather than as a list that continues. DIRECTION §1:
+   nothing has a hard edge against the canvas.
+
+   A mask on the element's own box, not a gradient node over it: the fade then
+   belongs to the *viewport* of the scroller and stays put while the content
+   moves under it, with no extra DOM and no stacking games. 16 px is one step
+   on the 4 px grid and just under a text line, so a clipped line dissolves
+   rather than being guillotined. */
+@utility scroll-fade {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+}
+
 @layer base {
     * {
         @apply border-border outline-ring/50;

@@ -36,6 +36,39 @@ const HOLDOUTS = {
 
 export type IconName = keyof typeof ANRON_PATHS | keyof typeof HOLDOUTS
 
+/**
+ * What a *filled* glyph is filled with — the semantic half of "filled means
+ * selected" (DIRECTION §8).
+ *
+ * Filling is a state, but it is not the same state for every glyph, and until
+ * now every one of them took whatever `currentColor` the call site happened to
+ * be sitting in — so a starred star, a trashed thread and the current mailbox
+ * all lit up in one undifferentiated colour. The colour is a property of the
+ * glyph's meaning, so it belongs here beside the twin map rather than at four
+ * call sites free to disagree.
+ *
+ * Only the four names in ANRON_FILLED_PATHS can appear here: a glyph with no
+ * Filled twin never draws as a solid, so it never has a fill to colour.
+ *
+ * It sets `color`, not `fill`, and it is applied through `style` — which means
+ * a call site that passes its own `style.color` replaces it outright. That is
+ * the intended escape hatch and it has exactly two users: an account row,
+ * whose inbox glyph carries the account's own category hue, and the sidebar's
+ * current mailbox, which stays accent even when it is Trash.
+ */
+const ICON_FILL: Partial<Record<IconName, string>> = {
+  // Starred is the star hue in both themes — the one colour in the app that is
+  // neither the accent nor a category hue (DIRECTION §3, "Semantic mapping").
+  star: 'var(--wren-star)',
+  // Destructive, because that is what a filled trash glyph reports: this thread
+  // is in the bin. Red-leaning and contrast-verified in both themes.
+  trash: 'var(--wren-destructive)',
+  // The mailbox glyphs. A filled inbox or sent is "you are here", and "here" is
+  // the one accent (DIRECTION §3: current mailbox = accent + Filled).
+  inbox: 'var(--wren-accent)',
+  sent: 'var(--wren-accent)',
+}
+
 /** The three permitted sizes. 24 is the icon *box*, never the glyph. */
 export type IconSize = 16 | 18 | 20
 
@@ -74,7 +107,7 @@ function warnMissingTwin(name: IconName): void {
   )
 }
 
-export function Icon({ name, size = 18, filled = false, className, ...props }: IconProps) {
+export function Icon({ name, size = 18, filled = false, className, style, ...props }: IconProps) {
   const twin = filled && hasFilledTwin(name)
   if (filled && !twin) warnMissingTwin(name)
   // Shared across both branches so a holdout cannot drift from the Anron
@@ -102,6 +135,11 @@ export function Icon({ name, size = 18, filled = false, className, ...props }: I
     // an off-grid glyph now reads *lighter* rather than heavier, which fails
     // quietly instead of loudly; the call sites that forced one are gone.
     className: cn('shrink-0', className),
+    // The semantic fill, and only when the glyph is actually drawn as a solid:
+    // a resting Line glyph inherits the text tier it sits in, which is what
+    // keeps a screen near-monochrome (DIRECTION §8). The caller's own `style`
+    // spreads last and wins — see the note on ICON_FILL.
+    style: { ...(twin ? { color: ICON_FILL[name] } : undefined), ...style },
   } as const
 
   if (isHoldout(name)) {

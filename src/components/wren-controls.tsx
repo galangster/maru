@@ -182,8 +182,10 @@ export function IconButton({
 
 /**
  * Outline and fill stacked, crossfading — so the star *fills* rather than being
- * *replaced* (MAGIC §3.4). The fill layer always carries the star hue, so the
- * bloom is the colour arriving as well as the shape.
+ * *replaced* (MAGIC §3.4). The fill layer carries the glyph's own semantic
+ * colour, which the icon seam supplies, so the bloom is the colour arriving as
+ * well as the shape. It used to name the star hue here; the seam names it now,
+ * and a second copy of the same answer could only ever drift from it.
  *
  * Opacity only, which is what lets reduced motion keep it: DIRECTION §9 retains
  * the 120 ms crossfade and removes only transform.
@@ -205,7 +207,7 @@ function FillingGlyph({
         name={name}
         size={size}
         filled
-        className={cn('text-star absolute inset-0', fade, !filled && 'opacity-0')}
+        className={cn('absolute inset-0', fade, !filled && 'opacity-0')}
       />
     </span>
   )
@@ -259,9 +261,12 @@ export function AccountAvatar({
  * white-ish glyph. It is the cheapest place in the app to buy personality, and
  * it is what marks a settings section and a label.
  *
- * The glyph is `--wren-hue-fg`, a fixed dark ink in both themes rather than
- * Amie's white: white measures 1.6–4.1 on these solids and fails the 3:1 a
- * non-text glyph needs on four of the eight. See tokens.css §4.
+ * The glyph is the hue's own on-solid ink, `--hue-fg`, which is white on the
+ * hues where white clears the 3:1 a non-text glyph needs and the fixed dark ink
+ * on the ones where it does not. It used to be that dark ink on all eight, and
+ * on a saturated blue or violet solid a near-black glyph read as a hole punched
+ * in the tile rather than as a mark on it. The measurements, per hue and per
+ * theme, are in tokens.css §3.
  */
 export function HueTile({
   name,
@@ -281,7 +286,7 @@ export function HueTile({
         className,
       )}
     >
-      <Icon name={name} size={16} className="text-hue-fg" />
+      <Icon name={name} size={16} className="text-(--hue-fg)" />
     </span>
   )
 }

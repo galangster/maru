@@ -166,7 +166,15 @@ function NavRow({
             name={icon}
             size={20}
             filled={active}
-            className={active ? 'text-brand' : 'text-ink-3 group-hover:text-ink-2'}
+            // The current mailbox is the accent, whatever the glyph means
+            // anywhere else. The icon seam gives a filled glyph its own
+            // semantic colour — a filled trash is destructive red, a filled
+            // star is the star hue — and neither is what a nav row is saying.
+            // It is saying "you are here", which DIRECTION §3 maps to the one
+            // accent. An explicit `style` is how a call site overrides the
+            // seam's default, and this is one of the two that do.
+            style={active ? { color: 'var(--wren-accent)' } : undefined}
+            className={active ? undefined : 'text-ink-3 group-hover:text-ink-2'}
           />
         ) : hue ? (
           collapsed ? (

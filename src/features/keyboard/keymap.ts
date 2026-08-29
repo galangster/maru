@@ -23,6 +23,7 @@ export type ShortcutId =
   | 'trash'
   | 'star'
   | 'read'
+  | 'undo'
   | 'compose'
   | 'reply'
   | 'replyAll'
@@ -57,6 +58,10 @@ export const SHORTCUTS: ShortcutSpec[] = [
   { id: 'trash', keys: ['#'], label: 'Trash or restore', group: 'Triage', key: '#' },
   { id: 'star', keys: ['S'], label: 'Star', group: 'Triage', key: 's' },
   { id: 'read', keys: ['U'], label: 'Read / unread', group: 'Triage', key: 'u' },
+  // Modified, so it is handled ahead of the table and carries no `key`. It is
+  // in Triage rather than a group of its own because what it undoes is the
+  // four rows above it.
+  { id: 'undo', keys: [`${MOD}Z`], label: 'Undo the last action', group: 'Triage' },
 
   { id: 'compose', keys: ['C'], label: 'Compose', group: 'Write', key: 'c' },
   { id: 'reply', keys: ['R'], label: 'Reply', group: 'Write', key: 'r' },
