@@ -90,6 +90,33 @@ const SHOTS = [
       await page.getByRole('button', { name: /Explore the demo/ }).waitFor({ timeout: 10_000 })
     },
   },
+  {
+    // The poll-interval select open in settings: trigger chevron, item check —
+    // the shadcn select primitive rendering through the Icon seam.
+    file: 't9-09-settings-select-light.png',
+    query: '',
+    open: null,
+    act: async (page) => {
+      await page.locator('button[aria-label="Settings"]').click()
+      const nav = page.locator('nav[aria-label="Settings sections"]')
+      await nav.waitFor({ timeout: 10_000 })
+      await nav.getByRole('button', { name: 'Sync' }).click()
+      await page.locator('#wren-poll').click()
+      await page.locator('[data-slot="select-content"]').waitFor({ timeout: 10_000 })
+    },
+  },
+  {
+    // Adding the demo account fires a success toast — sonner's status icons
+    // rendering through the Icon seam.
+    file: 't9-10-toast-success-light.png',
+    query: '',
+    open: null,
+    act: async (page) => {
+      await page.locator('button[aria-label="Settings"]').click()
+      await page.getByRole('button', { name: 'Add account' }).click()
+      await page.locator('[data-sonner-toast]').waitFor({ timeout: 10_000 })
+    },
+  },
 ]
 
 function portOpen(port) {
