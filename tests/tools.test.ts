@@ -514,12 +514,66 @@ describe('request_send', () => {
 
     const queued = await f.gateway.approvals.listForAgent(DEMO_AGENT.id)
     expect(queued.some((a) => a.id === payload.approval_id)).toBe(true)
+
     expect(await f.mail.listThreads({ kind: 'unified', folder: 'sent' })).toHaveLength(
       sentBefore.length,
     )
     // One row: the queue's own `pending`. The tool adds none of its own.
     expect(written).toBe(1)
     expect(rows[0].outcome).toBe('pending')
+  })
+
+  it('carries attachments into the queue, and the human sees what would go out', async () => {
+    const data = btoa('hello attachment')
+    const { result } = await rowsWritten(f, f.ctx, 'request_send', {
+      account_id: 'demo-work',
+      to: [IN_SCOPE],
+      subject: 'With a file',
+      body_text: 'Attached.',
+      attachments: [{ filename: 'notes.txt', mime_type: 'text/plain', data_base64: data }],
+    })
+    const payload = payloadOf(result) as { approval_id: string; attachments: string[] }
+    expect(payload.attachments).toEqual(['notes.txt'])
+
+    const approval = (await f.gateway.approvals.listForAgent(DEMO_AGENT.id)).find(
+      (a) => a.id === payload.approval_id,
+    )
+    expect(approval?.payload.attachments).toEqual([
+      { filename: 'notes.txt', mimeType: 'text/plain', dataBase64: data },
+    ])
+
+    // Approve it: the demo mailbox's sent message really carries the file.
+    await f.gateway.approvals.approve(payload.approval_id)
+    const sent = await f.mail.listThreads({ kind: 'unified', folder: 'sent' })
+    const conversation = await f.mail.getThread(sent[0].key)
+    const outgoing = conversation.messages[conversation.messages.length - 1]
+    expect(outgoing.attachments.map((a) => a.filename)).toContain('notes.txt')
+  })
+
+  it('refuses an oversized attachment with the real numbers', async () => {
+    const big = 'A'.repeat(Math.ceil((501 * 1024 * 4) / 3))
+    const result = await callTool('request_send', f.ctx, {
+      account_id: 'demo-work',
+      to: [IN_SCOPE],
+      subject: 'Too big',
+      body_text: 'x',
+      attachments: [{ filename: 'big.bin', data_base64: big }],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('500 KB')
+    expect(textOf(result)).toContain('big.bin')
+  })
+
+  it('refuses attachment data that is not base64', async () => {
+    const result = await callTool('request_send', f.ctx, {
+      account_id: 'demo-work',
+      to: [IN_SCOPE],
+      subject: 'Bad data',
+      body_text: 'x',
+      attachments: [{ filename: 'x.bin', data_base64: 'not base64!!' }],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('not valid base64')
   })
 
   it('names the recipient that failed the scope, and queues nothing', async () => {
@@ -629,10 +683,29 @@ describe('archive_thread and modify_labels', () => {
 
     const unknown = await callTool('modify_labels', f.ctx, {
       thread_key: REPLY_THREAD,
-      add: ['Label_receipts'],
+      add: ['Invoices'],
     })
     expect(unknown.isError).toBe(true)
-    expect(textOf(unknown)).toContain('LABEL_RECEIPTS')
+    // The refusal names the label as given and lists what the account has,
+    // so the agent's next call can be right instead of guessed.
+    expect(textOf(unknown)).toContain('“Invoices”')
+    expect(textOf(unknown)).toContain('Hiring')
+  })
+
+  it('applies a user label by name, case-insensitively, in one audited call', async () => {
+    const { result, written, rows } = await rowsWritten(f, f.ctx, 'modify_labels', {
+      thread_key: REPLY_THREAD,
+      add: ['hiring'],
+      remove: ['UNREAD'],
+    })
+    expect(payloadOf(result)).toMatchObject({ done: true })
+    expect(written).toBe(1)
+    expect(rows[0].summary).toContain('Added Hiring')
+    expect(rows[0].summary).toContain('marked it as read')
+
+    const { thread } = await f.mail.getThread(REPLY_THREAD)
+    expect(thread.labelIds).toContain('Label_hiring')
+    expect(thread.labelIds).not.toContain('UNREAD')
   })
 })
 
@@ -874,6 +947,7 @@ function stubMail(opts: {
     search: async () => [thread],
     ensureBodies: async () => [message],
     performAction: async () => {},
+    modifyLabels: async () => {},
     addAccount: unsupported,
     removeAccount: unsupported,
     listLabels: async () => [],

@@ -13,11 +13,12 @@ import { SyncEngine, type SyncGmailClient } from '../sync/engine'
 import { ThreadSearchIndex } from '../search/index'
 import { TokenManager, TokenStore, runAuthFlow as defaultRunAuthFlow, type AuthFlowResult } from '../auth/oauth'
 import { buildRawMessage } from '../mime'
-import { applyActionToThread, isTrashAction, labelDelta } from './actions'
+import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } from './actions'
 import { bodyTextOf, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
 import type { GmailMessage, GmailThread } from '../gmail/types'
 import type {
+  LabelChanges,
   Account,
   ComposeDraft,
   GetThreadOptions,
@@ -359,6 +360,41 @@ export class RealMailService implements MailService {
       await this.store.restoreMessageFlags(beforeFlags)
       this.index.upsert(before)
       this.emit({ type: 'threadsChanged', accountId, threadKeys: [action.threadKey] })
+      this.emit({
+        type: 'syncStatus',
+        status: {
+          accountId,
+          state: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        },
+      })
+      throw err
+    }
+  }
+
+  async modifyLabels(threadKey: string, changes: LabelChanges): Promise<void> {
+    const { accountId, gmailThreadId } = parseThreadKey(threadKey)
+    const before = await this.store.getThread(threadKey)
+    if (!before) throw new UnknownThreadError(threadKey)
+
+    // Optimistic on the thread row only: the thread's labelIds are the union
+    // the chips and the views read, and the per-message rows reconcile on the
+    // next history poll — a user label never moves a flag column.
+    const after = { ...before, labelIds: applyLabelChanges(before.labelIds, changes) }
+    await this.store.upsertThreads([after])
+    this.index.upsert(after)
+    this.emit({ type: 'threadsChanged', accountId, threadKeys: [threadKey] })
+
+    try {
+      await this.runtime(accountId).client.modifyThread(gmailThreadId, {
+        addLabelIds: changes.addLabelIds,
+        removeLabelIds: changes.removeLabelIds,
+      })
+    } catch (err) {
+      // Put back exactly what was there, as performAction does.
+      await this.store.upsertThreads([before])
+      this.index.upsert(before)
+      this.emit({ type: 'threadsChanged', accountId, threadKeys: [threadKey] })
       this.emit({
         type: 'syncStatus',
         status: {

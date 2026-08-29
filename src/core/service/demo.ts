@@ -6,9 +6,10 @@
 
 import { ThreadSearchIndex } from '../search/index'
 import { buildDemoData, buildExtraAccount, labelsFor } from '../demo/fixtures'
-import { applyActionToMessage, applyActionToThread } from './actions'
+import { applyLabelChanges, applyActionToMessage, applyActionToThread } from './actions'
 import { bodyTextOf, sentRowsFor } from './sent'
 import type {
+  LabelChanges,
   Account,
   ComposeDraft,
   GetThreadOptions,
@@ -169,6 +170,22 @@ export class DemoMailService implements MailService {
     this.messages.set(
       next.key,
       (this.messages.get(next.key) ?? []).map((m) => applyActionToMessage(m, action.type)),
+    )
+    this.index.upsert(next)
+    this.emit({ type: 'threadsChanged', accountId: next.accountId, threadKeys: [next.key] })
+  }
+
+  async modifyLabels(threadKey: string, changes: LabelChanges): Promise<void> {
+    const thread = this.require(threadKey)
+    const next = { ...thread, labelIds: applyLabelChanges(thread.labelIds, changes) }
+    this.threads.set(next.key, next)
+    // A thread modify reaches every message, as Gmail's does.
+    this.messages.set(
+      next.key,
+      (this.messages.get(next.key) ?? []).map((m) => ({
+        ...m,
+        labelIds: applyLabelChanges(m.labelIds, changes),
+      })),
     )
     this.index.upsert(next)
     this.emit({ type: 'threadsChanged', accountId: next.accountId, threadKeys: [next.key] })

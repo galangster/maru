@@ -99,6 +99,11 @@ export interface MailAction {
   threadKey: string
 }
 
+export interface LabelChanges {
+  addLabelIds: string[]
+  removeLabelIds: string[]
+}
+
 export interface OutgoingAttachment {
   filename: string
   mimeType: string
@@ -212,6 +217,13 @@ export interface MailService {
 
   /** Optimistic: applies locally at once, queues remote, emits threadsChanged. */
   performAction(action: MailAction): Promise<void>
+  /**
+   * Add or remove labels on a thread, by label id. Additive to
+   * `performAction`, which owns the four system flags — this is the door for
+   * user labels. Optimistic like performAction: local first, remote after,
+   * rolled back verbatim on failure.
+   */
+  modifyLabels(threadKey: string, changes: LabelChanges): Promise<void>
   send(draft: ComposeDraft): Promise<void>
 
   search(q: string): Promise<Thread[]>

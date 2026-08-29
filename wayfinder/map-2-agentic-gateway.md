@@ -92,8 +92,12 @@ model becomes the reference for how agents touch a person's mailbox.
   shipped — persisted newest-first/chronological order with an order-aware
   landing, expand/collapse all (`o`, toolbar, palette), controlled message
   cards whose headers collapse, pure conversation lens with tests.
-- [M9 seam growth](tickets/M9-mailservice-seam-growth.md) charted: user
-  labels + outgoing attachments, M3's two recorded gaps.
+- [M9 seam growth](tickets/M9-mailservice-seam-growth.md): shipped —
+  `MailService.modifyLabels` (optimistic + rollback), user labels by name
+  through `modify_labels` with discovery via `list_accounts`, and
+  outgoing attachments on `request_send` (capped under the frame, shown
+  on the approval card). M3's two recorded gaps are closed; the
+  CONNECT-AN-AGENT caveats were rewritten to match.
 
 ## Not yet specified
 

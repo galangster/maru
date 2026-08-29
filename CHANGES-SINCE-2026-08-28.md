@@ -111,5 +111,16 @@ where, why, proof.
     sorting ask, 2026-08-29 (ticket M8). Proof: this commit; 407 tests;
     live verification; captures t3-02/t4-05 updated + m8-15 new.
 
+15. **M9, seam growth.** MailService.modifyLabels (additive; optimistic +
+    verbatim rollback in the real service, shared applyLabelChanges);
+    modify_labels takes user labels by name with refusals that list what
+    exists; list_accounts returns each account's label names;
+    request_send takes capped base64 attachments, shown on the approval
+    card before anything sends. M3's two recorded gaps closed;
+    CONNECT-AN-AGENT caveats rewritten. Why: roadmap continuation under
+    Nick's autonomous directive. Proof: this commit; 413 tests; m1-11
+    capture. Note: the MailService contract grew additively — the delta's
+    "unchanged contracts" line now reads "additive only" accurately.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

@@ -222,6 +222,29 @@ describe('optimistic actions', () => {
   it('rejects an action on an unknown thread', async () => {
     await expect(ctx.svc.performAction({ type: 'star', threadKey: 'acct-1/nope' })).rejects.toThrow()
   })
+
+  it('modifyLabels applies user labels through the same modify endpoint', async () => {
+    const { client, store, svc } = ctx
+    await svc.modifyLabels('acct-1/t-1', {
+      addLabelIds: ['Label_receipts'],
+      removeLabelIds: [],
+    })
+    expect(client.modifyCalls).toEqual([{ id: 't-1', add: ['Label_receipts'], remove: [] }])
+    expect((await store.getThread('acct-1/t-1'))?.labelIds).toContain('Label_receipts')
+  })
+
+  it('modifyLabels reverts the thread verbatim when Gmail rejects it', async () => {
+    const { client, store, svc, events } = ctx
+    client.failWith = new HttpError(403, 'Forbidden', 'insufficientPermissions', 'https://x')
+    await expect(
+      svc.modifyLabels('acct-1/t-1', { addLabelIds: ['Label_receipts'], removeLabelIds: [] }),
+    ).rejects.toBeInstanceOf(HttpError)
+    const thread = await store.getThread('acct-1/t-1')
+    expect(thread?.labelIds.sort()).toEqual(['INBOX', 'UNREAD'])
+    expect(events.filter((e) => e.type === 'syncStatus').at(-1)).toMatchObject({
+      status: { state: 'error', accountId: 'acct-1' },
+    })
+  })
 })
 
 describe('send', () => {

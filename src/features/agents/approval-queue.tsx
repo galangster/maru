@@ -38,9 +38,10 @@ import {
 } from '@/components/wren-controls'
 import { htmlToText } from '@/core'
 import type { Approval } from '@/core/agents'
+import { base64DecodedBytes } from '@/core/mime'
 import { useAgentGateway } from '@/features/mail/service'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
-import { elapsedTime, fullTimestamp } from '@/lib/format'
+import { attachmentIcon, formatBytes, elapsedTime, fullTimestamp } from '@/lib/format'
 import { now } from '@/lib/env'
 import { DUR, useMotionMode } from '@/lib/motion'
 import { playSound } from '@/lib/sound'
@@ -313,6 +314,24 @@ function PendingRow({
               be asking for a decision it had withheld the facts for. */}
           To {recipients.join(', ') || '(no recipient)'}
         </p>
+        {draft.attachments.length > 0 && (
+          <ul className="mt-1 flex flex-wrap gap-2">
+            {/* Same principle as the addresses: what would actually leave the
+                machine is on the card, never behind the disclosure. */}
+            {draft.attachments.map((attachment, index) => (
+              <li
+                key={`${attachment.filename}:${index}`}
+                className="bg-sunken text-ink-2 flex h-6 items-center gap-1.5 rounded-full px-2 text-xs"
+              >
+                <Icon name={attachmentIcon(attachment.mimeType)} size={16} className="text-ink-3" />
+                <span className="max-w-48 truncate">{attachment.filename}</span>
+                <span className={META_TEXT}>
+                  {formatBytes(base64DecodedBytes(attachment.dataBase64))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">

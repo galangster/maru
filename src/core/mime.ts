@@ -405,3 +405,13 @@ export function buildRawMessage(draft: ComposeDraft, ctx: BuildContext): string 
 
   return base64UrlEncodeText(headers.join(CRLF) + CRLF + CRLF + body)
 }
+
+/**
+ * Decoded size of a base64 string, padding-aware. The one answer for the
+ * attachment cap, the approval card, and the stored sizeBytes — three
+ * formulas here disagreed by up to two bytes before it existed.
+ */
+export function base64DecodedBytes(data: string): number {
+  const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0
+  return Math.floor((data.length * 3) / 4) - padding
+}

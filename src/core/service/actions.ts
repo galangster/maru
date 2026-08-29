@@ -29,6 +29,18 @@ export function labelDelta(type: MailActionType): LabelDelta {
   }
 }
 
+/**
+ * `modifyLabels`' arithmetic, shared like the action deltas above so the
+ * optimistic local write and the Gmail modify agree exactly. Remove wins over
+ * add when a caller lists an id in both, matching Gmail's own semantics.
+ */
+export function applyLabelChanges(
+  labelIds: string[],
+  changes: { addLabelIds: string[]; removeLabelIds: string[] },
+): string[] {
+  return applyDelta(labelIds, { add: changes.addLabelIds, remove: changes.removeLabelIds })
+}
+
 function applyDelta(labelIds: string[], delta: LabelDelta): string[] {
   const set = new Set(labelIds)
   for (const id of delta.remove) set.delete(id)

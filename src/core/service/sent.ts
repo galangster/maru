@@ -9,7 +9,7 @@
 // differ: the ids, the clock and the RFC threading headers.
 
 import { mergeParticipants } from '../gmail/mapping'
-import { htmlToText } from '../mime'
+import { base64DecodedBytes, htmlToText } from '../mime'
 import type { Account, ComposeDraft, Message, Thread } from '../types'
 import { threadKey } from '../types'
 
@@ -69,8 +69,7 @@ export function sentRowsFor(draft: ComposeDraft, ctx: SentContext): SentRows {
       messageId: ctx.messageId,
       filename: a.filename,
       mimeType: a.mimeType,
-      // base64 carries 3 bytes in every 4 characters; padding rounds up.
-      sizeBytes: Math.ceil((a.dataBase64.length * 3) / 4),
+      sizeBytes: base64DecodedBytes(a.dataBase64),
       inline: false,
     })),
     rfcMessageId: ctx.rfcMessageId,

@@ -129,15 +129,15 @@ Eleven, and what each one needs:
 | --- | --- | --- |
 | `wren_ping` | — | Who this connection is, and what it currently holds. |
 | `list_pending` | — | This agent's own send requests, and how each was resolved. |
-| `list_accounts` | read | Account ids, addresses and display names. |
+| `list_accounts` | read | Account ids, addresses, display names, and each account’s own label names. |
 | `search_mail` | read | Compact thread summaries. Never a message body. |
 | `read_thread` | read | One thread in full, as plain text, with its attachment list. |
 | `get_attachment` | read | One attachment, base64, up to 5 MB. |
 | `draft_new` | draft | A normalised new message. Sends nothing, stores nothing. |
 | `draft_reply` | draft | A reply, reply-all or forward, using Wren's own reply rules. |
-| `request_send` | send | Puts a message in the approval queue. Never dispatches. |
+| `request_send` | send | Puts a message — attachments included — in the approval queue. Never dispatches. |
 | `archive_thread` | archive / label | archive, unarchive, trash, untrash. |
-| `modify_labels` | archive / label | Add or remove `STARRED` and `UNREAD`. |
+| `modify_labels` | archive / label | Add or remove `STARRED`, `UNREAD`, or the account’s own labels by name. |
 
 Two shapes run through the whole surface, and a prompt written against it
 should expect both.
@@ -218,12 +218,14 @@ agent  ──stdio──▶  wren-mcp.mjs  ──unix socket──▶  Wren (Rus
 
 Wren is pre-1.0 and this surface is a night old. Honestly:
 
-- **No user labels from an agent.** `modify_labels` moves `STARRED` and
-  `UNREAD`, which are the labels Wren's own mail engine can modify today.
-  Adding `Receipts` to a thread is still something you do by hand.
-- **No attachments out.** An agent can read an attachment; it cannot put one
-  on a message it asks to send. `attachments` on a queued draft is always
-  empty.
+- **Labels are applied, never invented.** `modify_labels` takes your own
+  Gmail labels by name (`list_accounts` shows them), but an agent cannot
+  create a new label — an unknown name is refused with the list of what
+  exists.
+- **Outgoing attachments are small.** `request_send` takes base64
+  attachments up to 500 KB per file and 600 KB per message — the whole
+  request has to fit the gateway's 1 MiB frame. The approval card shows
+  the file list, so what leaves the machine is what a person saw.
 - **macOS is the tested path.** The Windows named pipe compiles and is written
   against a cross-platform socket crate, but nobody has run it. Linux is in
   the same position.

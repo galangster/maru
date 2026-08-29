@@ -478,7 +478,7 @@ describe('MCP over the relay', () => {
     expect(payload.capabilities).toEqual(['read', 'draft', 'archiveLabel', 'send'])
   })
 
-  it('answers list_accounts with ids, addresses and display names only', async () => {
+  it('answers list_accounts with ids, addresses, display names and label names', async () => {
     await connected(h, 13, DEMO_AGENT_CREDENTIAL)
     h.relay.send(13, agentIdOf(h, 13), {
       jsonrpc: '2.0',
@@ -498,7 +498,7 @@ describe('MCP over the relay', () => {
     expect(payload.accounts).toHaveLength(expected.length)
     expect(payload.accounts.length).toBeGreaterThan(0)
     for (const account of payload.accounts) {
-      expect(Object.keys(account).sort()).toEqual(['displayName', 'email', 'id'])
+      expect(Object.keys(account).sort()).toEqual(['displayName', 'email', 'id', 'labels'])
     }
   })
 

@@ -113,7 +113,7 @@ const listAccounts: ToolSpec = {
     name: 'list_accounts',
     title: 'List accounts',
     description:
-      'List the mail accounts connected to Wren. Returns each account id, email address and display name. Account ids are what every other Wren tool takes; call this first.',
+      'List the mail accounts connected to Wren. Returns each account id, email address, display name, and the account\u2019s own label names \u2014 the names modify_labels accepts. Account ids are what every other Wren tool takes; call this first.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: {
       title: 'List accounts',
@@ -126,14 +126,20 @@ const listAccounts: ToolSpec = {
   async handler(ctx, args) {
     expectKeys('list_accounts', args, [])
     const accounts = await ctx.mail.listAccounts()
+    const rows = await Promise.all(
+      accounts.map(async (account) => ({
+        id: account.id,
+        email: account.email,
+        displayName: account.displayName,
+        // User labels only: the system set is the tool surface's own grammar
+        // (STARRED/UNREAD here, INBOX/TRASH via archive_thread).
+        labels: (await ctx.mail.listLabels(account.id))
+          .filter((l) => l.type === 'user')
+          .map((l) => l.name),
+      })),
+    )
     return {
-      payload: {
-        accounts: accounts.map((account) => ({
-          id: account.id,
-          email: account.email,
-          displayName: account.displayName,
-        })),
-      },
+      payload: { accounts: rows },
       audit: {
         summary: `Listed ${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'}.`,
       },

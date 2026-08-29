@@ -56,6 +56,7 @@ function draft(fields: {
   subject: string
   bodyHtml: string
   reply?: ComposeDraft['reply']
+  attachments?: ComposeDraft['attachments']
 }): ComposeDraft {
   return {
     accountId: 'demo-work',
@@ -64,7 +65,7 @@ function draft(fields: {
     bcc: [],
     subject: fields.subject,
     bodyHtml: fields.bodyHtml,
-    attachments: [],
+    attachments: fields.attachments ?? [],
     reply: fields.reply,
   }
 }
@@ -91,6 +92,15 @@ const PENDING: { minutesAgo: number; draft: ComposeDraft }[] = [
         messageId: 'w-latency-m2',
         mode: 'replyAll',
       },
+      // One small attachment, so the approval card's file row — what would
+      // actually leave the machine — is a capturable state (M9).
+      attachments: [
+        {
+          filename: 'p95-after-cache.png',
+          mimeType: 'image/png',
+          dataBase64: 'iVBORw0KGgoAAAANSUhEUg'.repeat(64),
+        },
+      ],
     }),
   },
   {

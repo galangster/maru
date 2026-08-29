@@ -13,10 +13,10 @@
 // timestamp formatter. A second implementation of "who does reply-all go to"
 // is a second answer, and the one in the agent path is the one nobody watches.
 
-import type { Account, ComposeDraft, MailActionType } from '../types'
+import type { Account, ComposeDraft, MailActionType, OutgoingAttachment } from '../types'
 import { deriveRecipients, quoteOriginal, replySubject, type ReplyMode } from '../../lib/compose'
 import { fullTimestamp } from '../../lib/format'
-import { htmlToText } from '../mime'
+import { base64DecodedBytes, htmlToText } from '../mime'
 import { markdownToHtml, MARKDOWN_SUBSET, textToHtml } from './body'
 import { requireThread } from './tools-read'
 import {
@@ -39,8 +39,6 @@ import {
 const REPLY_MODES = ['reply', 'replyAll', 'forward'] as const
 const ARCHIVE_ACTIONS = ['archive', 'unarchive', 'trash', 'untrash'] as const
 /** The two labels Wren can actually move through `MailService.performAction`. */
-const MODIFIABLE_LABELS = ['STARRED', 'UNREAD'] as const
-
 const BODY_KEYS = ['body_markdown', 'body_text', 'body_html'] as const
 
 const BODY_SCHEMA = {
@@ -344,6 +342,14 @@ const draftReply: ToolSpec = {
 
 // -- request_send -------------------------------------------------------------
 
+// Decoded bytes, not base64 characters: the caps are about what the recipient
+// gets, and the refusal names the same number the agent can reason about. The
+// totals leave headroom under the gateway's 1 MiB frame once base64's 4/3
+// expansion and the rest of the request are paid for.
+export const ATTACH_OUT_FILE_CAP = 500 * 1024
+export const ATTACH_OUT_TOTAL_CAP = 600 * 1024
+
+
 const requestSend: ToolSpec = {
   // Deliberately null. `AgentGateway.requestSend` runs the send grant against
   // every recipient and writes the row either way — checking the capability
@@ -381,6 +387,27 @@ const requestSend: ToolSpec = {
         subject: { type: 'string', description: 'The subject line, as the recipient will see it.' },
         ...BODY_SCHEMA,
         reply: REPLY_INPUT_SCHEMA,
+        attachments: {
+          type: 'array',
+          description: `Files to attach, base64-encoded. Small ones only: ${Math.round(
+            ATTACH_OUT_FILE_CAP / 1024,
+          )} KB per file and ${Math.round(
+            ATTACH_OUT_TOTAL_CAP / 1024,
+          )} KB per message, because the whole request has to fit the gateway's 1 MiB frame. The person approving sees the file list before anything sends.`,
+          items: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'The name the recipient sees.' },
+              mime_type: {
+                type: 'string',
+                description: 'Optional. Defaults to application/octet-stream.',
+              },
+              data_base64: { type: 'string', description: 'The file bytes, base64.' },
+            },
+            required: ['filename', 'data_base64'],
+            additionalProperties: false,
+          },
+        },
       },
       required: ['to', 'subject'],
       additionalProperties: false,
@@ -398,8 +425,11 @@ const requestSend: ToolSpec = {
     },
   },
   async handler(ctx, args) {
-    expectKeys('request_send', args, [...DRAFT_NEW_KEYS, 'reply'])
-    const { draft } = await draftFromArgs(ctx, args, 'request_send')
+    expectKeys('request_send', args, [...DRAFT_NEW_KEYS, 'reply', 'attachments'])
+    // Parsed first: a bad attachment should not pay for recipient resolution.
+    const attachments = parseOutgoingAttachments(args)
+    const { draft: base } = await draftFromArgs(ctx, args, 'request_send')
+    const draft = { ...base, attachments }
     const result = await ctx.gateway.requestSend(ctx.agent.id, draft)
 
     if ('denied' in result) {
@@ -422,10 +452,56 @@ const requestSend: ToolSpec = {
         note: 'Nothing has been sent. This is waiting for a person to approve it in Wren, and expires unanswered after 24 hours. Call list_pending to see where it got to.',
         subject: draft.subject,
         to: draft.to.map((a) => a.email),
+        attachments: draft.attachments.map((a) => a.filename),
       },
       // No row: `ApprovalQueue.submit` wrote the pending one.
     }
   },
+}
+
+/** The attachments arg, validated and mapped to what `MailService.send` takes. */
+function parseOutgoingAttachments(args: Args): OutgoingAttachment[] {
+  const raw = args.attachments
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw)) {
+    throw new ToolRefusal('request_send needs attachments as an array of objects.')
+  }
+  let total = 0
+  return raw.map((item, index) => {
+    const entry = (item ?? {}) as Record<string, unknown>
+    const filename = typeof entry.filename === 'string' ? entry.filename.trim() : ''
+    const data = typeof entry.data_base64 === 'string' ? entry.data_base64.trim() : ''
+    if (filename === '') {
+      throw new ToolRefusal(`Attachment ${index + 1} has no filename.`)
+    }
+    if (data === '' || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+      throw new ToolRefusal(`Attachment “${filename}” is not valid base64.`)
+    }
+    const size = base64DecodedBytes(data)
+    if (size > ATTACH_OUT_FILE_CAP) {
+      throw new ToolRefusal(
+        `Attachment “${filename}” is ${Math.round(size / 1024)} KB; the cap is ${Math.round(
+          ATTACH_OUT_FILE_CAP / 1024,
+        )} KB per file — the whole request has to fit the gateway's 1 MiB frame.`,
+      )
+    }
+    total += size
+    if (total > ATTACH_OUT_TOTAL_CAP) {
+      throw new ToolRefusal(
+        `The attachments together are over the ${Math.round(
+          ATTACH_OUT_TOTAL_CAP / 1024,
+        )} KB per-message cap. Send the rest in a second message.`,
+      )
+    }
+    return {
+      filename,
+      mimeType:
+        typeof entry.mime_type === 'string' && entry.mime_type.trim() !== ''
+          ? entry.mime_type.trim()
+          : 'application/octet-stream',
+      dataBase64: data,
+    }
+  })
 }
 
 /** Why a send was refused, in a sentence that names what to fix. */
@@ -475,11 +551,7 @@ const ACTION_CLAUSE: Record<MailActionType, (subject: string) => string> = {
  * put the same tool call in the timeline twice.
  */
 function triageSummary(actions: MailActionType[], subject: string): string {
-  const clauses = actions.map((action, index) => {
-    const clause = ACTION_CLAUSE[action](index === 0 ? quoteSubject(subject) : 'it')
-    return index === 0 ? clause : clause[0].toLowerCase() + clause.slice(1)
-  })
-  return `${clauses.join(' and ')}.`
+  return labelSummary(actions, { added: [], removed: [] }, subject)
 }
 
 // -- archive_thread -----------------------------------------------------------
@@ -539,18 +611,13 @@ function labelAction(label: string, adding: boolean): MailActionType {
   return adding ? 'markUnread' : 'markRead'
 }
 
-function checkLabel(label: string): void {
-  if ((MODIFIABLE_LABELS as readonly string[]).includes(label)) return
-  if (label === 'INBOX' || label === 'TRASH') {
+/** The system labels this tool routes elsewhere or refuses, checked upper. */
+function refuseSystemLabel(upper: string): void {
+  if (upper === 'INBOX' || upper === 'TRASH') {
     throw new ToolRefusal(
-      `${label} is moved with archive_thread, not modify_labels: use action archive, unarchive, trash or untrash.`,
+      `${upper} is moved with archive_thread, not modify_labels: use action archive, unarchive, trash or untrash.`,
     )
   }
-  throw new ToolRefusal(
-    `Wren cannot change the label “${label}” from an agent. modify_labels handles ${MODIFIABLE_LABELS.join(
-      ' and ',
-    )}; user labels are added in Wren by hand for now.`,
-  )
 }
 
 const modifyLabels: ToolSpec = {
@@ -559,20 +626,22 @@ const modifyLabels: ToolSpec = {
     name: 'modify_labels',
     title: 'Change a thread’s labels',
     description:
-      'Add or remove labels on a thread. Wren handles STARRED and UNREAD from an agent: add STARRED to star it, remove UNREAD to mark it read, and so on. INBOX and TRASH belong to archive_thread, and user labels cannot be set from an agent yet. Both changes in one call are applied in order and written to the audit log as one line.',
+      'Add or remove labels on a thread. STARRED and UNREAD work everywhere: add STARRED to star it, remove UNREAD to mark it read, and so on. Your own Gmail labels work by name — list_accounts shows each account\u2019s label names. INBOX and TRASH belong to archive_thread. All changes in one call are applied together and written to the audit log as one line.',
     inputSchema: {
       type: 'object',
       properties: {
         thread_key: { type: 'string', description: 'The thread to change, from search_mail.' },
         add: {
           type: 'array',
-          items: { type: 'string', enum: [...MODIFIABLE_LABELS] },
-          description: 'Labels to add. STARRED stars the thread; UNREAD marks it unread.',
+          items: { type: 'string' },
+          description:
+            'Labels to add: STARRED, UNREAD, or one of the account\u2019s own label names.',
         },
         remove: {
           type: 'array',
-          items: { type: 'string', enum: [...MODIFIABLE_LABELS] },
-          description: 'Labels to remove. STARRED unstars the thread; UNREAD marks it read.',
+          items: { type: 'string' },
+          description:
+            'Labels to remove: STARRED, UNREAD, or one of the account\u2019s own label names.',
         },
       },
       required: ['thread_key'],
@@ -595,28 +664,95 @@ const modifyLabels: ToolSpec = {
     if (add.length === 0 && remove.length === 0) {
       throw new ToolRefusal('modify_labels needs at least one label in add or remove.')
     }
-    const both = add.filter((label) => remove.includes(label))
+    const both = add.filter((label) =>
+      remove.some((other) => other.toUpperCase() === label.toUpperCase()),
+    )
     if (both.length > 0) {
       throw new ToolRefusal(
         `modify_labels was given ${both.join(', ')} in both add and remove. Pick one.`,
       )
     }
-    for (const label of [...add, ...remove]) checkLabel(label)
 
     const { thread } = await requireThread(ctx, key)
-    const actions = [
-      ...add.map((label) => labelAction(label, true)),
-      ...remove.map((label) => labelAction(label, false)),
-    ]
-    for (const action of actions) {
+
+    // Two doors, sorted per label: the four system flags go through the same
+    // performAction the toolbar uses; user labels go through the seam grown
+    // for them. One grant covers both, and one audit line reports both.
+    const flags: MailActionType[] = []
+    const changes = { addLabelIds: [] as string[], removeLabelIds: [] as string[] }
+    const named = { added: [] as string[], removed: [] as string[] }
+    let labels: Awaited<ReturnType<typeof ctx.mail.listLabels>> | null = null
+
+    for (const [list, adding] of [
+      [add, true],
+      [remove, false],
+    ] as const) {
+      for (const label of list) {
+        const upper = label.toUpperCase()
+        if (upper === 'STARRED' || upper === 'UNREAD') {
+          flags.push(labelAction(upper, adding))
+          continue
+        }
+        refuseSystemLabel(upper)
+        labels ??= await ctx.mail.listLabels(thread.accountId)
+        // Exact case first: Gmail permits labels differing only by case, and
+        // the case-folded fallback must not shadow a perfect match.
+        const users = labels.filter((l) => l.type === 'user')
+        const hit =
+          users.find((l) => l.name === label) ??
+          users.find((l) => l.name.toLowerCase() === label.toLowerCase())
+        if (!hit) {
+          const known = labels
+            .filter((l) => l.type === 'user')
+            .map((l) => l.name)
+            .sort((a, b) => a.localeCompare(b))
+          throw new ToolRefusal(
+            known.length === 0
+              ? `This account has no labels of its own, so “${label}” cannot be applied. Wren does not create labels from an agent.`
+              : `No label called “${label}” on this account. Its labels: ${known
+                  .slice(0, 20)
+                  .join(', ')}${known.length > 20 ? ', …' : ''}. Wren does not create labels from an agent.`,
+          )
+        }
+        ;(adding ? changes.addLabelIds : changes.removeLabelIds).push(hit.id)
+        ;(adding ? named.added : named.removed).push(hit.name)
+      }
+    }
+
+    for (const action of flags) {
       await ctx.mail.performAction({ type: action, threadKey: key })
+    }
+    if (changes.addLabelIds.length > 0 || changes.removeLabelIds.length > 0) {
+      await ctx.mail.modifyLabels(key, changes)
     }
 
     return {
       payload: { thread_key: key, subject: thread.subject, added: add, removed: remove, done: true },
-      audit: { summary: triageSummary(actions, thread.subject), threadKey: key },
+      audit: { summary: labelSummary(flags, named, thread.subject), threadKey: key },
     }
   },
+}
+
+/**
+ * `triageSummary`, widened for user labels: the thread is still named once
+ * and is "it" afterwards, so `Added Receipts to "X" and marked it as read.`
+ * reads as one sentence however the call mixed its doors.
+ */
+function labelSummary(
+  flags: MailActionType[],
+  named: { added: string[]; removed: string[] },
+  subject: string,
+): string {
+  const clauses: ((target: string) => string)[] = []
+  if (named.added.length > 0) clauses.push((t) => `Added ${named.added.join(', ')} to ${t}`)
+  if (named.removed.length > 0)
+    clauses.push((t) => `Removed ${named.removed.join(', ')} from ${t}`)
+  for (const action of flags) clauses.push(ACTION_CLAUSE[action])
+  const parts = clauses.map((clause, index) => {
+    const text = clause(index === 0 ? quoteSubject(subject) : 'it')
+    return index === 0 ? text : text[0].toLowerCase() + text.slice(1)
+  })
+  return `${parts.join(' and ')}.`
 }
 
 function uniqueLabels(args: Args, key: 'add' | 'remove'): string[] {
@@ -625,7 +761,17 @@ function uniqueLabels(args: Args, key: 'add' | 'remove'): string[] {
   if (!Array.isArray(raw) || raw.some((item) => typeof item !== 'string')) {
     throw new ToolRefusal(`modify_labels needs ${key} as an array of label names.`)
   }
-  return [...new Set((raw as string[]).map((label) => label.trim().toUpperCase()))]
+  // Trimmed, deduped case-insensitively, original casing kept: STARRED is
+  // matched upper later, and a user label's own casing belongs in the log.
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const label of raw as string[]) {
+    const trimmed = label.trim()
+    if (trimmed === '' || seen.has(trimmed.toLowerCase())) continue
+    seen.add(trimmed.toLowerCase())
+    out.push(trimmed)
+  }
+  return out
 }
 
 export const WRITE_TOOLS: ToolSpec[] = [
