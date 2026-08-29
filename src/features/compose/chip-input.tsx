@@ -73,7 +73,7 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
                 event.stopPropagation()
                 onChange(value.filter((a) => a.email !== address.email))
               }}
-              className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 inline-flex size-4 shrink-0 items-center justify-center rounded-xs outline-none focus-visible:ring-2"
+              className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 inline-flex size-4 shrink-0 items-center justify-center rounded-xs outline-none focus-visible:ring-3"
             >
               <Icon name="close" size={16} className="size-3" />
             </button>

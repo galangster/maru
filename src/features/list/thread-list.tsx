@@ -129,27 +129,30 @@ export function ThreadList() {
   const subtitle =
     view.kind === 'account' ? accountsById.get(view.accountId)?.email : undefined
 
-  const showAccountDot = view.kind === 'unified' && (accounts.data?.length ?? 0) > 1
+  const showAccount = view.kind === 'unified' && (accounts.data?.length ?? 0) > 1
   const hits = searching ? (results.data ?? []) : []
 
   return (
     <section
       aria-label="Threads"
       tabIndex={-1}
-      className="bg-surface flex h-full min-w-0 flex-col outline-none"
+      // `@container` so a row can ask how wide the *list* is, not the window.
+      className="bg-surface @container flex h-full min-w-0 flex-col outline-none"
     >
       <header className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-2 border-b px-4">
         {searchOpen ? (
           <SearchField />
         ) : (
           <>
+            {/* The header is the view's name and nothing else. It used to
+                carry a bare thread total, which sat two rows from the
+                sidebar's unread badge — two unlabelled numbers for the same
+                mailbox, disagreeing. Unread is the sidebar's job; how much is
+                here is the list's own job. */}
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
               <h2 className="font-ui text-ink truncate text-base font-semibold">{title}</h2>
               {subtitle && <span className="text-ink-3 truncate text-xs">{subtitle}</span>}
             </div>
-            <span className="text-ink-3 shrink-0 text-xs tabular-nums">
-              {threads.data ? threads.data.length : ''}
-            </span>
             <SearchToggle />
             <IconButton
               name="sync"
@@ -234,7 +237,7 @@ export function ThreadList() {
                       thread={row.thread}
                       account={accountsById.get(row.thread.accountId)}
                       selected={selected === row.thread.key}
-                      showAccountDot={showAccountDot}
+                      showAccount={showAccount}
                       now={now}
                       selfEmails={selfEmails}
                       onSelect={() => onSelect(row.thread)}

@@ -51,9 +51,26 @@ export function Sidebar() {
           ))}
         </ul>
 
-        {(accounts.data ?? []).map((account) => (
-          <AccountSection key={account.id} account={account} collapsed={collapsed} />
-        ))}
+        {/* Collapsed, the accounts are one group of jump targets, so they sit
+            in one list at the group's own rhythm. Expanded, each is a section
+            with its own label tree. */}
+        {collapsed ? (
+          <ul className="mt-6 flex flex-col gap-1">
+            {(accounts.data ?? []).map((account) => (
+              <NavRow
+                key={account.id}
+                view={{ kind: 'account', accountId: account.id, labelId: 'INBOX' }}
+                label={`Inbox — ${account.email}`}
+                dot={account.color}
+                collapsed
+              />
+            ))}
+          </ul>
+        ) : (
+          (accounts.data ?? []).map((account) => (
+            <AccountSection key={account.id} account={account} />
+          ))
+        )}
       </div>
 
       <SidebarFooter collapsed={collapsed} accounts={accounts.data ?? []} />
@@ -69,6 +86,9 @@ function ComposeButton({ collapsed }: { collapsed: boolean }) {
       type="button"
       onClick={compose}
       title="Compose (C)"
+      // The label has to survive the collapse: at 64 px the word goes away and
+      // `title` alone is not an accessible name.
+      aria-label="Compose"
       className={cn(
         'font-ui bg-primary text-primary-foreground inline-flex h-9 items-center rounded-md text-base font-medium',
         'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
@@ -102,7 +122,7 @@ function UnifiedItem({
       label={label}
       icon={icon}
       collapsed={collapsed}
-      count={count > 0 ? count : undefined}
+      unread={count > 0 ? count : undefined}
     />
   )
 }
@@ -112,7 +132,7 @@ function NavRow({
   label,
   icon,
   collapsed,
-  count,
+  unread,
   indent = false,
   dot,
 }: {
@@ -120,13 +140,17 @@ function NavRow({
   label: string
   icon?: IconName
   collapsed: boolean
-  count?: number
+  /** Unread threads in this mailbox. The sidebar is the only place a mail
+   *  count is shown, so the number never has to be disambiguated against a
+   *  second one in the list header. */
+  unread?: number
   indent?: boolean
   dot?: string
 }) {
   const current = useUi((s) => s.view)
   const setView = useUi((s) => s.setView)
   const active = viewKey(current) === viewKey(view)
+  const name = unread === undefined ? label : `${label}, ${unread} unread`
 
   return (
     <li>
@@ -135,7 +159,8 @@ function NavRow({
         onClick={() => setView(view)}
         aria-current={active ? 'page' : undefined}
         data-view-key={viewKey(view)}
-        title={collapsed ? label : undefined}
+        title={collapsed ? name : undefined}
+        aria-label={name}
         className={cn(
           'font-ui flex h-9 w-full items-center rounded-md text-base outline-none',
           'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
@@ -152,15 +177,20 @@ function NavRow({
             <AccountDot color={dot} />
           ) : null}
         </span>
-        {!collapsed && <span className="flex-1 truncate text-left">{label}</span>}
-        {!collapsed && count !== undefined && (
+        {!collapsed && (
+          <span aria-hidden className="flex-1 truncate text-left">
+            {label}
+          </span>
+        )}
+        {!collapsed && unread !== undefined && (
           <span
+            aria-hidden
             className={cn(
               'shrink-0 text-xs tabular-nums',
               active ? 'text-brand font-medium' : 'text-ink-3',
             )}
           >
-            {count}
+            {unread}
           </span>
         )}
       </button>
@@ -168,7 +198,7 @@ function NavRow({
   )
 }
 
-function AccountSection({ account, collapsed }: { account: Account; collapsed: boolean }) {
+function AccountSection({ account }: { account: Account }) {
   const expanded = useUi((s) => s.expandedAccounts[account.id] ?? false)
   const toggle = useUi((s) => s.toggleAccount)
   const labels = useLabels(expanded ? account.id : undefined)
@@ -181,14 +211,6 @@ function AccountSection({ account, collapsed }: { account: Account; collapsed: b
       if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
       return a.name.localeCompare(b.name)
     })
-
-  if (collapsed) {
-    return (
-      <div className="mt-3 flex justify-center pt-3" title={account.email}>
-        <AccountDot color={account.color} />
-      </div>
-    )
-  }
 
   return (
     <section className="mt-6">
@@ -233,19 +255,31 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
   const statuses = Object.values(useSyncStatus())
   const themeIcon: IconName =
     theme === 'light' ? 'themeLight' : theme === 'dark' ? 'themeDark' : 'themeSystem'
-  const themeLabel = `Theme: ${theme}. Switch.`
+  const themeLabel = `Switch theme, currently ${theme}`
 
   const { demo } = useMailMode()
   const openSettings = useSurfaces((s) => s.openSettings)
   const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
   const syncing = statuses.some((s) => s.state === 'syncing')
   const failed = statuses.some((s) => s.state === 'error')
-  const status = demo
+
+  // Two strings, not one. The long form used to be the only form and it
+  // truncated in the middle of a word — "Demo data · 2 accou…" — which made the
+  // one line that says what the app is doing the one line you cannot read. The
+  // state gets the pixels; the detail gets the tooltip.
+  const state = demo
+    ? 'Demo data'
+    : failed
+      ? 'Sync failed'
+      : syncing
+        ? 'Syncing…'
+        : 'Up to date'
+  const detail = demo
     ? `Demo data · ${plural}`
     : failed
-      ? 'Sync failed · retrying'
+      ? 'Sync failed · Wren is retrying'
       : syncing
-        ? `Syncing · ${plural}`
+        ? `Syncing ${plural}`
         : `${plural} · up to date`
 
   return (
@@ -256,13 +290,21 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
       )}
     >
       {!collapsed && (
-        <span className="text-ink-3 flex min-w-0 flex-1 items-center gap-2 text-xs">
+        <span
+          title={detail}
+          className="text-ink-3 flex min-w-0 flex-1 items-center gap-2 text-xs"
+        >
           <Icon
             name={failed ? 'error' : 'sync'}
             size={16}
-            className={cn('shrink-0', syncing && 'animate-spin', failed && 'text-destructive')}
+            className={cn(
+              'shrink-0',
+              syncing && 'motion-safe:animate-spin',
+              failed && 'text-destructive',
+            )}
           />
-          <span className="truncate">{status}</span>
+          <span className="truncate">{state}</span>
+          <span className="sr-only">{detail}</span>
         </span>
       )}
       <IconButton

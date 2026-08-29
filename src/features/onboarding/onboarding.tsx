@@ -3,7 +3,8 @@
 // The card is glass-strong over the cloud-soft base — DIRECTION §7 lists
 // onboarding cards as one of the two surfaces that earn the stronger recipe.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { CloudMark } from '@/features/list/empty-state'
@@ -11,6 +12,7 @@ import { useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { onboardingPreview } from '@/lib/env'
+import { sheetPreset, staggerPreset, useMotionMode } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 export function Onboarding() {
@@ -22,6 +24,9 @@ export function Onboarding() {
   const settings = useSettings()
   const service = useMailService()
   const [step, setStep] = useState<'welcome' | 'choose'>('welcome')
+  const mode = useMotionMode()
+  const card = sheetPreset(mode)
+  const { item, step: gap } = staggerPreset(mode)
 
   const empty = accounts.isSuccess && (accounts.data?.length ?? 0) === 0
   const show = onboardingPreview || (!demo && empty)
@@ -49,59 +54,88 @@ export function Onboarding() {
     switchToDemo()
   }
 
+  // One list per step, so the stagger is data-driven rather than four
+  // hand-delayed blocks. `key` is the step, so moving from welcome to choose
+  // replays the arrival instead of snapping.
+  const rows: ReactNode[] =
+    step === 'welcome'
+      ? [
+          <CloudMark key="mark" />,
+          <div key="copy" className="flex flex-col items-center gap-2 text-center">
+            <h1 className="font-ui text-ink text-xl font-semibold">Wren</h1>
+            <p className="text-ink-2 max-w-72 text-sm text-pretty">
+              One quiet window for every Gmail account you have. Nothing leaves this machine
+              except what goes to Google.
+            </p>
+          </div>,
+          <button
+            key="start"
+            type="button"
+            autoFocus
+            onClick={() => setStep('choose')}
+            className={cn(
+              'font-ui bg-primary text-primary-foreground inline-flex h-9 items-center rounded-md px-4 text-base font-medium',
+              'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+              'hover:bg-brand-hover focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
+            )}
+          >
+            Get started
+          </button>,
+        ]
+      : [
+          <CloudMark key="mark" />,
+          <div key="copy" className="flex flex-col items-center gap-2 text-center">
+            <h1 className="font-ui text-ink text-xl font-semibold">
+              Where would you like to start?
+            </h1>
+            <p className="text-ink-3 max-w-72 text-sm text-pretty">
+              You can do the other one later.
+            </p>
+          </div>,
+          // The two choices are a pair: 8 px apart inside one block, so the
+          // card's 24 px rhythm never gets between them, and they arrive
+          // together as one decision rather than as two options.
+          <div key="choices" className="flex w-full flex-col gap-2">
+            <Choice
+              icon="inbox"
+              title="Connect Gmail"
+              subtitle="Set up your own Google client, then sign in. About five minutes."
+              onClick={connect}
+              primary
+            />
+            <Choice
+              icon="participants"
+              title="Explore the demo"
+              // It said "three fictional accounts", and the sidebar then shows
+              // two. Both numbers are true of something — fixtures.ts seeds
+              // two and holds a third that Add account brings in — so the copy
+              // now says which is which.
+              subtitle="Two fictional accounts, plus a third you can add. Nothing is sent or stored."
+              onClick={explore}
+            />
+          </div>,
+        ]
+
   return (
     <div className="bg-canvas fixed inset-0 z-50 flex items-center justify-center p-8">
-      <div className="glass-strong flex w-[480px] max-w-full flex-col items-center gap-6 p-8">
-        <CloudMark />
-
-        {step === 'welcome' ? (
-          <>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h1 className="font-ui text-ink text-xl font-semibold">Wren</h1>
-              <p className="text-ink-2 max-w-72 text-sm text-pretty">
-                One quiet window for every Gmail account you have. Nothing leaves this machine
-                except what goes to Google.
-              </p>
-            </div>
-            <button
-              type="button"
-              autoFocus
-              onClick={() => setStep('choose')}
-              className={cn(
-                'font-ui bg-primary text-primary-foreground inline-flex h-9 items-center rounded-md px-4 text-base font-medium',
-                'shadow-xs transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-                'hover:bg-brand-hover focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
-              )}
-            >
-              Get started
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h1 className="font-ui text-ink text-xl font-semibold">Where would you like to start?</h1>
-              <p className="text-ink-3 max-w-72 text-sm text-pretty">
-                You can do the other one later. Nothing here is permanent.
-              </p>
-            </div>
-            <div className="flex w-full flex-col gap-2">
-              <Choice
-                icon="inbox"
-                title="Connect Gmail"
-                subtitle="Set up your own Google client, then sign in. About five minutes."
-                onClick={connect}
-                primary
-              />
-              <Choice
-                icon="participants"
-                title="Explore the demo"
-                subtitle="Three fictional accounts, full of mail. Nothing is sent or stored."
-                onClick={explore}
-              />
-            </div>
-          </>
-        )}
-      </div>
+      <motion.div
+        initial={card.initial}
+        animate={card.animate}
+        transition={card.transition}
+        className="glass-strong flex w-[480px] max-w-full flex-col items-center gap-6 p-8"
+      >
+        {rows.map((row, index) => (
+          <motion.div
+            key={`${step}:${index}`}
+            initial={item.initial}
+            animate={item.animate}
+            transition={{ ...item.transition, delay: index * gap }}
+            className="flex w-full flex-col items-center"
+          >
+            {row}
+          </motion.div>
+        ))}
+      </motion.div>
     </div>
   )
 }

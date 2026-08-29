@@ -25,9 +25,83 @@
 [data-slot='dialog-overlay'] {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    background-color: oklch(0.235 0.02 268 / 0.24);
+    /* The scrim is a token, not a literal. It used to be hard-coded here at a
+       lighter alpha, which let the app read straight through the settings
+       dialog and gave that large glass panel a diagonal light-to-dark smear —
+       a gradient surface by accident, which DIRECTION §1 rules out. */
+    background-color: var(--wren-scrim);
 }
 
-:root.dark [data-slot='dialog-overlay'] {
-    background-color: oklch(0.155 0.012 268 / 0.56);
+/* --------------------------------------------------------------------------
+   Motion for the surfaces Base UI mounts.
+
+   Base UI owns the unmount: it keeps the node until the running animation
+   finishes, so the exit has to be declared here rather than wrapped in an
+   AnimatePresence that would be fighting it for the same DOM. The keyframes
+   and every duration come from tokens.css §7 — reduced motion is handled once,
+   there, by zeroing the lift and the scale step.
+
+   Only opacity and transform move. The blur never animates.
+   -------------------------------------------------------------------------- */
+
+[data-slot='dialog-overlay'][data-open] {
+    animation: wren-fade-in var(--wren-dur-base) var(--wren-ease-out);
+}
+[data-slot='dialog-overlay'][data-closed] {
+    animation: wren-fade-out var(--wren-dur-exit) var(--wren-ease-in);
+}
+
+/* The palette, settings and the shortcut sheet. `--wren-ease-spring` is
+   DIRECTION §9's CSS stand-in for the one spring. */
+[data-slot='dialog-content'][data-open] {
+    animation: wren-surface-in var(--wren-dur-base) var(--wren-ease-spring);
+}
+[data-slot='dialog-content'][data-closed] {
+    animation: wren-surface-out var(--wren-dur-exit) var(--wren-ease-in);
+}
+
+/* Anchored surfaces scale from where they were summoned; no lift. */
+[data-slot='popover-content'][data-open],
+[data-slot='select-content'][data-open] {
+    animation: wren-anchored-in var(--wren-dur-fast) var(--wren-ease-out);
+}
+[data-slot='popover-content'][data-closed],
+[data-slot='select-content'][data-closed] {
+    animation: wren-anchored-out var(--wren-dur-fast) var(--wren-ease-in);
+}
+
+/* Sonner brings its own transition. Retime it to the tokens so the toast
+   arrives on the same clock as everything else. */
+/* Sonner injects its own stylesheet at runtime, so it lands after this file
+   and wins every tie. These rules carry one extra attribute of specificity on
+   purpose — that, not !important, is what makes them stick. */
+[data-sonner-toaster] [data-sonner-toast] {
+    transition-duration: var(--wren-dur-base);
+    transition-timing-function: var(--wren-ease-out);
+    /* Room for the dismiss control, which now sits inside the toast. */
+    padding-inline-end: 48px;
+}
+
+/* Sonner hangs its dismiss button off the top-left corner at 20 px, half
+   outside the toast. DIRECTION §2 (Superhuman 5) wants the × inline, and
+   DIRECTION §5 wants a 32 px interactive box. Both, on the trailing edge. */
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+    inset-block-start: 50%;
+    inset-inline-start: auto;
+    inset-inline-end: 8px;
+    width: var(--wren-hit);
+    height: var(--wren-hit);
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: var(--wren-radius-xs);
+    background: transparent;
+    color: var(--wren-text-3);
+    transition:
+        background-color var(--wren-dur-fast) var(--wren-ease-out),
+        color var(--wren-dur-fast) var(--wren-ease-out);
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover {
+    background: var(--wren-fill-hover);
+    color: var(--wren-text-1);
 }

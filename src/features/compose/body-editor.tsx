@@ -26,7 +26,7 @@ export function useBodyEditor({ initialHtml, onChange }: UseBodyEditorOptions): 
     extensions: [
       StarterKit.configure({ link: false, codeBlock: false, horizontalRule: false }),
       Link.configure({ openOnClick: false, autolink: true, defaultProtocol: 'https' }),
-      Placeholder.configure({ placeholder: 'Write something…' }),
+      Placeholder.configure({ placeholder: 'Write your message' }),
     ],
     content: initialHtml,
     immediatelyRender: false,
@@ -89,7 +89,7 @@ export function FormatToolbar({ editor }: { editor: Editor | null }) {
   const rest = CONTROLS.slice(2)
 
   return (
-    <div className="flex items-center gap-0.5" role="group" aria-label="Formatting">
+    <div className="flex items-center gap-1" role="group" aria-label="Formatting">
       <ToolButton editor={editor} control={bold} />
       <ToolButton editor={editor} control={italic} />
       <LinkButton editor={editor} />

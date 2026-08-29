@@ -3,6 +3,7 @@
 // reply / reply all / forward open the composer on the newest message.
 
 import { useMemo } from 'react'
+import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
@@ -13,6 +14,7 @@ import { useAccounts, useLabels, usePerformAction, useThread } from '@/features/
 import { useUi } from '@/features/mail/ui-store'
 import { EmptyState } from '@/features/list/empty-state'
 import { displayName } from '@/lib/format'
+import { crossfadePreset, useMotionMode } from '@/lib/motion'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,8 @@ export function ReadingPane() {
   const detail = useThread(selectedKey)
   const accounts = useAccounts()
   const action = usePerformAction()
+  const mode = useMotionMode()
+  const fade = crossfadePreset(mode)
 
   const accountsById = useMemo(() => {
     const map = new Map<string, Account>()
@@ -48,9 +52,10 @@ export function ReadingPane() {
         <div className="border-hairline h-(--wren-toolbar-h) shrink-0 border-b" />
         <div className="min-h-0 flex-1">
           <EmptyState
+            mark
             copy={{
               title: 'Nothing open',
-              subtitle: 'Pick a thread on the left, or press j to start at the top.',
+              subtitle: 'Pick a thread on the left. J opens the first one.',
             }}
           />
         </div>
@@ -87,6 +92,7 @@ export function ReadingPane() {
           label={thread.starred ? 'Unstar' : 'Star'}
           tone={thread.starred ? 'star' : 'default'}
           filled={thread.starred}
+          pop
           onClick={() => run(thread.starred ? 'unstar' : 'star')}
         />
         <IconButton
@@ -97,7 +103,17 @@ export function ReadingPane() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[calc(var(--wren-read-measure)+2*var(--wren-read-px))] px-(--wren-read-px) pt-(--wren-read-pt) pb-12">
+        {/* Keyed on the thread, so switching threads is a crossfade rather
+            than a hard cut. No AnimatePresence: the outgoing thread would have
+            to be absolutely positioned over the incoming one, which fights the
+            body iframe's own measurement. */}
+        <motion.div
+          key={thread.key}
+          initial={fade.initial}
+          animate={fade.animate}
+          transition={fade.transition}
+          className="mx-auto w-full max-w-[calc(var(--wren-read-measure)+2*var(--wren-read-px))] px-(--wren-read-px) pt-(--wren-read-pt) pb-12"
+        >
           <ThreadHeader thread={thread} messages={messages} chips={chips.map((l) => l.name)} />
 
           <div className="mt-6 flex flex-col gap-2">
@@ -116,7 +132,7 @@ export function ReadingPane() {
           </div>
 
           <ReplyBar />
-        </div>
+        </motion.div>
       </div>
     </section>
   )

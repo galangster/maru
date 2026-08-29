@@ -43,14 +43,35 @@ export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
   }
 }
 
-export function EmptyState({ copy, className }: { copy: EmptyCopy; className?: string }) {
+/**
+ * `mark` is off in the 400 px list column and on in the reading pane. An empty
+ * label beside an empty reading pane used to put two identical clouds on screen
+ * at once, which read as a rendering fault; and the mark is cramped at 400 px
+ * anyway. One cloud, in the pane that has room for it.
+ */
+export function EmptyState({
+  copy,
+  mark = false,
+  className,
+}: {
+  copy: EmptyCopy
+  mark?: boolean
+  className?: string
+}) {
   return (
     <div
       className={cn('flex h-full flex-col items-center justify-center gap-4 px-8 pb-16', className)}
     >
-      <CloudMark />
+      {mark && <CloudMark />}
       <div className="flex max-w-80 flex-col gap-1 text-center">
-        <p className="font-ui text-ink text-xl font-medium text-balance">{copy.title}</p>
+        <p
+          className={cn(
+            'font-ui text-ink font-medium text-balance',
+            mark ? 'text-xl' : 'text-base',
+          )}
+        >
+          {copy.title}
+        </p>
         <p className="text-ink-3 text-sm text-pretty">{copy.subtitle}</p>
       </div>
     </div>

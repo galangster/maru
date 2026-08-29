@@ -70,7 +70,10 @@ export function SettingsDialog() {
     >
       <DialogContent
         showCloseButton={false}
-        className="glass-strong wren-fixed flex h-[480px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 ring-0 sm:max-w-[680px]"
+        // A fixed height, deliberately: the sections are wildly different
+        // lengths and a content-sized dialog would jump every time the nav is
+        // used. 440 is the shortest height the tallest section still reads in.
+        className="glass-strong wren-fixed flex h-[440px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 ring-0 sm:max-w-[680px]"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
@@ -247,7 +250,7 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
       </Explainer>
 
       {list.length === 0 ? (
-        <p className="text-ink-3 text-sm">No accounts yet.</p>
+        <p className="text-ink-3 text-sm">No accounts yet. Add one below to start.</p>
       ) : (
         <ul className="flex flex-col">
           {list.map((account) => (
@@ -268,7 +271,11 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
             'disabled:pointer-events-none disabled:opacity-40',
           )}
         >
-          <Icon name={busy ? 'sync' : 'add'} size={16} className={busy ? 'animate-spin' : ''} />
+          <Icon
+            name={busy ? 'sync' : 'add'}
+            size={16}
+            className={busy ? 'motion-safe:animate-spin' : ''}
+          />
           {busy ? 'Waiting for Google…' : 'Add account'}
         </button>
       </div>
@@ -309,6 +316,9 @@ function AccountRow({ account }: { account: Account }) {
           render={
             <button
               type="button"
+              // Every account row says "Remove". Read out of context that is
+              // two identical buttons; the label says which one.
+              aria-label={`Remove ${account.email}`}
               className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-visible:ring-ring/50 h-8 shrink-0 rounded-md px-3 text-base font-medium outline-none transition-colors duration-(--wren-dur-fast) focus-visible:ring-3"
             />
           }
@@ -485,7 +495,7 @@ function GoogleSection({ highlight }: { highlight: boolean }) {
         onClick={() => openSettings('accounts')}
         className="font-ui text-ink-2 hover:text-ink focus-visible:ring-ring/50 h-8 w-fit rounded-md text-base font-medium outline-none focus-visible:ring-3"
       >
-        Back to Accounts →
+        Back to accounts
       </button>
     </div>
   )

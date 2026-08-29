@@ -26,7 +26,7 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
     title: 'Triage',
     rows: [
       [['E'], 'Archive'],
-      [['#'], 'Trash, or restore'],
+      [['#'], 'Trash or restore'],
       [['S'], 'Star'],
       [['U'], 'Read / unread'],
     ],
@@ -46,8 +46,8 @@ const GROUPS: { title: string; rows: [string[], string][] }[] = [
     rows: [
       [[`${MOD}K`], 'Command palette'],
       [['/'], 'Search mail'],
-      [['?'], 'This list'],
-      [['esc'], 'Close what is on top'],
+      [['?'], 'Show this list'],
+      [['esc'], 'Close the top surface'],
     ],
   },
 ]

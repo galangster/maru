@@ -2,7 +2,7 @@
 // box, an account-tinted avatar, and the account dot. Kept together because
 // they are the only places a saturated colour is allowed to appear at rest.
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 
 import { Icon, type IconName, type IconSize } from '@/components/ui/icon'
 import type { EmailAddress } from '@/core/types'
@@ -26,6 +26,8 @@ export interface IconButtonProps extends Omit<React.ComponentProps<'button'>, 'c
   tone?: Tone
   filled?: boolean
   active?: boolean
+  /** Give the glyph a 200 ms pop on press. Reserved for the star. */
+  pop?: boolean
 }
 
 export function IconButton({
@@ -35,15 +37,27 @@ export function IconButton({
   tone = 'default',
   filled = false,
   active = false,
+  pop = false,
   className,
+  onClick,
   ...props
 }: IconButtonProps) {
+  // Counting presses rather than holding a boolean: the key remounts the span,
+  // which is what makes a CSS animation run a second time. Zero means "not yet
+  // pressed", so nothing pops on mount — including the starred rows that
+  // scroll into view in a virtualized list.
+  const [presses, setPresses] = useState(0)
+
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       aria-pressed={active || undefined}
+      onClick={(event) => {
+        if (pop) setPresses((n) => n + 1)
+        onClick?.(event)
+      }}
       className={cn(
         'inline-flex size-8 items-center justify-center rounded-md outline-none',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
@@ -55,7 +69,13 @@ export function IconButton({
       )}
       {...props}
     >
-      <Icon name={name} size={size} filled={filled} />
+      <span
+        key={presses}
+        className="inline-flex"
+        data-wren-pop={pop && presses > 0 ? '' : undefined}
+      >
+        <Icon name={name} size={size} filled={filled} />
+      </span>
     </button>
   )
 }
@@ -66,10 +86,14 @@ export function IconButton({
 export function AccountAvatar({
   address,
   color,
+  ring = false,
   className,
 }: {
   address: EmailAddress
   color: string
+  /** Draw a full-chroma hairline around the chip, for unified views where the
+   *  row has to say which account it came from. */
+  ring?: boolean
   className?: string
 }) {
   return (
@@ -80,6 +104,9 @@ export function AccountAvatar({
         'font-ui inline-flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
         'bg-[color-mix(in_oklab,var(--dot)_16%,transparent)] text-[color-mix(in_oklab,var(--dot)_86%,black)]',
         'dark:bg-[color-mix(in_oklab,var(--dot)_28%,transparent)] dark:text-[color-mix(in_oklab,var(--dot)_55%,white)]',
+        // An inset hairline, not a `ring`: it costs no layout, needs no offset
+        // colour, and stays exactly 1 px on every DPI (DIRECTION §6).
+        ring && 'shadow-[inset_0_0_0_1px_var(--dot)]',
         className,
       )}
     >
@@ -88,11 +115,25 @@ export function AccountAvatar({
   )
 }
 
-/** 6 px dot. Marks which account a row in a unified view came from. */
-export function AccountDot({ color, className }: { color: string; className?: string }) {
+/** Marks which account a row in a unified view came from.
+ *
+ *  6 px is a licensed exception to DIRECTION §5's 4 px grid: it is a glyph
+ *  diameter, not a measure — nothing aligns to it, and it sits inside boxes
+ *  that are themselves on the grid. 4 px disappears at 100% DPI and 8 px reads
+ *  as a bullet rather than a marker. */
+export function AccountDot({
+  color,
+  className,
+  title,
+}: {
+  color: string
+  className?: string
+  title?: string
+}) {
   return (
     <span
       aria-hidden
+      title={title}
       style={{ backgroundColor: color }}
       className={cn('inline-block size-1.5 shrink-0 rounded-full', className)}
     />

@@ -125,8 +125,9 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
       </div>
 
       <Command.List className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-        <Command.Empty className="text-ink-3 px-2 py-8 text-center text-sm">
-          Nothing matches “{query}”.
+        <Command.Empty className="text-ink-3 mx-auto max-w-72 px-2 py-8 text-center text-sm text-pretty">
+          Nothing matches “{query}”. Try a sender, a word from the subject, or a
+          word from the message.
         </Command.Empty>
 
         <Group heading="Actions">

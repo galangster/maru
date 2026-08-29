@@ -1,17 +1,25 @@
 // One row of the thread list — 68 px, two lines, identical anatomy on every
 // row (DIRECTION §2, Phantom 2 and Superhuman 1):
 //
-//   [dot gutter] [avatar] | sender (fixed 152 px) · count ........ time
-//                         | subject · snippet .............. star / clip / dot
+//   [dot gutter] [avatar] | sender (fixed 152 px) · count ......... time
+//                         | subject · snippet ................ star / clip
 //
 // The fixed sender column is what makes every subject and every snippet start
 // at the same x. Unread is a gutter dot and a weight change — never a tint,
 // never a left bar.
+//
+// Which account a row came from used to be a separate 6 px dot at the far
+// right of line two, after the snippet. It read as a stray bullet on a ragged
+// edge and it ate the snippet's last characters. Wherever it was moved it was
+// still a loose element looking for a column, so it is not a separate element
+// any more: the avatar already carries the account colour, and in a unified
+// view it now carries a full-chroma hairline of it too. One saturated chip
+// leads the row and answers "whose is this" — DIRECTION §2, Family 3.
 
 import { memo } from 'react'
 
 import { Icon } from '@/components/ui/icon'
-import { AccountAvatar, AccountDot, IconButton } from '@/components/wren-controls'
+import { AccountAvatar, IconButton } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -20,7 +28,7 @@ export interface ThreadRowProps {
   thread: Thread
   account: Account | undefined
   selected: boolean
-  showAccountDot: boolean
+  showAccount: boolean
   now: number
   selfEmails: string[]
   onSelect: () => void
@@ -31,7 +39,7 @@ export const ThreadRow = memo(function ThreadRow({
   thread,
   account,
   selected,
-  showAccountDot,
+  showAccount,
   now,
   selfEmails,
   onSelect,
@@ -55,11 +63,17 @@ export const ThreadRow = memo(function ThreadRow({
         selected ? 'bg-fill-selected' : 'hover:bg-fill-hover',
       )}
     >
-      <span className="flex w-3 shrink-0 justify-center" aria-hidden>
-        {thread.unread && <span className="bg-brand size-1.5 rounded-full" />}
+      <span className="flex w-3 shrink-0 justify-center">
+        {thread.unread && (
+          <>
+            <span className="bg-brand size-1.5 rounded-full" aria-hidden />
+            <span className="sr-only">Unread</span>
+          </>
+        )}
       </span>
 
-      <AccountAvatar address={lead} color={account?.color ?? '#94a3b8'} />
+      <AccountAvatar address={lead} color={account?.color ?? '#94a3b8'} ring={showAccount} />
+      {showAccount && account && <span className="sr-only">{account.email}</span>}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-baseline gap-2">
@@ -81,7 +95,12 @@ export const ThreadRow = memo(function ThreadRow({
             )}
           </span>
           <span className="min-w-0 flex-1" />
-          <time className="text-ink-3 shrink-0 text-xs tabular-nums">
+          {/* Fixed width, right-aligned. "02:30", "Sat" and "Yesterday" are
+              three different widths; a shrink-to-fit column would leave the
+              left edge of the timestamps ragged down the list, which is the
+              one thing DIRECTION §1 says a column may never do. 64 px holds
+              the longest value. */}
+          <time className="text-ink-3 w-16 shrink-0 text-right text-xs tabular-nums">
             {relativeTime(thread.lastMessageAt, now)}
           </time>
         </div>
@@ -95,14 +114,19 @@ export const ThreadRow = memo(function ThreadRow({
           >
             {thread.subject || '(no subject)'}
           </span>
-          <span className="text-ink-3 min-w-0 flex-1 truncate text-sm leading-5">
+          {/* Below ~380 px of list the snippet degrades to one or two
+              characters and an ellipsis, which is noise, not preview. It is
+              dropped outright at that width and the row falls back to sender
+              plus subject. */}
+          <span className="text-ink-3 hidden min-w-0 flex-1 truncate text-sm leading-5 @min-[380px]:block">
             {thread.snippet}
           </span>
+          <span className="min-w-0 flex-1 @min-[380px]:hidden" />
           <span className="flex shrink-0 items-center gap-2">
             {thread.starred && (
               <button
                 type="button"
-                aria-label="Unstar"
+                aria-label={`Unstar ${thread.subject || 'this thread'}`}
                 title="Unstar"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -115,8 +139,12 @@ export const ThreadRow = memo(function ThreadRow({
                 <Icon name="star" size={16} filled />
               </button>
             )}
-            {thread.hasAttachments && <Icon name="attachment" size={16} className="text-ink-3" />}
-            {showAccountDot && account && <AccountDot color={account.color} />}
+            {thread.hasAttachments && (
+              <span className="inline-flex" title="Has attachments">
+                <Icon name="attachment" size={16} className="text-ink-3" />
+                <span className="sr-only">Has attachments</span>
+              </span>
+            )}
           </span>
         </div>
       </div>
@@ -141,9 +169,13 @@ function QuickActions({
     <div
       className={cn(
         'bg-raised absolute top-1/2 right-3 flex -translate-y-1/2 items-center rounded-md p-1 shadow-md',
-        'opacity-0 transition-opacity duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-        'pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100',
-        'focus-within:pointer-events-auto focus-within:opacity-100',
+        'transition-[opacity,transform] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        // The 4 px slide is what makes the cluster read as arriving rather
+        // than switching on. Reduced motion drops the offset, so there is no
+        // transform left to animate and only the opacity crossfades.
+        'opacity-0 motion-safe:translate-x-1',
+        'pointer-events-none group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100',
+        'focus-within:pointer-events-auto focus-within:translate-x-0 focus-within:opacity-100',
       )}
       onClick={(e) => e.stopPropagation()}
     >
@@ -173,6 +205,7 @@ function QuickActions({
         size={16}
         tone={thread.starred ? 'star' : 'default'}
         filled={thread.starred}
+        pop
         onClick={() => onAction(thread.starred ? 'unstar' : 'star')}
       />
     </div>

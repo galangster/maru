@@ -6,6 +6,7 @@
 // or opacity can steal the backdrop root — DIRECTION §7, WebView2 rule 6.
 
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { toast } from 'sonner'
 
 import { Icon } from '@/components/ui/icon'
@@ -29,6 +30,7 @@ import { useMailService } from '@/features/mail/service'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { ATTACHMENT_WARN_BYTES, totalBytes } from '@/lib/compose'
 import { formatBytes } from '@/lib/format'
+import { exitTransition, sheetPreset, useMotionMode } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 import { BodyEditor, FormatToolbar, useBodyEditor } from './body-editor'
@@ -51,12 +53,28 @@ export function Composer() {
   const seed = useComposer((s) => s.seed)
   // A fresh seed is a fresh draft, and Tiptap takes its content once — so the
   // sheet remounts rather than trying to reconcile an editor mid-flight.
-  return open ? <ComposerSheet key={seed} /> : null
+  //
+  // AnimatePresence holds the sheet on screen long enough for it to leave.
+  // `initial={false}` so a draft restored on load does not animate in.
+  return (
+    <AnimatePresence initial={false}>
+      {open ? <ComposerSheet key={seed} /> : null}
+    </AnimatePresence>
+  )
 }
 
 function ComposerSheet() {
-  const draft = useComposer((s) => s.draft)
-  const minimized = useComposer((s) => s.minimized)
+  const liveDraft = useComposer((s) => s.draft)
+  const liveMinimized = useComposer((s) => s.minimized)
+  // `close()` empties the draft the moment it is called, but the sheet is
+  // still on screen for the length of its exit. Freeze what is rendered the
+  // instant it starts leaving, or the recipients and the subject blink out
+  // from under the animation.
+  const present = useIsPresent()
+  const frozen = useRef({ draft: liveDraft, minimized: liveMinimized })
+  if (present) frozen.current = { draft: liveDraft, minimized: liveMinimized }
+  const { draft, minimized } = frozen.current
+
   const showCc = useComposer((s) => s.showCc)
   const dirty = useComposer((s) => s.dirty)
   const confirming = useComposer((s) => s.confirming)
@@ -78,6 +96,9 @@ function ComposerSheet() {
 
   const onBody = useCallback((bodyHtml: string) => edit({ bodyHtml }), [edit])
   const editor = useBodyEditor({ initialHtml: draft.bodyHtml, onChange: onBody })
+
+  const mode = useMotionMode()
+  const preset = sheetPreset(mode)
 
   // The From account: the one passed in (a reply keeps its thread's account),
   // else the last one used, else the first there is.
@@ -146,40 +167,54 @@ function ComposerSheet() {
     ? { backdropFilter: 'none', WebkitBackdropFilter: 'none', backgroundColor: 'var(--wren-surface-raised)' }
     : undefined
 
-  if (minimized) {
-    return (
-      <div
-        className="glass wren-fixed right-4 bottom-4 z-40 flex h-10 w-72 items-center gap-2 pr-1 pl-4"
-        style={glassOff}
-        onKeyDown={onKeyDown}
-      >
-        <button
-          type="button"
-          onClick={() => setMinimized(false)}
-          className="font-ui text-ink min-w-0 flex-1 truncate text-left text-base font-medium outline-none"
-        >
-          {draft.subject || title}
-        </button>
-        <CloseControl
-          confirming={confirming}
-          setConfirming={setConfirming}
-          dirty={dirty}
-          onClose={close}
-        />
-      </div>
-    )
-  }
-
+  // Both states dock to the same corner, so letting them overlap for the
+  // length of the crossfade is what makes minimize read as one thing changing
+  // size rather than two things swapping.
   return (
-    <section
-      aria-label={title}
-      onKeyDown={onKeyDown}
-      style={glassOff}
-      className={cn(
-        'glass wren-fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
-        'max-h-[calc(100vh-var(--wren-titlebar-h)-32px)]',
-      )}
-    >
+    <AnimatePresence initial={false}>
+      {minimized ? (
+        <motion.div
+          key="chip"
+          initial={preset.initial}
+          animate={preset.animate}
+          exit={{ ...preset.exit, transition: exitTransition(mode) }}
+          transition={preset.transition}
+          className="glass wren-fixed right-4 bottom-4 z-40 flex h-10 w-72 items-center gap-2 pr-1 pl-4"
+          style={glassOff}
+          onKeyDown={onKeyDown}
+        >
+          <button
+            type="button"
+            onClick={() => setMinimized(false)}
+            aria-label={`Reopen ${draft.subject || title}`}
+            className="font-ui text-ink focus-visible:ring-ring/50 min-w-0 flex-1 truncate rounded-xs text-left text-base font-medium outline-none focus-visible:ring-3"
+          >
+            {draft.subject || title}
+          </button>
+          <CloseControl
+            confirming={confirming}
+            setConfirming={setConfirming}
+            dirty={dirty}
+            onClose={close}
+          />
+        </motion.div>
+      ) : (
+        <motion.section
+          key="sheet"
+          aria-label={title}
+          onKeyDown={onKeyDown}
+          initial={preset.initial}
+          animate={preset.animate}
+          exit={{ ...preset.exit, transition: exitTransition(mode) }}
+          transition={preset.transition}
+          style={glassOff}
+          className={cn(
+            'glass wren-fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
+            // A fresh compose used to collapse to the height of its own
+            // chrome, which made the writing surface an afterthought.
+            'min-h-[440px] max-h-[calc(100vh-var(--wren-titlebar-h)-32px)]',
+          )}
+        >
       <header className="border-hairline flex h-10 shrink-0 items-center gap-1 border-b pr-1 pl-4">
         <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
           {title}
@@ -209,9 +244,12 @@ function ComposerSheet() {
             <button
               type="button"
               onClick={() => setShowCc(true)}
-              className="font-ui text-ink-3 hover:text-ink focus-visible:ring-ring/50 h-6 rounded-xs px-1 text-xs outline-none focus-visible:ring-2"
+              // "Cc Bcc" read as one word. The slash says it is two fields,
+              // and the label says what pressing it does.
+              aria-label="Add Cc and Bcc"
+              className="font-ui text-ink-3 hover:text-ink focus-visible:ring-ring/50 h-6 rounded-xs px-1 text-xs outline-none focus-visible:ring-3"
             >
-              Cc Bcc
+              Cc / Bcc
             </button>
           )
         }
@@ -260,7 +298,7 @@ function ComposerSheet() {
                       attachments: draft.attachments.filter((a) => a.id !== attachment.id),
                     })
                   }
-                  className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 inline-flex size-5 shrink-0 items-center justify-center rounded-xs outline-none focus-visible:ring-2"
+                  className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 inline-flex size-5 shrink-0 items-center justify-center rounded-xs outline-none focus-visible:ring-3"
                 >
                   <Icon name="close" size={16} className="size-3.5" />
                 </button>
@@ -311,7 +349,9 @@ function ComposerSheet() {
           Send
         </button>
       </footer>
-    </section>
+        </motion.section>
+      )}
+    </AnimatePresence>
   )
 }
 
