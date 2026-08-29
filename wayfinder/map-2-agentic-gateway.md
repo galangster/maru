@@ -103,6 +103,23 @@ model becomes the reference for how agents touch a person's mailbox.
   Session boundary 2026-08-29 (evening): the unblocked roadmap is
   exhausted — M4–M9 shipped; what remains is owner gates. Handoff:
   handoffs/2026-08-29-roadmap-run.md.
+- **G1, license half — resolved by delegation** (Nick: "you can choose
+  what's best for me", with the new fact that Wren will probably become a
+  subscription): AGPL-3.0-only for code, CC BY 4.0 for the spec.
+  Rationale in the G1 ticket. Public timing + Anron license + naming stay
+  open; docs/research/PUBLIC-READINESS.md makes the flip decision-ready
+  (history clean of secret shapes; gitleaks pass recommended at flip).
+- [M10 first-connection consent](tickets/M10-connection-consent.md):
+  shipped at the notice tier — exact first-connection detection, its own
+  audit words, an OS notification that ignores the focus guard on
+  purpose; spec §3.5. The blocking gate stays parked absent a real theft
+  story.
+- **Map 2 closes** (2026-08-29, evening): M1–M10 shipped, the model
+  spec'd and licensed, 415 tests. Everything remaining is an owner gate
+  (triage film, public flip, G2 mechanism) or belongs to the next map —
+  Nick has called for a grill session + new wayfinder for functionality
+  and production-readiness; the primer is
+  [GRILL-3-AGENDA.md](GRILL-3-AGENDA.md).
 
 ## Not yet specified
 

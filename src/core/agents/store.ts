@@ -282,18 +282,30 @@ export class SqlAgentStore implements AgentStore {
     )
   }
 
-  async listAudit(opts: { agentId?: string; limit: number }): Promise<AuditEntry[]> {
+  async listAudit(opts: {
+    agentId?: string
+    tool?: string
+    limit: number
+  }): Promise<AuditEntry[]> {
     // Newest first, and the LIMIT is in SQL rather than a slice: the cap
     // exists so a year of agent activity cannot be pulled into a render.
-    const rows = opts.agentId
-      ? await this.db.select<AuditRow>(
-          'SELECT * FROM audit_log WHERE agent_id = $1 ORDER BY at DESC, id DESC LIMIT $2',
-          [opts.agentId, opts.limit],
-        )
-      : await this.db.select<AuditRow>(
-          'SELECT * FROM audit_log ORDER BY at DESC, id DESC LIMIT $1',
-          [opts.limit],
-        )
+    const where: string[] = []
+    const args: unknown[] = []
+    if (opts.agentId) {
+      args.push(opts.agentId)
+      where.push(`agent_id = $${args.length}`)
+    }
+    if (opts.tool) {
+      args.push(opts.tool)
+      where.push(`tool = $${args.length}`)
+    }
+    args.push(opts.limit)
+    const rows = await this.db.select<AuditRow>(
+      `SELECT * FROM audit_log${
+        where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''
+      } ORDER BY at DESC, id DESC LIMIT $${args.length}`,
+      args,
+    )
     return rows.map(rowToAudit)
   }
 }
@@ -379,9 +391,14 @@ export class MemoryAgentStore implements AgentStore {
     this.audit.push({ ...entry })
   }
 
-  async listAudit(opts: { agentId?: string; limit: number }): Promise<AuditEntry[]> {
+  async listAudit(opts: {
+    agentId?: string
+    tool?: string
+    limit: number
+  }): Promise<AuditEntry[]> {
     return this.audit
       .filter((e) => opts.agentId === undefined || e.agentId === opts.agentId)
+      .filter((e) => opts.tool === undefined || e.tool === opts.tool)
       .sort((a, b) => b.at - a.at || b.id.localeCompare(a.id))
       .slice(0, opts.limit)
       .map((e) => ({ ...e }))

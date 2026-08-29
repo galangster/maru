@@ -80,3 +80,14 @@ plugins and ~80 lines of commands (keychain, OAuth loopback).
 Icons route through `src/components/ui/icon.tsx` (lucide today, Anron
 swap-ready). Fonts are bundled in `src/assets/fonts/` under their licenses
 (OFL / Open Runde license).
+
+## License
+
+- **Code**: [AGPL-3.0-only](LICENSE). Run it anywhere, fork it, read every
+  line — and if you build a service on it, your users get the same rights.
+  Desktop use is unaffected by the AGPL's network clause.
+- **The permission-model spec** ([docs/PERMISSION-MODEL.md](docs/PERMISSION-MODEL.md)):
+  CC BY 4.0 — it exists to be borrowed by other agent gateways.
+- **Bundled assets** keep their own licenses: fonts under the OFL and the
+  Open Runde license (src/assets/fonts/), interface sounds CC0, the Anron
+  icon glyphs by their author's permission (Nick's own library).

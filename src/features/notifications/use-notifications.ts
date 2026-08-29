@@ -39,6 +39,19 @@ export function useNotifications(): void {
   useEffect(() => {
     if (isScreenshot) return
     return agents.onEvent((event) => {
+      if (event.type === 'agentFirstConnected') {
+        // The one connection worth a ping: a fresh credential's first use is
+        // when a copied one would show itself (M10). Deliberately NOT behind
+        // the focus guard the other notifications honor — a security moment
+        // fires even while the person is looking at Wren, because the window
+        // being focused says nothing about who ran the agent.
+        void notify(
+          platform,
+          `${event.agentName} connected for the first time`,
+          'Its credential is now in use. Review what it holds in Settings → Agents.',
+        )
+        return
+      }
       if (event.type !== 'approvalPending') return
       if (document.hasFocus()) return
       void notify(platform, `${event.agentName} wants to send`, describeDraft(event.approval.payload))

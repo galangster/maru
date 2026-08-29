@@ -6,6 +6,7 @@
 // over the in-memory store demo mode ships. The only stand-in is the socket
 // itself, which is Rust and is exercised by the live smoke instead.
 
+import type { AgentEvent } from '../src/core/agents/types'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 
@@ -613,5 +614,48 @@ describe('tool authorisation', () => {
       () => 'no response',
     )
     expect((h.relay.reply_for(23, 9)!.result as { isError?: boolean }).isError).toBe(true)
+  })
+})
+
+describe('first-connection notice (M10)', () => {
+  it('gives a fresh credential its own words and its own event, once', async () => {
+    const h = await harness()
+    const issued = await h.gateway.createAgent('Fresh')
+    const events: AgentEvent[] = []
+    h.gateway.onEvent((event) => {
+      if (event.type === 'agentFirstConnected') events.push(event)
+    })
+
+    await connected(h, 41, issued.credential)
+    let rows = await h.gateway.audit.query({ agentId: issued.agent.id })
+    expect(rows.find((r) => r.tool === 'connected')?.summary).toBe(
+      'Fresh connected for the first time.',
+    )
+    expect(events).toHaveLength(1)
+
+    // The second connection is routine: plain words, no event.
+    await connected(h, 42, issued.credential)
+    rows = await h.gateway.audit.query({ agentId: issued.agent.id })
+    const connections = rows.filter((r) => r.tool === 'connected').map((r) => r.summary)
+    // The harness clock is frozen, so equal timestamps make the order between
+    // the two rows unstable — the pin is one of each, and one event total.
+    expect(connections.sort()).toEqual([
+      'Fresh connected for the first time.',
+      'Fresh connected over the local gateway socket.',
+    ])
+    expect(events).toHaveLength(1)
+
+    await h.server.stop()
+  })
+
+  it('Scout, with a seeded history, never reads as first', async () => {
+    const h = await harness()
+    const events: AgentEvent[] = []
+    h.gateway.onEvent((event) => {
+      if (event.type === 'agentFirstConnected') events.push(event)
+    })
+    await connected(h, 43, DEMO_AGENT_CREDENTIAL)
+    expect(events).toHaveLength(0)
+    await h.server.stop()
   })
 })

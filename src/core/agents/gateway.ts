@@ -89,6 +89,32 @@ export class AgentGateway {
 
   // -- events -----------------------------------------------------------------
 
+  /**
+   * Record a successful connection, and notice the first one ever.
+   *
+   * "First" is "no `connected` row exists for this agent, ever" — asked of
+   * the store exactly, with a tool-filtered LIMIT 1 read; creation itself
+   * writes a row, so an empty log is not the test. A fresh credential's
+   * first use is exactly the moment a stolen one would surface, so that
+   * row gets its own words and its own event, which the app turns into an
+   * OS notification. Consent-at-use stays a notice, not a gate (ticket
+   * M10): a new agent holds nothing until granted, so failing open here is
+   * safe, and failing closed would park every first handshake on a human.
+   */
+  async noteConnection(agent: Agent): Promise<void> {
+    const prior = await this.audit.query({ agentId: agent.id, tool: 'connected', limit: 1 })
+    const first = prior.length === 0
+    await this.audit.append({
+      agentId: agent.id,
+      tool: 'connected',
+      summary: first
+        ? `${agent.name} connected for the first time.`
+        : `${agent.name} connected over the local gateway socket.`,
+      outcome: 'ok',
+    })
+    if (first) this.emit({ type: 'agentFirstConnected', agentName: agent.name })
+  }
+
   /** Returns an unsubscribe function, exactly like MailService.onEvent. */
   onEvent(cb: (event: AgentEvent) => void): () => void {
     this.listeners.add(cb)

@@ -61,9 +61,11 @@ export class AuditLog {
    * caller asking for 10_000 gets 500, and a caller asking for 0 or a negative
    * gets 1 rather than an empty list that reads as "nothing happened".
    */
-  async query(opts: { agentId?: string; limit?: number } = {}): Promise<AuditEntry[]> {
+  async query(
+    opts: { agentId?: string; tool?: string; limit?: number } = {},
+  ): Promise<AuditEntry[]> {
     const requested = opts.limit ?? AUDIT_READ_CAP
     const limit = Math.min(AUDIT_READ_CAP, Math.max(1, Math.floor(requested)))
-    return this.deps.store.listAudit({ agentId: opts.agentId, limit })
+    return this.deps.store.listAudit({ agentId: opts.agentId, tool: opts.tool, limit })
   }
 }

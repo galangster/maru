@@ -4,9 +4,10 @@
 
 Status: draft, version 0.1 (2026-08-29). Everything specified here is
 implemented in Wren and demonstrated end-to-end by machine-verifiable tests
-(see [Provenance](#10-provenance)). The document's final home and license
-are open owner decisions (ticket G1); until then it lives here and carries
-the repository's terms.
+(see [Provenance](#10-provenance)). This document is licensed
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — borrow it,
+adapt it, cite it — independently of the code's AGPL-3.0. Its final home
+(here vs a standalone repository) is still an open owner decision (G1).
 
 This is written for people building *other* agent gateways — over mail, or
 over any store of a person's data where an agent's reads are cheap and its
@@ -89,6 +90,14 @@ socket). Every subsequent frame on that connection is attributed to the
 agent that credential resolved to. The session holds the resolved
 identity; it never re-reads the token and never lets the client restate
 who it is.
+
+**3.5.** The first-ever use of a credential SHOULD be distinguished: the
+connection's audit row says so in its own words, and the gateway raises an
+out-of-band notice (Wren: an OS notification). A fresh credential's first
+connection is the moment a copied one would surface. The notice tier is
+deliberate — a blocking consent gate would park every first handshake on a
+human, while a newly connected agent already holds nothing (§1.1); an
+implementation MAY still gate when its threat model warrants the friction.
 
 ## 4. Capabilities and scopes
 

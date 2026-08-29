@@ -1,6 +1,6 @@
 # M10 — First-connection consent  `wayfinder:task`
 
-status: open · claimed: — · blocked by: owner decision (see below)
+status: closed (notice tier) · claimed: M10 lane, 2026-08-29 · blocked by: —
 
 ## Question → work
 
@@ -31,3 +31,18 @@ Two designs, and the choice is Nick's before anyone builds:
 Recommendation: ship 1 now; hold 2 until a real-world credential-theft
 story justifies the friction. Either way the spec gains a §3.5 naming the
 first-connection event as auditable.
+
+## Resolution
+
+Option 1 shipped, under Nick's "keep going" directive and this ticket's own
+recommendation. `AgentGateway.noteConnection` owns the story: a connection
+with no prior `connected` row in the agent's recent history writes
+“connected for the first time.” and emits `agentFirstConnected`, which the
+app turns into an OS notification (“Its credential is now in use. Review
+what it holds in Settings → Agents.”). The look-back is bounded by the
+audit read cap and errs noisy, never silent. Spec gained §3.5; the
+CONNECT-AN-AGENT caveat was rewritten from "no consent screen yet" to the
+notice as it now exists. Tests pin first vs routine connections and the
+single event. The blocking **gate** variant remains unbuilt by design —
+revisit only with a real credential-theft story (the mechanics exist:
+`authResult` is already async).

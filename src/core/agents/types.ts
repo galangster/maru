@@ -160,6 +160,13 @@ export type AgentEvent =
    * notification does not have to go back to the store to write its title.
    */
   | { type: 'approvalPending'; approval: Approval; agentName: string }
+  /**
+   * This agent's credential was used for the first time ever. The one
+   * connection that deserves an OS notification: it is the moment a copied
+   * credential would first show itself (M10, notice tier). Carries the name
+   * for the same reason `approvalPending` does.
+   */
+  | { type: 'agentFirstConnected'; agentName: string }
   | { type: 'auditAppended'; entry: AuditEntry }
 
 // -- the persistence port -----------------------------------------------------
@@ -193,5 +200,5 @@ export interface AgentStore {
   setApprovalStatus(id: string, status: ApprovalStatus, resolvedAt: number): Promise<void>
 
   appendAudit(entry: AuditEntry): Promise<void>
-  listAudit(opts: { agentId?: string; limit: number }): Promise<AuditEntry[]>
+  listAudit(opts: { agentId?: string; tool?: string; limit: number }): Promise<AuditEntry[]>
 }

@@ -237,8 +237,11 @@ Wren is pre-1.0 and this surface is a night old. Honestly:
 - **Wren does not hang up on you.** If you revoke an agent mid-session, its
   socket stays open and every call it makes is refused. The connection closes
   when the agent exits.
-- **No connection consent screen yet.** Registering the shim is the consent
-  step, exactly as it is for every other stdio MCP server. The map still lists
-  a "Claude Code wants to connect to Wren" prompt as unbuilt.
+- **Consent is a notice, not a gate.** Registering the shim is the consent
+  step, exactly as for every other stdio MCP server — and the first time a
+  credential is ever used, Wren says so: an OS notification, and an audit
+  row in its own words. That first connection is the moment a copied
+  credential would surface. Nothing blocks; a new agent holds nothing
+  until you grant it something.
 - **Nothing is published.** There is no npm package and no registry entry; the
   shim is a file in this repo and the path in your config points at it.

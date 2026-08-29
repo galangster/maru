@@ -122,5 +122,15 @@ where, why, proof.
     capture. Note: the MailService contract grew additively — the delta's
     "unchanged contracts" line now reads "additive only" accurately.
 
+16. **Map 2 close: license, M10 notice, public-readiness.** AGPL-3.0-only
+    adopted for code (delegated choice; rationale in G1 — subscription
+    intent noted), CC BY 4.0 for the permission spec; LICENSE, README,
+    package.json updated. M10 shipped at the notice tier: exact
+    first-connection detection (tool-filtered LIMIT 1 audit read), "connected
+    for the first time" row, OS notification, spec §3.5.
+    docs/research/PUBLIC-READINESS.md: history clean of secret shapes,
+    three owner decisions listed. GRILL-3-AGENDA.md primes the next map.
+    Proof: this commit; 415 tests.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

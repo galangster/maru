@@ -110,12 +110,7 @@ export class GatewayServer {
       return
     }
 
-    await this.deps.gateway.audit.append({
-      agentId: agent.id,
-      tool: 'connected',
-      summary: `${agent.name} connected over the local gateway socket.`,
-      outcome: 'ok',
-    })
+    await this.deps.gateway.noteConnection(agent)
     await this.deps.relay.authResult(connId, { accepted: true, agentId: agent.id })
     await this.openSession(connId, agent)
   }
