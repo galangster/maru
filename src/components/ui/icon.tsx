@@ -1,115 +1,40 @@
 // The icon seam — DIRECTION.md §8.
 //
 // Every icon in Wren comes from here, by semantic name. No component imports
-// from `lucide-react` directly, which is what makes the eventual swap a
-// one-file change:
+// from `lucide-react` directly, which is what made the swap below a one-file
+// change.
 //
-//   ANRON SWAP: replace the GLYPHS map below with the Anron components of the
-//   same semantic names. Nothing outside this file moves. Keep the size grid,
-//   the stroke widths and the round caps — they are the reason lucide reads
-//   close to Anron today.
+// ANRON SWAP — done. The glyphs are now the owner's Anron set (Style=Line),
+// pulled from Figma and normalized into `ANRON_PATHS` in ./icon-glyphs. The
+// only lucide left is HOLDOUTS, below.
 //
 // Size grid: 16 inline with text and meta · 18 toolbars and menus · 20 sidebar
 // nav and primary actions. Never 24 in chrome.
-// Stroke: 1.75 at 16 and 18, 1.5 at 20 — lucide's default 2 reads hard next to
-// Open Runde's soft terminals.
+// Stroke: 1.5 on the 24 grid, scaling naturally with the box — Anron is drawn
+// at 1.5@24, so 16/18/20 land on 1.0/1.125/1.25 and read as one family. The
+// old size-dependent 1.75/1.5 branch was a lucide correction (lucide's default
+// 2 reads hard next to Open Runde) and no longer applies.
 
-import {
-  Archive,
-  Bold,
-  CalendarDays,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CircleAlert,
-  ExternalLink,
-  File,
-  FileText,
-  Forward,
-  Image as ImageGlyph,
-  ImageOff,
-  Inbox,
-  Info,
-  Italic,
-  Keyboard,
-  KeyRound,
-  Link2,
-  List,
-  ListOrdered,
-  Mail,
-  MailOpen,
-  Maximize2,
-  Minus,
-  Monitor,
-  Moon,
-  PanelLeft,
-  Paperclip,
-  Plus,
-  Reply,
-  ReplyAll,
-  RefreshCw,
-  Search,
-  Send,
-  Settings,
-  SlidersHorizontal,
-  SquarePen,
-  Star,
-  Sun,
-  Trash2,
-  Users,
-  X,
-} from 'lucide-react'
+import { MailOpen } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-const GLYPHS = {
-  about: Info,
-  add: Plus,
-  archive: Archive,
-  attachment: Paperclip,
-  bold: Bold,
-  calendar: CalendarDays,
-  check: Check,
-  chevronDown: ChevronDown,
-  chevronRight: ChevronRight,
-  compose: SquarePen,
-  error: CircleAlert,
-  expand: Maximize2,
-  external: ExternalLink,
-  file: File,
-  fileText: FileText,
-  forward: Forward,
-  image: ImageGlyph,
-  imageOff: ImageOff,
-  inbox: Inbox,
-  italic: Italic,
-  key: KeyRound,
-  link: Link2,
-  listBullet: List,
-  listOrdered: ListOrdered,
-  minimize: Minus,
-  panelLeft: PanelLeft,
-  participants: Users,
+import { ANRON_PATHS } from './icon-glyphs'
+
+/**
+ * Names with no honest Anron Line equivalent, still served by lucide.
+ *
+ * · `read` — Anron ships `email` (closed envelope, used for `unread`) but no
+ *   open-envelope glyph in any style. Nothing else in the set carries
+ *   "already read" without changing what the icon means. Revisit if Anron adds
+ *   one; the swap is a single line here.
+ */
+const HOLDOUTS = {
   read: MailOpen,
-  reply: Reply,
-  replyAll: ReplyAll,
-  search: Search,
-  sent: Send,
-  settings: Settings,
-  shortcuts: Keyboard,
-  sliders: SlidersHorizontal,
-  star: Star,
-  sync: RefreshCw,
-  themeDark: Moon,
-  themeLight: Sun,
-  themeSystem: Monitor,
-  trash: Trash2,
-  unread: Mail,
-  close: X,
 } satisfies Record<string, LucideIcon>
 
-export type IconName = keyof typeof GLYPHS
+export type IconName = keyof typeof ANRON_PATHS | keyof typeof HOLDOUTS
 
 /** The three permitted sizes. 24 is the icon *box*, never the glyph. */
 export type IconSize = 16 | 18 | 20
@@ -121,26 +46,41 @@ export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'ref'> {
   filled?: boolean
 }
 
+function isHoldout(name: IconName): name is keyof typeof HOLDOUTS {
+  return name in HOLDOUTS
+}
+
 export function Icon({ name, size = 18, filled = false, className, ...props }: IconProps) {
-  const Glyph = GLYPHS[name]
+  // Shared across both branches so a holdout cannot drift from the Anron
+  // glyphs on weight, caps or the size grid.
+  const shared = {
+    'aria-hidden': true,
+    focusable: false,
+    width: size,
+    height: size,
+    strokeWidth: 1.5,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    fill: filled ? 'currentColor' : 'none',
+    // No `vector-effect: non-scaling-stroke`. DIRECTION §8 asks for it, but
+    // it is what made a 16 px glyph scaled down by CSS keep its stroke on a
+    // 12 px box — ~33% heavier than every other icon in the app
+    // (UI-REVIEW-2026-08-28 S9). With the stroke scaling with the viewBox,
+    // an off-grid glyph now reads *lighter* rather than heavier, which fails
+    // quietly instead of loudly; the call sites that forced one are gone.
+    className: cn('shrink-0', className),
+  } as const
+
+  if (isHoldout(name)) {
+    const Glyph = HOLDOUTS[name]
+    return <Glyph {...shared} {...props} />
+  }
+
   return (
-    <Glyph
-      aria-hidden
-      focusable={false}
-      width={size}
-      height={size}
-      strokeWidth={size === 20 ? 1.5 : 1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      fill={filled ? 'currentColor' : 'none'}
-      // No `vector-effect: non-scaling-stroke`. DIRECTION §8 asks for it, but
-      // it is what made a 16 px glyph scaled down by CSS keep a 1.75 stroke on
-      // a 12 px box — ~33% heavier than every other icon in the app
-      // (UI-REVIEW-2026-08-28 S9). With the stroke scaling with the viewBox,
-      // an off-grid glyph now reads *lighter* rather than heavier, which fails
-      // quietly instead of loudly; the call sites that forced one are gone.
-      className={cn('shrink-0', className)}
-      {...props}
-    />
+    <svg viewBox="0 0 24 24" stroke="currentColor" {...shared} {...props}>
+      {ANRON_PATHS[name].map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
   )
 }
