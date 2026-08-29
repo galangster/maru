@@ -68,6 +68,25 @@ export function relativeTime(ts: number, now: number): string {
     : datedFmt.format(ts)
 }
 
+/**
+ * How long ago, in words — the approval queue's meta column.
+ *
+ * `relativeTime` answers with a clock time for anything today, which is right
+ * for a mail list and wrong for a queue whose whole question is "how long has
+ * this been waiting": a request 59 minutes old rendered "00:59" and read as
+ * 12:59 AM (UI-REVIEW-2026-08-29 S4). This one always answers with an age, so
+ * the empty state's promise that a request expires after a day is something
+ * the user can check against what is on screen.
+ */
+export function elapsedTime(ts: number, now: number): string {
+  const minutes = Math.floor(Math.max(0, now - ts) / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 export function fullTimestamp(ts: number): string {
   return fullFmt.format(ts)
 }

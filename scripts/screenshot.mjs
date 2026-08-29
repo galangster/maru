@@ -151,7 +151,9 @@ const SHOTS = [
       await nav.waitFor({ timeout: 10_000 })
       await nav.getByRole('button', { name: 'Agents' }).click()
       await page.getByRole('group', { name: 'Capabilities' }).waitFor({ timeout: 10_000 })
-      await page.getByRole('radiogroup', { name: 'Send scope' }).waitFor({ timeout: 10_000 })
+      // `group`, not `radiogroup`: the send-scope toggle dropped a keyboard
+      // contract it never implemented (UI-REVIEW-2026-08-29 B2).
+      await page.getByRole('group', { name: 'Send scope' }).waitFor({ timeout: 10_000 })
     },
   },
   {
@@ -163,7 +165,7 @@ const SHOTS = [
       await page.locator('[data-wren-approvals]').click()
       await page.locator('li[data-approval-id]').first().waitFor({ timeout: 10_000 })
       await page.getByRole('button', { name: 'Audit log' }).click()
-      await page.getByRole('tablist', { name: 'Filter by agent' }).waitFor({ timeout: 10_000 })
+      await page.getByRole('group', { name: 'Filter by agent' }).waitFor({ timeout: 10_000 })
       await page.locator('tbody tr').first().waitFor({ timeout: 10_000 })
     },
   },

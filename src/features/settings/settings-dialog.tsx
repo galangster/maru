@@ -93,10 +93,22 @@ export function SettingsDialog() {
     >
       <DialogContent
         showCloseButton={false}
-        // A fixed height, deliberately: the sections are wildly different
-        // lengths and a content-sized dialog would jump every time the nav is
-        // used. 440 is the shortest height the tallest section still reads in.
-        className="bg-raised rounded-2xl shadow-xl flex h-[440px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[680px]"
+        // A floor and a ceiling, not a fixed height. 440 was chosen when the
+        // tallest section was the Google guide; Agents arrived at a 708 px
+        // content height in a 392 px well, so "New agent" and "Open the audit
+        // log" both sat below the fold behind nothing but a scroll-fade, while
+        // Appearance was still half air (UI-REVIEW-2026-08-29 S11, and N4 of
+        // the prior cycle from the other direction). One number cannot serve
+        // both. 440 keeps the short sections from collapsing into a strip, and
+        // the viewport is the only ceiling: the height is content-driven, so a
+        // taller screen buys the tallest section room rather than drawing a
+        // larger empty box for every other one. Agents lands at 756 and fits.
+        //
+        // The cost is that switching sections can resize the card. That is the
+        // jump the fixed height was bought to avoid, and it is the cheaper of
+        // the two: it happens on a deliberate click, and it never hides a
+        // control the way the fold did.
+        className="bg-raised rounded-2xl shadow-xl flex max-h-[calc(100dvh-6rem)] min-h-[440px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[680px]"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">

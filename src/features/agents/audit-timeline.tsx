@@ -10,6 +10,9 @@
 // decision and can afford some warmth; this is the receipt, and a receipt that
 // editorialises is a receipt you stop trusting.
 
+import { useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+
 import { Icon } from '@/components/ui/icon'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { IconButton, PRESS } from '@/components/wren-controls'
@@ -25,6 +28,9 @@ import { useAgentNames, useAgents, useAuditTrail } from './queries'
 
 /** `'all'` is the store's own "no filter" value; anything else is an agent id. */
 const ALL = 'all'
+
+/** The row height the table is scanned by. `h-11`, and the virtualizer's estimate. */
+const ROW_H = 44
 
 export function AuditTimeline() {
   const audit = useSurfaces((s) => s.audit)
@@ -43,7 +49,13 @@ export function AuditTimeline() {
         showCloseButton={false}
         // Wider and taller than the queue: this is a table that is read by
         // scanning down a column, and a short one would be all chrome.
-        className="bg-raised rounded-2xl shadow-xl flex h-[560px] w-[760px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[760px]"
+        //
+        // Capped rather than fixed, for the reason the queue gives one line
+        // over: 560 was a floor as well as a ceiling, so an empty log drew the
+        // half-metre of nothing the queue explicitly refuses (N2). A full log
+        // still reaches 560; an empty one stops at the height its own empty
+        // state needs.
+        className="bg-raised rounded-2xl shadow-xl flex max-h-[min(560px,calc(100dvh-8rem))] min-h-[320px] w-[760px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[760px]"
       >
         <DialogTitle className="sr-only">Audit</DialogTitle>
         <DialogDescription className="sr-only">
@@ -63,6 +75,28 @@ function TimelineBody({ filter }: { filter: string }) {
   const trail = useAuditTrail(filter === ALL ? undefined : filter)
   const rows = trail.data ?? []
 
+  // The log is capped at AUDIT_READ_CAP, and capped is not the same as cheap:
+  // about eleven rows are visible and the other ~489 were mounted, each with
+  // four cells, a dot, an outcome mark and a title (S5). Same primitive the
+  // thread list uses, driving spacer rows above and below the window so the
+  // <table> keeps its own column sizing and its semantics.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_H,
+    getItemKey: (index) => rows[index].id,
+    // Generous on purpose: the header scrolls with the body, so the virtualizer's
+    // offsets run ~34 px ahead of the real ones. Twelve rows of overscan is
+    // 528 px of slack against a 34 px error, which is what lets the table keep
+    // one scroll container instead of splitting the header out of it.
+    overscan: 12,
+  })
+  const windowed = virtualizer.getVirtualItems()
+  const padTop = windowed.length > 0 ? windowed[0].start : 0
+  const padBottom =
+    windowed.length > 0 ? virtualizer.getTotalSize() - windowed[windowed.length - 1].end : 0
+
   return (
     <>
       <header className="border-hairline flex h-12 shrink-0 items-center gap-2 border-b pr-2 pl-6">
@@ -76,10 +110,18 @@ function TimelineBody({ filter }: { filter: string }) {
         />
       </header>
 
-      {/* Per-agent filter tabs. One row, left-aligned, the same soft-fill
-          selection every other selected thing in Wren takes. */}
+      {/* Per-agent filter chips. One row, left-aligned, the same soft-fill
+          selection every other selected thing in Wren takes.
+
+          A group of pressed toggles, not a `role="tablist"`. The tablist role
+          promises roving tabindex, arrow-key traversal, `aria-controls` and a
+          `role="tabpanel"`, and this control implemented none of them: a screen
+          reader announced "tab, 1 of 2" and the arrow keys did nothing
+          (UI-REVIEW-2026-08-29 B2). This is a filter that is really a toggle,
+          so it takes the pattern the capability chips already use — honest, and
+          needing no arrow keys. */}
       <div
-        role="tablist"
+        role="group"
         aria-label="Filter by agent"
         className="border-hairline flex shrink-0 items-center gap-1 border-b px-4 py-2"
       >
@@ -96,7 +138,7 @@ function TimelineBody({ filter }: { filter: string }) {
         ))}
       </div>
 
-      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="scroll-fade min-h-0 flex-1 overflow-y-auto">
         {rows.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-8 py-16 text-center">
             <Icon name="fileText" size={20} className="text-ink-3" />
@@ -118,9 +160,14 @@ function TimelineBody({ filter }: { filter: string }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((entry) => (
-                <Row key={entry.id} entry={entry} name={names.get(entry.agentId)?.name} />
-              ))}
+              {padTop > 0 && <tr aria-hidden style={{ height: padTop }} />}
+              {windowed.map((item) => {
+                const entry = rows[item.index]
+                return (
+                  <Row key={entry.id} entry={entry} name={names.get(entry.agentId)?.name} />
+                )
+              })}
+              {padBottom > 0 && <tr aria-hidden style={{ height: padBottom }} />}
             </tbody>
           </table>
         )}
@@ -151,8 +198,7 @@ function FilterTab({
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       onClick={() => onSelect(id)}
       className={cn(
         // A pill, like every other chip in the app (DIRECTION §6).

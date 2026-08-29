@@ -86,6 +86,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const action = usePerformAction()
   const results = useSearch(debounced)
   const openSettings = useSurfaces((s) => s.openSettings)
+  const setApprovals = useSurfaces((s) => s.setApprovals)
+  const openAudit = useSurfaces((s) => s.openAudit)
   const { compose } = useComposeActions()
   const theme = useThemeToggle()
 
@@ -160,6 +162,18 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
             onSelect={() => run(theme.toggle)}
           />
           <Row icon="sync" label="Sync now" onSelect={() => run(() => void service.refresh())} />
+          {/* The two agent surfaces. Searching "appro" here used to return
+              "Nothing matches": the queue was reachable only from a status-bar
+              badge that is absent at zero, and the audit log only from inside
+              the queue or the bottom of Settings → Agents — the one surface
+              that gates outbound mail, mouse-only (UI-REVIEW-2026-08-29 S9). */}
+          <Row
+            icon="check"
+            label="Waiting on you"
+            hint="W"
+            onSelect={() => run(() => setApprovals(true))}
+          />
+          <Row icon="fileText" label="Audit log" onSelect={() => run(() => openAudit())} />
           <Row icon="settings" label="Settings" onSelect={() => run(() => openSettings())} />
         </Group>
 

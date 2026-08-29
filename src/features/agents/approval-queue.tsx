@@ -31,7 +31,7 @@ import { htmlToText } from '@/core'
 import type { Approval } from '@/core/agents'
 import { useAgentGateway } from '@/features/mail/service'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
-import { relativeTime } from '@/lib/format'
+import { elapsedTime, fullTimestamp } from '@/lib/format'
 import { now } from '@/lib/env'
 import { DUR, useMotionMode } from '@/lib/motion'
 import { playSound } from '@/lib/sound'
@@ -60,7 +60,14 @@ export function ApprovalQueue() {
         // than fixed: an empty queue must not draw a half-metre of nothing.
         // 640 tall is what fits two requests with one of them expanded, which
         // is the shape a triage morning actually arrives in.
-        className="bg-raised rounded-2xl shadow-xl flex max-h-[640px] w-[640px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[640px]"
+        //
+        // Anchored to a fixed top rather than centred, which every other dialog
+        // still is. A centred card grows from its middle, so expanding request
+        // two moved request one's Approve up 75 px — an unannounced jump on the
+        // control that sends mail, with the cursor already in flight toward it
+        // (UI-REVIEW-2026-08-29 S3). Pinned at the top the card only ever grows
+        // downward, and nothing above the row being read moves at all.
+        className="bg-raised rounded-2xl shadow-xl top-24 flex max-h-[min(640px,calc(100dvh-8rem))] w-[640px] max-w-[calc(100%-2rem)] translate-y-0 flex-col gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[640px]"
       >
         <DialogTitle className="sr-only">Waiting on you</DialogTitle>
         <DialogDescription className="sr-only">
@@ -72,14 +79,63 @@ export function ApprovalQueue() {
   )
 }
 
+/**
+ * Move focus off a row that is about to be unmounted.
+ *
+ * The row that owned focus is removed by the query invalidation in `settle()`,
+ * and nothing catches it: the removal happens outside Base UI's focus-management
+ * scope, so `document.activeElement` fell back to `<body>` while the dialog was
+ * still open and one request still waiting (UI-REVIEW-2026-08-29 B1).
+ *
+ * The next request's Approve, then the previous one's — a queue is worked
+ * downward, and the row after the one just settled is the one being decided
+ * next. When this was the last request there is nothing left to decide, so
+ * focus lands on the queue's own close button.
+ */
+function focusAfterSettle(id: string): void {
+  const rows = [...document.querySelectorAll<HTMLElement>('li[data-approval-id]')]
+  const index = rows.findIndex((row) => row.dataset.approvalId === id)
+  const neighbour = index >= 0 ? (rows[index + 1] ?? rows[index - 1]) : undefined
+  const target =
+    neighbour?.querySelector<HTMLElement>('[data-approval-approve]') ??
+    document.querySelector<HTMLElement>('[data-wren-queue-close]')
+  target?.focus()
+}
+
+/** Every recipient is on screen; the announcement names one and counts the rest. */
+function spokenRecipients(list: string[]): string {
+  if (list.length === 0) return 'nobody'
+  if (list.length === 1) return list[0]
+  return `${list[0]} and ${list.length - 1} more`
+}
+
 function QueueBody() {
   const pending = usePendingApprovals()
   const setApprovals = useSurfaces((s) => s.setApprovals)
   const openAudit = useSurfaces((s) => s.openAudit)
   const items = pending.data ?? []
 
+  // Approve's confirmation is a fill-and-glyph swap on a node that is then
+  // removed, and Deny is deliberately toastless — so for assistive technology
+  // both outcomes were silent (B1). One polite region, mounted for the life of
+  // the queue rather than created with its own text, which is what makes it
+  // announce at all.
+  const [announcement, setAnnouncement] = useState('')
+  const announce = (outcome: string) => {
+    const left = items.length - 1
+    setAnnouncement(
+      left > 0
+        ? `${outcome} ${left} request${left === 1 ? '' : 's'} left.`
+        : `${outcome} Nothing waiting.`,
+    )
+  }
+
   return (
     <>
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
+
       <header className="border-hairline flex h-12 shrink-0 items-center gap-2 border-b pr-2 pl-6">
         <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
           Waiting on you
@@ -98,6 +154,7 @@ function QueueBody() {
           name="close"
           label="Close the queue"
           hint="esc"
+          data-wren-queue-close=""
           className="shrink-0"
           onClick={() => setApprovals(false)}
         />
@@ -112,7 +169,12 @@ function QueueBody() {
         ) : (
           <ul className="flex flex-col">
             {items.map((approval, index) => (
-              <PendingRow key={approval.id} approval={approval} first={index === 0} />
+              <PendingRow
+                key={approval.id}
+                approval={approval}
+                first={index === 0}
+                announce={announce}
+              />
             ))}
           </ul>
         )}
@@ -136,7 +198,15 @@ function EmptyQueue() {
   )
 }
 
-function PendingRow({ approval, first }: { approval: Approval; first: boolean }) {
+function PendingRow({
+  approval,
+  first,
+  announce,
+}: {
+  approval: Approval
+  first: boolean
+  announce: (outcome: string) => void
+}) {
   const gateway = useAgentGateway()
   const client = useQueryClient()
   const names = useAgentNames()
@@ -165,6 +235,11 @@ function PendingRow({ approval, first }: { approval: Approval; first: boolean })
       await gateway.approvals.approve(approval.id)
       playSound('sent')
       setSent(true)
+      announce(`Sent to ${spokenRecipients(recipients)}.`)
+      // Focus moves now rather than with the row. `disabled` blurs the button
+      // the moment `busy` lands, so waiting out the celebration beat would
+      // leave 200 ms of the exact focus-on-<body> state B1 is about.
+      focusAfterSettle(approval.id)
       // Hold the row for the length of the celebration and no longer. Captures
       // and reduced motion collapse the beat to zero — there is nothing to see
       // either way, and waiting would only be waiting.
@@ -186,7 +261,11 @@ function PendingRow({ approval, first }: { approval: Approval; first: boolean })
     try {
       // Quiet, deliberately: a refusal is recorded in the audit log and needs
       // no toast. Confirming a "no" out loud is how a queue becomes nagging.
+      // Quiet to the eye is not the same as silent, though — the live region
+      // still says it happened, because the row that said it is leaving.
       await gateway.approvals.deny(approval.id)
+      announce('Denied.')
+      focusAfterSettle(approval.id)
     } catch (cause) {
       toast.error('Could not deny', {
         description: cause instanceof Error ? cause.message : 'Try again.',
@@ -205,8 +284,13 @@ function PendingRow({ approval, first }: { approval: Approval; first: boolean })
       <div className="flex items-center gap-3">
         <AgentBadge agent={agent} className="min-w-0" />
         <span className="text-ink-3 text-sm">asked to send</span>
-        <span className="text-ink-3 ml-auto shrink-0 text-xs tabular-nums">
-          {relativeTime(approval.createdAt, now())}
+        {/* An age, not a clock time, and the absolute time on the title the way
+            the audit table hedges the same column (S4). */}
+        <span
+          title={fullTimestamp(approval.createdAt)}
+          className="text-ink-3 ml-auto shrink-0 text-xs tabular-nums"
+        >
+          {elapsedTime(approval.createdAt, now())}
         </span>
       </div>
 
@@ -260,6 +344,7 @@ function PendingRow({ approval, first }: { approval: Approval; first: boolean })
         <PrimaryButton
           onClick={() => void approve()}
           disabled={busy}
+          data-approval-approve=""
           aria-label={`Approve and send “${draft.subject.trim() || '(no subject)'}”`}
           // The send celebration, exactly as the composer runs it: the fill
           // crossfades to the green solid, the glyph becomes a check, and the

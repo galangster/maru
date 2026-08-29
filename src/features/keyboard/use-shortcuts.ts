@@ -125,6 +125,11 @@ export function useShortcuts() {
       replyAll: () => live.current.reply('replyAll'),
       forward: () => live.current.reply('forward'),
       search: () => useSurfaces.getState().openSearch(),
+      // The approval queue, from the keyboard. It opens whether or not anything
+      // is waiting — the badge is absent at zero, so this is the only way in to
+      // an empty queue, and "nothing is waiting" is an answer worth being able
+      // to ask for (S9).
+      approvals: () => useSurfaces.getState().setApprovals(true),
       help: () => useSurfaces.getState().setShortcuts(true),
       // `z`, Gmail's unmodified undo. ⌘Z runs the same body ahead of the
       // table because it must also work with a dialog up.

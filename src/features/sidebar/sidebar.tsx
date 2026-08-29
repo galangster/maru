@@ -298,6 +298,9 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
 
   const { demo } = useMailMode()
   const openSettings = useSurfaces((s) => s.openSettings)
+  // Cached, and already read by the badge below — this asks the same query for
+  // the same answer, not the gateway for a second one.
+  const waiting = usePendingApprovals().data?.length ?? 0
   const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
   const syncing = statuses.some((s) => s.state === 'syncing')
   const failed = statuses.some((s) => s.state === 'error')
@@ -324,7 +327,14 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
   return (
     <div
       className={cn(
-        'border-hairline flex shrink-0 items-center border-t px-3 py-2',
+        // `@container`, so the status line can ask how wide the *sidebar* is.
+        // The sidebar is a resizable panel with a 200 px floor, and at 950 px
+        // the panel group takes it there: the label then truncated to a single
+        // letter — "D" for "Demo data" — which is worse than not drawing it
+        // (N7). Below 13rem of content box it drops out entirely and the glyph
+        // plus the tooltip carry the state, which is the same trade the long
+        // form already lost once.
+        'border-hairline @container flex shrink-0 items-center border-t px-3 py-2',
         collapsed ? 'flex-col gap-1' : 'gap-2',
       )}
     >
@@ -343,7 +353,13 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
               failed && 'text-destructive',
             )}
           />
-          <span className="truncate">{state}</span>
+          {/* Dropped whole, never sliced. The badge is what takes the room —
+              with it up, "Demo data" had about 64 px and rendered "Demo da…",
+              and at the sidebar's 200 px floor it rendered "D" (N7). The glyph
+              still carries the state, the tooltip and the screen-reader line
+              still carry the sentence, and none of the three is a fragment of
+              a word. */}
+          {waiting === 0 && <span className="hidden truncate @[13rem]:inline">{state}</span>}
           <span className="sr-only">{detail}</span>
         </span>
       )}
@@ -385,7 +401,16 @@ function ApprovalsBadge() {
             data-wren-approvals
             onClick={() => setApprovals(true)}
             className={cn(
-              'bg-fill-selected text-brand font-ui inline-flex h-8 shrink-0 items-center gap-2 rounded-full px-3 text-xs font-medium outline-none',
+              // Ink on the wash, not accent on the wash. `--wren-fill-selected`
+              // is the accent at 8% and it composites *darker* than the canvas
+              // it sits on, so accent ink measured 4.21:1 here — under the 4.5
+              // this 11.5 px numeral needs, on the one entry point to the
+              // approval queue (UI-REVIEW-2026-08-29 S2). text-1 on the same
+              // composited fill, rgb(23,23,25) on rgb(230,232,243), computes to
+              // 14.63:1 light and clears it with room to spare; dark is higher
+              // still. The accent stays on the glyph, which is non-text and
+              // needs 3.0 — it has 4.21.
+              'bg-fill-selected text-ink font-ui inline-flex h-8 shrink-0 items-center gap-2 rounded-full px-3 text-xs font-medium outline-none',
               'transition-[background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
               PRESS,
               'focus-ring hover:bg-fill-active',
@@ -393,7 +418,7 @@ function ApprovalsBadge() {
           />
         }
       >
-        <Icon name="check" size={16} />
+        <Icon name="check" size={16} className="text-brand" />
         <span className="tabular-nums">{count}</span>
       </TooltipTrigger>
       <TooltipContent side="top">{label}</TooltipContent>

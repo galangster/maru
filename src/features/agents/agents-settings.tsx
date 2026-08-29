@@ -9,7 +9,7 @@
 // SHA-256 digest, so "you won't see this again" is a statement of fact rather
 // than a policy — see core/agents/registry.ts.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmPopover } from '@/components/confirm-popover'
@@ -66,10 +66,14 @@ export function AgentsSection() {
 
       <CreateAgent />
 
+      {/* The same control as the queue header's "Audit log", so it takes the
+          same shape: a pill with a hover fill, which is what DIRECTION §6 makes
+          every button. It was `rounded-md` with no hover here, and the focus
+          ring follows the radius, so the two differed twice over (N1). */}
       <button
         type="button"
         onClick={() => openAudit()}
-        className="font-ui text-ink-2 hover:text-ink focus-ring h-8 w-fit rounded-md text-base font-medium"
+        className="font-ui text-ink-2 hover:bg-fill-hover hover:text-ink focus-ring h-8 w-fit rounded-full px-3 text-base font-medium transition-colors duration-(--wren-dur-fast)"
       >
         Open the audit log
       </button>
@@ -146,7 +150,7 @@ function AgentCard({
         </p>
       ) : (
         <>
-          <CapabilityToggles agentId={agent.id} held={held} />
+          <CapabilityToggles agentId={agent.id} agentName={agent.name} held={held} />
           {send && <SendScopeEditor agentId={agent.id} grant={send} />}
           <FixtureCredential agent={agent} />
         </>
@@ -170,7 +174,13 @@ function FixtureCredential({ agent }: { agent: Agent }) {
   if (!demo || agent.id !== DEMO_AGENT.id) return null
 
   return (
-    <div className="border-hairline flex flex-col gap-2 rounded-md border p-3">
+    // Depth by fill, not by a stroke. This card and the credential card below
+    // were the two stroked, unfilled boxes in a file whose own AgentCard
+    // carries the comment arguing against exactly that (S8, DIRECTION §1). It
+    // sits inside the sunken AgentCard, so it steps *up* to `surface` and its
+    // own well steps back down — the same alternation the send-scope textarea
+    // already uses one section below.
+    <div className="bg-surface flex flex-col gap-2 rounded-md p-3">
       <p className="font-ui text-ink text-sm font-medium">Demo credential</p>
       <p className="text-ink-3 text-sm text-pretty">
         Scout is a fixture, so its credential is printed rather than issued. Point an agent at it to
@@ -185,9 +195,11 @@ function FixtureCredential({ agent }: { agent: Agent }) {
 
 function CapabilityToggles({
   agentId,
+  agentName,
   held,
 }: {
   agentId: string
+  agentName: string
   held: Partial<Record<Capability, Grant>>
 }) {
   const gateway = useAgentGateway()
@@ -228,9 +240,15 @@ function CapabilityToggles({
               key={capability}
               type="button"
               aria-pressed={on}
-              // Two identical words down a list of agents; the label says whose.
-              aria-label={`${CAPABILITY_COPY[capability].label} — ${CAPABILITY_COPY[capability].help}`}
-              title={CAPABILITY_COPY[capability].help}
+              // Two identical words down a list of agents, so the label says
+              // whose — which it claimed to and did not: the measured name was
+              // "Read — Search the mailbox and open threads", with the agent
+              // missing from the one control whose whole question is which
+              // agent (S6). No `title`: it duplicated the accessible name, is
+              // mouse-only, cannot be styled, and the help text is already
+              // rendered as visible prose below (S7, and N7 of the prior cycle
+              // reintroduced).
+              aria-label={`${CAPABILITY_COPY[capability].label} for ${agentName} — ${CAPABILITY_COPY[capability].help}`}
               onClick={() => void toggle(capability)}
               className={cn(
                 'font-ui inline-flex h-8 items-center gap-2 rounded-full px-3 text-base outline-none',
@@ -243,10 +261,23 @@ function CapabilityToggles({
                 // surface next to an accent nav row and an accent scope
                 // toggle: six accents, and DIRECTION §1's near-monochrome
                 // promise gone. The wash carries the state on its own.
-                on ? 'bg-fill-selected text-ink font-medium' : 'bg-surface text-ink-2 hover:bg-fill-hover',
+                //
+                // "Off" carries no fill at all. It used to be `bg-surface`,
+                // which on this sunken card is pure white — so the *ungranted*
+                // chip read as the brighter, raised one and a permission that
+                // was ON was the quieter of the two (S10). On a permissions
+                // control the consequential state is the loud one. The glyph
+                // steps with it rather than sitting at `text-ink-3` in both.
+                on
+                  ? 'bg-fill-selected text-ink font-medium'
+                  : 'text-ink-2 hover:bg-fill-hover',
               )}
             >
-              <Icon name={on ? 'check' : 'add'} size={16} className="text-ink-3" />
+              <Icon
+                name={on ? 'check' : 'add'}
+                size={16}
+                className={on ? 'text-ink' : 'text-ink-3'}
+              />
               {CAPABILITY_COPY[capability].label}
             </button>
           )
@@ -267,18 +298,36 @@ function SendScopeEditor({ agentId, grant }: { agentId: string; grant: Grant }) 
   const [text, setText] = useState(domains.join('\n'))
   const kind = grant.scope.kind === 'all' ? 'all' : 'domains'
 
-  const setScope = async (next: 'all' | 'domains', list = domains) => {
-    try {
-      await gateway.grant(
+  /**
+   * One queue, so two writes to the same grant cannot land out of order.
+   *
+   * Switching the radio to "Anyone" fires `commit()` from the textarea's blur
+   * and `setScope('all')` from the click, as two independent `gateway.grant`
+   * calls against the same key with no ordering guarantee — and the loser
+   * decides what this agent may send (N8). Chaining is enough: both writes are
+   * wanted, only their order was undefined.
+   */
+  const queue = useRef<Promise<void>>(Promise.resolve())
+  const enqueue = (write: () => Promise<unknown>) => {
+    queue.current = queue.current.then(async () => {
+      try {
+        await write()
+      } catch (cause) {
+        toast.error('Could not change the send scope', {
+          description: cause instanceof Error ? cause.message : String(cause),
+        })
+      }
+    })
+  }
+
+  const setScope = (next: 'all' | 'domains', list = domains) => {
+    enqueue(() =>
+      gateway.grant(
         agentId,
         'send',
         next === 'all' ? { kind: 'all' } : { kind: 'domains', domains: list },
-      )
-    } catch (cause) {
-      toast.error('Could not change the send scope', {
-        description: cause instanceof Error ? cause.message : String(cause),
-      })
-    }
+      ),
+    )
   }
 
   const commit = () => {
@@ -288,14 +337,20 @@ function SendScopeEditor({ agentId, grant }: { agentId: string; grant: Grant }) 
       .filter(Boolean)
     if (list.join('\n') === domains.join('\n')) return
     setText(list.join('\n'))
-    void setScope('domains', list)
+    setScope('domains', list)
   }
 
   return (
     <div className="flex flex-col gap-2">
       <p className="font-ui text-ink-3 text-xs font-semibold uppercase">Send to</p>
+      {/* A group of pressed toggles rather than a `role="radiogroup"`. The
+          radiogroup role promises roving tabindex and arrow-key traversal, and
+          this control implemented neither: each option was its own tab stop and
+          the arrow keys did nothing (B2). It takes the capability chips'
+          pattern instead — the one honest control of the three, sixty lines
+          above. */}
       <div
-        role="radiogroup"
+        role="group"
         aria-label="Send scope"
         className="bg-surface inline-flex h-9 w-fit items-center gap-1 rounded-md p-1"
       >
@@ -303,9 +358,8 @@ function SendScopeEditor({ agentId, grant }: { agentId: string; grant: Grant }) 
           <button
             key={option}
             type="button"
-            role="radio"
-            aria-checked={kind === option}
-            onClick={() => void setScope(option)}
+            aria-pressed={kind === option}
+            onClick={() => setScope(option)}
             className={cn(
               // The track is `rounded-md` (12) with `p-1`, so its children take
               // 8 to stay concentric — DIRECTION §6, inner = outer − inset.
@@ -437,6 +491,19 @@ function CredentialOnce({
   onDone: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const field = useRef<HTMLInputElement>(null)
+
+  // The one-time secret takes focus the moment it appears. It is the keyboard
+  // path to a string the clipboard-failure toast asks the user to select by
+  // hand, and it is also what announces the screen: the form that was focused
+  // is gone, and without this focus fell to the Settings dialog root and a
+  // screen-reader user got no signal that an irreversible thing was on screen
+  // (S1).
+  useEffect(() => {
+    field.current?.focus()
+    field.current?.select()
+  }, [])
 
   const copy = async () => {
     try {
@@ -444,27 +511,52 @@ function CredentialOnce({
       setCopied(true)
       toast.success('Credential copied')
     } catch {
-      // Clipboard permission can be refused; the token is on screen and
-      // selectable, so this is a downgrade rather than a failure.
+      // Clipboard permission can be refused; the token is on screen, focusable
+      // and selectable, so this is a downgrade rather than a failure.
       toast.error('Could not copy', { description: 'Select the credential and copy it by hand.' })
     }
   }
 
+  const doneClass =
+    'font-ui text-ink-2 hover:bg-fill-hover focus-ring h-8 rounded-full px-3 text-base font-medium'
+
   return (
-    <div className="border-hairline flex flex-col gap-3 rounded-md border p-4">
+    // `bg-sunken`, no stroke: depth by fill, matching the AgentCard this file
+    // argues for 340 lines earlier (S8, DIRECTION §1).
+    <div className="bg-sunken flex flex-col gap-3 rounded-md p-4">
       <div className="flex flex-col gap-1">
         <p className="font-ui text-ink text-base font-medium">{issued.name}'s credential</p>
-        <p className="text-ink-3 text-sm text-pretty">
-          Copy it into the agent's config now. Wren stored only a hash of it, so this is the one
-          time it can be shown — you won't see it again.
+        {/* Out of the meta tier. This line carries the only irreversible
+            consequence in the app and it was set in `text-3`, the tier
+            DIRECTION §3 reserves for timestamps and counts — the quietest type
+            in Wren on the loudest sentence in it (S1). `text-ink-2` plus the
+            star hue on the mark: star is the app's own warning colour and this
+            is the one place worth spending it. */}
+        <p className="text-ink-2 flex gap-2 text-sm text-pretty">
+          {/* `mt-px`: a documented 1 px optical nudge, the second of
+              DIRECTION §5's two licensed exceptions to the 4 px grid. */}
+          <Icon name="error" size={16} className="text-star mt-px shrink-0" />
+          <span>
+            Copy it into the agent's config now. Wren stored only a hash of it, so this is the one
+            time it can be shown — you won't see it again.
+          </span>
         </p>
       </div>
-      <p
+      {/* A read-only input, not a `<p>` with `user-select: all`. The paragraph
+          was clickable but not focusable (`tabIndex = -1`, measured), so the
+          "select it and copy it by hand" fallback was an instruction a
+          keyboard-only user could not follow. ⌘A works here, and so does a
+          screen reader's own text navigation. */}
+      <input
+        ref={field}
         data-wren-credential
-        className="bg-sunken text-ink rounded-sm px-3 py-2 text-sm break-all select-all"
-      >
-        {issued.credential}
-      </p>
+        readOnly
+        spellCheck={false}
+        value={issued.credential}
+        aria-label={`One-time credential for ${issued.name}`}
+        onFocus={(event) => event.currentTarget.select()}
+        className="bg-surface text-ink focus-ring w-full rounded-sm px-3 py-2 text-sm"
+      />
       <div className="flex items-center gap-2">
         <PrimaryButton onClick={() => void copy()} className="h-8 gap-2 px-3">
           {/* No `copy` glyph in the Anron set; `fileText` is the closest honest
@@ -472,13 +564,28 @@ function CredentialOnce({
           <Icon name={copied ? 'check' : 'fileText'} size={16} />
           {copied ? 'Copied' : 'Copy'}
         </PrimaryButton>
-        <button
-          type="button"
-          onClick={onDone}
-          className="font-ui text-ink-2 hover:bg-fill-hover focus-ring h-8 rounded-full px-3 text-base font-medium"
-        >
-          Done
-        </button>
+        {/* `copied` was tracked and then never used: Done discarded the one
+            copy of the credential permanently, on one unguarded click, in an
+            app that already asks before discarding a *draft* (S1). It asks now
+            — but only while the credential has not been copied, so the ordinary
+            path stays one click. */}
+        {copied ? (
+          <button type="button" onClick={onDone} className={doneClass}>
+            Done
+          </button>
+        ) : (
+          <ConfirmPopover
+            open={confirming}
+            onOpenChange={setConfirming}
+            title="Discard the credential?"
+            description="It has not been copied yet, and Wren keeps only a hash of it. Closing this is the last time it exists."
+            cancelLabel="Keep it open"
+            confirmLabel="Discard"
+            onConfirm={onDone}
+            trigger={<button type="button" className={doneClass} />}
+            triggerContent="Done"
+          />
+        )}
       </div>
     </div>
   )

@@ -39,6 +39,7 @@ export type ShortcutId =
   | 'palette'
   | 'search'
   | 'settings'
+  | 'approvals'
   | 'help'
   | 'escape'
 
@@ -83,6 +84,12 @@ export const SHORTCUTS: ShortcutSpec[] = [
   { id: 'palette', keys: [`${MOD}K`], label: 'Command palette', group: 'Find' },
   { id: 'search', keys: ['/'], label: 'Search mail', group: 'Find', key: '/' },
   { id: 'settings', keys: [`${MOD},`], label: 'Settings', group: 'Find' },
+  // The approval queue's only entry point was the sidebar badge, which is
+  // absent at zero by design — so the one surface that gates outbound mail was
+  // mouse-only, and unreachable at all when empty, in an app that ships a
+  // palette and a printed shortcut sheet (UI-REVIEW-2026-08-29 S9). `w` for
+  // "waiting on you", and it is free.
+  { id: 'approvals', keys: ['W'], label: 'Waiting on you', group: 'Find', key: 'w' },
   { id: 'help', keys: ['?'], label: 'Show this list', group: 'Find', key: '?' },
   { id: 'escape', keys: ['esc'], label: 'Close the top surface', group: 'Find' },
 ]
