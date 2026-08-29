@@ -130,6 +130,13 @@ export function useShortcuts() {
       // an empty queue, and "nothing is waiting" is an answer worth being able
       // to ask for (S9).
       approvals: () => useSurfaces.getState().setApprovals(true),
+      // Blunt on purpose: from the derived default it opens everything, and a
+      // second press folds the thread to its spine. The pane interprets.
+      expandAll: () => {
+        const ui = useUi.getState()
+        if (!ui.selected) return
+        ui.setReadingExpansion(ui.readingExpansion === 'all' ? 'none' : 'all')
+      },
       help: () => useSurfaces.getState().setShortcuts(true),
       // `z`, Gmail's unmodified undo. ⌘Z runs the same body ahead of the
       // table because it must also work with a dialog up.

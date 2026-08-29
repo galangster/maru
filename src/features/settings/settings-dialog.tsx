@@ -12,7 +12,6 @@
 // (AMIE-STUDY §7b).
 
 import { useEffect, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ConfirmPopover } from '@/components/confirm-popover'
@@ -43,7 +42,7 @@ import {
 } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { AgentsSection } from '@/features/agents/agents-settings'
-import { keys, useAccounts, useSettings } from '@/features/mail/queries'
+import { useAccounts, useSaveSettings, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import {
   focusThreadList,
@@ -246,15 +245,6 @@ function TextField({
       />
     </div>
   )
-}
-
-function useSaveSettings() {
-  const service = useMailService()
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (patch: Partial<Settings>) => service.setSettings(patch),
-    onSuccess: () => client.invalidateQueries({ queryKey: keys.settings }),
-  })
 }
 
 // -- accounts -----------------------------------------------------------------

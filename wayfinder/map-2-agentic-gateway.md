@@ -88,6 +88,12 @@ model becomes the reference for how agents touch a person's mailbox.
 - [M8 conversation controls](tickets/M8-conversation-controls.md) charted
   from Nick's in-thread sorting ask; Nick has directed autonomous
   continuation down the roadmap ("keep going... check and optimize").
+- [M8 conversation controls](tickets/M8-conversation-controls.md):
+  shipped — persisted newest-first/chronological order with an order-aware
+  landing, expand/collapse all (`o`, toolbar, palette), controlled message
+  cards whose headers collapse, pure conversation lens with tests.
+- [M9 seam growth](tickets/M9-mailservice-seam-growth.md) charted: user
+  labels + outgoing attachments, M3's two recorded gaps.
 
 ## Not yet specified
 

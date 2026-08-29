@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imagePolicy: 'block',
   pollIntervalSec: 60,
   sounds: false,
+  conversationOrder: 'chronological',
 }
 
 export const DEFAULT_PAGE_SIZE = 100

@@ -11,9 +11,18 @@ import { IconButton, Keycap, PRESS } from '@/components/wren-controls'
 import type { Message, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import type { ReplyMode } from '@/lib/compose'
-import { registerActionUndo, useLabels, usePerformAction, useThread } from '@/features/mail/queries'
+import {
+  registerActionUndo,
+  useLabels,
+  usePerformAction,
+  useSaveSettings,
+  useSettings,
+  useThread,
+} from '@/features/mail/queries'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
+
+import { displayMessages, expandedIds, normalizeExpansion, toggleExpanded } from './conversation'
 import { EmptyState } from '@/components/empty-state'
 import { displayName } from '@/lib/format'
 import { hueFor, hueVars } from '@/lib/hue'
@@ -32,6 +41,11 @@ export function ReadingPane() {
 
   const detail = useThread(selectedKey)
   const action = usePerformAction()
+  const settings = useSettings()
+  const saveSettings = useSaveSettings()
+  const order = settings.data?.conversationOrder ?? 'chronological'
+  const expansion = useUi((s) => s.readingExpansion)
+  const setExpansion = useUi((s) => s.setReadingExpansion)
   const mode = useMotionMode()
   // j/k traversal is the highest-frequency action in the app and gets nothing.
   // A click or a palette jump is rare enough to arrive: the sender line resolves
@@ -56,7 +70,13 @@ export function ReadingPane() {
   const messageCount = detail.data?.messages.length ?? 0
   useLayoutEffect(() => {
     const container = scrollRef.current
-    if (!container || messageCount < 2) return
+    if (!container) return
+    // Newest-on-top needs no hunt: the anchor is the first thing in the pane,
+    // and the only job is undoing whatever scroll the previous thread left.
+    if (order === 'newestFirst' || messageCount < 2) {
+      container.scrollTop = 0
+      return
+    }
     const cards = container.querySelectorAll<HTMLElement>('[data-message-card]')
     const newest = cards[cards.length - 1]
     if (!newest) return
@@ -65,7 +85,7 @@ export function ReadingPane() {
       container.getBoundingClientRect().top +
       container.scrollTop
     container.scrollTop = Math.max(0, top - 12)
-  }, [thread?.key, messageCount])
+  }, [thread?.key, messageCount, order])
 
   if (!selectedKey || !thread) {
     return (
@@ -92,6 +112,11 @@ export function ReadingPane() {
   }
 
   const messages = detail.data?.messages ?? []
+  const shown = displayMessages(messages, order)
+  const open = expandedIds(messages, expansion)
+  // One spelling of "everything is open", shared with the keymap's `o`:
+  // manual sets that reach all-open normalize to 'all' on the way in.
+  const allOpen = expansion === 'all'
   const chips = (labels.data ?? []).filter(
     (l) => l.type === 'user' && thread.labelIds.includes(l.id),
   )
@@ -132,6 +157,25 @@ export function ReadingPane() {
             />
           )
         })}
+        <span className="flex-1" />
+        {messages.length > 1 && (
+          <IconButton
+            name={allOpen ? 'minimize' : 'expand'}
+            label={allOpen ? 'Collapse all messages' : 'Expand all messages'}
+            hint="O"
+            onClick={() => setExpansion(allOpen ? 'none' : 'all')}
+          />
+        )}
+        <IconButton
+          name={order === 'newestFirst' ? 'chevronUp' : 'chevronDown'}
+          label={order === 'newestFirst' ? 'Newest at top' : 'Oldest at top'}
+          active={order === 'newestFirst'}
+          onClick={() =>
+            saveSettings.mutate({
+              conversationOrder: order === 'newestFirst' ? 'chronological' : 'newestFirst',
+            })
+          }
+        />
       </header>
 
       {/* `scroll-fade`: the body runs to the window frame, so a line of mail
@@ -156,12 +200,15 @@ export function ReadingPane() {
             transition={{ ...fade.transition, delay: traversing ? 0 : step }}
             className="mt-6 flex flex-col gap-2"
           >
-            {messages.map((message, index) => (
+            {shown.map((message) => (
               <MessageCard
                 key={message.id}
                 threadKey={thread.key}
                 message={message}
-                defaultExpanded={index === messages.length - 1}
+                expanded={open.has(message.id)}
+                onToggle={() =>
+                  setExpansion(normalizeExpansion(toggleExpanded(open, message.id), messages))
+                }
                 now={now}
                 imagesAllowed={imagesAllowed.has(thread.key)}
                 onAllowImages={() => allowImages(thread.key)}

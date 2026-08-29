@@ -16,7 +16,9 @@ import { MessageBody } from './message-body'
 export interface MessageCardProps {
   threadKey: string
   message: Message
-  defaultExpanded: boolean
+  /** Controlled by the pane, so expand-all and the keymap can reach it. */
+  expanded: boolean
+  onToggle: () => void
   now: number
   imagesAllowed: boolean
   onAllowImages: () => void
@@ -25,12 +27,12 @@ export interface MessageCardProps {
 export function MessageCard({
   threadKey,
   message,
-  defaultExpanded,
+  expanded,
+  onToggle,
   now,
   imagesAllowed,
   onAllowImages,
 }: MessageCardProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
   const [blocked, setBlocked] = useState(0)
   const onBlockedImages = useCallback((count: number) => setBlocked(count), [])
   const attachments = message.attachments.filter((a) => !a.inline)
@@ -40,7 +42,8 @@ export function MessageCard({
       <button
         type="button"
         data-message-card
-        onClick={() => setExpanded(true)}
+        aria-expanded={false}
+        onClick={onToggle}
         className={cn(
           'focus-ring bg-surface hover:bg-fill-hover flex h-(--wren-row-h-compact) w-full items-center gap-3 rounded-lg px-4 text-left',
           'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
@@ -60,7 +63,15 @@ export function MessageCard({
 
   return (
     <article data-message-card className="bg-surface rounded-lg p-4 shadow-xs">
-      <header className="flex items-start gap-3">
+      {/* The header is the collapse control, exactly as the collapsed row is
+          the expand control — the same click in both directions. A real
+          button, full-width, with the row's own layout inside it. */}
+      <button
+        type="button"
+        aria-expanded
+        onClick={onToggle}
+        className="focus-ring -m-1 flex w-full items-start gap-3 rounded-md p-1 text-left"
+      >
         <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
         <div className="min-w-0 flex-1">
           <p className="font-ui text-ink truncate text-base font-semibold">
@@ -68,13 +79,10 @@ export function MessageCard({
           </p>
           <p className="text-ink-3 truncate text-sm">{message.from.email}</p>
         </div>
-        <time
-          className={META_TEXT}
-          title={fullTimestamp(message.date)}
-        >
+        <time className={META_TEXT} title={fullTimestamp(message.date)}>
           {relativeTime(message.date, now)}
         </time>
-      </header>
+      </button>
 
       {blocked > 0 && !imagesAllowed && (
         <div className="bg-sunken text-ink-2 mt-4 flex items-center gap-2 rounded-xs px-3 py-2 text-sm">

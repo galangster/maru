@@ -27,6 +27,14 @@ export function isDefaultPrefs(prefs: ListPrefs): boolean {
   return prefs.sort === DEFAULT_LIST_PREFS.sort && prefs.filter === DEFAULT_LIST_PREFS.filter
 }
 
+/**
+ * How much of the open conversation is unfolded. `default` is the rule the
+ * pane derives (the newest message open, the rest collapsed); `all` and
+ * `none` are the keyboard's and the palette's blunt verbs; a Set is the
+ * state after a person has toggled individual messages.
+ */
+export type ReadingExpansion = 'default' | 'all' | 'none' | ReadonlySet<string>
+
 export type ThemeChoice = 'system' | 'light' | 'dark'
 
 /**
@@ -64,6 +72,8 @@ interface UiState {
    * a filter is a way of looking, not a setting.
    */
   listPrefs: Record<string, ListPrefs>
+  /** Expansion of the open conversation. Reset whenever the selection moves. */
+  readingExpansion: ReadingExpansion
   /**
    * The one thing ⌘Z would put back. One slot, not a stack — see lib/undo.ts.
    *
@@ -80,6 +90,7 @@ interface UiState {
   allowImages: (threadKey: string) => void
   /** Change part of a view's list lens; the rest keeps its current value. */
   setListPrefs: (view: MailView, patch: Partial<ListPrefs>) => void
+  setReadingExpansion: (next: ReadingExpansion) => void
   /** Offer an undo. Stamps `at` here so no caller can hand in its own clock. */
   registerUndo: (entry: Omit<Undoable, 'at'>) => void
   /** Withdraw the offer, if it is still the one on the table. */
@@ -102,6 +113,7 @@ export const useUi = create<UiState>((set, get) => ({
     INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
   imagesAllowed: new Set<string>(),
   listPrefs: {},
+  readingExpansion: 'default',
   undoable: null,
 
   // Changing view always drops the selection: keeping a thread from another
@@ -111,12 +123,14 @@ export const useUi = create<UiState>((set, get) => ({
     set((s) => ({
       view,
       selected: null,
+      readingExpansion: 'default',
       expandedAccounts:
         view.kind === 'account'
           ? { ...s.expandedAccounts, [view.accountId]: true }
           : s.expandedAccounts,
     })),
-  setSelected: (selected, selectionSource = 'pointer') => set({ selected, selectionSource }),
+  setSelected: (selected, selectionSource = 'pointer') =>
+    set({ selected, selectionSource, readingExpansion: 'default' }),
   setTheme: (theme) => set({ theme }),
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
   toggleAccount: (accountId) =>
@@ -125,6 +139,7 @@ export const useUi = create<UiState>((set, get) => ({
     })),
   allowImages: (threadKey) =>
     set((s) => ({ imagesAllowed: new Set(s.imagesAllowed).add(threadKey) })),
+  setReadingExpansion: (readingExpansion) => set({ readingExpansion }),
   setListPrefs: (view, patch) =>
     set((s) => {
       const key = viewKey(view)

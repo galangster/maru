@@ -169,6 +169,13 @@ export interface Settings {
    * room. See docs/design/SOUNDS.md §3.
    */
   sounds: boolean // default false
+  /**
+   * How a conversation reads in the pane: `chronological` (oldest → newest,
+   * landing on the newest — mail's default) or `newestFirst` (newest on top,
+   * the Outlook/Apple Mail preference). A reading preference, so it persists;
+   * per-thread override is deliberately not offered.
+   */
+  conversationOrder: 'chronological' | 'newestFirst' // default chronological
 }
 
 export interface ListThreadsOptions {

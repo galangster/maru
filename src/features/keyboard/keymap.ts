@@ -25,6 +25,7 @@ export type ShortcutId =
   | 'prev'
   | 'open'
   | 'scan'
+  | 'expandAll'
   | 'folders'
   | 'archive'
   | 'trash'
@@ -65,6 +66,7 @@ export const SHORTCUTS: ShortcutSpec[] = [
   { id: 'prev', keys: ['K'], label: 'Previous thread', group: 'Move', key: 'k', aliases: ['ArrowUp'] },
   { id: 'open', keys: ['↵'], label: 'Open the selection', group: 'Move', key: 'Enter' },
   { id: 'scan', keys: ['space'], label: 'Scroll, then next thread', group: 'Move' },
+  { id: 'expandAll', keys: ['O'], label: 'Expand or collapse all messages', group: 'Move', key: 'o' },
   { id: 'folders', keys: [`${MOD}1`, `${MOD}4`], label: 'Inbox … Trash', group: 'Move' },
 
   { id: 'archive', keys: ['E'], label: 'Archive', group: 'Triage', key: 'e', aliases: ['Backspace', 'Delete'] },

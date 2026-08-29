@@ -102,5 +102,14 @@ where, why, proof.
     by M4. Proof: this commit; the accuracy pass. Placement/license stay
     behind G1.
 
+14. **M8, conversation controls.** Persisted conversation order
+    (chronological default / newest-first) with order-aware landing;
+    expand/collapse all via `o`, the reading toolbar, and the palette;
+    message cards controlled with collapsing headers; pure conversation
+    lens (features/reading/conversation.ts) pinned by tests;
+    useSaveSettings promoted to the mail hub. Why: Nick's in-thread
+    sorting ask, 2026-08-29 (ticket M8). Proof: this commit; 407 tests;
+    live verification; captures t3-02/t4-05 updated + m8-15 new.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

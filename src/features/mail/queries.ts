@@ -15,6 +15,7 @@ import type {
   Message,
   SyncStatus,
   Thread,
+  Settings,
 } from '@/core/types'
 import { playSound } from '@/lib/sound'
 
@@ -101,6 +102,16 @@ export function useUnreadCount(view: MailView) {
 export function useSettings() {
   const service = useMailService()
   return useQuery({ queryKey: keys.settings, queryFn: () => service.getSettings() })
+}
+
+/** Patch settings and refresh every reader. Settings dialog, palette, pane. */
+export function useSaveSettings() {
+  const service = useMailService()
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (patch: Partial<Settings>) => service.setSettings(patch),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.settings }),
+  })
 }
 
 /** The shortest query worth sending. One letter matches most of a mailbox. */

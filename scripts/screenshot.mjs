@@ -154,6 +154,21 @@ const SHOTS = [
       await page.getByRole('group', { name: 'Send scope' }).waitFor({ timeout: 10_000 })
     },
   },
+  // --- M8, conversation controls -------------------------------------------
+  {
+    // A three-message thread flipped to newest-at-top: the newest expanded at
+    // the top, the older two collapsed below, the order toggle active and the
+    // expand-all control beside it.
+    file: 'm8-15-thread-newest-first-light.png',
+    query: '',
+    open: 'demo-work/w-latency',
+    act: async (page) => {
+      await page.getByRole('button', { name: 'Oldest at top' }).click()
+      await page.getByRole('button', { name: 'Newest at top' }).waitFor({ timeout: 10_000 })
+      await page.waitForSelector('section[aria-label="Reading"] iframe', { timeout: 10_000 })
+    },
+  },
+
   // --- M7, the list lens ----------------------------------------------------
   {
     // The filter/sort popover with Unread applied: brand-toned trigger, the

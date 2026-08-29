@@ -24,6 +24,7 @@ import {
   usePerformAction,
   useSearch,
   useThreads,
+  useSaveSettings,
 } from '@/features/mail/queries'
 import { MOD } from '@/features/keyboard/keymap'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
@@ -89,6 +90,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const now = useNow()
 
   const view = useUi((s) => s.view)
+  const saveSettings = useSaveSettings()
   const setView = useUi((s) => s.setView)
   const selected = useUi((s) => s.selected)
   const setSelected = useUi((s) => s.setSelected)
@@ -187,6 +189,35 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           />
           <Row icon="fileText" label="Audit log" onSelect={() => run(() => openAudit())} />
           <Row icon="settings" label="Settings" onSelect={() => run(() => openSettings())} />
+        </Group>
+
+        <Group heading="Conversation">
+          <Row
+            icon="chevronUp"
+            label="Newest message at top"
+            onSelect={() => run(() => saveSettings.mutate({ conversationOrder: 'newestFirst' }))}
+          />
+          <Row
+            icon="chevronDown"
+            label="Oldest message at top"
+            onSelect={() => run(() => saveSettings.mutate({ conversationOrder: 'chronological' }))}
+          />
+          {current && (
+            <>
+              <Row
+                icon="expand"
+                label="Expand all messages"
+                hint="O"
+                onSelect={() => run(() => useUi.getState().setReadingExpansion('all'))}
+              />
+              <Row
+                icon="minimize"
+                label="Collapse all messages"
+                hint="O"
+                onSelect={() => run(() => useUi.getState().setReadingExpansion('none'))}
+              />
+            </>
+          )}
         </Group>
 
         <Group heading="List">

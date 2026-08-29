@@ -1,6 +1,6 @@
 # M8 — Conversation-view controls  `wayfinder:task`
 
-status: open · claimed: — · blocked by: M7
+status: closed · claimed: M8 lane, 2026-08-29 · blocked by: M7
 
 ## Question → work
 
@@ -29,3 +29,50 @@ Placement follows M7's grammar: a control on the reading-pane toolbar,
 palette verbs, and the preference beside the other appearance choices if
 it is truly global. DIRECTION.md governs the chrome; the M7 lens bar
 pattern is the precedent for naming any non-default state.
+
+## Resolution
+
+Both halves of the survey shipped; the third candidate resolved itself.
+
+**Message order** is `Settings.conversationOrder` — `chronological`
+(default, landing on the newest, M7's behavior) or `newestFirst` — a
+persisted reading preference, deliberately not per-thread, exactly as
+Apple Mail and Outlook treat it. The types.ts comment records the
+persist-vs-lens split: a filter is a way of looking (session, ui-store);
+how a conversation reads is a preference (settings). Surfaces: a toolbar
+toggle on the reading pane (chevron, active while newest-first), palette
+verbs naming end states, and an order-aware landing (newest-first lands at
+the top and needs no hunt). `useSaveSettings` was promoted from the
+settings dialog to the mail hub the day it got its second consumer — the
+promotion rule again.
+
+**Expansion** was lifted out of MessageCard into the ui-store as
+`ReadingExpansion` ('default' — the newest open, the derived rule — |
+'all' | 'none' | a manual Set), reset whenever the selection moves, which
+is what lets the keymap (`o` toggles expand/collapse all), the palette,
+and the toolbar all reach it. MessageCard became controlled; its expanded
+header is now a real button that collapses — the same click both
+directions. Pure helpers in `features/reading/conversation.ts`
+(displayMessages, expandedIds, toggleExpanded, normalizeExpansion), each
+pinned by tests.
+
+Jump-to-first-unread (candidate 3) is subsumed: opening a thread marks it
+read before the pane could use the flag, and landing-on-newest already
+serves the intent.
+
+/simplify (two agents) applied: a dead `keys` import from the
+useSaveSettings move; the real find — the keymap and the toolbar held two
+definitions of "everything is open" (raw state vs derived), unified by
+`normalizeExpansion` folding a hand-built all-open Set into the named
+'all' state so both toggles read one spelling, pinned by test; the
+expanded header's aria-label dropped so its content (name, address, time)
+names it for screen readers; an unused type export trimmed. Skipped as
+defensive-but-harmless: the redundant expansion reset in `setView`.
+Noted from review, accepted: an order flip reloads expanded body iframes
+(keyed reorder) — rare, user-initiated; and MessageBody's srcDoc memo
+means sibling toggles never touch an iframe.
+
+Gates: typecheck clean · 407 tests green (+10) · live browser
+verification (default/all/none/header-collapse/order-flip/reset-on-
+selection) · captures: only t3-02 and t4-05 changed (the two showing the
+reading toolbar) + new m8-15, sent to Nick.
