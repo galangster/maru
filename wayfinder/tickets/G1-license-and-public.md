@@ -1,6 +1,6 @@
 # G1 — License + going public  `wayfinder:grilling` (HITL)
 
-status: open · claimed: — · blocked by: —
+status: closed · claimed: — · blocked by: —
 
 ## Question
 
@@ -27,3 +27,11 @@ the "defacto" thesis wants the model copied even where the code is not.
 
 Still open in this ticket: repo-public timing + the scrub list (a
 public-readiness audit is being prepared), and the `wren-mcp` naming call.
+
+## Resolution — remaining halves (grill 3, 2026-08-29)
+
+Naming: the shim is **`wren-mcp`** (npm name verified free; claim is
+P1's, publish is P6's). Public timing: **flip early, launch later** —
+Nick flips visibility once P1's prep lands; the monologue stays public;
+Anron gets the named-exception line; the demo cast keeps its name. This
+ticket closes; the flip itself is tracked in map 3's P1.

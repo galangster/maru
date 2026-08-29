@@ -132,5 +132,13 @@ where, why, proof.
     three owner decisions listed. GRILL-3-AGENDA.md primes the next map.
     Proof: this commit; 415 tests.
 
+17. **Grill 3 held; map 3 charted.** Fourteen questions over two rounds,
+    all recommendations accepted: hosted sync is the subscription spine
+    (map 4); flip public early, launch later; monologue public; Anron
+    named-exception; Gmail-only map 3; macOS signing first; no telemetry;
+    Tauri updater; `wren-mcp` claimed. wayfinder/map-3-production.md +
+    tickets P1–P9, R3a; G1 and G2 closed with resolutions. Proof: this
+    commit.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

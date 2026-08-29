@@ -1,6 +1,6 @@
 # G2 — Cross-device settings sync  `wayfinder:grilling`
 
-status: open · claimed: — · blocked by: —
+status: closed (grill 3) · claimed: — · blocked by: —
 
 ## The ask
 
@@ -38,3 +38,13 @@ consent step — a grant is a trust decision made on one machine.
 
 Owner gates: which option; whether "Wren account" is worth reopening the
 no-servers line; where agent grants sit.
+
+## Resolution (grill 3, 2026-08-29)
+
+Both, in sequence — and the collision with the no-servers line resolved
+by making the server the business: option 1 (settings export/import)
+ships free in map 3 as ticket P5; option 3 (a hosted Wren sync service)
+is the ratified subscription spine and map 4's product build. The hard
+constraints stand verbatim: tokens and credentials never leave the
+keychain, grants never sync, mail never syncs. Option 2 (user-owned
+transport) dies — it is the worst of both without the business.

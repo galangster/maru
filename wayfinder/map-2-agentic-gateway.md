@@ -119,7 +119,8 @@ model becomes the reference for how agents touch a person's mailbox.
   (triage film, public flip, G2 mechanism) or belongs to the next map —
   Nick has called for a grill session + new wayfinder for functionality
   and production-readiness; the primer is
-  [GRILL-3-AGENDA.md](GRILL-3-AGENDA.md).
+  [GRILL-3-AGENDA.md](GRILL-3-AGENDA.md). Grill 3 was held the same
+  evening; the successor is [map-3-production.md](map-3-production.md).
 
 ## Not yet specified
 

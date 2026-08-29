@@ -5,6 +5,10 @@ Prepared 2026-08-29 at map 2's close, for the session Nick asked for:
 app more functional and production ready." This is the primer, not the
 grilling — bring opinions.
 
+> **Held 2026-08-29, in-session.** Two rounds, fourteen questions, every
+> recommendation accepted. Outcomes ratified in
+> [map-3-production.md](map-3-production.md) § Ratified.
+
 ## New facts the next map must absorb
 
 - **Subscription intent** (Nick, 2026-08-29): "Ultimately I'll probably
