@@ -46,6 +46,24 @@ export const EXIT_DUR = Math.round(DUR.base * 0.7 * 1000) / 1000
 
 export type MotionMode = 'full' | 'reduced' | 'off'
 
+/** The query `useReducedMotion` subscribes to, named once. */
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+let reducedMotionQuery: MediaQueryList | null = null
+
+/**
+ * The same preference `useMotionMode` reads, for the modules that are not
+ * React and cannot hold a hook — the audio layer asks this once per cue.
+ *
+ * The MediaQueryList is built once and kept: `matches` stays live on it, so
+ * repeated reads cost nothing and no call site gets to spell the query itself.
+ */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false
+  reducedMotionQuery ??= window.matchMedia(REDUCED_MOTION_QUERY)
+  return reducedMotionQuery.matches
+}
+
 /**
  * What this session is allowed to animate. `?screenshot=1` turns motion off
  * outright: `.screenshot` in index.css kills CSS transitions, but motion/react

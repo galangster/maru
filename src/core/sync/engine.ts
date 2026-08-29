@@ -283,20 +283,30 @@ export class SyncEngine {
       threadKeys: ids.map((id) => threadKey(this.accountId, id)),
     })
 
+    // One arrival event for the whole pass. This method is the only place that
+    // knows where the pass ends, so the count is stated here rather than
+    // rebuilt downstream from a burst of single events behind a timer — which
+    // is what the notification layer used to do, and it had to guess how long
+    // to wait. History records run oldest-first, so the last arrival is the
+    // newest and is the one the event names.
     const byKey = new Map(stored.map((t) => [t.key, t]))
+    let arrivals = 0
+    let newest: { threadKey: string; from: string; subject: string } | null = null
     for (const [gmailThreadId, message] of newMailThreads) {
       if (wasUnread.get(gmailThreadId)) continue
       const key = threadKey(this.accountId, gmailThreadId)
       const thread = byKey.get(key)
       if (!thread) continue
       const mapped = mapGmailMessage(this.accountId, message)
-      this.emit({
-        type: 'newMail',
-        accountId: this.accountId,
+      arrivals += 1
+      newest = {
         threadKey: key,
         from: mapped.from.name ?? mapped.from.email,
         subject: thread.subject || mapped.subject,
-      })
+      }
+    }
+    if (newest) {
+      this.emit({ type: 'newMail', accountId: this.accountId, threads: arrivals, ...newest })
     }
   }
 

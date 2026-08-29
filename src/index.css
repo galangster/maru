@@ -43,6 +43,9 @@
     --radius-md: var(--wren-radius-md);
     /* `rounded-row` — the inset list-row rect, AMIE-STUDY §5. */
     --radius-row: var(--wren-radius-row);
+    /* `rounded-inset` — a row inside a 24 px sheet: the palette's items and
+       the settings nav. Concentric arithmetic, 24 − 8. */
+    --radius-inset: var(--wren-radius-inset);
     --radius-lg: var(--wren-radius-lg);
     --radius-xl: var(--wren-radius-xl);
     --radius-2xl: var(--wren-radius-2xl);
@@ -79,6 +82,23 @@
     --color-fill-active: var(--wren-fill-active);
     --color-fill-selected: var(--wren-fill-selected);
 
+    /* The category hue family as utilities — `bg-hue-green`, `text-hue-fg`.
+       lib/hue.ts still decides *which* hue a thing gets; this only stops the
+       two or three fixed-hue call sites (the archive tick, the send button's
+       confirmation) from writing `bg-[var(--wren-hue-green)]` by hand. The
+       ink and the wash stay off this list on purpose: those are per-item and
+       come through `hueVars`, never as a literal hue name. */
+    --color-hue-green: var(--wren-hue-green);
+    --color-hue-teal: var(--wren-hue-teal);
+    --color-hue-blue: var(--wren-hue-blue);
+    --color-hue-violet: var(--wren-hue-violet);
+    --color-hue-magenta: var(--wren-hue-magenta);
+    --color-hue-red: var(--wren-hue-red);
+    --color-hue-orange: var(--wren-hue-orange);
+    --color-hue-yellow: var(--wren-hue-yellow);
+    /* The fixed dark ink that sits *on* a hue solid — tokens.css §4. */
+    --color-hue-fg: var(--wren-hue-fg);
+
     /* shadcn bridge — unchanged names, now pointing at the Wren tokens. */
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -111,6 +131,18 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+}
+
+/* The one focus ring in the app — DIRECTION §6.
+   Twenty-odd call sites used to spell out `outline-none focus-visible:ring-3
+   focus-visible:ring-ring/50` by hand, which is three chances each to drift on
+   width, colour or opacity. Compose where a filled rect needs it inside its own
+   edge: `focus-ring focus-visible:ring-inset`. */
+@utility focus-ring {
+    outline: none;
+    &:focus-visible {
+        @apply ring-3 ring-ring/50;
+    }
 }
 
 @layer base {

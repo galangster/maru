@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { AccountAvatar, HueTile, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { keys, useAccounts, useSettings } from '@/features/mail/queries'
@@ -123,10 +124,10 @@ function SettingsBody({ section }: { section: SettingsSection }) {
                 // DIRECTION §6's inner = outer − inset puts these items at 16.
                 // The focus ring is a box-shadow and follows that corner on its
                 // own, which is the whole point of the rule.
-                'font-ui flex h-10 w-full items-center gap-2 rounded-[16px] px-2 text-base outline-none',
+                'font-ui flex h-10 w-full items-center gap-2 rounded-inset px-2 text-base outline-none',
                 'transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
                 PRESS,
-                'focus-visible:ring-ring/50 focus-visible:ring-3',
+                'focus-ring',
                 active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
               )}
             >
@@ -210,7 +211,7 @@ function TextField({
         spellCheck={false}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => draft !== value && onCommit(draft.trim())}
-        className="bg-sunken text-ink placeholder:text-ink-3 focus-visible:ring-ring/50 h-9 w-full rounded-sm px-3 text-base outline-none focus-visible:ring-3"
+        className="bg-sunken text-ink placeholder:text-ink-3 focus-ring h-9 w-full rounded-sm px-3 text-base"
       />
     </div>
   )
@@ -329,7 +330,7 @@ function AccountRow({ account }: { account: Account }) {
             // Every account row says "Remove". Read out of context that is
             // two identical buttons; the label says which one.
             aria-label={`Remove ${account.email}`}
-            className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-visible:ring-ring/50 h-8 shrink-0 rounded-md px-3 text-base font-medium outline-none transition-colors duration-(--wren-dur-fast) focus-visible:ring-3"
+            className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-ring h-8 shrink-0 rounded-md px-3 text-base font-medium transition-colors duration-(--wren-dur-fast)"
           />
         }
         triggerContent="Remove"
@@ -379,7 +380,7 @@ function AppearanceSection() {
                 className={cn(
                   'font-ui inline-flex h-7 items-center gap-2 rounded-sm px-3 text-base outline-none',
                   'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-                  'focus-visible:ring-ring/50 focus-visible:ring-3',
+                  'focus-ring',
                   active ? 'bg-surface text-ink font-medium shadow-xs' : 'text-ink-2 hover:text-ink',
                 )}
               >
@@ -412,29 +413,15 @@ function AppearanceSection() {
 function SoundsToggle({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
   return (
     <div className="flex flex-col gap-2">
+      {/* The shared primitive, not a hand-rolled `role="switch"` button. The
+          one that used to sit here re-derived the ARIA, the keyboard handling
+          and the thumb geometry Base UI already gets right, and then never
+          revisited them.
+          `id` lands on the hidden input Switch owns rather than on the visible
+          span, which is exactly what makes `htmlFor` work: pointer, Space,
+          Enter and a click on the label all toggle, verified in the browser. */}
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          id="wren-sounds"
-          onClick={() => onChange(!on)}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 outline-none',
-            'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-            'focus-visible:ring-ring/50 focus-visible:ring-3',
-            on ? 'bg-primary' : 'bg-sunken',
-          )}
-        >
-          <span
-            aria-hidden
-            className={cn(
-              'size-4 rounded-full bg-white shadow-xs',
-              'transition-transform duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-              on ? 'translate-x-4' : 'translate-x-0',
-            )}
-          />
-        </button>
+        <Switch id="wren-sounds" checked={on} onCheckedChange={onChange} />
         <label htmlFor="wren-sounds" className="font-ui text-ink cursor-pointer text-base">
           Interface sounds
         </label>
@@ -503,7 +490,7 @@ function GoogleSection({ highlight }: { highlight: boolean }) {
           type="button"
           onClick={() => setGuideOpen(!guideOpen)}
           aria-expanded={guideOpen}
-          className="font-ui text-brand hover:text-brand-hover focus-visible:ring-ring/50 flex h-8 w-fit items-center gap-1 rounded-md text-base font-medium outline-none focus-visible:ring-3"
+          className="font-ui text-brand hover:text-brand-hover focus-ring flex h-8 w-fit items-center gap-1 rounded-md text-base font-medium"
         >
           <Icon name={guideOpen ? 'chevronDown' : 'chevronRight'} size={16} />
           Setup guide
@@ -533,7 +520,7 @@ function GoogleSection({ highlight }: { highlight: boolean }) {
       <button
         type="button"
         onClick={() => openSettings('accounts')}
-        className="font-ui text-ink-2 hover:text-ink focus-visible:ring-ring/50 h-8 w-fit rounded-md text-base font-medium outline-none focus-visible:ring-3"
+        className="font-ui text-ink-2 hover:text-ink focus-ring h-8 w-fit rounded-md text-base font-medium"
       >
         Back to accounts
       </button>

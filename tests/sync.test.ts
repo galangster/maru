@@ -251,7 +251,37 @@ describe('incrementalSync', () => {
 
     const newMail = events.filter((e) => e.type === 'newMail')
     expect(newMail).toHaveLength(1)
-    expect(newMail[0]).toMatchObject({ accountId: 'acct-1', threadKey: 'acct-1/t2', subject: 'Subject t2' })
+    expect(newMail[0]).toMatchObject({
+      accountId: 'acct-1',
+      threadKey: 'acct-1/t2',
+      subject: 'Subject t2',
+      threads: 1,
+    })
+  })
+
+  it('coalesces a multi-thread pass into one newMail carrying the count', async () => {
+    const { api, engine, events } = ctx
+    for (const id of ['t2', 't3', 't4']) {
+      api.threads.set(id, gthread(id, [gmessage(`m-${id}`, id, { labelIds: ['INBOX', 'UNREAD'] })]))
+    }
+    api.historyResponses = [
+      {
+        history: ['t2', 't3', 't4'].map((id, i) => ({
+          id: `100${i + 1}`,
+          messagesAdded: [{ message: gmessage(`m-${id}`, id, { labelIds: ['INBOX', 'UNREAD'] }) }],
+        })),
+        historyId: '1100',
+      },
+    ]
+
+    await engine.incrementalSync()
+
+    const newMail = events.filter((e) => e.type === 'newMail')
+    // One pass, one event — the sound and the OS notification each fire once.
+    expect(newMail).toHaveLength(1)
+    expect(newMail[0]).toMatchObject({ threads: 3 })
+    // It names the newest arrival, which is the last one history reported.
+    expect(newMail[0]).toMatchObject({ threadKey: 'acct-1/t4', subject: 'Subject t4' })
   })
 
   it('does not emit newMail for a thread that was already unread', async () => {

@@ -41,8 +41,8 @@ export function MessageCard({
         type="button"
         onClick={() => setExpanded(true)}
         className={cn(
-          'bg-surface hover:bg-fill-hover focus-visible:ring-ring/50 flex h-(--wren-row-h-compact) w-full items-center gap-3 rounded-lg px-4 text-left outline-none',
-          'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3',
+          'focus-ring bg-surface hover:bg-fill-hover flex h-(--wren-row-h-compact) w-full items-center gap-3 rounded-lg px-4 text-left',
+          'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         )}
       >
         <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
@@ -85,7 +85,7 @@ export function MessageCard({
           <button
             type="button"
             onClick={onAllowImages}
-            className="font-ui text-brand hover:text-brand-hover focus-visible:ring-ring/50 shrink-0 rounded-xs text-sm font-medium outline-none focus-visible:ring-3"
+            className="font-ui text-brand hover:text-brand-hover focus-ring shrink-0 rounded-xs text-sm font-medium"
           >
             Show
           </button>

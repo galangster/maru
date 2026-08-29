@@ -21,6 +21,7 @@ import sendUrl from '@/assets/sounds/active/send.mp3?url'
 import sentUrl from '@/assets/sounds/active/sent.mp3?url'
 
 import { isScreenshot } from '@/lib/env'
+import { prefersReducedMotion } from '@/lib/motion'
 import {
   decideSound,
   initialSoundPolicyState,
@@ -69,16 +70,16 @@ let loading: Promise<void> | null = null
 const buffers = new Map<SoundName, AudioBuffer>()
 let policy: SoundPolicyState = initialSoundPolicyState()
 
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || !window.matchMedia) return false
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
 /**
  * Build the graph and decode the set. Both halves need a user gesture behind
  * them: a context created before one starts suspended, and resuming it is the
- * gesture's job. Called from the first pointer or key press, and again from the
- * Settings switch — which is itself a click.
+ * gesture's job.
+ *
+ * Never called at mount. `enabled` arriving true from persisted settings is not
+ * a gesture — it is the app starting up — and building an AudioContext there
+ * costs a suspended context plus ~30 KB of decode on the launch frame, for a
+ * cue that may not play all session. The two listeners below are the only
+ * unattended caller, and they wait for a real press.
  */
 function ensureReady(): Promise<void> {
   if (loading) return loading
@@ -112,19 +113,29 @@ function ensureReady(): Promise<void> {
 }
 
 if (typeof window !== 'undefined' && !isScreenshot) {
-  // Preload on the first gesture of the session, whatever it was, so the first
-  // cue is never the one that pays the decode. Passive and once.
+  // The first gesture *after* sounds are on, whatever it was, so the first cue
+  // is never the one that pays the decode. Not `once`: a session that starts
+  // with sounds off and turns them on later must still get its warm-up, and the
+  // click on the Settings switch is itself the gesture that provides it.
   const arm = () => {
-    if (enabled) void ensureReady()
+    if (!enabled) return
+    window.removeEventListener('pointerdown', arm)
+    window.removeEventListener('keydown', arm)
+    void ensureReady()
   }
-  window.addEventListener('pointerdown', arm, { once: true, passive: true })
-  window.addEventListener('keydown', arm, { once: true })
+  window.addEventListener('pointerdown', arm, { passive: true })
+  window.addEventListener('keydown', arm)
 }
 
-/** The Settings switch. Off is the shipped default — SOUNDS.md §3. */
+/**
+ * The Settings switch, and the persisted value at startup. Off is the shipped
+ * default — SOUNDS.md §3.
+ *
+ * It only moves the flag. Loading is `arm`'s job, or `playSound`'s, and both of
+ * those are behind a gesture.
+ */
 export function setSoundsEnabled(next: boolean): void {
   enabled = next
-  if (next) void ensureReady()
 }
 
 export interface PlayOptions {

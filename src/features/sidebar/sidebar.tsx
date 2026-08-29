@@ -146,7 +146,7 @@ function NavRow({
       // that radius on its own.
       'rounded-row font-ui group flex h-9 w-full items-center text-base outline-none',
       'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-      'focus-visible:ring-3 focus-visible:ring-ring/50',
+      'focus-ring',
       active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
       collapsed ? 'justify-center px-0' : 'gap-2 px-2',
       indent && !collapsed && 'pl-8',
@@ -250,7 +250,7 @@ function AccountSection({ account }: { account: Account }) {
           // pane's metadata keys, the composer's field labels.
           'rounded-row font-ui text-ink-3 flex h-8 w-full items-center gap-2 px-2 text-xs font-semibold outline-none',
           'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-          'hover:bg-fill-hover hover:text-ink-2 focus-visible:ring-3 focus-visible:ring-ring/50',
+          'hover:bg-fill-hover hover:text-ink-2 focus-ring',
         )}
       >
         <span className="flex w-6 shrink-0 items-center justify-center">

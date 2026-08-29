@@ -205,8 +205,8 @@ function ReplyBar() {
           type="button"
           onClick={() => replyToSelected(tile.mode)}
           className={cn(
-            'bg-surface text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 flex h-10 items-center justify-center gap-2 rounded-md text-base outline-none shadow-xs',
-            'font-ui font-medium transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3',
+            'focus-ring bg-surface text-ink-2 hover:bg-fill-hover flex h-10 items-center justify-center gap-2 rounded-md text-base shadow-xs',
+            'font-ui font-medium transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
             PRESS,
           )}
         >

@@ -6,27 +6,16 @@
 // been granted permission simply stays quiet.
 //
 // The sound and the OS toast share this one subscription because they answer
-// the same event and want opposite things from it: the toast fires per thread
-// and only when the window is unfocused, the sound fires once per arrival pass
-// whether or not the window is focused.
+// the same event: one arrival pass is one cue and one notification. The sound
+// plays whether or not the window has focus; the notification only when it
+// does not.
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 
 import type { Platform } from '@/core/platform'
 import { useMailService, usePlatform } from '@/features/mail/service'
 import { isScreenshot, isTauri } from '@/lib/env'
 import { playSound } from '@/lib/sound'
-
-/**
- * How long to wait before deciding how big an arrival was.
- *
- * `applyHistory()` emits one `newMail` event per new thread, so a five-message
- * batch is five synchronous events. The sound has to see the batch, not the
- * events: one pass is one cue, and a pass of more than three is silent
- * altogether (SOUNDS.md §3, MAGIC §4.4). 120 ms is long enough to collect a
- * pass and far shorter than the 30 s floor between two cues.
- */
-const ARRIVAL_COALESCE_MS = 120
 
 export function useNotifications(): void {
   const service = useMailService()
@@ -34,10 +23,6 @@ export function useNotifications(): void {
   // toast threw away the permission answer it had already been given and
   // opened a second object holding a second SQLite handle.
   const platform = usePlatform()
-  const arrival = useRef<{ count: number; timer: number | undefined }>({
-    count: 0,
-    timer: undefined,
-  })
 
   useEffect(() => {
     if (isScreenshot) return
@@ -49,35 +34,32 @@ export function useNotifications(): void {
       })
     }
 
-    const pending = arrival.current
-    const queueArrivalSound = () => {
-      pending.count += 1
-      window.clearTimeout(pending.timer)
-      pending.timer = window.setTimeout(() => {
-        const batchSize = pending.count
-        pending.count = 0
-        playSound('newMail', { batchSize })
-      }, ARRIVAL_COALESCE_MS)
-    }
-
     const unsubscribe = service.onEvent((event) => {
       if (event.type !== 'newMail') return
-      queueArrivalSound()
+      // The event *is* the pass — `event.threads` is how many arrived. This
+      // used to be one event per thread, re-collected here behind a 120 ms
+      // timer that had to be long enough for a batch and short enough not to
+      // lag the cue; the emitter knew the answer all along (SOUNDS.md §3,
+      // MAGIC §4.4: one pass is one cue, and a pass over three is silent).
+      playSound('newMail', { batchSize: event.threads })
       if (document.hasFocus()) return
-      void notify(platform, event.from, event.subject)
+      void notify(platform, event.from, arrivalBody(event.subject, event.threads))
     })
 
     return () => {
       unsubscribe()
-      window.clearTimeout(pending.timer)
-      pending.count = 0
       stopAction?.()
     }
   }, [service, platform])
 }
 
-async function notify(platform: Platform | null, from: string, subject: string): Promise<void> {
-  const body = subject || '(no subject)'
+/** One notification for the pass, so five arrivals are not five toasts. */
+function arrivalBody(subject: string, threads: number): string {
+  const lead = subject || '(no subject)'
+  return threads > 1 ? `${lead} — and ${threads - 1} more` : lead
+}
+
+async function notify(platform: Platform | null, from: string, body: string): Promise<void> {
   if (platform) {
     await platform.notify(from, body)
     return

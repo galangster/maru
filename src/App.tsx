@@ -24,6 +24,9 @@ export default function App() {
   // The persisted switch drives the audio layer, which is a module rather than
   // a store: nothing renders on it, and a play call from an event handler must
   // not have to reach into React to find out whether it is allowed.
+  //
+  // This sets a flag and nothing else — no AudioContext, no decode. Mount is
+  // not a user gesture, and lib/sound waits for one before it builds anything.
   const sounds = useSettings().data?.sounds ?? false
   useEffect(() => setSoundsEnabled(sounds), [sounds])
 

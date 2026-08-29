@@ -304,21 +304,28 @@ function applyLabelDelta(labelIds: string[], delta: LabelDelta): string[] {
 // Store
 // ---------------------------------------------------------------------------
 
+/**
+ * WHY THE BATCH WRITES BELOW HAVE NO BEGIN/COMMIT
+ *
+ * Six methods here write several statements that logically belong together —
+ * `deleteAccount`, `upsertThreads`, `deleteThreads`, `upsertMessages`,
+ * `writeMessageFlags`, `replaceLabels`. None of them opens a transaction, and
+ * that is a finding rather than an omission.
+ *
+ * Production SQL runs through tauri-plugin-sql's connection POOL. `execute
+ * ('BEGIN')` pins the transaction to one pooled connection while the batch's
+ * other statements land on different connections; those block behind the write
+ * lock and die at the ~5 s busy timeout. Observed live against real Gmail:
+ * every write ~5.2 s, rows_affected=0.
+ *
+ * The multi-row VALUES statements carry the batching win on their own, and
+ * each statement is atomic by itself. This used to be recorded on a private
+ * `transaction()` that only called its argument — a seam that did nothing but
+ * hold a comment, and read at six call sites as though a transaction were
+ * being taken.
+ */
 export class Store {
   constructor(private readonly db: SqlDb) {}
-
-  /**
-   * Batching seam. Explicit BEGIN/COMMIT is deliberately absent: production
-   * SQL runs through tauri-plugin-sql's connection POOL, so `execute('BEGIN')`
-   * pins the transaction to one pooled connection while the batch's other
-   * statements land on different connections — they block behind the write
-   * lock and die at the ~5s busy timeout (observed live against real Gmail:
-   * every write ~5.2s, rows_affected=0). The multi-row VALUES statements
-   * carry the batching win on their own, and each statement is atomic.
-   */
-  private async transaction<T>(run: () => Promise<T>): Promise<T> {
-    return run()
-  }
 
   static async open(platform: Platform): Promise<Store> {
     const db = await platform.sqlOpen()
@@ -361,12 +368,10 @@ export class Store {
   }
 
   async deleteAccount(accountId: string): Promise<void> {
-    await this.transaction(async () => {
-      for (const table of ['messages', 'thread_labels', 'threads', 'labels', 'sync_state']) {
-        await this.db.execute(`DELETE FROM ${table} WHERE account_id = $1`, [accountId])
-      }
-      await this.db.execute('DELETE FROM accounts WHERE id = $1', [accountId])
-    })
+    for (const table of ['messages', 'thread_labels', 'threads', 'labels', 'sync_state']) {
+      await this.db.execute(`DELETE FROM ${table} WHERE account_id = $1`, [accountId])
+    }
+    await this.db.execute('DELETE FROM accounts WHERE id = $1', [accountId])
   }
 
   // -- threads --------------------------------------------------------------
@@ -375,61 +380,59 @@ export class Store {
     const rows = dedupeBy(threads, (t) => t.key)
     if (rows.length === 0) return
 
-    await this.transaction(async () => {
-      for (const group of chunkRows(rows, THREAD_COLUMNS)) {
-        const params = group.flatMap((t) => [
-          t.key,
-          t.accountId,
-          t.gmailThreadId,
-          t.subject,
-          t.snippet,
-          t.lastMessageAt,
-          JSON.stringify(t.participants),
-          JSON.stringify(t.labelIds),
-          bit(t.unread),
-          bit(t.starred),
-          t.messageCount,
-          bit(t.hasAttachments),
-        ])
-        await this.db.execute(
-          `INSERT INTO threads (key, account_id, gmail_thread_id, subject, snippet, last_message_at,
-                                participants, label_ids, unread, starred, message_count, has_attachments)
-           VALUES ${valueGroups(group.length, THREAD_COLUMNS)}
-           ON CONFLICT(key) DO UPDATE SET
-             subject = excluded.subject,
-             snippet = excluded.snippet,
-             last_message_at = excluded.last_message_at,
-             participants = excluded.participants,
-             label_ids = excluded.label_ids,
-             unread = excluded.unread,
-             starred = excluded.starred,
-             message_count = excluded.message_count,
-             has_attachments = excluded.has_attachments`,
-          params,
-        )
-      }
-
-      // Membership is replaced wholesale, so the delete and the insert are one
-      // statement each for the whole batch rather than two per thread.
-      const keys = rows.map((t) => t.key)
-      for (const group of chunkRows(keys, 1)) {
-        await this.db.execute(
-          `DELETE FROM thread_labels WHERE thread_key IN (${placeholderList(group.length)})`,
-          group,
-        )
-      }
-
-      const labelRows = rows.flatMap((t) =>
-        [...new Set(t.labelIds)].map((labelId) => [t.key, t.accountId, labelId]),
+    for (const group of chunkRows(rows, THREAD_COLUMNS)) {
+      const params = group.flatMap((t) => [
+        t.key,
+        t.accountId,
+        t.gmailThreadId,
+        t.subject,
+        t.snippet,
+        t.lastMessageAt,
+        JSON.stringify(t.participants),
+        JSON.stringify(t.labelIds),
+        bit(t.unread),
+        bit(t.starred),
+        t.messageCount,
+        bit(t.hasAttachments),
+      ])
+      await this.db.execute(
+        `INSERT INTO threads (key, account_id, gmail_thread_id, subject, snippet, last_message_at,
+                              participants, label_ids, unread, starred, message_count, has_attachments)
+         VALUES ${valueGroups(group.length, THREAD_COLUMNS)}
+         ON CONFLICT(key) DO UPDATE SET
+           subject = excluded.subject,
+           snippet = excluded.snippet,
+           last_message_at = excluded.last_message_at,
+           participants = excluded.participants,
+           label_ids = excluded.label_ids,
+           unread = excluded.unread,
+           starred = excluded.starred,
+           message_count = excluded.message_count,
+           has_attachments = excluded.has_attachments`,
+        params,
       )
-      for (const group of chunkRows(labelRows, LABEL_ROW_COLUMNS)) {
-        await this.db.execute(
-          `INSERT OR REPLACE INTO thread_labels (thread_key, account_id, label_id)
-           VALUES ${valueGroups(group.length, LABEL_ROW_COLUMNS)}`,
-          group.flat(),
-        )
-      }
-    })
+    }
+
+    // Membership is replaced wholesale, so the delete and the insert are one
+    // statement each for the whole batch rather than two per thread.
+    const keys = rows.map((t) => t.key)
+    for (const group of chunkRows(keys, 1)) {
+      await this.db.execute(
+        `DELETE FROM thread_labels WHERE thread_key IN (${placeholderList(group.length)})`,
+        group,
+      )
+    }
+
+    const labelRows = rows.flatMap((t) =>
+      [...new Set(t.labelIds)].map((labelId) => [t.key, t.accountId, labelId]),
+    )
+    for (const group of chunkRows(labelRows, LABEL_ROW_COLUMNS)) {
+      await this.db.execute(
+        `INSERT OR REPLACE INTO thread_labels (thread_key, account_id, label_id)
+         VALUES ${valueGroups(group.length, LABEL_ROW_COLUMNS)}`,
+        group.flat(),
+      )
+    }
   }
 
   async getThread(key: string): Promise<Thread | null> {
@@ -444,14 +447,12 @@ export class Store {
 
   async deleteThreads(keys: string[]): Promise<void> {
     if (keys.length === 0) return
-    await this.transaction(async () => {
-      for (const group of chunkRows(keys, 1)) {
-        const list = placeholderList(group.length)
-        await this.db.execute(`DELETE FROM messages WHERE thread_key IN (${list})`, group)
-        await this.db.execute(`DELETE FROM thread_labels WHERE thread_key IN (${list})`, group)
-        await this.db.execute(`DELETE FROM threads WHERE key IN (${list})`, group)
-      }
-    })
+    for (const group of chunkRows(keys, 1)) {
+      const list = placeholderList(group.length)
+      await this.db.execute(`DELETE FROM messages WHERE thread_key IN (${list})`, group)
+      await this.db.execute(`DELETE FROM thread_labels WHERE thread_key IN (${list})`, group)
+      await this.db.execute(`DELETE FROM threads WHERE key IN (${list})`, group)
+    }
   }
 
   async listThreadKeys(accountId: string): Promise<string[]> {
@@ -503,63 +504,61 @@ export class Store {
     const rows = dedupeBy(messages, (m) => m.id)
     if (rows.length === 0) return
 
-    await this.transaction(async () => {
-      for (const group of chunkRows(rows, MESSAGE_COLUMNS)) {
-        const params = group.flatMap((m) => [
-          m.id,
-          `${m.accountId}/${m.threadId}`,
-          m.threadId,
-          m.accountId,
-          JSON.stringify(m.from),
-          JSON.stringify(m.to),
-          JSON.stringify(m.cc),
-          JSON.stringify(m.bcc),
-          JSON.stringify(m.replyTo),
-          m.date,
-          m.subject,
-          m.snippet,
-          m.bodyHtml ?? null,
-          m.bodyText ?? null,
-          m.bodyState,
-          JSON.stringify(m.labelIds),
-          JSON.stringify(m.attachments),
-          m.rfcMessageId ?? null,
-          m.references ?? null,
-          m.inReplyTo ?? null,
-          bit(m.unread),
-          bit(m.starred),
-        ])
-        await this.db.execute(
-          `INSERT INTO messages (id, thread_key, thread_id, account_id, from_json, to_json, cc_json, bcc_json,
-                                 reply_to_json, date, subject, snippet, body_html, body_text, body_state,
-                                 label_ids, attachments, rfc_message_id, references_hdr, in_reply_to, unread, starred)
-           VALUES ${valueGroups(group.length, MESSAGE_COLUMNS)}
-           ON CONFLICT(id) DO UPDATE SET
-           thread_key = excluded.thread_key,
-           from_json = excluded.from_json,
-           to_json = excluded.to_json,
-           cc_json = excluded.cc_json,
-           bcc_json = excluded.bcc_json,
-           reply_to_json = excluded.reply_to_json,
-           date = excluded.date,
-           subject = excluded.subject,
-           snippet = excluded.snippet,
-           -- A metadata refetch must never blank a body we already hydrated.
-           body_html = COALESCE(excluded.body_html, messages.body_html),
-           body_text = COALESCE(excluded.body_text, messages.body_text),
-           body_state = CASE WHEN excluded.body_state = 'full' OR messages.body_state = 'full'
-                             THEN 'full' ELSE excluded.body_state END,
-           label_ids = excluded.label_ids,
-           attachments = CASE WHEN excluded.attachments = '[]' THEN messages.attachments ELSE excluded.attachments END,
-           rfc_message_id = COALESCE(excluded.rfc_message_id, messages.rfc_message_id),
-           references_hdr = COALESCE(excluded.references_hdr, messages.references_hdr),
-           in_reply_to = COALESCE(excluded.in_reply_to, messages.in_reply_to),
-             unread = excluded.unread,
-             starred = excluded.starred`,
-          params,
-        )
-      }
-    })
+    for (const group of chunkRows(rows, MESSAGE_COLUMNS)) {
+      const params = group.flatMap((m) => [
+        m.id,
+        `${m.accountId}/${m.threadId}`,
+        m.threadId,
+        m.accountId,
+        JSON.stringify(m.from),
+        JSON.stringify(m.to),
+        JSON.stringify(m.cc),
+        JSON.stringify(m.bcc),
+        JSON.stringify(m.replyTo),
+        m.date,
+        m.subject,
+        m.snippet,
+        m.bodyHtml ?? null,
+        m.bodyText ?? null,
+        m.bodyState,
+        JSON.stringify(m.labelIds),
+        JSON.stringify(m.attachments),
+        m.rfcMessageId ?? null,
+        m.references ?? null,
+        m.inReplyTo ?? null,
+        bit(m.unread),
+        bit(m.starred),
+      ])
+      await this.db.execute(
+        `INSERT INTO messages (id, thread_key, thread_id, account_id, from_json, to_json, cc_json, bcc_json,
+                               reply_to_json, date, subject, snippet, body_html, body_text, body_state,
+                               label_ids, attachments, rfc_message_id, references_hdr, in_reply_to, unread, starred)
+         VALUES ${valueGroups(group.length, MESSAGE_COLUMNS)}
+         ON CONFLICT(id) DO UPDATE SET
+         thread_key = excluded.thread_key,
+         from_json = excluded.from_json,
+         to_json = excluded.to_json,
+         cc_json = excluded.cc_json,
+         bcc_json = excluded.bcc_json,
+         reply_to_json = excluded.reply_to_json,
+         date = excluded.date,
+         subject = excluded.subject,
+         snippet = excluded.snippet,
+         -- A metadata refetch must never blank a body we already hydrated.
+         body_html = COALESCE(excluded.body_html, messages.body_html),
+         body_text = COALESCE(excluded.body_text, messages.body_text),
+         body_state = CASE WHEN excluded.body_state = 'full' OR messages.body_state = 'full'
+                           THEN 'full' ELSE excluded.body_state END,
+         label_ids = excluded.label_ids,
+         attachments = CASE WHEN excluded.attachments = '[]' THEN messages.attachments ELSE excluded.attachments END,
+         rfc_message_id = COALESCE(excluded.rfc_message_id, messages.rfc_message_id),
+         references_hdr = COALESCE(excluded.references_hdr, messages.references_hdr),
+         in_reply_to = COALESCE(excluded.in_reply_to, messages.in_reply_to),
+           unread = excluded.unread,
+           starred = excluded.starred`,
+        params,
+      )
+    }
   }
 
   /**
@@ -608,29 +607,27 @@ export class Store {
 
   private async writeMessageFlags(rows: MessageFlags[]): Promise<void> {
     if (rows.length === 0) return
-    await this.transaction(async () => {
-      for (const group of chunkRows(rows, FLAG_COLUMNS)) {
-        // A values list joined back onto messages: one statement for the batch,
-        // and the untouched columns are never named, let alone rewritten.
-        const params = group.flatMap((r) => [
-          r.id,
-          JSON.stringify(r.labelIds),
-          bit(r.unread),
-          bit(r.starred),
-        ])
-        await this.db.execute(
-          `WITH flags(id, label_ids, unread, starred) AS (
-             VALUES ${valueGroups(group.length, FLAG_COLUMNS)}
-           )
-           UPDATE messages SET
-             label_ids = (SELECT label_ids FROM flags WHERE flags.id = messages.id),
-             unread    = (SELECT unread    FROM flags WHERE flags.id = messages.id),
-             starred   = (SELECT starred   FROM flags WHERE flags.id = messages.id)
-           WHERE id IN (SELECT id FROM flags)`,
-          params,
-        )
-      }
-    })
+    for (const group of chunkRows(rows, FLAG_COLUMNS)) {
+      // A values list joined back onto messages: one statement for the batch,
+      // and the untouched columns are never named, let alone rewritten.
+      const params = group.flatMap((r) => [
+        r.id,
+        JSON.stringify(r.labelIds),
+        bit(r.unread),
+        bit(r.starred),
+      ])
+      await this.db.execute(
+        `WITH flags(id, label_ids, unread, starred) AS (
+           VALUES ${valueGroups(group.length, FLAG_COLUMNS)}
+         )
+         UPDATE messages SET
+           label_ids = (SELECT label_ids FROM flags WHERE flags.id = messages.id),
+           unread    = (SELECT unread    FROM flags WHERE flags.id = messages.id),
+           starred   = (SELECT starred   FROM flags WHERE flags.id = messages.id)
+         WHERE id IN (SELECT id FROM flags)`,
+        params,
+      )
+    }
   }
 
   async listMessages(threadKey: string): Promise<Message[]> {
@@ -657,16 +654,14 @@ export class Store {
 
   async replaceLabels(accountId: string, labels: Label[]): Promise<void> {
     const rows = dedupeBy(labels, (l) => l.id)
-    await this.transaction(async () => {
-      await this.db.execute('DELETE FROM labels WHERE account_id = $1', [accountId])
-      for (const group of chunkRows(rows, 5)) {
-        await this.db.execute(
-          `INSERT OR REPLACE INTO labels (account_id, id, name, type, unread_count)
-           VALUES ${valueGroups(group.length, 5)}`,
-          group.flatMap((l) => [accountId, l.id, l.name, l.type, l.unreadCount ?? null]),
-        )
-      }
-    })
+    await this.db.execute('DELETE FROM labels WHERE account_id = $1', [accountId])
+    for (const group of chunkRows(rows, 5)) {
+      await this.db.execute(
+        `INSERT OR REPLACE INTO labels (account_id, id, name, type, unread_count)
+         VALUES ${valueGroups(group.length, 5)}`,
+        group.flatMap((l) => [accountId, l.id, l.name, l.type, l.unreadCount ?? null]),
+      )
+    }
   }
 
   async listLabels(accountId: string): Promise<Label[]> {

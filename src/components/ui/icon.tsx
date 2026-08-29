@@ -48,8 +48,8 @@ export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'ref'> {
    * what "selected" looks like in this system; Line is resting.
    *
    * Only the four glyphs in ANRON_FILLED_PATHS have a twin. Anything else
-   * falls back to its Line paths with `fill: currentColor`, which is what the
-   * prop used to do everywhere and is still right for a closed outline.
+   * draws its Line paths unchanged and warns once in dev — see the `fill`
+   * note below for why filling them is never the right fallback.
    */
   filled?: boolean
 }
@@ -62,8 +62,21 @@ function hasFilledTwin(name: IconName): name is keyof typeof ANRON_FILLED_PATHS 
   return name in ANRON_FILLED_PATHS
 }
 
+/** Names already warned about, so a virtualized list logs once, not per row. */
+const warned = new Set<string>()
+
+function warnMissingTwin(name: IconName): void {
+  if (!import.meta.env.DEV || warned.has(name)) return
+  warned.add(name)
+  console.warn(
+    `[wren] Icon "${name}" has no Style=Filled twin; drawing the Line glyph. ` +
+      'Add it to ANRON_FILLED_PATHS, or drop `filled` at the call site.',
+  )
+}
+
 export function Icon({ name, size = 18, filled = false, className, ...props }: IconProps) {
   const twin = filled && hasFilledTwin(name)
+  if (filled && !twin) warnMissingTwin(name)
   // Shared across both branches so a holdout cannot drift from the Anron
   // glyphs on weight, caps or the size grid.
   const shared = {
@@ -77,7 +90,11 @@ export function Icon({ name, size = 18, filled = false, className, ...props }: I
     strokeWidth: twin ? 0 : 1.5,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
-    fill: filled ? 'currentColor' : 'none',
+    // `twin`, not `filled`: only a glyph *drawn* as a solid may be filled.
+    // Flooding an open Line glyph with currentColor closes its counters and
+    // turns a 1.5 px outline into a blob — a silent, ugly failure for a name
+    // that simply has no Filled twin yet. It falls back to Line instead.
+    fill: twin ? 'currentColor' : 'none',
     // No `vector-effect: non-scaling-stroke`. DIRECTION §8 asks for it, but
     // it is what made a 16 px glyph scaled down by CSS keep its stroke on a
     // 12 px box — ~33% heavier than every other icon in the app

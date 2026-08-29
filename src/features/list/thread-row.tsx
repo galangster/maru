@@ -16,14 +16,14 @@
 // view it now carries a full-chroma hairline of it too. One saturated chip
 // leads the row and answers "whose is this" — DIRECTION §2, Family 3.
 
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 
 import { Icon } from '@/components/ui/icon'
-import { AccountAvatar, IconButton } from '@/components/wren-controls'
+import { AVATAR_CHIP, AccountAvatar, iconButtonClass } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import { THREAD_ACTION_ORDER, threadActions } from '@/features/mail/thread-actions'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
-import { hueFor } from '@/lib/hue'
+import { hueFor, hueSolid } from '@/lib/hue'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
@@ -219,8 +219,15 @@ function ArchiveTick() {
   return (
     <span
       aria-hidden
-      style={{ animation: 'wren-confirm-pop var(--wren-dur-slow) var(--wren-ease-spring) both' }}
-      className="bg-[var(--wren-hue-green)] text-[var(--wren-hue-fg)] inline-flex size-(--wren-avatar) shrink-0 items-center justify-center rounded-full"
+      style={{
+        // The one fixed hue in the app, read through the hue authority rather
+        // than typed as a var() by hand.
+        backgroundColor: hueSolid('green'),
+        animation: 'wren-confirm-pop var(--wren-dur-slow) var(--wren-ease-spring) both',
+      }}
+      // The avatar's own geometry: the tick replaces it mid-row, so the two
+      // are one shape changing rather than two shapes swapping.
+      className={cn(AVATAR_CHIP, 'text-hue-fg')}
     >
       <Icon name="check" size={16} />
     </span>
@@ -251,6 +258,13 @@ function ArchiveTick() {
  * 130 px of gutter, so the cluster moved down instead of the content moving
  * over: nothing reflows, nothing animates but opacity and a 4 px slide, and the
  * time stays visible.
+ *
+ * The four buttons are bare, styled by `iconButtonClass` rather than rendered
+ * as <IconButton>. IconButton brings a tooltip, and a tooltip inside an
+ * `aria-hidden` cluster can never be read out or focused — so twenty-eight
+ * visible rows were mounting ~112 tooltip roots, each with its own positioning
+ * subscription, to describe buttons no assistive technology can reach. The
+ * labels live on the keyboard equivalents and in the "?" sheet.
  */
 function QuickActions({
   thread,
@@ -260,6 +274,11 @@ function QuickActions({
   onAction: (type: MailActionType) => void
 }) {
   const actions = threadActions(thread)
+  // The star's press pop — MAGIC §3.4. Counting presses rather than holding a
+  // boolean: the key remounts the span, which is what makes the CSS animation
+  // run a second time. Zero means "not pressed yet", so a starred row that
+  // scrolls into view does not pop.
+  const [presses, setPresses] = useState(0)
   return (
     <div
       aria-hidden
@@ -277,19 +296,25 @@ function QuickActions({
       {THREAD_ACTION_ORDER.map((id) => {
         const spec = actions[id]
         return (
-          <IconButton
+          <button
             key={spec.id}
-            name={spec.icon}
-            label={spec.label}
-            hint={spec.hint}
-            size={16}
+            type="button"
             tabIndex={-1}
-            tone={spec.tone}
-            filled={spec.filled}
-            pop={spec.pop}
             disabled={spec.disabled}
-            onClick={() => onAction(spec.type)}
-          />
+            onClick={() => {
+              if (spec.pop) setPresses((n) => n + 1)
+              onAction(spec.type)
+            }}
+            className={iconButtonClass(spec.tone)}
+          >
+            <span
+              key={spec.pop ? presses : 0}
+              className="inline-flex"
+              data-wren-pop={spec.pop && presses > 0 ? '' : undefined}
+            >
+              <Icon name={spec.icon} size={16} filled={spec.filled} />
+            </span>
+          </button>
         )
       })}
     </div>

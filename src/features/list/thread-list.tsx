@@ -25,8 +25,9 @@ import { useMailService } from '@/features/mail/service'
 import { useUi } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/features/search/thread-result'
 import { useSurfaces } from '@/features/shell/surface-store'
+import { HeldMutations } from '@/lib/deferred'
 import { dateGroup, type DateGroup } from '@/lib/format'
-import { useMotionMode } from '@/lib/motion'
+import { DUR } from '@/lib/motion'
 import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
@@ -40,10 +41,12 @@ const ROW_H = 68
 /**
  * How long the archive tick holds the mutation: --wren-dur-fast of delay plus
  * --wren-dur-base of exit, which is also exactly when the check's pop lands.
- * Kept in sync by hand with thread-row.tsx, because CSS owns the animation and
- * JS owns the hold, and there is no third place for the number to live.
+ *
+ * Derived from the motion tokens rather than typed as 320, because CSS owns the
+ * animation and JS owns the hold: a retuned duration used to need two edits and
+ * only ever got one.
  */
-const TICK_MS = 320
+const TICK_MS = Math.round((DUR.fast + DUR.base) * 1000)
 
 type Row =
   | { kind: 'group'; key: string; label: DateGroup }
@@ -111,27 +114,17 @@ export function ThreadList() {
   const actionRef = useRef(action)
   actionRef.current = action
 
-  // The row currently showing its archive tick, and the timer holding its
-  // mutation. AMIE-STUDY §7(c).1: the row has to still be in the data while
-  // the check pops, so the action waits exactly as long as the animation runs
-  // and not a frame longer.
+  // The row currently showing its archive tick, and the archives waiting out
+  // their animations. AMIE-STUDY §7(c).1: the row has to still be in the data
+  // while the check pops, so the action waits exactly as long as the animation
+  // runs and not a frame longer.
   const [ticking, setTicking] = useState<string | null>(null)
-  const held = useRef<Map<string, number>>(new Map())
-  const mode = useMotionMode()
+  const [held] = useState(() => new HeldMutations())
 
   // A mail action must never be lost to an animation. Anything still held when
   // this pane goes away fires now, in the same turn — the same guarantee the
-  // composer's held send makes.
-  useEffect(() => {
-    const pending = held.current
-    return () => {
-      for (const [key, timer] of pending) {
-        window.clearTimeout(timer)
-        actionRef.current.mutate({ type: 'archive', threadKey: key })
-      }
-      pending.clear()
-    }
-  }, [])
+  // composer's held send makes, through the same helper.
+  useEffect(() => () => held.flushAll(), [held])
 
   const onSelect = useCallback(
     (thread: Thread) => {
@@ -145,22 +138,29 @@ export function ThreadList() {
 
   const onAction = useCallback(
     (thread: Thread, type: MailActionType) => {
-      // Archive is the one action with a row-level celebration. Everything
-      // else goes straight through, and so does archive under reduced motion
-      // and in the capture path, where there is nothing to wait for.
-      if (type !== 'archive' || mode !== 'full' || held.current.has(thread.key)) {
+      // Archive is the one action with a row-level celebration; everything else
+      // goes straight through. A second archive on a row already ticking is not
+      // a second celebration — it goes through as well.
+      //
+      // There is no reduced-motion branch here: the tick and the row's exit are
+      // CSS, and the tokens the reduced-motion block zeroes already turn both
+      // into a 120 ms crossfade. A JS copy of that rule was a second answer to
+      // a question tokens.css had already settled.
+      if (type !== 'archive' || held.has(thread.key)) {
         actionRef.current.mutate({ type, threadKey: thread.key })
         return
       }
       setTicking(thread.key)
-      const timer = window.setTimeout(() => {
-        held.current.delete(thread.key)
-        setTicking((current) => (current === thread.key ? null : current))
-        actionRef.current.mutate({ type: 'archive', threadKey: thread.key })
-      }, TICK_MS)
-      held.current.set(thread.key, timer)
+      held.hold(
+        thread.key,
+        () => {
+          setTicking((current) => (current === thread.key ? null : current))
+          actionRef.current.mutate({ type: 'archive', threadKey: thread.key })
+        },
+        TICK_MS,
+      )
     },
-    [mode],
+    [held],
   )
 
   const labelName =
@@ -250,12 +250,12 @@ export function ThreadList() {
                     data-thread-key={thread.key}
                     onClick={() => onSelect(thread)}
                     className={cn(
-                      'rounded-row flex h-(--wren-row-h-compact) w-full items-center px-2 text-left outline-none',
+                      'rounded-row flex h-(--wren-row-h-compact) w-full items-center px-2 text-left',
                       'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
                       // The ring follows the rect it is on, so a focused
                       // result reads as one shape rather than as a square
                       // outline around a rounded fill.
-                      'focus-visible:ring-ring/50 focus-visible:ring-3 focus-visible:ring-inset',
+                      'focus-ring focus-visible:ring-inset',
                       selected === thread.key ? 'bg-fill-selected' : 'hover:bg-fill-hover',
                     )}
                   >
@@ -287,7 +287,7 @@ export function ThreadList() {
             tabIndex={0}
             aria-activedescendant={selected ? threadRowId(selected) : undefined}
             data-wren-listbox
-            className="focus-visible:ring-ring/50 relative w-full outline-none focus-visible:ring-3 focus-visible:ring-inset"
+            className="focus-ring relative w-full focus-visible:ring-inset"
             style={{ height: virtualizer.getTotalSize() }}
           >
             {virtualizer.getVirtualItems().map((item) => {

@@ -25,9 +25,10 @@ import { useAccounts } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { useAnyDialogOpen } from '@/features/shell/surface-store'
 import { ATTACHMENT_WARN_BYTES, totalBytes, type ReplyMode } from '@/lib/compose'
+import { HeldMutations } from '@/lib/deferred'
 import { formatBytes } from '@/lib/format'
 import { MOD } from '@/features/keyboard/keymap'
-import { exitTransition, sheetPreset, useMotionMode } from '@/lib/motion'
+import { DUR, exitTransition, sheetPreset, useMotionMode } from '@/lib/motion'
 import { playSound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
@@ -60,41 +61,17 @@ const SEND_TOAST = 'wren-send'
  * The send waiting out its undo window, if there is one.
  *
  * Module scope, because it has to outlive the sheet: the composer unmounts the
- * instant the user commits, and the mail leaves several seconds later.
+ * instant the user commits, and the mail leaves several seconds later. One key,
+ * because there is only ever one — a second send flushes the first, so two in a
+ * row never race and never reorder.
  */
-let heldSend: (() => void) | null = null
+const heldSend = new HeldMutations()
+const SEND_KEY = 'send'
 
 if (typeof window !== 'undefined') {
   // Closing the window must not eat a held message. Whatever is waiting goes
   // now, in the same turn.
-  window.addEventListener('beforeunload', () => heldSend?.())
-}
-
-/**
- * Hold `run` for the undo window. Returns the canceller.
- *
- * Anything already held is flushed first, so two sends in a row never race and
- * never reorder: the earlier one goes immediately and the later one starts its
- * own window.
- */
-function holdSend(run: () => void): () => void {
-  heldSend?.()
-  let spent = false
-  const fire = () => {
-    if (spent) return
-    spent = true
-    window.clearTimeout(timer)
-    if (heldSend === fire) heldSend = null
-    run()
-  }
-  const timer = window.setTimeout(fire, UNDO_WINDOW_MS)
-  heldSend = fire
-  return () => {
-    if (spent) return
-    spent = true
-    window.clearTimeout(timer)
-    if (heldSend === fire) heldSend = null
-  }
+  window.addEventListener('beforeunload', () => heldSend.flushAll())
 }
 
 export function Composer() {
@@ -190,17 +167,18 @@ function ComposerSheet() {
     playSound('send')
     remember(payload.accountId)
 
-    // Motion off (captures) and reduced motion both collapse the beats to zero
-    // rather than replaying them faster — there is nothing to see either way.
-    // 200 ms is --wren-dur-base: long enough for the fill to land and the pop
-    // to read, short enough that the app is usable again before the eye has
-    // moved. Under reduced motion the fill and the check still swap; only the
-    // waiting goes away.
-    const beat = mode === 'full' ? 200 : 0
+    // Motion off (captures) and reduced motion both collapse the beat to zero
+    // rather than replaying it faster — there is nothing to see either way.
+    // --wren-dur-base is long enough for the fill to land and the pop to read,
+    // short enough that the app is usable again before the eye has moved. Under
+    // reduced motion the fill and the check still swap; only the waiting goes
+    // away. Read from the motion tokens so it cannot drift from the animation
+    // it is waiting on.
+    const beat = mode === 'full' ? Math.round(DUR.base * 1000) : 0
 
     window.setTimeout(() => {
       close()
-      const cancel = holdSend(() => {
+      const cancel = heldSend.hold(SEND_KEY, () => {
         void (async () => {
           try {
             await service.send(payload)
@@ -218,7 +196,7 @@ function ComposerSheet() {
             openWith(kept)
           }
         })()
-      })
+      }, UNDO_WINDOW_MS)
 
       window.setTimeout(() => {
         toast('Sending…', {
@@ -286,7 +264,7 @@ function ComposerSheet() {
             type="button"
             onClick={() => setMinimized(false)}
             aria-label={`Reopen ${draft.subject || title}`}
-            className="font-ui text-ink focus-visible:ring-ring/50 min-w-0 flex-1 truncate rounded-xs text-left text-base font-medium outline-none focus-visible:ring-3"
+            className="font-ui text-ink focus-ring min-w-0 flex-1 truncate rounded-xs text-left text-base font-medium"
           >
             {draft.subject || title}
           </button>
@@ -360,7 +338,7 @@ function ComposerSheet() {
               // "Cc Bcc" read as one word. The slash says it is two fields,
               // and the label says what pressing it does.
               aria-label="Add Cc and Bcc"
-              className="font-ui text-ink-3 hover:text-ink focus-visible:ring-ring/50 h-6 rounded-xs px-1 text-xs outline-none focus-visible:ring-3"
+              className="font-ui text-ink-3 hover:text-ink focus-ring h-6 rounded-xs px-1 text-xs"
             >
               Cc / Bcc
             </button>
@@ -422,7 +400,7 @@ function ComposerSheet() {
                       attachments: draft.attachments.filter((a) => a.id !== attachment.id),
                     })
                   }
-                  className="text-ink-3 hover:text-ink focus-visible:ring-ring/50 relative inline-flex size-5 shrink-0 items-center justify-center rounded-xs outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-3"
+                  className="focus-ring text-ink-3 hover:text-ink relative inline-flex size-5 shrink-0 items-center justify-center rounded-xs after:absolute after:-inset-1.5 after:content-['']"
                 >
                   <Icon name="close" size={16} />
                 </button>
@@ -481,7 +459,7 @@ function ComposerSheet() {
                 className={cn(
                   'h-8 gap-2 px-4 transition-[background-color,color] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
                   sending &&
-                    'bg-[var(--wren-hue-green)] text-[var(--wren-hue-fg)] disabled:opacity-100',
+                    'bg-hue-green text-hue-fg disabled:opacity-100',
                 )}
               />
             }

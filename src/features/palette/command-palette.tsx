@@ -89,7 +89,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const { compose } = useComposeActions()
   const theme = useThemeToggle()
 
-  const { accounts: accountList, byId: accountsById, selfEmails } = useAccountsById()
+  const { accounts: accountList, selfEmails } = useAccountsById()
 
   const current = (threads.data ?? []).find((t) => t.key === selected)
 
@@ -198,7 +198,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                 value={`${debounced} ${thread.key}`}
                 onSelect={() => openThread(thread)}
                 // Concentric: the palette is 24 and the list is `p-2`, so a row is 16.
-                className="data-[selected=true]:bg-fill-selected group flex h-(--wren-row-h-compact) cursor-default items-center rounded-[16px] px-2 outline-none"
+                className="data-[selected=true]:bg-fill-selected group flex h-(--wren-row-h-compact) cursor-default items-center rounded-inset px-2 outline-none"
               >
                 <ThreadResult
                   thread={thread}
@@ -250,7 +250,7 @@ function Row({
     <Command.Item
       value={label}
       onSelect={onSelect}
-      className="data-[selected=true]:bg-fill-selected data-[selected=true]:text-ink group text-ink-2 flex h-9 cursor-default items-center gap-3 rounded-[16px] px-2 text-base outline-none"
+      className="data-[selected=true]:bg-fill-selected data-[selected=true]:text-ink group text-ink-2 flex h-9 cursor-default items-center gap-3 rounded-inset px-2 text-base outline-none"
     >
       <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
         <Icon

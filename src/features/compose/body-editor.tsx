@@ -215,13 +215,13 @@ function LinkButton({ editor }: { editor: Editor | null }) {
             event.preventDefault()
             apply()
           }}
-          className="bg-sunken text-ink placeholder:text-ink-3 focus-visible:ring-ring/50 h-8 w-full rounded-sm px-2 text-base outline-none focus-visible:ring-3"
+          className="bg-sunken text-ink placeholder:text-ink-3 focus-ring h-8 w-full rounded-sm px-2 text-base"
         />
         <div className="flex justify-end">
           <button
             type="button"
             onClick={apply}
-            className="font-ui text-brand hover:text-brand-hover focus-visible:ring-ring/50 h-8 rounded-md px-2 text-base font-medium outline-none focus-visible:ring-3"
+            className="font-ui text-brand hover:text-brand-hover focus-ring h-8 rounded-md px-2 text-base font-medium"
           >
             Add link
           </button>

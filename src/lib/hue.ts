@@ -39,15 +39,19 @@ export function hueFor(seed: string): Hue {
   return HUES[hash(seed.trim().toLowerCase()) % HUES.length]
 }
 
+/** The full-chroma solid, for the few places that need one in a `style`. */
 export function hueSolid(hue: Hue): string {
   return `var(--wren-hue-${hue})`
 }
 
-export function hueInk(hue: Hue): string {
+// The ink and the wash are reached through `hueVars` and nothing else — a call
+// site that wants them takes all three and writes `text-(--hue-ink)`, so the
+// chip's three states can never be assembled from two different hues.
+function hueInk(hue: Hue): string {
   return `var(--wren-hue-${hue}-ink)`
 }
 
-export function hueWash(hue: Hue): string {
+function hueWash(hue: Hue): string {
   return `var(--wren-hue-${hue}-wash)`
 }
 

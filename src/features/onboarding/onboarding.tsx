@@ -158,7 +158,7 @@ function Choice({
         // and reads as a card sitting inside a card, which is what it is.
         'bg-surface flex w-full items-start gap-3 rounded-lg p-4 text-left shadow-xs outline-none',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-        'hover:bg-fill-hover focus-visible:ring-ring/50 focus-visible:ring-3',
+        'hover:bg-fill-hover focus-ring',
       )}
     >
       <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">

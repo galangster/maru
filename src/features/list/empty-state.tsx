@@ -74,11 +74,13 @@ const EARNED_COPY: EmptyCopy = {
 }
 
 // Session state, deliberately outside React: "did this window ever hold inbox
-// mail" and "has the moment already been spent" both have to survive the list
-// unmounting when the user walks through other folders, and neither is worth
-// persisting past the window.
+// mail" has to survive the list unmounting while the user walks through other
+// folders, and it is not worth persisting past the window.
+//
+// It is a *precondition*, not a frequency guard — it answers "did the user
+// clear this, or was it always quiet". How often the moment may fire is
+// `claimCelebration`'s job and only its job.
 let sawInboxMail = false
-let earnedSpent = false
 
 /**
  * The tier the inbox's empty state has earned.
@@ -99,13 +101,11 @@ export function useInboxZeroTier(view: MailView, count: number): EmptyTier {
       setTier('ambient')
       return
     }
-    // `earnedSpent` is the once-per-session half; `claimCelebration` is the
-    // 60 s half. Both have to hold, and the second is what stops a refetch,
-    // a window focus or a pane remount from replaying the moment.
-    if (sawInboxMail && !earnedSpent && claimCelebration()) {
-      earnedSpent = true
-      setTier('earned')
-    }
+    // One guard on frequency, not three: `claimCelebration`'s 60 s cooldown is
+    // what stops a refetch, a window focus or a pane remount from replaying the
+    // moment. A once-per-session flag on top of it said the same thing a second
+    // time and made the cooldown look decorative.
+    if (sawInboxMail && claimCelebration()) setTier('earned')
   }, [isInbox, count])
 
   return isInbox ? tier : 'ambient'
@@ -129,14 +129,18 @@ function CelebrationMark({ mode }: { mode: 'full' | 'reduced' | 'off' }) {
 
   return (
     <div ref={host} className="relative flex h-16 w-28 items-center justify-center select-none">
+      {/* The keyframe is unconditional. Every quantity in it — the start
+          scale, the overshoot, the spin, the duration — is a token the
+          reduced-motion block zeroes, so what plays there is the 120 ms
+          opacity crossfade DIRECTION §9 asks for, and `.screenshot` removes
+          it outright in the capture path. A JS copy of that rule was a second
+          answer to a question tokens.css had already settled. */}
       <span
         aria-hidden
         className="text-[56px] leading-none"
-        style={
-          mode === 'full'
-            ? { animation: 'wren-celebrate-in var(--wren-dur-celebrate) var(--wren-ease-spring) both' }
-            : undefined
-        }
+        style={{
+          animation: 'wren-celebrate-in var(--wren-dur-celebrate) var(--wren-ease-spring) both',
+        }}
       >
         {celebrationEmoji()}
       </span>

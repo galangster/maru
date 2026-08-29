@@ -23,17 +23,38 @@ function toDataUrl(bytes: Uint8Array, mimeType: string): string {
 }
 
 /**
+ * A cache that forgets its oldest entry once it is full.
+ *
+ * Two of them live in this file for the same reason — a long reading session
+ * must not hold every body and every height it has ever rendered — and they
+ * used to spell the same four-line eviction out twice, once with the
+ * already-present check and once without it.
+ *
+ * Insertion order is Map's own, so the first key is the least recently
+ * *added*. Re-setting a key it already holds never evicts anything.
+ */
+function boundedMap<V>(limit: number) {
+  const entries = new Map<string, V>()
+  return {
+    get: (key: string): V | undefined => entries.get(key),
+    set(key: string, value: V): void {
+      if (entries.size >= limit && !entries.has(key)) {
+        const oldest = entries.keys().next().value
+        if (oldest !== undefined) entries.delete(oldest)
+      }
+      entries.set(key, value)
+    },
+  }
+}
+
+/**
  * Sanitizing is the one main-thread-blocking step in opening a thread, and the
  * reading pane remounts every card on the crossfade between threads — so
  * re-reading a thread you just left used to re-run DOMPurify over every
  * message in it. Keyed by the message and by the two inputs that change what
  * sanitizing produces.
- *
- * Bounded, and oldest-out: a long session must not hold every body it has ever
- * rendered.
  */
-const SANITIZE_CACHE_LIMIT = 64
-const sanitized = new Map<string, ReturnType<typeof sanitizeBody>>()
+const sanitized = boundedMap<ReturnType<typeof sanitizeBody>>(64)
 
 function sanitizeCached(
   cacheKey: string,
@@ -43,10 +64,6 @@ function sanitizeCached(
   const hit = sanitized.get(cacheKey)
   if (hit) return hit
   const result = sanitizeBody(raw, options)
-  if (sanitized.size >= SANITIZE_CACHE_LIMIT) {
-    const oldest = sanitized.keys().next().value
-    if (oldest !== undefined) sanitized.delete(oldest)
-  }
   sanitized.set(cacheKey, result)
   return result
 }
@@ -62,16 +79,7 @@ function sanitizeCached(
  *
  * Bounded and oldest-out, alongside the sanitize cache and for the same reason.
  */
-const HEIGHT_CACHE_LIMIT = 256
-const heights = new Map<string, number>()
-
-function rememberHeight(messageId: string, height: number): void {
-  if (heights.size >= HEIGHT_CACHE_LIMIT && !heights.has(messageId)) {
-    const oldest = heights.keys().next().value
-    if (oldest !== undefined) heights.delete(oldest)
-  }
-  heights.set(messageId, height)
-}
+const heights = boundedMap<number>(256)
 
 /**
  * A first guess from data. Mail bodies are mostly text at ~90 characters to a
@@ -160,7 +168,7 @@ export function MessageBody({
             body?.getBoundingClientRect().height ?? 0,
           ),
         )
-        rememberHeight(message.id, measured)
+        heights.set(message.id, measured)
         setHeight(measured)
       }
       measure()

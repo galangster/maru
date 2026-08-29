@@ -62,7 +62,7 @@ export function ConfirmPopover({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="font-ui text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 h-8 rounded-full px-3 text-base font-medium outline-none focus-visible:ring-3"
+            className="font-ui text-ink-2 hover:bg-fill-hover focus-ring h-8 rounded-full px-3 text-base font-medium"
           >
             {cancelLabel}
           </button>

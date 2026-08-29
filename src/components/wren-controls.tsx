@@ -34,11 +34,19 @@ export const PRESS =
   'motion-safe:active:scale-[0.96] motion-safe:focus-visible:active:scale-100'
 
 const ICON_BUTTON_BASE =
-  'inline-flex size-8 items-center justify-center rounded-md outline-none ' +
+  'focus-ring inline-flex size-8 items-center justify-center rounded-md ' +
   'transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out) ' +
   `${PRESS} ` +
-  'hover:bg-fill-hover focus-visible:ring-3 focus-visible:ring-ring/50 ' +
+  'hover:bg-fill-hover ' +
   'disabled:pointer-events-none disabled:opacity-40'
+
+/**
+ * The 32 px round chip a row leads with. The avatar is one; so is the archive
+ * tick that replaces it mid-animation, and the two have to be the same shape to
+ * the pixel or the swap reads as a jump rather than as a state change.
+ */
+export const AVATAR_CHIP =
+  'inline-flex size-(--wren-avatar) shrink-0 items-center justify-center rounded-full'
 
 /**
  * The icon-button recipe, for the few places that cannot render <IconButton>
@@ -67,7 +75,7 @@ export function PrimaryButton({
         'font-ui bg-primary text-primary-foreground inline-flex items-center justify-center rounded-full text-base font-medium',
         'shadow-xs transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         PRESS,
-        'hover:bg-brand-hover focus-visible:ring-3 focus-visible:ring-ring/50 outline-none',
+        'focus-ring hover:bg-brand-hover',
         'disabled:pointer-events-none disabled:opacity-40',
         className,
       )}
@@ -232,7 +240,8 @@ export function AccountAvatar({
       aria-hidden
       style={{ ...hueVars(hue), '--ring-hue': ringHue && hueSolid(ringHue) } as CSSProperties}
       className={cn(
-        'font-ui inline-flex size-(--wren-avatar) shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+        AVATAR_CHIP,
+        'font-ui text-xs font-semibold',
         'bg-(--hue-wash) text-(--hue-ink)',
         // An inset hairline, not a `ring`: it costs no layout, needs no offset
         // colour, and stays exactly 1 px on every DPI (DIRECTION §6).
@@ -272,7 +281,7 @@ export function HueTile({
         className,
       )}
     >
-      <Icon name={name} size={16} className="text-(--wren-hue-fg)" />
+      <Icon name={name} size={16} className="text-hue-fg" />
     </span>
   )
 }
@@ -283,21 +292,12 @@ export function HueTile({
  *  diameter, not a measure — nothing aligns to it, and it sits inside boxes
  *  that are themselves on the grid. 4 px disappears at 100% DPI and 8 px reads
  *  as a bullet rather than a marker. */
-export function AccountDot({
-  hue,
-  className,
-  title,
-}: {
-  hue: Hue
-  className?: string
-  title?: string
-}) {
+export function AccountDot({ hue }: { hue: Hue }) {
   return (
     <span
       aria-hidden
-      title={title}
       style={{ backgroundColor: hueSolid(hue) }}
-      className={cn('inline-block size-1.5 shrink-0 rounded-full', className)}
+      className="inline-block size-1.5 shrink-0 rounded-full"
     />
   )
 }

@@ -138,14 +138,16 @@
     --wren-hue-orange-ink: oklch(0.53 0.132 55); /* 5.53                     */
     --wren-hue-yellow-ink: oklch(0.54 0.111 88); /* 5.09                     */
 
-    --wren-hue-green-wash: oklch(0.66 0.17 150 / 0.12);
-    --wren-hue-teal-wash: oklch(0.665 0.113 205 / 0.12);
-    --wren-hue-blue-wash: oklch(0.62 0.185 258 / 0.12);
-    --wren-hue-violet-wash: oklch(0.61 0.19 295 / 0.12);
-    --wren-hue-magenta-wash: oklch(0.64 0.205 350 / 0.12);
-    --wren-hue-red-wash: oklch(0.63 0.205 25 / 0.12);
-    --wren-hue-orange-wash: oklch(0.72 0.175 55 / 0.12);
-    --wren-hue-yellow-wash: oklch(0.8 0.15 88 / 0.12);
+    /* Derived, never re-typed: a wash IS its solid at 12%, so the coordinates
+       are written once above and a retuned solid carries its wash with it. */
+    --wren-hue-green-wash: color-mix(in oklch, var(--wren-hue-green) 12%, transparent);
+    --wren-hue-teal-wash: color-mix(in oklch, var(--wren-hue-teal) 12%, transparent);
+    --wren-hue-blue-wash: color-mix(in oklch, var(--wren-hue-blue) 12%, transparent);
+    --wren-hue-violet-wash: color-mix(in oklch, var(--wren-hue-violet) 12%, transparent);
+    --wren-hue-magenta-wash: color-mix(in oklch, var(--wren-hue-magenta) 12%, transparent);
+    --wren-hue-red-wash: color-mix(in oklch, var(--wren-hue-red) 12%, transparent);
+    --wren-hue-orange-wash: color-mix(in oklch, var(--wren-hue-orange) 12%, transparent);
+    --wren-hue-yellow-wash: color-mix(in oklch, var(--wren-hue-yellow) 12%, transparent);
 
     /* --- Lines and fills --------------------------------------------------- */
     --wren-hairline: oklch(0.923 0.003 286); /* #E6E6E9                       */
@@ -293,14 +295,15 @@
     --wren-hue-orange-ink: oklch(0.84 0.102 55); /* 9.91                     */
     --wren-hue-yellow-ink: oklch(0.88 0.115 88); /* 11.89                    */
 
-    --wren-hue-green-wash: oklch(0.72 0.155 150 / 0.22);
-    --wren-hue-teal-wash: oklch(0.725 0.108 205 / 0.22);
-    --wren-hue-blue-wash: oklch(0.68 0.17 258 / 0.22);
-    --wren-hue-violet-wash: oklch(0.67 0.175 295 / 0.22);
-    --wren-hue-magenta-wash: oklch(0.7 0.19 350 / 0.22);
-    --wren-hue-red-wash: oklch(0.69 0.19 25 / 0.22);
-    --wren-hue-orange-wash: oklch(0.77 0.157 55 / 0.22);
-    --wren-hue-yellow-wash: oklch(0.85 0.14 88 / 0.22);
+    /* Same derivation as light, at the deeper 22% the dark surfaces need. */
+    --wren-hue-green-wash: color-mix(in oklch, var(--wren-hue-green) 22%, transparent);
+    --wren-hue-teal-wash: color-mix(in oklch, var(--wren-hue-teal) 22%, transparent);
+    --wren-hue-blue-wash: color-mix(in oklch, var(--wren-hue-blue) 22%, transparent);
+    --wren-hue-violet-wash: color-mix(in oklch, var(--wren-hue-violet) 22%, transparent);
+    --wren-hue-magenta-wash: color-mix(in oklch, var(--wren-hue-magenta) 22%, transparent);
+    --wren-hue-red-wash: color-mix(in oklch, var(--wren-hue-red) 22%, transparent);
+    --wren-hue-orange-wash: color-mix(in oklch, var(--wren-hue-orange) 22%, transparent);
+    --wren-hue-yellow-wash: color-mix(in oklch, var(--wren-hue-yellow) 22%, transparent);
 
     --wren-hairline: oklch(1 0 0 / 0.08);
     --wren-hairline-strong: oklch(1 0 0 / 0.16);
@@ -417,9 +420,9 @@
        spelling of the same number, and nothing ever read it. */
     --wren-weight-regular: 400;
     --wren-weight-medium: 500;
-    /* The eyebrow role: Open Runde 600, all-caps, --text-xs, in --wren-text-3
-       or a --wren-hue-*-ink. Section headers, field labels, metadata keys. */
-    --wren-weight-semibold: 600;
+    /* No --wren-weight-semibold: the eyebrow role (Open Runde 600, all-caps,
+       --text-xs) is spelled `font-semibold` at its call sites, and the token
+       was read by nothing. */
 
     /* Spacing is Tailwind's 4px scale — `gap-2` is the spelling, and a
        --wren-space-* mirror of it went unread in every component. */
@@ -463,6 +466,10 @@
     --wren-radius-lg: 14px; /* cards and panes — Amie's card radius, measured */
     --wren-radius-xl: 18px; /* sheets, popovers                               */
     --wren-radius-2xl: 24px; /* command palette, composer sheet               */
+    /* A row inside a 24 px sheet at an 8 px inset. Concentric arithmetic, not
+       a new step: 24 − 8. The palette's rows and the settings nav both sit
+       there, and all three used to spell it `rounded-[16px]`. */
+    --wren-radius-inset: 16px;
     --wren-radius-full: 999px;
 
     /* Icon glyph sizes and stroke widths are SVG attributes, not CSS: they
@@ -504,6 +511,13 @@
        reduced-motion block at the bottom, exactly like --wren-lift. */
     --wren-pop-lg: 1.12;
     --wren-spin: -8deg;
+    /* Where the two celebrations *start*. These are tokens rather than literals
+       in the keyframes for one reason: the reduced-motion block zeroes the
+       quantities, and a scale written into a keyframe is a transform that block
+       cannot reach. A literal start is how an animation stays visibly bouncy
+       for a user who asked for no motion. */
+    --wren-scale-confirm: 0.7; /* the archive tick's disc arriving            */
+    --wren-scale-celebrate: 0.4; /* the inbox-zero glyph arriving             */
 
     /* --- Noise: kills banding across large blurred areas ------------------- */
     --wren-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
@@ -776,7 +790,7 @@
    into an overshoot, which is what makes 260 ms read as a snap. */
 @keyframes wren-confirm-pop {
     0% {
-        transform: scale(0.7);
+        transform: scale(var(--wren-scale-confirm));
     }
     45% {
         transform: scale(var(--wren-pop));
@@ -823,7 +837,7 @@
 @keyframes wren-celebrate-in {
     0% {
         opacity: 0;
-        transform: scale(0.4) rotate(var(--wren-spin));
+        transform: scale(var(--wren-scale-celebrate)) rotate(var(--wren-spin));
     }
     60% {
         opacity: 1;
@@ -851,6 +865,8 @@
         --wren-pop: 1;
         --wren-pop-lg: 1;
         --wren-spin: 0deg;
+        --wren-scale-confirm: 1;
+        --wren-scale-celebrate: 1;
         --wren-dur-base: 120ms;
         --wren-dur-slow: 120ms;
         --wren-dur-exit: 120ms;

@@ -18,6 +18,7 @@ import {
   GMAIL_BUDGET_PER_MINUTE,
   HttpError,
   TokenBucket,
+  backoffDelay,
   retryWithBackoff,
   systemClock,
   type Clock,
@@ -306,8 +307,12 @@ export class GmailApi {
         )
       }
       if (round > 0) {
-        const nominal = 1_000 * 2 ** (round - 1)
-        await this.clock.sleep(Math.round(nominal * (0.5 + 0.5 * this.random())))
+        // The client's one backoff formula — limiter.ts. A round starts at
+        // 1 s rather than the per-request 500 ms: a throttled batch part has
+        // already waited out the whole request that carried it.
+        await this.clock.sleep(
+          backoffDelay(round, { baseDelayMs: 1_000, random: this.random }),
+        )
       }
 
       const failed: Array<[number, string]> = []

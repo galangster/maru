@@ -16,6 +16,8 @@
 //   · Under reduced motion the layer is never mounted at all. Making it
 //     invisible is not the same thing.
 
+import { HUES, hueSolid } from '@/lib/hue'
+
 /** The deck. Small, fixed, and chosen from the day so it varies without being
  *  random noise — the same day always gets the same glyph. */
 const DECK = ['🎉', '🌤️', '🥳', '🧘', '🍃'] as const
@@ -23,16 +25,10 @@ const DECK = ['🎉', '🌤️', '🥳', '🧘', '🍃'] as const
 /** Three of the eighteen particles are glyphs rather than discs. */
 const CONFETTI = ['🎉', '✨', '🍃'] as const
 
-const HUES = [
-  '--wren-hue-green',
-  '--wren-hue-teal',
-  '--wren-hue-blue',
-  '--wren-hue-violet',
-  '--wren-hue-magenta',
-  '--wren-hue-red',
-  '--wren-hue-orange',
-  '--wren-hue-yellow',
-] as const
+/** The discs are the category hue family, in its own order — lib/hue is the
+ *  one place that decides what those are, and a second list here would drift
+ *  the moment a hue is added or renamed. */
+const HUE_FILLS = HUES.map(hueSolid)
 
 const PARTICLES = 18
 const GLYPH_PARTICLES = 3
@@ -77,7 +73,14 @@ function rng(seed: number): () => number {
 const COOLDOWN_MS = 60_000
 let lastFiredAt = 0
 
-/** True at most once per transition to zero, and never twice inside 60 s. */
+/**
+ * True at most once every 60 s, and this is the **whole** frequency guard.
+ *
+ * It used to sit behind a once-per-session flag as well, which read as a
+ * second mechanism answering the same question and made the real one look
+ * optional. A refetch, a window focus and a pane remount are all stopped by
+ * the cooldown alone.
+ */
 export function claimCelebration(now: number = Date.now()): boolean {
   if (now - lastFiredAt < COOLDOWN_MS) return false
   lastFiredAt = now
@@ -103,6 +106,7 @@ export function burst(host: HTMLElement, seed: number = dayOfYear(Date.now())): 
   host.appendChild(layer)
 
   let live = PARTICLES
+  const running: Animation[] = []
   const done = () => {
     live -= 1
     if (live <= 0) layer.remove()
@@ -119,7 +123,7 @@ export function burst(host: HTMLElement, seed: number = dayOfYear(Date.now())): 
       const size = 6 + Math.round(random() * 4)
       node.style.cssText =
         `position:absolute;left:50%;top:50%;width:${size}px;height:${size}px;` +
-        `border-radius:50%;background:var(${HUES[i % HUES.length]});`
+        `border-radius:50%;background:${HUE_FILLS[i % HUE_FILLS.length]};`
     }
 
     // A 140° fan opening upward: -160° to -20°, measured from +x with y down.
@@ -161,8 +165,14 @@ export function burst(host: HTMLElement, seed: number = dayOfYear(Date.now())): 
     )
     animation.addEventListener('finish', done)
     animation.addEventListener('cancel', done)
+    running.push(animation)
     layer.appendChild(node)
   }
 
-  return () => layer.remove()
+  // Removing the layer detaches the nodes but leaves eighteen WAAPI animations
+  // on the document timeline, still being ticked. Cancel them first.
+  return () => {
+    for (const animation of running) animation.cancel()
+    layer.remove()
+  }
 }

@@ -104,26 +104,41 @@ export function isRetryableError(err: unknown): boolean {
   return err instanceof TypeError
 }
 
-export interface RetryOptions {
-  maxTries?: number
+export interface BackoffOptions {
+  /** The delay after the first failure. Doubles from there. */
   baseDelayMs?: number
   maxDelayMs?: number
-  clock?: Clock
   random?: () => number
+}
+
+export interface RetryOptions extends BackoffOptions {
+  maxTries?: number
+  clock?: Clock
   shouldRetry?: (err: unknown) => boolean
 }
 
 /**
- * Exponential backoff with jitter in [0.5x, 1x] of the nominal delay. Full
+ * How long to wait after failure number `attempt` (1-based).
+ *
+ * Exponential, capped, with jitter in [0.5x, 1x] of the nominal delay. Full
  * jitter would sometimes retry instantly, which is exactly the wrong move
  * against a rate limiter.
+ *
+ * The one backoff formula in the client: `retryWithBackoff` uses it for a whole
+ * request, and `api.ts` uses it between batch retry rounds. Two spellings of
+ * this arithmetic is two things to tune and one of them gets forgotten.
  */
-export async function retryWithBackoff<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
-  const maxTries = opts.maxTries ?? 5
+export function backoffDelay(attempt: number, opts: BackoffOptions = {}): number {
   const base = opts.baseDelayMs ?? 500
   const maxDelay = opts.maxDelayMs ?? 32_000
-  const clock = opts.clock ?? systemClock
   const random = opts.random ?? Math.random
+  const nominal = Math.min(maxDelay, base * 2 ** (attempt - 1))
+  return Math.round(nominal * (0.5 + 0.5 * random()))
+}
+
+export async function retryWithBackoff<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
+  const maxTries = opts.maxTries ?? 5
+  const clock = opts.clock ?? systemClock
   const shouldRetry = opts.shouldRetry ?? isRetryableError
 
   let lastError: unknown
@@ -133,8 +148,7 @@ export async function retryWithBackoff<T>(fn: () => Promise<T>, opts: RetryOptio
     } catch (err) {
       lastError = err
       if (attempt === maxTries || !shouldRetry(err)) throw err
-      const nominal = Math.min(maxDelay, base * 2 ** (attempt - 1))
-      await clock.sleep(Math.round(nominal * (0.5 + 0.5 * random())))
+      await clock.sleep(backoffDelay(attempt, opts))
     }
   }
   throw lastError

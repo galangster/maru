@@ -132,7 +132,23 @@ export type MailEvent =
    */
   | { type: 'threadsChanged'; accountId?: string; threadKeys?: string[] }
   | { type: 'syncStatus'; status: SyncStatus }
-  | { type: 'newMail'; accountId: string; threadKey: string; from: string; subject: string }
+  /**
+   * Mail arrived. **One event per sync pass**, not one per thread: the engine
+   * is the only thing that knows where a pass ends, so it says so rather than
+   * emitting N events and leaving every listener to re-derive the batch behind
+   * its own timer.
+   *
+   * `threads` is how many arrived. `threadKey`, `from` and `subject` name the
+   * newest of them — the one an OS notification leads with.
+   */
+  | {
+      type: 'newMail'
+      accountId: string
+      threadKey: string
+      from: string
+      subject: string
+      threads: number
+    }
   | { type: 'accountsChanged' }
 
 export interface Settings {
