@@ -305,37 +305,25 @@ function applyLabelDelta(labelIds: string[], delta: LabelDelta): string[] {
 // ---------------------------------------------------------------------------
 
 export class Store {
-  /** Depth, so a transaction nested inside another one joins it. */
-  private txDepth = 0
-
   constructor(private readonly db: SqlDb) {}
 
   /**
-   * One durable write per batch instead of one per row. A 50-thread sync used
-   * to be ~300 sequential round-trips, each with its own implicit commit.
+   * Batching seam. Explicit BEGIN/COMMIT is deliberately absent: production
+   * SQL runs through tauri-plugin-sql's connection POOL, so `execute('BEGIN')`
+   * pins the transaction to one pooled connection while the batch's other
+   * statements land on different connections — they block behind the write
+   * lock and die at the ~5s busy timeout (observed live against real Gmail:
+   * every write ~5.2s, rows_affected=0). The multi-row VALUES statements
+   * carry the batching win on their own, and each statement is atomic.
    */
   private async transaction<T>(run: () => Promise<T>): Promise<T> {
-    if (this.txDepth > 0) return run()
-    this.txDepth++
-    await this.db.execute('BEGIN')
-    try {
-      const result = await run()
-      await this.db.execute('COMMIT')
-      return result
-    } catch (err) {
-      try {
-        await this.db.execute('ROLLBACK')
-      } catch {
-        // The transaction was already unwound; the original error is the news.
-      }
-      throw err
-    } finally {
-      this.txDepth--
-    }
+    return run()
   }
 
   static async open(platform: Platform): Promise<Store> {
     const db = await platform.sqlOpen()
+    // WAL lets pooled readers proceed while a write is in flight.
+    await db.execute('PRAGMA journal_mode = WAL')
     await migrate(db)
     return new Store(db)
   }
