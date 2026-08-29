@@ -1,5 +1,5 @@
-// New-mail notifications, and the one interface sound that is allowed to reach
-// a user who is not looking at the window.
+// New-mail notifications, an agent asking to send, and the one interface sound
+// that is allowed to reach a user who is not looking at the window.
 //
 // Rules, in order: never in a capture; never while the window has focus; and
 // never a permission prompt in a browser — a web build that has not already
@@ -12,17 +12,38 @@
 
 import { useEffect } from 'react'
 
+import { describeDraft } from '@/core/agents'
 import type { Platform } from '@/core/platform'
-import { useMailService, usePlatform } from '@/features/mail/service'
+import { useAgentGateway, useMailService, usePlatform } from '@/features/mail/service'
 import { isScreenshot, isTauri } from '@/lib/env'
 import { playSound } from '@/lib/sound'
 
 export function useNotifications(): void {
   const service = useMailService()
+  const agents = useAgentGateway()
   // The app's own Platform, not a fresh one. Building a TauriPlatform per
   // toast threw away the permission answer it had already been given and
   // opened a second object holding a second SQLite handle.
   const platform = usePlatform()
+
+  /**
+   * An agent asking to send. It takes the same path and the same guards as new
+   * mail — including "not while the window has focus", because the sidebar
+   * badge is already saying it on screen and a second announcement of a thing
+   * you can see is noise.
+   *
+   * No sound. `newMail` is the only cue Wren is willing to make while nobody
+   * is looking (SOUNDS.md §3), and an approval is not more urgent than mail —
+   * it is a request that will still be there in the morning.
+   */
+  useEffect(() => {
+    if (isScreenshot) return
+    return agents.onEvent((event) => {
+      if (event.type !== 'approvalPending') return
+      if (document.hasFocus()) return
+      void notify(platform, `${event.agentName} wants to send`, describeDraft(event.approval.payload))
+    })
+  }, [agents, platform])
 
   useEffect(() => {
     if (isScreenshot) return

@@ -33,6 +33,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { AccountAvatar, HueTile, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
+import { AgentsSection } from '@/features/agents/agents-settings'
 import { keys, useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import {
@@ -50,6 +51,10 @@ import pkg from '../../../package.json'
 
 const SECTION_ICONS: Record<SettingsSection, IconName> = {
   accounts: 'participants',
+  // Permissions are controls, and `sliders` is the controls glyph. `key`
+  // belongs to Google API and an agent credential is not what that section is
+  // about, so the two never share a mark.
+  agents: 'sliders',
   appearance: 'themeSystem',
   google: 'key',
   sync: 'sync',
@@ -57,12 +62,16 @@ const SECTION_ICONS: Record<SettingsSection, IconName> = {
 }
 
 /**
- * One hue per section, assigned rather than hashed: these five are a fixed,
- * ordered set the user learns by position, so the colours are part of the
- * layout and must not move when a section is renamed.
+ * One hue per section, assigned rather than hashed: these are a fixed, ordered
+ * set the user learns by position, so the colours are part of the layout and
+ * must not move when a section is renamed.
+ *
+ * Agents took the one hue the set had left. Green also happens to be the
+ * right one: it is what an agent's grants read as when they are working.
  */
 const SECTION_HUES: Record<SettingsSection, Hue> = {
   accounts: 'orange',
+  agents: 'green',
   appearance: 'violet',
   google: 'blue',
   sync: 'teal',
@@ -152,8 +161,12 @@ function SettingsBody({ section }: { section: SettingsSection }) {
           />
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        {/* `scroll-fade`: the taller sections — the Google setup guide, and now
+            Agents — run past the fixed 440, and a field sliced flat against the
+            dialog's bottom edge is the hard edge DIRECTION §1 rules out. */}
+        <div className="scroll-fade min-h-0 flex-1 overflow-y-auto px-6 py-4">
           {section === 'accounts' && <AccountsSection onNeedsClient={() => setNeedsClient(true)} />}
+          {section === 'agents' && <AgentsSection />}
           {section === 'appearance' && <AppearanceSection />}
           {section === 'google' && <GoogleSection highlight={needsClient} />}
           {section === 'sync' && <SyncSection />}

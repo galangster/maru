@@ -117,6 +117,64 @@ export const MIGRATIONS: string[] = [
     json TEXT NOT NULL
   );
   `,
+
+  // 2 — the agent trust substrate (M1). Four tables, no change to migration 1.
+  //
+  //  · agents      — an identity Wren ISSUED. `credential_hash` is a SHA-256
+  //                  digest; the token itself is shown once and never stored.
+  //                  A connecting client's self-reported name is never any of
+  //                  this (docs/research/mcp-gateway-notes.md §2).
+  //  · grants      — append-only. A revoke stamps `revoked_at` on the rows it
+  //                  covers rather than deleting them, so the audit trail can
+  //                  still explain why a past action was permitted.
+  //  · approvals   — the app-level pending-ID composition the MCP spec has no
+  //                  primitive for (notes §4). `payload_json` is a ComposeDraft.
+  //  · audit_log   — every agent action, append-only, read newest-first.
+  `
+  CREATE TABLE IF NOT EXISTS agents (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    credential_hash TEXT NOT NULL,
+    created_at      INTEGER NOT NULL,
+    revoked_at      INTEGER
+  );
+  -- Verification is a lookup by exact digest, so it must be indexed and it
+  -- must be unique: two agents sharing a credential is not a state that can
+  -- be resolved after the fact.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_credential ON agents (credential_hash);
+
+  CREATE TABLE IF NOT EXISTS grants (
+    agent_id   TEXT NOT NULL,
+    capability TEXT NOT NULL,
+    scope_json TEXT NOT NULL DEFAULT '{"kind":"all"}',
+    granted_at INTEGER NOT NULL,
+    revoked_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_grants_agent ON grants (agent_id, capability);
+
+  CREATE TABLE IF NOT EXISTS approvals (
+    id           TEXT PRIMARY KEY,
+    agent_id     TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    status       TEXT NOT NULL CHECK (status IN ('pending','approved','denied','expired')),
+    created_at   INTEGER NOT NULL,
+    resolved_at  INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals (status, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id         TEXT PRIMARY KEY,
+    agent_id   TEXT NOT NULL,
+    at         INTEGER NOT NULL,
+    tool       TEXT NOT NULL,
+    summary    TEXT NOT NULL,
+    thread_key TEXT,
+    outcome    TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_recent ON audit_log (at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit_log (agent_id, at DESC);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

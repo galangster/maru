@@ -1,0 +1,211 @@
+// The audit timeline: everything an agent has done, newest first.
+//
+// A calm table, in the Aave register DIRECTION §2 records — tall rows, generous
+// horizontal padding, a very low-contrast divider, small muted column headers,
+// and every time tabular. Density comes from row height, never from cramped
+// padding, and nothing here is tinted or striped to signal state: an outcome is
+// a 6 px dot and a word.
+//
+// It is deliberately the plainest surface in the app. The queue asks for a
+// decision and can afford some warmth; this is the receipt, and a receipt that
+// editorialises is a receipt you stop trusting.
+
+import { Icon } from '@/components/ui/icon'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { IconButton, PRESS } from '@/components/wren-controls'
+import type { AuditEntry } from '@/core/agents'
+import { AUDIT_READ_CAP } from '@/core/agents'
+import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
+import { fullTimestamp, relativeTime } from '@/lib/format'
+import { now } from '@/lib/env'
+import { cn } from '@/lib/utils'
+
+import { AgentDot, OutcomeMark } from './identity'
+import { useAgentNames, useAgents, useAuditTrail } from './queries'
+
+/** `'all'` is the store's own "no filter" value; anything else is an agent id. */
+const ALL = 'all'
+
+export function AuditTimeline() {
+  const audit = useSurfaces((s) => s.audit)
+  const closeAudit = useSurfaces((s) => s.closeAudit)
+
+  return (
+    <Dialog
+      open={audit !== null}
+      onOpenChange={(next) => {
+        if (next) return
+        closeAudit()
+        focusThreadList()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        // Wider and taller than the queue: this is a table that is read by
+        // scanning down a column, and a short one would be all chrome.
+        className="bg-raised rounded-2xl shadow-xl flex h-[560px] w-[760px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[760px]"
+      >
+        <DialogTitle className="sr-only">Audit</DialogTitle>
+        <DialogDescription className="sr-only">
+          Every action an agent has taken in this mailbox, newest first.
+        </DialogDescription>
+        {audit !== null && <TimelineBody filter={audit} />}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function TimelineBody({ filter }: { filter: string }) {
+  const openAudit = useSurfaces((s) => s.openAudit)
+  const closeAudit = useSurfaces((s) => s.closeAudit)
+  const agents = useAgents().data ?? []
+  const names = useAgentNames()
+  const trail = useAuditTrail(filter === ALL ? undefined : filter)
+  const rows = trail.data ?? []
+
+  return (
+    <>
+      <header className="border-hairline flex h-12 shrink-0 items-center gap-2 border-b pr-2 pl-6">
+        <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">Audit</h2>
+        <IconButton
+          name="close"
+          label="Close the audit log"
+          hint="esc"
+          className="shrink-0"
+          onClick={closeAudit}
+        />
+      </header>
+
+      {/* Per-agent filter tabs. One row, left-aligned, the same soft-fill
+          selection every other selected thing in Wren takes. */}
+      <div
+        role="tablist"
+        aria-label="Filter by agent"
+        className="border-hairline flex shrink-0 items-center gap-1 border-b px-4 py-2"
+      >
+        <FilterTab id={ALL} label="All agents" active={filter === ALL} onSelect={openAudit} />
+        {agents.map((agent) => (
+          <FilterTab
+            key={agent.id}
+            id={agent.id}
+            label={agent.name}
+            agentId={agent.id}
+            active={filter === agent.id}
+            onSelect={openAudit}
+          />
+        ))}
+      </div>
+
+      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-8 py-16 text-center">
+            <Icon name="fileText" size={20} className="text-ink-3" />
+            <p className="font-ui text-ink text-base font-medium">Nothing recorded yet</p>
+            <p className="text-ink-3 max-w-80 text-sm text-pretty">
+              Every read, archive, draft and send an agent makes is written here, and stays.
+            </p>
+          </div>
+        ) : (
+          <table className="w-full border-collapse text-left">
+            {/* Small and muted, not bold: hierarchy by colour, never by weight
+                (DIRECTION §2, Aave 4). */}
+            <thead>
+              <tr className="border-hairline border-b">
+                <Th className="w-28">Time</Th>
+                <Th className="w-36">Agent</Th>
+                <Th>Action</Th>
+                <Th className="w-24">Outcome</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((entry) => (
+                <Row key={entry.id} entry={entry} name={names.get(entry.agentId)?.name} />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {rows.length >= AUDIT_READ_CAP && (
+        <p className="border-hairline text-ink-3 shrink-0 border-t px-6 py-2 text-xs">
+          Showing the most recent {AUDIT_READ_CAP} entries.
+        </p>
+      )}
+    </>
+  )
+}
+
+function FilterTab({
+  id,
+  label,
+  agentId,
+  active,
+  onSelect,
+}: {
+  id: string
+  label: string
+  agentId?: string
+  active: boolean
+  onSelect: (id: string) => void
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={() => onSelect(id)}
+      className={cn(
+        // A pill, like every other chip in the app (DIRECTION §6).
+        'font-ui inline-flex h-8 items-center gap-2 rounded-full px-3 text-base outline-none',
+        'transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        PRESS,
+        'focus-ring',
+        active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
+      )}
+    >
+      {agentId && <AgentDot agent={{ id: agentId }} />}
+      <span className="truncate">{label}</span>
+    </button>
+  )
+}
+
+function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <th
+      scope="col"
+      className={cn('text-ink-3 px-6 py-2 text-sm font-normal', className)}
+    >
+      {children}
+    </th>
+  )
+}
+
+function Row({ entry, name }: { entry: AuditEntry; name?: string }) {
+  return (
+    // 44 px, the bottom of DIRECTION §2's 44–52 band, with the same very
+    // low-contrast divider. No hover fill: nothing here is clickable, and a
+    // hover state on a static row is a promise the table does not keep.
+    <tr className="border-hairline h-11 border-b last:border-b-0">
+      <td className="text-ink-3 px-6 text-sm tabular-nums" title={fullTimestamp(entry.at)}>
+        {relativeTime(entry.at, now())}
+      </td>
+      <td className="px-6">
+        <span className="text-ink-2 inline-flex items-center gap-2 text-sm">
+          <AgentDot agent={{ id: entry.agentId }} />
+          {/* A revoked agent's rows outlive its name in the list, so the id is
+              the fallback rather than a blank cell. */}
+          <span className="truncate">{name ?? entry.agentId}</span>
+        </span>
+      </td>
+      {/* One line, with the whole sentence on the title: a summary that wrapped
+          would break the fixed row height the table is scanned by, and one that
+          truncated with no way back would be an audit log that withheld. */}
+      <td className="text-ink px-6 text-sm" title={entry.summary}>
+        <span className="line-clamp-1">{entry.summary}</span>
+      </td>
+      <td className="px-6">
+        <OutcomeMark outcome={entry.outcome} />
+      </td>
+    </tr>
+  )
+}

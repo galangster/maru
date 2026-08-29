@@ -117,6 +117,56 @@ const SHOTS = [
       await page.locator('[data-sonner-toast]').waitFor({ timeout: 10_000 })
     },
   },
+
+  // --- M1, the trust substrate ---------------------------------------------
+  {
+    // The approval queue with Scout's two pending sends, the first one
+    // expanded so the body preview is in the frame.
+    file: 'm1-11-approvals-light.png',
+    query: '',
+    open: null,
+    act: async (page) => {
+      await page.locator('[data-wren-approvals]').click()
+      const rows = page.locator('li[data-approval-id]')
+      await rows.first().waitFor({ timeout: 10_000 })
+      await page.waitForFunction(
+        () => document.querySelectorAll('li[data-approval-id]').length === 2,
+        null,
+        { timeout: 10_000 },
+      )
+      await rows.first().getByRole('button', { name: 'Read the message' }).click()
+      await page.locator('li[data-approval-id]').first().locator('[data-approval-body]').waitFor({
+        timeout: 10_000,
+      })
+    },
+  },
+  {
+    // Settings → Agents: the agent, its capability chips and the send scope.
+    file: 'm1-12-agents-settings-light.png',
+    query: '',
+    open: null,
+    act: async (page) => {
+      await page.locator('button[aria-label="Settings"]').click()
+      const nav = page.locator('nav[aria-label="Settings sections"]')
+      await nav.waitFor({ timeout: 10_000 })
+      await nav.getByRole('button', { name: 'Agents' }).click()
+      await page.getByRole('group', { name: 'Capabilities' }).waitFor({ timeout: 10_000 })
+      await page.getByRole('radiogroup', { name: 'Send scope' }).waitFor({ timeout: 10_000 })
+    },
+  },
+  {
+    // The audit timeline, reached from the queue, in dark.
+    file: 'm1-13-audit-dark.png',
+    query: '&theme=dark',
+    open: null,
+    act: async (page) => {
+      await page.locator('[data-wren-approvals]').click()
+      await page.locator('li[data-approval-id]').first().waitFor({ timeout: 10_000 })
+      await page.getByRole('button', { name: 'Audit log' }).click()
+      await page.getByRole('tablist', { name: 'Filter by agent' }).waitFor({ timeout: 10_000 })
+      await page.locator('tbody tr').first().waitFor({ timeout: 10_000 })
+    },
+  },
 ]
 
 function portOpen(port) {

@@ -1,6 +1,9 @@
 import { useEffect } from 'react'
 
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ApprovalQueue } from '@/features/agents/approval-queue'
+import { AuditTimeline } from '@/features/agents/audit-timeline'
+import { useAgentEvents } from '@/features/agents/queries'
 import { AppShell } from '@/features/shell/app-shell'
 import { Composer } from '@/features/compose/composer'
 import { ShortcutsOverlay } from '@/features/keyboard/shortcuts-overlay'
@@ -18,6 +21,7 @@ import '@/features/shell/surfaces.css'
 export default function App() {
   useThemeEffect()
   useMailEvents()
+  useAgentEvents()
   useNotifications()
   useShortcuts()
 
@@ -43,6 +47,8 @@ export default function App() {
       <Composer />
       <CommandPalette />
       <SettingsDialog />
+      <ApprovalQueue />
+      <AuditTimeline />
       <ShortcutsOverlay />
       <Onboarding />
     </TooltipProvider>

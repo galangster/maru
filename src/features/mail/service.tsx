@@ -7,12 +7,20 @@
 
 import { createContext, use, useCallback, useEffect, useState } from 'react'
 
-import { createMailService } from '@/core'
+import { createAgentGateway, createMailService } from '@/core'
+import type { AgentGateway } from '@/core/agents'
 import type { Platform } from '@/core/platform'
 import type { MailService } from '@/core/types'
 import { isDemo, isTauri, NOW } from '@/lib/env'
 
 const ServiceContext = createContext<MailService | null>(null)
+/**
+ * The agent trust substrate — M1. A sibling of the mail service rather than a
+ * member of it: the gateway *holds* a MailService (approving a queued send
+ * dispatches through it), and putting it the other way round would make the
+ * mail engine depend on a layer that did not exist when it was written.
+ */
+const AgentContext = createContext<AgentGateway | null>(null)
 /**
  * The one Platform the app owns, or null in demo mode. Notifications need it,
  * and building a second one per toast means a second SQLite handle waiting to
@@ -31,6 +39,7 @@ const ModeContext = createContext<MailMode>({ demo: isDemo, switchToDemo: () => 
 
 interface Runtime {
   service: MailService
+  agents: AgentGateway
   platform: Platform | null
 }
 
@@ -46,7 +55,8 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
       try {
         const platform = !demo && isTauri() ? await loadTauriPlatform() : null
         const service = await createMailService(platform, { demo, now: NOW })
-        if (alive) setRuntime({ service, platform })
+        const agents = await createAgentGateway(platform, { demo, now: NOW, mail: service })
+        if (alive) setRuntime({ service, agents, platform })
       } catch (cause) {
         if (alive) setError(cause instanceof Error ? cause : new Error(String(cause)))
       }
@@ -75,7 +85,9 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
   return (
     <ModeContext value={{ demo, switchToDemo }}>
       <PlatformContext value={runtime.platform}>
-        <ServiceContext value={runtime.service}>{children}</ServiceContext>
+        <ServiceContext value={runtime.service}>
+          <AgentContext value={runtime.agents}>{children}</AgentContext>
+        </ServiceContext>
       </PlatformContext>
     </ModeContext>
   )
@@ -90,6 +102,12 @@ export function useMailService(): MailService {
   const service = use(ServiceContext)
   if (!service) throw new Error('useMailService must be used inside <MailServiceProvider>')
   return service
+}
+
+export function useAgentGateway(): AgentGateway {
+  const gateway = use(AgentContext)
+  if (!gateway) throw new Error('useAgentGateway must be used inside <MailServiceProvider>')
+  return gateway
 }
 
 export function useMailMode(): MailMode {

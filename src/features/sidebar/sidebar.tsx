@@ -6,9 +6,10 @@
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
-import { AccountDot, IconButton, PrimaryButton } from '@/components/wren-controls'
+import { AccountDot, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
 import { FOLDERS, FOLDER_BY_LABEL } from '@/core/defaults'
 import type { Account, MailView } from '@/core/types'
+import { usePendingApprovals } from '@/features/agents/queries'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import { useAccounts, useLabels, useSyncStatus, useUnreadCount } from '@/features/mail/queries'
 import { useMailMode } from '@/features/mail/service'
@@ -327,6 +328,7 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
         collapsed ? 'flex-col gap-1' : 'gap-2',
       )}
     >
+      <ApprovalsBadge />
       {!collapsed && (
         <span
           title={detail}
@@ -351,5 +353,50 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
       <IconButton name="settings" label="Settings" onClick={() => openSettings()} />
       <IconButton name={themeIcon} label={themeLabel} onClick={toggle} />
     </div>
+  )
+}
+
+/**
+ * "Something is waiting on you" — the approval queue's only entry point.
+ *
+ * It is absent at zero rather than dimmed at zero. A permanent control that is
+ * empty six days a week teaches people to stop looking at it, and the whole
+ * point of this one is that it is worth looking at when it appears.
+ *
+ * An accent-washed pill, not a red dot: a queued send is information, which is
+ * what DIRECTION §3 spends the one accent on. It is not an alarm — the agent
+ * asked politely and the mail is not going anywhere.
+ */
+function ApprovalsBadge() {
+  const pending = usePendingApprovals()
+  const setApprovals = useSurfaces((s) => s.setApprovals)
+  const count = pending.data?.length ?? 0
+  if (count === 0) return null
+
+  const label = `${count} approval${count === 1 ? '' : 's'} waiting`
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            data-wren-approvals
+            onClick={() => setApprovals(true)}
+            className={cn(
+              'bg-fill-selected text-brand font-ui inline-flex h-8 shrink-0 items-center gap-2 rounded-full px-3 text-xs font-medium outline-none',
+              'transition-[background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+              PRESS,
+              'focus-ring hover:bg-fill-active',
+            )}
+          />
+        }
+      >
+        <Icon name="check" size={16} />
+        <span className="tabular-nums">{count}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
   )
 }
