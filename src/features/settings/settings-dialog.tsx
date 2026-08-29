@@ -1,11 +1,15 @@
-// Settings: a glass dialog with a slim left nav. Five sections, no tabs bar,
-// no scrolling nav — the whole surface is decided once, here.
+// Settings: a card with a slim left nav. Five sections, no tabs bar, no
+// scrolling nav — the whole surface is decided once, here.
 //
-// It takes the `glass-strong` recipe rather than `glass`. DIRECTION §7 names
-// that recipe for the palette and onboarding cards, but the reason it exists
-// is area: this is the largest floating surface in the app, and at the lighter
-// tint the empty right-hand column let the reading pane's copy read straight
-// through it.
+// It used to take `glass-strong`, and does not any more. Glass is now the
+// command palette and the composer only (owner ruling, 2026-08-28): this is
+// the largest floating surface in the app, it is opened deliberately and read
+// carefully, and a ring plus the new lighter shadow separates it from the
+// panes behind it without asking a 680×440 backdrop to re-rasterize.
+//
+// Each section carries one of the eight category hues as a 28 px tile — Amie's
+// settings pattern, and the cheapest place in the app to buy personality
+// (AMIE-STUDY §7b).
 
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -26,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { AccountAvatar, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
+import { AccountAvatar, HueTile, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
 import type { Account, Settings } from '@/core/types'
 import { keys, useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
@@ -37,6 +41,7 @@ import {
   type SettingsSection,
 } from '@/features/shell/surface-store'
 import { useUi, type ThemeChoice } from '@/features/mail/ui-store'
+import { hueFor, type Hue } from '@/lib/hue'
 import { setSoundsEnabled } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +53,19 @@ const SECTION_ICONS: Record<SettingsSection, IconName> = {
   google: 'key',
   sync: 'sync',
   about: 'about',
+}
+
+/**
+ * One hue per section, assigned rather than hashed: these five are a fixed,
+ * ordered set the user learns by position, so the colours are part of the
+ * layout and must not move when a section is renamed.
+ */
+const SECTION_HUES: Record<SettingsSection, Hue> = {
+  accounts: 'orange',
+  appearance: 'violet',
+  google: 'blue',
+  sync: 'teal',
+  about: 'magenta',
 }
 
 export function SettingsDialog() {
@@ -68,7 +86,7 @@ export function SettingsDialog() {
         // A fixed height, deliberately: the sections are wildly different
         // lengths and a content-sized dialog would jump every time the nav is
         // used. 440 is the shortest height the tallest section still reads in.
-        className="glass-strong flex h-[440px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 ring-0 sm:max-w-[680px]"
+        className="bg-raised rounded-2xl shadow-xl flex h-[440px] w-[680px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden border-0 p-0 ring-0 sm:max-w-[680px]"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
@@ -101,24 +119,18 @@ function SettingsBody({ section }: { section: SettingsSection }) {
               onClick={() => openSettings(item.id)}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                // `rounded-xl` (20), not `rounded-md` (12): the dialog is
-                // `glass-strong` at 28 and the nav is `p-2`, so DIRECTION §6's
-                // concentric rule — inner = outer − padding — puts these items
-                // at 20 (N2).
-                'font-ui flex h-9 w-full items-center gap-2 rounded-xl px-2 text-base outline-none',
+                // Concentric: the dialog is 24 and the nav is `p-2`, so
+                // DIRECTION §6's inner = outer − inset puts these items at 16.
+                // The focus ring is a box-shadow and follows that corner on its
+                // own, which is the whole point of the rule.
+                'font-ui flex h-10 w-full items-center gap-2 rounded-[16px] px-2 text-base outline-none',
                 'transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
                 PRESS,
                 'focus-visible:ring-ring/50 focus-visible:ring-3',
                 active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
               )}
             >
-              <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
-                <Icon
-                  name={SECTION_ICONS[item.id]}
-                  size={18}
-                  className={active ? 'text-brand' : 'text-ink-3'}
-                />
-              </span>
+              <HueTile name={SECTION_ICONS[item.id]} hue={SECTION_HUES[item.id]} />
               <span className="truncate">{item.label}</span>
             </button>
           )
@@ -159,7 +171,10 @@ function Explainer({ children }: { children: React.ReactNode }) {
 
 function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor: string }) {
   return (
-    <label htmlFor={htmlFor} className="font-ui text-ink-2 text-xs">
+    // The eyebrow — AMIE-STUDY §3. A field label is a word, so it takes the
+    // caps half of the role as well as the weight and the tracking, exactly
+    // like the grey labels above every field well in Amie's own sheets.
+    <label htmlFor={htmlFor} className="font-ui text-ink-3 text-xs font-semibold uppercase">
       {children}
     </label>
   )
@@ -292,7 +307,7 @@ function AccountRow({ account }: { account: Account }) {
     <li className="flex h-14 items-center gap-3">
       <AccountAvatar
         address={{ name: account.displayName, email: account.email }}
-        color={account.color}
+        hue={hueFor(account.email)}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="font-ui text-ink truncate text-base font-medium">

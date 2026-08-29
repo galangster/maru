@@ -103,6 +103,12 @@
     transition-timing-function: var(--wren-ease-out);
     /* Room for the dismiss control, which now sits inside the toast. */
     padding-inline-end: 48px;
+    /* Amie's floating-surface recipe: the 1 px ring inside --wren-shadow-lg is
+       what separates the toast from whatever it is over, and the blur only
+       softens (AMIE-STUDY §4.2). Sonner's own flat border is switched off so
+       the ring is not drawn twice at two different alphas. */
+    border: 0;
+    box-shadow: var(--wren-shadow-lg);
 }
 
 /* Sonner hangs its dismiss button off the top-left corner at 20 px, half
@@ -116,7 +122,9 @@
     height: var(--wren-hit);
     transform: translateY(-50%);
     border: 0;
-    border-radius: var(--wren-radius-xs);
+    /* A round hit box inside a 14 px toast: concentric by being a circle, and
+       it can never disagree with the corner it sits near. */
+    border-radius: var(--wren-radius-full);
     background: transparent;
     color: var(--wren-text-3);
     transition:

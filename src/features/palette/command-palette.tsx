@@ -197,11 +197,11 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                 // second-guesses what the search index already matched.
                 value={`${debounced} ${thread.key}`}
                 onSelect={() => openThread(thread)}
-                className="data-[selected=true]:bg-fill-selected group flex h-(--wren-row-h-compact) cursor-default items-center rounded-md px-2 outline-none"
+                // Concentric: the palette is 24 and the list is `p-2`, so a row is 16.
+                className="data-[selected=true]:bg-fill-selected group flex h-(--wren-row-h-compact) cursor-default items-center rounded-[16px] px-2 outline-none"
               >
                 <ThreadResult
                   thread={thread}
-                  account={accountsById.get(thread.accountId)}
                   selfEmails={selfEmails}
                   now={now}
                   avatar={false}
@@ -225,7 +225,10 @@ function Group({ heading, children }: { heading: string; children: React.ReactNo
   return (
     <Command.Group
       heading={heading}
-      className="[&_[cmdk-group-heading]]:font-ui [&_[cmdk-group-heading]]:text-ink-3 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-xs"
+      // The eyebrow — AMIE-STUDY §3. These headings are the clearest case for
+      // the caps half of the role: single words, naming a section, sitting
+      // above a list they own.
+      className="[&_[cmdk-group-heading]]:font-ui [&_[cmdk-group-heading]]:text-ink-3 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase"
     >
       {children}
     </Command.Group>
@@ -247,7 +250,7 @@ function Row({
     <Command.Item
       value={label}
       onSelect={onSelect}
-      className="data-[selected=true]:bg-fill-selected data-[selected=true]:text-ink group text-ink-2 flex h-9 cursor-default items-center gap-3 rounded-md px-2 text-base outline-none"
+      className="data-[selected=true]:bg-fill-selected data-[selected=true]:text-ink group text-ink-2 flex h-9 cursor-default items-center gap-3 rounded-[16px] px-2 text-base outline-none"
     >
       <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
         <Icon

@@ -15,7 +15,7 @@ export function AttachmentChip({ attachment }: { attachment: Attachment }) {
           description: 'Saving and previewing attachments are coming soon.',
         })
       }
-      className="bg-sunken text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 inline-flex h-8 max-w-64 items-center gap-2 rounded-xs px-2 text-sm outline-none transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3"
+      className="bg-sunken text-ink-2 hover:bg-fill-hover focus-visible:ring-ring/50 inline-flex h-8 max-w-64 items-center gap-2 rounded-full px-3 text-sm outline-none transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3"
     >
       <Icon name={attachmentIcon(attachment.mimeType)} size={16} className="text-ink-3" />
       <span className="truncate">{attachment.filename}</span>

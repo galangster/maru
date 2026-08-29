@@ -38,9 +38,19 @@ export function useBodyEditor({ initialHtml, onChange }: UseBodyEditorOptions): 
   })
 }
 
+/**
+ * The draft box. A field well like the ones above it, and the one the ring has
+ * to hug: at `--wren-radius-md` inside the sheet's 12 px inset it is exactly
+ * concentric with the sheet's 24, so a focus ring drawn on it follows the same
+ * corner geometry instead of cutting a square across a rounded box.
+ *
+ * `focus-within`, not `focus-visible`: the focusable node is ProseMirror's own
+ * contenteditable several levels down, and the ring belongs on the well the
+ * user sees rather than on the node the browser happens to focus.
+ */
 export function BodyEditor({ editor }: { editor: Editor | null }) {
   return (
-    <div className="wren-editor min-h-0 flex-1 overflow-y-auto px-4 py-3">
+    <div className="wren-editor bg-sunken rounded-md focus-within:ring-ring/50 min-h-0 flex-1 overflow-y-auto px-3 py-3 focus-within:ring-3">
       <EditorContent editor={editor} className="h-full" />
     </div>
   )

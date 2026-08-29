@@ -5,8 +5,9 @@ import { useCallback, useState } from 'react'
 
 import { Icon } from '@/components/ui/icon'
 import { AccountAvatar } from '@/components/wren-controls'
-import type { Account, Message } from '@/core/types'
+import type { Message } from '@/core/types'
 import { displayName, fullTimestamp, relativeTime } from '@/lib/format'
+import { hueFor } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
 import { AttachmentChip } from './attachment-chip'
@@ -15,7 +16,6 @@ import { MessageBody } from './message-body'
 export interface MessageCardProps {
   threadKey: string
   message: Message
-  account: Account | undefined
   defaultExpanded: boolean
   now: number
   imagesAllowed: boolean
@@ -25,7 +25,6 @@ export interface MessageCardProps {
 export function MessageCard({
   threadKey,
   message,
-  account,
   defaultExpanded,
   now,
   imagesAllowed,
@@ -46,7 +45,7 @@ export function MessageCard({
           'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) focus-visible:ring-3',
         )}
       >
-        <AccountAvatar address={message.from} color={account?.color ?? '#94a3b8'} />
+        <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
         <span className="font-ui text-ink-2 shrink-0 text-base font-medium">
           {displayName(message.from)}
         </span>
@@ -61,7 +60,7 @@ export function MessageCard({
   return (
     <article className="bg-surface rounded-lg p-4 shadow-xs">
       <header className="flex items-start gap-3">
-        <AccountAvatar address={message.from} color={account?.color ?? '#94a3b8'} />
+        <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
         <div className="min-w-0 flex-1">
           <p className="font-ui text-ink truncate text-base font-semibold">
             {displayName(message.from)}

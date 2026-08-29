@@ -23,6 +23,7 @@ import { AccountAvatar, IconButton } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import { THREAD_ACTION_ORDER, threadActions } from '@/features/mail/thread-actions'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import { hueFor } from '@/lib/hue'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
@@ -32,6 +33,12 @@ export interface ThreadRowProps {
   selected: boolean
   showAccount: boolean
   selfEmails: string[]
+  /**
+   * This row is showing its archive tick and is on its way out — AMIE-STUDY
+   * §7(c).1. The list holds the action for exactly as long as the animation
+   * runs, so the row is still in the data while it plays.
+   */
+  ticking?: boolean
   /**
    * Both take the thread rather than closing over it, so the list can hand
    * every row the same two function identities and `memo` actually holds. A
@@ -55,6 +62,7 @@ export const ThreadRow = memo(function ThreadRow({
   selected,
   showAccount,
   selfEmails,
+  ticking = false,
   onSelect,
   onAction,
 }: ThreadRowProps) {
@@ -74,14 +82,33 @@ export const ThreadRow = memo(function ThreadRow({
       data-thread-key={thread.key}
       data-unread={thread.unread || undefined}
       onClick={() => onSelect(thread)}
+      // The exit is transform and opacity only, and it starts 120 ms after the
+      // tick so the check is legible before the row leaves. Rows below settle
+      // through the virtualizer's own translateY — never an animated height.
+      style={
+        ticking
+          ? {
+              animation:
+                'wren-row-out var(--wren-dur-base) var(--wren-ease-in) var(--wren-dur-fast) both',
+            }
+          : undefined
+      }
       className={cn(
-        'group relative flex h-(--wren-row-h) w-full cursor-default items-center gap-3 px-4',
+        // The inset rounded row — AMIE-STUDY §5. Every row is its own rect
+        // with a 4 px gap, and hover and selection fill THAT rect, so
+        // selection finally has a shape instead of a full-bleed band. The
+        // pitch is still --wren-row-h; only the visible rect is inset, so the
+        // virtualizer's measurements are untouched. `px-2` inside an 8 px
+        // inset puts the content back on the same x it always started at.
+        'group relative flex h-[calc(var(--wren-row-h)-var(--wren-row-gap))] w-[calc(100%-2*var(--wren-row-inset-x))]',
+        'mx-(--wren-row-inset-x) cursor-default items-center gap-3 rounded-row px-2',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         selected ? 'bg-fill-selected' : 'hover:bg-fill-hover',
+        ticking && 'pointer-events-none',
       )}
     >
       <span className="flex w-3 shrink-0 justify-center">
-        {thread.unread && (
+        {thread.unread && !ticking && (
           <>
             <span className="bg-brand size-1.5 rounded-full" aria-hidden />
             <span className="sr-only">Unread</span>
@@ -89,7 +116,15 @@ export const ThreadRow = memo(function ThreadRow({
         )}
       </span>
 
-      <AccountAvatar address={lead} color={account?.color ?? '#94a3b8'} ring={showAccount} />
+      {ticking ? (
+        <ArchiveTick />
+      ) : (
+        <AccountAvatar
+          address={lead}
+          hue={hueFor(lead.email)}
+          ringHue={showAccount && account ? hueFor(account.email) : undefined}
+        />
+      )}
       {showAccount && account && <span className="sr-only">{account.email}</span>}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -162,10 +197,35 @@ export const ThreadRow = memo(function ThreadRow({
         </div>
       </div>
 
-      <QuickActions thread={thread} onAction={act} />
+      {!ticking && <QuickActions thread={thread} onAction={act} />}
     </div>
   )
 })
+
+/**
+ * The archive celebration, and the whole of it — AMIE-STUDY §7(c).1.
+ *
+ * The avatar becomes a green disc carrying a check and runs one pop. **No
+ * particles.** Archive fires forty times a day; a burst would be wallpaper
+ * within an hour, and Amie's own most-repeated action is a single pop. The
+ * budget is spent on inbox zero instead, which happens once.
+ *
+ * 320 ms rather than the study's 260: it keeps the pop on DIRECTION §9's three
+ * durations, and it makes the pop and the row's exit land on the same frame.
+ * The check is `--wren-hue-fg`, not white — white measures 2.90:1 on the green
+ * solid, under the 3.0 a non-text glyph needs (tokens.css §4).
+ */
+function ArchiveTick() {
+  return (
+    <span
+      aria-hidden
+      style={{ animation: 'wren-confirm-pop var(--wren-dur-slow) var(--wren-ease-spring) both' }}
+      className="bg-[var(--wren-hue-green)] text-[var(--wren-hue-fg)] inline-flex size-(--wren-avatar) shrink-0 items-center justify-center rounded-full"
+    >
+      <Icon name="check" size={16} />
+    </span>
+  )
+}
 
 /**
  * The row's mouse convenience: four actions revealed on hover, opaque so they

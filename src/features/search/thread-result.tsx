@@ -4,13 +4,13 @@
 
 import { Icon } from '@/components/ui/icon'
 import { AccountAvatar } from '@/components/wren-controls'
-import type { Account, Thread } from '@/core/types'
+import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import { hueFor } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
 export interface ThreadResultProps {
   thread: Thread
-  account: Account | undefined
   selfEmails: string[]
   now: number
   /** The list shows avatars; the palette shows a mail glyph in the icon slot. */
@@ -20,18 +20,18 @@ export interface ThreadResultProps {
 
 export function ThreadResult({
   thread,
-  account,
   selfEmails,
   now,
   avatar = true,
   className,
 }: ThreadResultProps) {
   const people = correspondents(thread.participants, selfEmails)
+  const lead = people[0] ?? { email: '?' }
 
   return (
     <span className={cn('flex w-full min-w-0 items-center gap-3', className)}>
       {avatar ? (
-        <AccountAvatar address={people[0] ?? { email: '?' }} color={account?.color ?? '#94a3b8'} />
+        <AccountAvatar address={lead} hue={hueFor(lead.email)} />
       ) : (
         <span className="flex w-(--wren-icon-box) shrink-0 items-center justify-center">
           <Icon

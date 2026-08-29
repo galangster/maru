@@ -1,10 +1,12 @@
 // The middle pane: a virtualized, date-grouped thread list, and the inline
 // search that temporarily replaces it.
 //
-// Hairlines appear only between day groups (Family 1). Rows inside a group are
-// separated by nothing but their own height.
+// There are no hairlines in the list at all. Every row is its own inset
+// rounded rect with a --wren-row-gap between it and its neighbour, and a day
+// group is marked by the space its header sits in — which is what Family 1
+// asked for and what the divider was a compromise against (AMIE-STUDY §5).
 
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 import { Skeleton } from '@/components/ui/skeleton'
@@ -24,6 +26,7 @@ import { useUi } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/features/search/thread-result'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { dateGroup, type DateGroup } from '@/lib/format'
+import { useMotionMode } from '@/lib/motion'
 import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
@@ -33,6 +36,14 @@ import { ThreadRow, threadRowId } from './thread-row'
 
 const GROUP_H = 40
 const ROW_H = 68
+
+/**
+ * How long the archive tick holds the mutation: --wren-dur-fast of delay plus
+ * --wren-dur-base of exit, which is also exactly when the check's pop lands.
+ * Kept in sync by hand with thread-row.tsx, because CSS owns the animation and
+ * JS owns the hold, and there is no third place for the number to live.
+ */
+const TICK_MS = 320
 
 type Row =
   | { kind: 'group'; key: string; label: DateGroup }
@@ -100,6 +111,28 @@ export function ThreadList() {
   const actionRef = useRef(action)
   actionRef.current = action
 
+  // The row currently showing its archive tick, and the timer holding its
+  // mutation. AMIE-STUDY §7(c).1: the row has to still be in the data while
+  // the check pops, so the action waits exactly as long as the animation runs
+  // and not a frame longer.
+  const [ticking, setTicking] = useState<string | null>(null)
+  const held = useRef<Map<string, number>>(new Map())
+  const mode = useMotionMode()
+
+  // A mail action must never be lost to an animation. Anything still held when
+  // this pane goes away fires now, in the same turn — the same guarantee the
+  // composer's held send makes.
+  useEffect(() => {
+    const pending = held.current
+    return () => {
+      for (const [key, timer] of pending) {
+        window.clearTimeout(timer)
+        actionRef.current.mutate({ type: 'archive', threadKey: key })
+      }
+      pending.clear()
+    }
+  }, [])
+
   const onSelect = useCallback(
     (thread: Thread) => {
       // Pointer-initiated: the reading pane is licensed to animate its arrival.
@@ -111,8 +144,23 @@ export function ThreadList() {
   )
 
   const onAction = useCallback(
-    (thread: Thread, type: MailActionType) => actionRef.current.mutate({ type, threadKey: thread.key }),
-    [],
+    (thread: Thread, type: MailActionType) => {
+      // Archive is the one action with a row-level celebration. Everything
+      // else goes straight through, and so does archive under reduced motion
+      // and in the capture path, where there is nothing to wait for.
+      if (type !== 'archive' || mode !== 'full' || held.current.has(thread.key)) {
+        actionRef.current.mutate({ type, threadKey: thread.key })
+        return
+      }
+      setTicking(thread.key)
+      const timer = window.setTimeout(() => {
+        held.current.delete(thread.key)
+        setTicking((current) => (current === thread.key ? null : current))
+        actionRef.current.mutate({ type: 'archive', threadKey: thread.key })
+      }, TICK_MS)
+      held.current.set(thread.key, timer)
+    },
+    [mode],
   )
 
   const labelName =
@@ -184,7 +232,13 @@ export function ThreadList() {
               }}
             />
           ) : (
-            <ul role="listbox" aria-label="Search results" className="flex flex-col py-1">
+            <ul
+              role="listbox"
+              aria-label="Search results"
+              // Same inset and same gap as the thread list, so a result and a
+              // row are visibly the same kind of object.
+              className="flex flex-col gap-(--wren-row-gap) px-(--wren-row-inset-x) py-1"
+            >
               {hits.map((thread) => (
                 // A `listitem` between the listbox and its options breaks the
                 // required owned-element relationship (N9).
@@ -196,15 +250,17 @@ export function ThreadList() {
                     data-thread-key={thread.key}
                     onClick={() => onSelect(thread)}
                     className={cn(
-                      'flex h-(--wren-row-h-compact) w-full items-center px-4 text-left outline-none',
+                      'rounded-row flex h-(--wren-row-h-compact) w-full items-center px-2 text-left outline-none',
                       'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+                      // The ring follows the rect it is on, so a focused
+                      // result reads as one shape rather than as a square
+                      // outline around a rounded fill.
                       'focus-visible:ring-ring/50 focus-visible:ring-3 focus-visible:ring-inset',
                       selected === thread.key ? 'bg-fill-selected' : 'hover:bg-fill-hover',
                     )}
                   >
                     <ThreadResult
                       thread={thread}
-                      account={accountsById.get(thread.accountId)}
                       selfEmails={selfEmails}
                       now={now}
                     />
@@ -239,11 +295,14 @@ export function ThreadList() {
               return (
                 <div
                   key={item.key}
-                  className="absolute top-0 left-0 w-full"
+                  // `items-center` is what turns the row's 4 px shortfall into
+                  // an even 2 px above and below, so the gap between two rows
+                  // is exactly --wren-row-gap and the pitch is untouched.
+                  className="absolute top-0 left-0 flex w-full items-center"
                   style={{ height: item.size, transform: `translateY(${item.start}px)` }}
                 >
                   {row.kind === 'group' ? (
-                    <GroupHeader label={row.label} first={item.index === 0} />
+                    <GroupHeader label={row.label} />
                   ) : (
                     <ThreadRow
                       thread={row.thread}
@@ -251,6 +310,7 @@ export function ThreadList() {
                       selected={selected === row.thread.key}
                       showAccount={showAccount}
                       selfEmails={selfEmails}
+                      ticking={ticking === row.thread.key}
                       onSelect={onSelect}
                       onAction={onAction}
                     />
@@ -302,15 +362,19 @@ function SearchField() {
   )
 }
 
-function GroupHeader({ label, first }: { label: DateGroup; first: boolean }) {
+/**
+ * The day label. It used to carry a hairline along its top edge, which was the
+ * compromise DIRECTION §2 (Family 1) reached when rows were a full-bleed band
+ * and needed *something* to mark a boundary. Rows are their own rounded rects
+ * now, with a gap between them, so the group's own vertical space does the
+ * grouping and the rule is gone — which is what Family and Amie both do.
+ *
+ * Sentence case, not the new all-caps eyebrow: these are date words, and
+ * "YESTERDAY" reads as a shout where "ACCOUNTS" reads as a section.
+ */
+function GroupHeader({ label }: { label: DateGroup }) {
   return (
-    <div
-      className={cn(
-        'font-ui text-ink-3 flex h-full items-end px-4 pb-2 text-xs',
-        // The only hairline in the list, and it never adds layout height.
-        !first && 'shadow-[inset_0_1px_0_var(--wren-hairline)]',
-      )}
-    >
+    <div className="font-ui text-ink-3 flex h-full w-full items-end self-stretch px-4 pb-2 text-xs">
       {label}
     </div>
   )
@@ -321,9 +385,13 @@ function ListSkeleton() {
     <div aria-hidden className="flex flex-col">
       {Array.from({ length: 9 }).map((_, i) => (
         // The skeleton is the row's shape, not a generic two-bar placeholder:
-        // `gap-1` like the row, a 20 px first line and an 18 px second, so
-        // nothing about the geometry changes when the data lands (N8).
-        <div key={i} className="flex h-(--wren-row-h) items-center gap-3 px-4">
+        // `gap-1` like the row, a 20 px first line and an 18 px second, and
+        // the same 8 px inset plus 8 px padding the real row has, so nothing
+        // about the geometry changes when the data lands (N8).
+        <div
+          key={i}
+          className="mx-(--wren-row-inset-x) flex h-[calc(var(--wren-row-h)-var(--wren-row-gap))] items-center gap-3 px-2"
+        >
           <span className="w-3 shrink-0" />
           <Skeleton className="size-8 rounded-full" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">

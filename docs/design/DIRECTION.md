@@ -2,6 +2,9 @@
 
 Owner: Nick. Lane: T7. Status: ratified for the shell lane.
 Implementation: `src/styles/tokens.css`. This document is the *why*; the tokens file is the *what*.
+Re-grounded on the Amie study 2026-08-28 — see `AMIE-STUDY.md` and `tokens-amie-proposal.css`
+beside this file. §3 (colour), §4 (the eyebrow), §5 (row measures), §6 (radius and elevation),
+§7 (where glass lives), §8 (filled icons) and §9 (the celebration register) all moved.
 
 Wren is a unified Gmail desktop client that should feel like a cloud: light, soft-edged,
 weightless, quiet. It is not a MetaDAO product and carries none of that styling. Every value
@@ -84,25 +87,30 @@ component. Columns line up across every row of a list, always.
 
 ## 3. Color
 
-OKLCH throughout. Hue **268** (periwinkle indigo) carries the entire neutral ramp at very low
-chroma, so the greys read cool and airy rather than dead.
+OKLCH throughout. The neutral ramp is **achromatic** — hue 286 at chroma 0.002–0.005, which is
+a true neutral that still avoids a dead flat grey. It used to be periwinkle-tinted at hue 268;
+the Amie study (`AMIE-STUDY.md` §2.1) found that the tint fought every saturated element beside
+it, and it came out when the category hue family arrived. The greys now read *neutral and
+airy*; the cool comes from the accent, not from the canvas.
 
-**Accent: periwinkle indigo, `oklch(0.545 0.185 268)` / `#4364DA`.**
+**Accent: periwinkle indigo, `oklch(0.545 0.185 268)` / `#4364DA`.** Held.
 Justification: violet-indigo is the shared territory of Phantom, Aave and Umbra, but pushed
-lighter and cooler toward sky so it reads *cloud*, not *crypto wallet*.
+lighter and cooler toward sky so it reads *cloud*, not *crypto wallet*. The study offered a
+nudge to hue 258 (Amie's internet blue); the owner declined it — the accent is Wren's identity
+anchor and does not move.
 
 ### Light
 
 | Role | OKLCH | Hex |
 |---|---|---|
-| base (app canvas, sidebar) | `0.967 0.006 268` | `#F2F4F8` |
-| sunken (wells, inset fields) | `0.945 0.008 268` | `#EAEDF2` |
+| base (app canvas, sidebar) | `0.968 0.002 286` | `#F4F4F5` |
+| sunken (wells, inset fields) | `0.949 0.003 286` | `#EDEDEF` |
 | surface (list, reading pane) | `1 0 0` | `#FFFFFF` |
 | raised (cards, popovers) | `1 0 0` | `#FFFFFF` |
-| hairline | `0.905 0.010 268` | `#DDE0E6` |
-| text-1 primary | `0.235 0.020 268` | `#1A1E28` |
-| text-2 secondary | `0.470 0.019 268` | `#565B66` |
-| text-3 meta | `0.535 0.017 268` | `#696D77` |
+| hairline | `0.923 0.003 286` | `#E6E6E9` |
+| text-1 primary | `0.205 0.004 286` | `#171719` |
+| text-2 secondary | `0.470 0.004 286` | `#5A5A5D` |
+| text-3 meta | `0.535 0.004 286` | `#6D6D6F` |
 | accent | `0.545 0.185 268` | `#4364DA` |
 | accent-hover | `0.495 0.185 268` | `#3654C9` |
 | destructive | `0.560 0.210 25` | `#D4212D` |
@@ -113,36 +121,66 @@ lighter and cooler toward sky so it reads *cloud*, not *crypto wallet*.
 
 | Role | OKLCH | Hex |
 |---|---|---|
-| base | `0.185 0.013 268` | `#101319` |
-| sunken | `0.155 0.012 268` | `#0A0C11` |
-| surface | `0.222 0.014 268` | `#181B22` |
-| raised | `0.262 0.015 268` | `#21242C` |
-| hairline | `oklch(1 0 0 / 0.09)` | — |
-| text-1 | `0.966 0.004 268` | `#F2F4F6` |
-| text-2 | `0.742 0.014 268` | `#A7ABB5` |
-| text-3 | `0.660 0.016 268` | `#8E929C` |
+| base | `0.160 0.003 286` | `#0C0C0E` |
+| sunken | `0.110 0.002 286` | `#050506` |
+| surface | `0.225 0.004 286` | `#1C1C1F` |
+| raised | `0.285 0.005 286` | `#28282C` |
+| hairline | `oklch(1 0 0 / 0.08)` | — |
+| text-1 | `0.968 0.002 286` | `#F4F4F6` |
+| text-2 | `0.742 0.004 286` | `#ABABAE` |
+| text-3 | `0.660 0.004 286` | `#929294` |
 | accent | `0.745 0.120 268` | `#8CA9F9` |
 | accent-hover | `0.815 0.090 268` | `#A9C1FE` |
 | destructive | `0.705 0.175 22` | `#FA6B6D` |
 | success | `0.760 0.150 158` | `#48CD8C` |
 | star | `0.800 0.135 80` | `#EBB34B` |
 
+**text-2 and text-3 hold their lightness exactly in both themes.** Only chroma and hue moved,
+which is what carries the verified table below through the de-tinting unchanged. text-1 only
+ever got darker. Amie's own meta tier measures ≈2.8:1 and Wren declines it outright.
+
+### The category hue family
+
+Eight hues — green, teal, blue, violet, magenta, red, orange, yellow — each in three states:
+**solid** (rings, dots, tiles, filled marks), **ink** (text or a glyph on the matching wash;
+every one clears 4.5:1 on `surface` and on `base`), and **wash** (the solid at 12% light / 22%
+dark). Lightness is compensated per hue on purpose; a fixed-L rainbow is a myth. Every chroma
+is clamped to the sRGB boundary for its lightness, so nothing relies on browser gamut mapping.
+
+**They bind to exactly two things: a real Gmail label, and a stable hash of a sender's address
+(`src/lib/hue.ts`).** Nothing else. The moment a hue decorates chrome, "one accent" becomes "no
+accent" and §1's near-monochrome-at-rest promise is gone. Settings-section tiles are the one
+assigned exception, and they are five fixed positions rather than decoration.
+
+`--wren-hue-fg` is the ink that sits *on* a hue solid — a fixed dark value in **both** themes.
+Amie sets white there; white measures 1.6–4.1 on these solids and fails the 3:1 a non-text
+glyph needs on four of the eight, so Wren does not.
+
 ### Verified contrast (WCAG 2.x, computed not estimated)
 
-Light, against `base` / `surface`: text-1 **15.16 / 16.69**, text-2 **6.21 / 6.83**,
-text-3 **4.70 / 5.17**, accent **4.70 / 5.17**, destructive **4.71 / 5.18**,
-success **4.81 / 5.30**. White on accent **5.17**.
-Star (non-text, needs 3.0) **3.33 / 3.66**.
+Light, against `base` / `surface`: text-1 **16.33 / 17.92**, text-2 **6.23 / 6.83**,
+text-3 **4.71 / 5.17**, accent **4.71 / 5.17**, destructive **4.72 / 5.18**,
+success **4.83 / 5.30**. White on accent **5.17**.
+Star (non-text, needs 3.0) **3.34 / 3.66**.
 
-Dark, against `base` / `surface` / `raised`: text-1 **16.89 / 15.62 / 14.00**,
-text-2 **8.14 / 7.52 / 6.75**, text-3 **5.99 / 5.54 / 4.96**, accent **8.13 / — / 6.74**,
-destructive **6.57 / 6.07 / 5.45**, success **9.24 / 8.54 / 7.66**, star **9.85 / 9.11 / 8.17**.
+Dark, against `base` / `surface` / `raised`: text-1 **17.69 / 15.59 / 13.09**,
+text-2 **8.47 / 7.47 / 6.27**, text-3 **6.24 / 5.50 / 4.61**, accent **8.46 / 7.46 / 6.26**,
+destructive **6.84 / 6.03 / 5.06**, success **9.62 / 8.48 / 7.12**, star **10.26 / 9.04 / 7.59**.
+
+Hue inks, light, on `surface`: green **6.16**, teal **6.03**, blue **6.14**, violet **7.38**,
+magenta **6.92**, red **6.88**, orange **5.53**, yellow **5.09**. Dark inks run 8.35–11.89.
+`--wren-hue-fg` on a hue solid: **5.13–13.22** across all sixteen solids.
 
 Every text tier clears AA (4.5) on every surface it is permitted to sit on. All values are in
 sRGB gamut — verified, no clipping.
 
-**Semantic mapping.** Unread = accent dot + sender at 600. Starred = star hue, filled glyph.
-Selected row = `--wren-fill-selected` (accent at 8% light / 14% dark), never a stroke.
+**One licensed exception.** The light solids for green, teal, orange and yellow measure
+2.6–2.9:1 against white. They are permitted only as marks sitting immediately beside their own
+text label, never as the sole carrier of meaning.
+
+**Semantic mapping.** Unread = accent dot + sender at 600. Starred = star hue, **Style=Filled**
+glyph. Current mailbox = accent + **Style=Filled** glyph. Selected row =
+`--wren-fill-selected` (accent at 8% light / 14% dark), never a stroke.
 Hover = `--wren-fill-hover` (neutral, not accent).
 
 > **shadcn trap:** in shadcn, `--accent` is the *subtle hover fill*, not the brand colour.
@@ -164,11 +202,18 @@ Two families, four weights total, five sizes total.
 
 | Token | Size | Line-height | Tracking | Use |
 |---|---|---|---|---|
-| `--text-xs` | 11.5px | 16px | +0.01em | timestamps, counts, keycaps, section headers |
+| `--text-xs` | 11.5px | 16px | +0.02em | timestamps, counts, keycaps, the eyebrow |
 | `--text-sm` | 13px | 18px | 0 | snippets, secondary meta, table headers |
 | `--text-base` | 14px | 20px | −0.006em | UI default, sender names, buttons, menu items |
 | `--text-lg` | 15.5px | 24px | −0.011em | message body in the reading pane |
 | `--text-xl` | 21px | 27px | −0.018em | subject line, empty states, onboarding headline |
+
+**The eyebrow.** Open Runde 600, all-caps, `--text-xs`, `+0.02em`, in `text-3`. Amie's most
+distinctive typographic move, and the reason xs tracking widened. It marks a section label that
+is a *word*: the palette's group headings, the composer's field labels, the settings field
+labels, the "?" sheet's groups. It is not used where the label is an address or a date —
+"NICK@GMAIL.COM" and "YESTERDAY" both read as a shout. Those keep the weight and the tracking
+and drop the caps.
 
 Rules: `font-variant-numeric: tabular-nums` globally. `text-wrap: pretty` on prose,
 `text-wrap: balance` on headings under 3 lines. Reading-pane measure capped at **68ch**.
@@ -205,6 +250,9 @@ Pane measures, decided once:
 | `--wren-row-h` | 68px | two-line message row |
 | `--wren-row-h-compact` | 52px | single-line row (search results, palette) |
 | `--wren-list-sender-w` | 152px | fixed sender column — the Superhuman lesson |
+| `--wren-row-inset-x` | 8px | the inset rounded row's horizontal inset |
+| `--wren-row-gap` | 4px | the gap between two row rects; the pitch stays 68px |
+| `--wren-tile` | 28px | the category squircle in settings and label rows |
 | `--wren-pane-px` | 16px | list horizontal padding |
 | `--wren-read-px` | 32px | reading-pane horizontal padding |
 | `--wren-read-pt` | 24px | reading-pane top padding |
@@ -217,26 +265,39 @@ Pane measures, decided once:
 
 ## 6. Radius, elevation, hairline
 
-**Radius** — generous, cloud. shadcn's `--radius` base is set to `1rem`, which derives its
-`sm/md/lg/xl/2xl` scale correctly. Wren adds explicit tokens:
+**Radius** — a desktop scale, retuned from a mobile one. The old top three read as an iOS sheet
+on a 640 px floating card (`AMIE-STUDY.md` §4.1). shadcn's `--radius` base stays `1rem`.
 
-`--wren-radius-xs` 6 (chips, badges) · `-sm` 8 (inputs, small buttons) · `-md` 12 (buttons,
-menu items, avatars-as-squircle) · `-lg` 16 (cards, panes) · `-xl` 20 (sheets, popovers) ·
-`-2xl` 28 (command palette, onboarding cards) · `-full` 999.
+`--wren-radius-xs` 6 (chips, badges, keycaps) · `-sm` 8 (inputs, small buttons, category tiles)
+· `-md` 12 (buttons, menu items, composer field wells) · `-row` **10** (the inset list-row rect)
+· `-lg` **14** (cards, panes) · `-xl` **18** (sheets, popovers) · `-2xl` **24** (command
+palette, composer sheet, settings, onboarding) · `-full` 999.
 
-Nested radii must be concentric: inner = outer − padding. Never nest equal radii.
+Nested radii must be concentric: **inner = outer − inset.** Never nest equal radii. A 24 sheet
+with a 12 px inset puts its wells at 12; a 24 palette with `p-2` puts its rows at 16. A focus
+ring is a `box-shadow` and follows its element's radius on its own, so getting the radius right
+is what gets the ring right — the composer's draft well is the worked example.
 
-**Elevation** — soft ambient only. Two-part shadows (a tight contact shadow plus a wide diffuse
-one), low alpha, tinted with the neutral hue so they never look grey-on-colour. No `0 4px 4px`
-hard drops. In dark mode shadows carry more alpha *and* gain a `inset 0 1px 0` top sheen,
-because a shadow alone does nothing against a dark canvas.
+**Buttons and badges are pills.** Amie uses one for every primary action and every chip at both
+densities. Keycaps are the exception and stay at `-xs`: a keycap has to read as a key.
+
+**Rows are inset rounded rects, not full-bleed bands.** Every list row and every sidebar row is
+its own `-row` rect, inset `--wren-row-inset-x` with `--wren-row-gap` between neighbours, and
+hover and selection fill *that rect*. The gap does the grouping, so the in-list hairline is
+gone — which is what Family 1 asked for in the first place.
+
+**Elevation** — a 1 px ring composed **with** a soft ambient shadow. The ring is what separates
+a floating surface from the canvas; the blur only softens (`AMIE-STUDY.md` §4.2). Every tier
+carries the ring as its first layer, and the blur alphas sit ~25% below where they were. In
+light the ring is a dark hairline; in dark it is a *light* one, because against a black canvas
+a dark ring is invisible. No `0 4px 4px` hard drops, ever.
 
 `--wren-shadow-xs` → `-sm` → `-md` (menus) → `-lg` (popovers, toasts) → `-xl` (palette, sheets).
 
 **Hairline recipe.** Always exactly `1px`. Never `0.5px` — Windows WebView2 at 100% DPI rounds
-it to 0 or renders it blurry. Tune weight with *alpha*, not width. Row dividers use
-`box-shadow: inset 0 -1px 0 var(--wren-hairline)` so they never contribute to layout height;
-pane separators use a real `border-inline-end`.
+it to 0 or renders it blurry. Tune weight with *alpha*, not width. Pane separators use a real
+`border-inline-end`. A surface that already carries a shadow tier must not also draw its own
+`ring-1`: that is the ring twice, at two alphas.
 
 ---
 
@@ -270,8 +331,13 @@ Both set `contain: paint` and `isolation: isolate` to bound rasterization and to
 
 ### Where glass is allowed
 
-Command palette · composer sheet · context and dropdown menus · tooltips · toasts ·
-onboarding cards · the scrim behind a modal.
+**The command palette and the composer sheet. That is the whole list** (owner ruling,
+2026-08-28). Both are lightened to sit with the new ~25% lighter depth.
+
+Settings, onboarding, the "?" sheet, menus, tooltips and toasts all used to take glass and now
+take the ring-plus-shadow recipe in §6 instead. Amie has zero `backdrop-filter` in its desktop
+app; Wren keeps the material where it is genuinely a floating slab over live content, and drops
+it everywhere it was decorating a card that could simply be opaque.
 
 ### Where glass is banned
 
@@ -320,6 +386,12 @@ Anron eventually; **lucide-react** tuned to approximate its rounded geometry in 
   get a documented ±1 px nudge.
 - Icons inherit the text tier they sit in. The only accent-coloured icons are active nav and the
   unread dot. Star uses the star hue.
+- **Filled means selected.** Anron ships a `Style=Filled` twin for every glyph; Wren carries the
+  four it actually toggles — `star`, `inbox`, `sent`, `trash` — in `ANRON_FILLED_PATHS`. A
+  filled glyph is always *also* coloured (star hue, or accent for the current mailbox); Line is
+  resting. A filled twin carries no stroke, or its 1.5 px outline would fatten every edge.
+  Adding a fifth is a paste, not a decision. Glyphs with no twin never set `filled` — filling a
+  Line path produces a blob for anything that is not a closed outline.
 
 **Icon seam.** Every icon in the app is imported from a single `src/components/ui/icon.tsx`
 mapping semantic names (`archive`, `snooze`, `unread`) to lucide components. No component
@@ -354,6 +426,37 @@ Exits run at **0.7×** the entrance duration with `ease-in`. Palette enters at
 removed; a 120 ms opacity crossfade is retained, because an instant cut is its own kind of
 jarring. Focus-ring transitions are never removed.
 
+### The celebration register
+
+**One confident pop, colour, and an emoji. Never a storm.** Three moments, and the whole budget
+sits on the one that happens once. Spec: `AMIE-STUDY.md` §7(c).
+
+| Moment | What happens | Particles |
+|---|---|---|
+| **Archive** | the row's avatar becomes a green disc with a check and pops once (320 ms); at 120 ms the row exits `translateX(-12px)` + opacity over 200 ms; rows below settle by the virtualizer's own `translateY` | **none** |
+| **Send** | the arrow becomes a check, the button's fill crossfades to the green solid over 120 ms, and the button runs one 200 ms pop; the sheet exits at 200 ms | **none** |
+| **Inbox zero** | one 56 px emoji from a five-deck, chosen by day-of-year, entering `scale 0.4 → 1.12 → 1` with an `-8deg` unwind | **18**, once |
+
+Archive and send fire dozens of times a day, and **frequency is what kills delight** — a burst
+on either would be wallpaper within the hour. `--wren-dur-celebrate` (520 ms) is the one
+duration above `slow` and it is licensed for inbox zero and nothing else.
+
+The burst is 18 WAAPI particles in one absolutely-positioned layer with `contain: strict`, one
+`element.animate()` each, three keyframes encoding a ballistic arc so nothing integrates a
+position per frame. It tears itself down on the last `finish`. Peak cost: 19 nodes for 0.6 s.
+
+**The frequency guard is not optional.** Once per transition to zero, never twice inside 60 s,
+and never on the first mount of an already-empty inbox. It is the part most likely to be
+dropped in implementation and the part that decides whether this is charming or infuriating.
+
+**Reduced motion gets the static end state, and the particle layer is never mounted at all.**
+Making it invisible is not the same thing — it would still animate nineteen nodes on a machine
+that asked for none. Every celebration animates `transform` and `opacity` only.
+
+**A mail action is never lost to an animation.** The archive tick holds its mutation for exactly
+the length of the animation and flushes on unmount, the same guarantee the composer's held send
+makes.
+
 ---
 
 ## 10. Do / don't — the shell lane gate
@@ -362,9 +465,11 @@ jarring. Focus-ring transitions are never removed.
    only exceptions. A stray `13px` padding fails review.
 2. **Don't** ship a left accent sliver, stripe, or bar on any row or card, ever. Use a wash plus
    top/bottom hairlines, or a dot in the gutter.
+2b. **Don't** spend a category hue on chrome. They bind to a Gmail label and to the sender-avatar
+   hash, and to nothing else. One decoration and "one accent" becomes "no accent".
 3. **Don't** carry over any MetaDAO styling, token, colour, or component. Everything here derives
    from the reference set.
-4. **Do** keep list rows fully opaque. Glass is for floating surfaces only.
+4. **Do** keep list rows fully opaque. Glass is the palette and the composer, and nothing else.
 5. **Don't** exceed two concurrent glass layers, or put glass on anything that scrolls.
 6. **Do** use `--primary` for the brand accent. `--accent` is shadcn's hover fill — different thing.
 7. **Do** give every list a fixed sender column so subjects align at the same x.

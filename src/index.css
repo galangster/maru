@@ -21,7 +21,8 @@
 
     --text-xs: 0.71875rem; /* 11.5px */
     --text-xs--line-height: 1rem; /* 16px */
-    --text-xs--letter-spacing: 0.01em;
+    /* Widened for the all-caps eyebrow the xs tier now carries — AMIE-STUDY §3. */
+    --text-xs--letter-spacing: 0.02em;
     --text-sm: 0.8125rem; /* 13px */
     --text-sm--line-height: 1.125rem; /* 18px */
     --text-sm--letter-spacing: 0em;
@@ -40,6 +41,8 @@
     --radius-xs: var(--wren-radius-xs);
     --radius-sm: var(--wren-radius-sm);
     --radius-md: var(--wren-radius-md);
+    /* `rounded-row` — the inset list-row rect, AMIE-STUDY §5. */
+    --radius-row: var(--wren-radius-row);
     --radius-lg: var(--wren-radius-lg);
     --radius-xl: var(--wren-radius-xl);
     --radius-2xl: var(--wren-radius-2xl);

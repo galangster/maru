@@ -9,11 +9,12 @@ import { IconButton, Keycap, PRESS } from '@/components/wren-controls'
 import type { Message, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import type { ReplyMode } from '@/lib/compose'
-import { useAccountsById, useLabels, usePerformAction, useThread } from '@/features/mail/queries'
+import { useLabels, usePerformAction, useThread } from '@/features/mail/queries'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
 import { EmptyState } from '@/features/list/empty-state'
 import { displayName } from '@/lib/format'
+import { hueFor, hueVars } from '@/lib/hue'
 import { crossfadePreset, staggerPreset, stillPreset, useMotionMode } from '@/lib/motion'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
@@ -28,7 +29,6 @@ export function ReadingPane() {
   const now = useNow()
 
   const detail = useThread(selectedKey)
-  const { byId: accountsById } = useAccountsById()
   const action = usePerformAction()
   const mode = useMotionMode()
   // j/k traversal is the highest-frequency action in the app and gets nothing.
@@ -65,7 +65,6 @@ export function ReadingPane() {
   }
 
   const messages = detail.data?.messages ?? []
-  const account = accountsById.get(thread.accountId)
   const chips = (labels.data ?? []).filter(
     (l) => l.type === 'user' && thread.labelIds.includes(l.id),
   )
@@ -122,7 +121,6 @@ export function ReadingPane() {
                 key={message.id}
                 threadKey={thread.key}
                 message={message}
-                account={account}
                 defaultExpanded={index === messages.length - 1}
                 now={now}
                 imagesAllowed={imagesAllowed.has(thread.key)}
@@ -166,9 +164,16 @@ function ThreadHeader({
       {chips.length > 0 && (
         <ul className="flex flex-wrap gap-2 pt-1">
           {chips.map((name) => (
+            // A hue chip: the label's own wash carrying its own ink, as a pill
+            // (AMIE-STUDY §7b). This is one of exactly two places a category
+            // hue is allowed to appear — a real Gmail label, and the sender
+            // avatar's hash. The wash is 12% light / 22% dark and the ink is
+            // contrast-verified against both, so the chip reads at 20 px
+            // without a border.
             <li
               key={name}
-              className="bg-sunken text-ink-2 flex h-6 items-center rounded-xs px-2 text-xs"
+              style={hueVars(hueFor(name))}
+              className="font-ui bg-(--hue-wash) text-(--hue-ink) flex h-5 items-center rounded-full px-2 text-xs font-medium"
             >
               {name}
             </li>

@@ -172,9 +172,10 @@ function ComposerSheet() {
   /**
    * The flagship moment — MAGIC §3.3. One sequence, about 420 ms of it visible:
    *
-   *   0 ms    the button label crossfades "Send" → "Sent"
-   *   140 ms  the sheet exits (opacity, a 2% scale step and 8 px, ease-in)
-   *   220 ms  the toast rises bottom-left carrying UNDO
+   *   0 ms    the arrow becomes a check, the fill crossfades to green, and
+   *           the button runs one 200 ms pop — AMIE-STUDY §7(c).3
+   *   200 ms  the sheet exits (opacity, a 2% scale step and 8 px, ease-in)
+   *   280 ms  the toast rises bottom-left carrying UNDO
    *   4 s     the mail actually goes, and the earned cue plays
    *
    * The mail is genuinely held for that window, so UNDO is a real undo rather
@@ -191,7 +192,11 @@ function ComposerSheet() {
 
     // Motion off (captures) and reduced motion both collapse the beats to zero
     // rather than replaying them faster — there is nothing to see either way.
-    const beat = mode === 'full' ? 140 : 0
+    // 200 ms is --wren-dur-base: long enough for the fill to land and the pop
+    // to read, short enough that the app is usable again before the eye has
+    // moved. Under reduced motion the fill and the check still swap; only the
+    // waiting goes away.
+    const beat = mode === 'full' ? 200 : 0
 
     window.setTimeout(() => {
       close()
@@ -315,7 +320,7 @@ function ComposerSheet() {
             'min-h-[440px] max-h-[calc(100vh-var(--wren-titlebar-h)-32px)]',
           )}
         >
-      <header className="border-hairline flex h-10 shrink-0 items-center gap-1 border-b pr-1 pl-4">
+      <header className="flex h-10 shrink-0 items-center gap-1 pr-1 pl-4">
         <h2 className="font-ui text-ink min-w-0 flex-1 truncate text-base font-semibold">
           {title}
         </h2>
@@ -335,6 +340,11 @@ function ComposerSheet() {
         />
       </header>
 
+      {/* Amie's sheet: a column of field wells at a 16 px rhythm inside a
+          12 px inset, instead of a stack of hairline-separated rows. The
+          inset is what makes every well concentric with the sheet — 24 − 12
+          is --wren-radius-md, which is the radius they all carry. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <FromRow accounts={list} account={account} onChange={(id) => edit({ accountId: id })} />
 
       <ChipInput
@@ -365,8 +375,11 @@ function ComposerSheet() {
         </>
       )}
 
-      <div className="border-hairline flex min-h-9 items-center gap-3 border-b px-4">
-        <label htmlFor="wren-subject" className="font-ui text-ink-3 w-12 shrink-0 text-xs">
+      <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
+        <label
+          htmlFor="wren-subject"
+          className="font-ui text-ink-3 w-14 shrink-0 text-xs font-semibold uppercase"
+        >
           Subject
         </label>
         <input
@@ -379,6 +392,7 @@ function ComposerSheet() {
       </div>
 
       <BodyEditor editor={editor} />
+      </div>
 
       {draft.attachments.length > 0 && (
         <div className="border-hairline flex flex-col gap-2 border-t px-4 py-2">
@@ -386,7 +400,7 @@ function ComposerSheet() {
             {draft.attachments.map((attachment) => (
               <li
                 key={attachment.id}
-                className="bg-sunken text-ink-2 flex h-8 max-w-full items-center gap-2 rounded-xs pr-1 pl-2 text-sm"
+                className="bg-sunken text-ink-2 flex h-8 max-w-full items-center gap-2 rounded-full pr-1 pl-3 text-sm"
               >
                 <Icon name="attachment" size={16} className="text-ink-3" />
                 <span className="truncate">{attachment.filename}</span>
@@ -450,7 +464,25 @@ function ComposerSheet() {
               <PrimaryButton
                 onClick={send}
                 disabled={!canSend || sending}
-                className="h-8 gap-2 px-3"
+                // The send celebration — AMIE-STUDY §7(c).3. The button *is*
+                // the celebration: its fill crossfades to the green solid over
+                // 120 ms, the arrow becomes a check, and it runs one gentle
+                // pop. No particles. Send repeats dozens of times a day, and
+                // frequency is what kills delight.
+                //
+                // `disabled:opacity-40` from the recipe would grey the whole
+                // confirmation out the moment `sending` goes true, so the
+                // sending state overrides it back to full opacity.
+                style={
+                  sending
+                    ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
+                    : undefined
+                }
+                className={cn(
+                  'h-8 gap-2 px-4 transition-[background-color,color] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+                  sending &&
+                    'bg-[var(--wren-hue-green)] text-[var(--wren-hue-fg)] disabled:opacity-100',
+                )}
               />
             }
           >
@@ -484,8 +516,8 @@ function FromRow({
   onChange: (accountId: string) => void
 }) {
   return (
-    <div className="border-hairline flex min-h-9 items-center gap-3 border-b px-4">
-      <span className="font-ui text-ink-3 w-12 shrink-0 text-xs">From</span>
+    <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
+      <span className="font-ui text-ink-3 w-14 shrink-0 text-xs font-semibold uppercase">From</span>
       {accounts.length > 1 ? (
         <Select value={account?.id ?? ''} onValueChange={(value) => onChange(String(value))}>
           <SelectTrigger size="sm" aria-label="Send from" className="-ml-2 border-0 shadow-none">

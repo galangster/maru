@@ -15,6 +15,7 @@ import { useMailMode } from '@/features/mail/service'
 import { useUi, viewKey } from '@/features/mail/ui-store'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
+import { hueFor, hueSolid, type Hue } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
 /** The order the per-account label tree puts the system labels in. */
@@ -62,7 +63,7 @@ export function Sidebar() {
                 key={account.id}
                 view={{ kind: 'account', accountId: account.id, labelId: 'INBOX' }}
                 label={`Inbox — ${account.email}`}
-                dot={account.color}
+                hue={hueFor(account.email)}
                 collapsed
               />
             ))}
@@ -113,7 +114,7 @@ function NavRow({
   collapsed,
   unread,
   indent = false,
-  dot,
+  hue,
 }: {
   view: MailView
   label: string
@@ -124,7 +125,8 @@ function NavRow({
    *  second one in the list header. */
   unread?: number
   indent?: boolean
-  dot?: string
+  /** An account row's category hue, in place of an icon. */
+  hue?: Hue
 }) {
   const current = useUi((s) => s.view)
   const setView = useUi((s) => s.setView)
@@ -138,7 +140,11 @@ function NavRow({
     'data-view-key': viewKey(view),
     'aria-label': name,
     className: cn(
-      'font-ui group flex h-9 w-full items-center rounded-md text-base outline-none',
+      // `rounded-row`, the same 10 px rect the thread rows now take, so a
+      // mailbox and a message read as the same kind of object down the whole
+      // window (AMIE-STUDY §5). The focus ring is a box-shadow and follows
+      // that radius on its own.
+      'rounded-row font-ui group flex h-9 w-full items-center text-base outline-none',
       'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
       'focus-visible:ring-3 focus-visible:ring-ring/50',
       active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
@@ -153,38 +159,45 @@ function NavRow({
         {icon ? (
           // Resting at the meta tier and stepping up on hover: structure felt,
           // not seen (MAGIC §3.1, Linear's invisible refresh). The active row
-          // keeps the accent, which is the only thing that has to be seen.
+          // gets the accent AND the Style=Filled twin — filled plus colour is
+          // what "selected" looks like in this system, and it is the one thing
+          // in a sidebar row that has to be seen from across the pane.
           <Icon
             name={icon}
             size={20}
+            filled={active}
             className={active ? 'text-brand' : 'text-ink-3 group-hover:text-ink-2'}
           />
-        ) : dot ? (
+        ) : hue ? (
           collapsed ? (
             // At 64 px an account row used to fall through to a naked 6 px dot
             // floating in a 40×36 button, which reads as a rendering fault
-            // (N3). An inbox glyph in the account colour says the same thing
+            // (N3). An inbox glyph in the account's hue says the same thing
             // and looks intended.
-            <Icon name="inbox" size={20} style={{ color: dot }} />
+            <Icon name="inbox" size={20} filled={active} style={{ color: hueSolid(hue) }} />
           ) : (
-            <AccountDot color={dot} />
+            <AccountDot hue={hue} />
           )
         ) : null}
       </span>
       {!collapsed && (
-        <span aria-hidden className="flex-1 truncate text-left">
-          {label}
-        </span>
-      )}
-      {!collapsed && unread !== undefined && (
-        <span
-          aria-hidden
-          className={cn(
-            'shrink-0 text-xs tabular-nums',
-            active ? 'text-brand font-medium' : 'text-ink-3',
+        // The count rides inline, immediately after the name, rather than
+        // right-aligned in its own column — Amie's small, very deliberate move
+        // (AMIE-STUDY §5). `Inbox 4` reads as part of the name; a right-aligned
+        // 4 reads as a metric to be compared against the other rows' metrics,
+        // and there are none.
+        <span aria-hidden className="flex min-w-0 flex-1 items-baseline gap-2 text-left">
+          <span className="truncate">{label}</span>
+          {unread !== undefined && (
+            <span
+              className={cn(
+                'shrink-0 text-xs tabular-nums',
+                active ? 'text-brand font-medium' : 'text-ink-3',
+              )}
+            >
+              {unread}
+            </span>
           )}
-        >
-          {unread}
         </span>
       )}
     </>
@@ -211,6 +224,7 @@ function AccountSection({ account }: { account: Account }) {
   const expanded = useUi((s) => s.expandedAccounts[account.id] ?? false)
   const toggle = useUi((s) => s.toggleAccount)
   const labels = useLabels(expanded ? account.id : undefined)
+  const hue = hueFor(account.email)
 
   const items = (labels.data ?? [])
     .filter((l) => l.type === 'user' || SYSTEM_ORDER.includes(l.id))
@@ -229,13 +243,18 @@ function AccountSection({ account }: { account: Account }) {
         aria-expanded={expanded}
         data-account-toggle={account.id}
         className={cn(
-          'font-ui text-ink-3 flex h-8 w-full items-center gap-2 rounded-md px-2 text-xs outline-none',
+          // The eyebrow's weight and tracking (AMIE-STUDY §3) but not its
+          // caps: this section's label is an email address, and an address in
+          // all-caps is unreadable. The caps half of the role goes where a
+          // section label is a *word* — the palette's groups, the reading
+          // pane's metadata keys, the composer's field labels.
+          'rounded-row font-ui text-ink-3 flex h-8 w-full items-center gap-2 px-2 text-xs font-semibold outline-none',
           'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
           'hover:bg-fill-hover hover:text-ink-2 focus-visible:ring-3 focus-visible:ring-ring/50',
         )}
       >
         <span className="flex w-6 shrink-0 items-center justify-center">
-          <AccountDot color={account.color} />
+          <AccountDot hue={hue} />
         </span>
         <span className="flex-1 truncate text-left">{account.email}</span>
         <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={16} />
@@ -248,7 +267,9 @@ function AccountSection({ account }: { account: Account }) {
               view={{ kind: 'account', accountId: account.id, labelId: label.id }}
               label={FOLDER_BY_LABEL[label.id]?.name ?? label.name}
               icon={FOLDER_BY_LABEL[label.id]?.icon}
-              dot={account.color}
+              // A user label takes its own hue from its name; a system folder
+              // has a glyph and needs none.
+              hue={FOLDER_BY_LABEL[label.id] ? undefined : hueFor(label.name)}
               collapsed={false}
               indent
             />

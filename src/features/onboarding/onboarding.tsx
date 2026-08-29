@@ -1,7 +1,10 @@
 // First run: real mode, no accounts. Two steps, no carousel.
 //
-// The card is glass-strong over the cloud-soft base — DIRECTION §7 lists
-// onboarding cards as one of the two surfaces that earn the stronger recipe.
+// The card is an opaque raised surface with the ring-plus-shadow recipe. It
+// used to be `glass-strong`; glass is the command palette and the composer
+// only now (owner ruling, 2026-08-28), and there is nothing behind this card
+// worth blurring anyway — it sits on an empty canvas over an app with no mail
+// in it yet.
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
@@ -113,9 +116,7 @@ export function Onboarding() {
         initial={card.initial}
         animate={card.animate}
         transition={card.transition}
-        // The one glass surface the app does not place itself, so it says so:
-        // the recipe no longer hands out a `position` nobody wanted.
-        className="glass-strong relative flex w-[480px] max-w-full flex-col items-center gap-6 p-8"
+        className="bg-raised rounded-2xl shadow-xl relative flex w-[480px] max-w-full flex-col items-center gap-6 p-8"
       >
         {rows.map((row, index) => (
           <motion.div
@@ -152,6 +153,9 @@ function Choice({
       onClick={onClick}
       autoFocus={primary}
       className={cn(
+        // Concentric: the card is 24 and carries `p-8`, so a choice inside it
+        // could take anything up to 16. `rounded-lg` (14) is the card radius
+        // and reads as a card sitting inside a card, which is what it is.
         'bg-surface flex w-full items-start gap-3 rounded-lg p-4 text-left shadow-xs outline-none',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         'hover:bg-fill-hover focus-visible:ring-ring/50 focus-visible:ring-3',

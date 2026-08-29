@@ -64,59 +64,138 @@
 :root {
     color-scheme: light;
 
-    /* --- Wren surfaces ---------------------------------------------------- */
-    --wren-surface-base: oklch(0.967 0.006 268); /* #F2F4F8 canvas, sidebar   */
-    --wren-surface-sunken: oklch(0.945 0.008 268); /* #EAEDF2 wells, inputs   */
+    /* --- Wren surfaces ----------------------------------------------------
+       De-tinted. Amie's neutral ramp is achromatic and the periwinkle tint at
+       hue 268 read as a cast once the category hues arrived beside it; hue 286
+       at chroma 0.002–0.005 is a true neutral that still avoids a dead grey.
+       AMIE-STUDY §2.1. */
+    --wren-surface-base: oklch(0.968 0.002 286); /* #F4F4F5 canvas, sidebar   */
+    --wren-surface-sunken: oklch(0.949 0.003 286); /* #EDEDEF wells, inputs   */
     --wren-surface: oklch(1 0 0); /* #FFFFFF list + reading pane              */
     --wren-surface-raised: oklch(1 0 0); /* #FFFFFF cards, popovers           */
 
-    /* --- Text tiers (AA verified, see DIRECTION.md §3) -------------------- */
-    --wren-text-1: oklch(0.235 0.02 268); /* #1A1E28  16.69 on surface        */
-    --wren-text-2: oklch(0.47 0.019 268); /* #565B66   6.83 on surface        */
-    --wren-text-3: oklch(0.535 0.017 268); /* #696D77  5.17 on surface        */
+    /* --- Text tiers (AA verified, see DIRECTION.md §3) --------------------
+       text-1 goes blacker, which is strictly more contrast and always safe.
+       text-2 and text-3 HOLD their lightness exactly and move only chroma and
+       hue, so the verified AA table carries over unchanged. Amie's own meta
+       tier measures ~2.8:1 and Wren declines it (AMIE-STUDY §7d.2). */
+    --wren-text-1: oklch(0.205 0.004 286); /* #171719  17.92 on surface       */
+    --wren-text-2: oklch(0.47 0.004 286); /* #5A5A5D   6.83 on surface        */
+    --wren-text-3: oklch(0.535 0.004 286); /* #6D6D6F  5.17 on surface        */
 
-    /* --- Accent: periwinkle indigo --------------------------------------- */
+    /* --- Accent: periwinkle indigo ---------------------------------------
+       HELD at hue 268 by owner ruling. AMIE-STUDY §7(e) question 1 offered a
+       nudge to 258; the accent is Wren's identity anchor and does not move.  */
     --wren-accent: oklch(0.545 0.185 268); /* #4364DA                         */
     --wren-accent-hover: oklch(0.495 0.185 268); /* #3654C9                   */
     --wren-accent-fg: oklch(1 0 0); /* white on accent = 5.17                 */
 
-    /* --- Semantic --------------------------------------------------------- */
+    /* --- Semantic ---------------------------------------------------------
+       Star HOLDS. The proposal warmed it to oklch(0.72 0.155 80) to track the
+       new -orange; that value is outside sRGB and measures 2.52:1 on white,
+       under the 3.0 a non-text mark needs. Verified value stays.            */
     --wren-star: oklch(0.63 0.15 58); /* #CA6E03  3.66 non-text on surface    */
     --wren-destructive: oklch(0.56 0.21 25); /* #D4212D                       */
     --wren-success: oklch(0.515 0.125 155); /* #087C46                        */
 
-    /* --- Lines and fills --------------------------------------------------- */
-    --wren-hairline: oklch(0.905 0.01 268); /* #DDE0E6                        */
-    --wren-hairline-strong: oklch(0.86 0.012 268);
-    --wren-fill-hover: oklch(0.235 0.02 268 / 0.045);
-    --wren-fill-active: oklch(0.235 0.02 268 / 0.075);
-    --wren-fill-selected: oklch(0.545 0.185 268 / 0.08);
-    --wren-scrim: oklch(0.235 0.02 268 / 0.28);
+    /* --- Category hue family ----------------------------------------------
+       Amie's eight list colours, three states each (AMIE-STUDY §2.2):
 
-    /* --- Glass ------------------------------------------------------------- */
+         solid — 16–20 px rings, dots, filled marks, category tiles. Non-text.
+         ink   — text or a glyph sitting on the matching wash, or on white.
+                 Every ink clears 4.5:1 on both `surface` and `base`.
+         wash  — the tinted fill: the solid at 12% light / 22% dark.
+
+       Lightness is compensated per hue on purpose — a fixed-L rainbow is a
+       myth, and yellow and orange must run lighter to read as themselves.
+       Every chroma below is clamped to the sRGB boundary for its lightness,
+       so nothing depends on the browser's own gamut mapping.
+
+       BINDING RULE (AMIE-STUDY §7d.5): these bind to real Gmail labels and to
+       the sender-avatar hash. Nothing else. A hue used as chrome decoration
+       turns "one accent" into "no accent" and DIRECTION §1's near-monochrome
+       promise is gone.
+
+       The light solids for green, teal, orange and yellow measure 2.6–2.9:1
+       against white. They are licensed as marks that sit immediately beside
+       their own text label and never carry meaning alone — the study's own
+       licence for yellow, extended to the four that share its problem. */
+    --wren-hue-green: oklch(0.66 0.17 150);
+    --wren-hue-teal: oklch(0.665 0.113 205);
+    --wren-hue-blue: oklch(0.62 0.185 258);
+    --wren-hue-violet: oklch(0.61 0.19 295);
+    --wren-hue-magenta: oklch(0.64 0.205 350);
+    --wren-hue-red: oklch(0.63 0.205 25);
+    --wren-hue-orange: oklch(0.72 0.175 55);
+    --wren-hue-yellow: oklch(0.8 0.15 88);
+
+    --wren-hue-green-ink: oklch(0.48 0.13 150); /* 6.16 on surface           */
+    --wren-hue-teal-ink: oklch(0.49 0.084 205); /* 6.03                      */
+    --wren-hue-blue-ink: oklch(0.5 0.17 258); /* 6.14                        */
+    --wren-hue-violet-ink: oklch(0.47 0.17 295); /* 7.38                     */
+    --wren-hue-magenta-ink: oklch(0.49 0.175 350); /* 6.92                   */
+    --wren-hue-red-ink: oklch(0.49 0.18 25); /* 6.88                         */
+    --wren-hue-orange-ink: oklch(0.53 0.132 55); /* 5.53                     */
+    --wren-hue-yellow-ink: oklch(0.54 0.111 88); /* 5.09                     */
+
+    --wren-hue-green-wash: oklch(0.66 0.17 150 / 0.12);
+    --wren-hue-teal-wash: oklch(0.665 0.113 205 / 0.12);
+    --wren-hue-blue-wash: oklch(0.62 0.185 258 / 0.12);
+    --wren-hue-violet-wash: oklch(0.61 0.19 295 / 0.12);
+    --wren-hue-magenta-wash: oklch(0.64 0.205 350 / 0.12);
+    --wren-hue-red-wash: oklch(0.63 0.205 25 / 0.12);
+    --wren-hue-orange-wash: oklch(0.72 0.175 55 / 0.12);
+    --wren-hue-yellow-wash: oklch(0.8 0.15 88 / 0.12);
+
+    /* --- Lines and fills --------------------------------------------------- */
+    --wren-hairline: oklch(0.923 0.003 286); /* #E6E6E9                       */
+    --wren-hairline-strong: oklch(0.872 0.004 286); /* #D6D6DA               */
+    --wren-fill-hover: oklch(0.205 0.004 286 / 0.045);
+    --wren-fill-active: oklch(0.205 0.004 286 / 0.075);
+    --wren-fill-selected: oklch(0.545 0.185 268 / 0.08);
+    --wren-scrim: oklch(0.205 0.004 286 / 0.28);
+
+    /* --- Glass -------------------------------------------------------------
+       Glass now dresses TWO surfaces only — the command palette and the
+       composer sheet (owner ruling, 2026-08-28). Everything else that used to
+       take it takes the ring-plus-shadow recipe below, which is Amie's.
+       Lightened to sit with that ~25% lighter depth: the tints run whiter, so
+       the slab reads as light glass rather than as frosted plastic sitting
+       heavier than the shadows underneath it. */
     --wren-glass-blur: 20px;
     --wren-glass-blur-strong: 32px;
     --wren-glass-saturate: 180%;
     --wren-glass-saturate-strong: 190%;
-    --wren-glass-tint: oklch(1 0 0 / 0.72);
-    --wren-glass-tint-strong: oklch(1 0 0 / 0.82);
+    --wren-glass-tint: oklch(1 0 0 / 0.74);
+    --wren-glass-tint-strong: oklch(1 0 0 / 0.84);
     --wren-glass-edge: oklch(1 0 0 / 0.7);
     --wren-glass-sheen: oklch(1 0 0 / 0.85);
 
-    /* --- Elevation: soft ambient, two-part, hue-tinted --------------------- */
-    --wren-shadow-xs: 0 1px 2px oklch(0.235 0.02 268 / 0.05);
+    /* --- Elevation: a 1 px ring composed with a soft ambient shadow --------
+       Amie's recipe, measured (AMIE-STUDY §4.2). The ring is what separates a
+       floating card from the canvas; the blur only softens. Every tier gains
+       that ring as its first layer and every blur alpha drops ~25%. This is
+       also what Wren's non-glass fallback path had been missing, and it is
+       what lets the palette and the composer be the only glass in the app. */
+    --wren-shadow-xs:
+        0 0 0 1px oklch(0.205 0.004 286 / 0.04),
+        0 1px 2px oklch(0.205 0.004 286 / 0.04);
     --wren-shadow-sm:
-        0 1px 2px oklch(0.235 0.02 268 / 0.04),
-        0 2px 6px oklch(0.235 0.02 268 / 0.05);
+        0 0 0 1px oklch(0.205 0.004 286 / 0.05),
+        0 1px 2px oklch(0.205 0.004 286 / 0.035),
+        0 2px 6px oklch(0.205 0.004 286 / 0.04);
     --wren-shadow-md:
-        0 2px 4px oklch(0.235 0.02 268 / 0.03),
-        0 6px 16px oklch(0.235 0.02 268 / 0.07);
+        0 0 0 1px oklch(0.205 0.004 286 / 0.05),
+        0 1px 2px oklch(0.205 0.004 286 / 0.03),
+        0 8px 20px oklch(0.205 0.004 286 / 0.06);
     --wren-shadow-lg:
-        0 4px 8px oklch(0.235 0.02 268 / 0.03),
-        0 12px 32px oklch(0.235 0.02 268 / 0.09);
+        0 0 0 1px oklch(0.205 0.004 286 / 0.05),
+        0 2px 4px oklch(0.205 0.004 286 / 0.03),
+        0 14px 36px oklch(0.205 0.004 286 / 0.08);
     --wren-shadow-xl:
-        0 8px 16px oklch(0.235 0.02 268 / 0.04),
-        0 24px 64px oklch(0.235 0.02 268 / 0.13);
+        0 0 0 1px oklch(0.205 0.004 286 / 0.06),
+        0 4px 10px oklch(0.205 0.004 286 / 0.04),
+        0 28px 64px oklch(0.205 0.004 286 / 0.11);
 
     /* ======================================================================
        shadcn overrides — names mirror src/index.css exactly.
@@ -142,11 +221,13 @@
     --input: var(--wren-hairline);
     --ring: var(--wren-accent);
 
-    --chart-1: var(--wren-accent);
-    --chart-2: oklch(0.62 0.14 232);
-    --chart-3: oklch(0.66 0.13 178);
-    --chart-4: oklch(0.63 0.15 58);
-    --chart-5: oklch(0.55 0.16 320);
+    /* Repointed at the hue family, so charts stop being a sixth private
+       palette that nothing else in the app reads. */
+    --chart-1: var(--wren-hue-blue);
+    --chart-2: var(--wren-hue-teal);
+    --chart-3: var(--wren-hue-green);
+    --chart-4: var(--wren-hue-orange);
+    --chart-5: var(--wren-hue-violet);
 
     --radius: 1rem;
 
@@ -167,51 +248,97 @@
 .dark {
     color-scheme: dark;
 
-    --wren-surface-base: oklch(0.185 0.013 268); /* #101319                   */
-    --wren-surface-sunken: oklch(0.155 0.012 268); /* #0A0C11                 */
-    --wren-surface: oklch(0.222 0.014 268); /* #181B22                        */
-    --wren-surface-raised: oklch(0.262 0.015 268); /* #21242C                 */
+    /* True-black based, and more contrasty than before — AMIE-STUDY §2.3.
+       `raised` lifts 0.262 -> 0.285 so the fill step still reads against the
+       darker base. */
+    --wren-surface-base: oklch(0.16 0.003 286); /* #0C0C0E                    */
+    --wren-surface-sunken: oklch(0.11 0.002 286); /* #050506                  */
+    --wren-surface: oklch(0.225 0.004 286); /* #1C1C1F                        */
+    --wren-surface-raised: oklch(0.285 0.005 286); /* #28282C                 */
 
-    --wren-text-1: oklch(0.966 0.004 268); /* #F2F4F6  15.62 on surface       */
-    --wren-text-2: oklch(0.742 0.014 268); /* #A7ABB5   7.52 on surface       */
-    --wren-text-3: oklch(0.66 0.016 268); /* #8E929C    5.54 on surface       */
+    /* Same discipline as light: text-2 and text-3 hold lightness exactly. */
+    --wren-text-1: oklch(0.968 0.002 286); /* #F4F4F6  15.59 on surface       */
+    --wren-text-2: oklch(0.742 0.004 286); /* #ABABAE   7.47 on surface       */
+    --wren-text-3: oklch(0.66 0.004 286); /* #929294    5.50 on surface       */
 
+    /* Hue 268 held, per the same owner ruling as light. */
     --wren-accent: oklch(0.745 0.12 268); /* #8CA9F9                          */
     --wren-accent-hover: oklch(0.815 0.09 268); /* #A9C1FE                    */
-    --wren-accent-fg: oklch(0.185 0.013 268);
+    --wren-accent-fg: oklch(0.16 0.003 286); /* tracks the new base           */
 
-    --wren-star: oklch(0.8 0.135 80); /* #EBB34B                              */
+    --wren-star: oklch(0.8 0.135 80); /* #EBB34B  9.04 on surface             */
     --wren-destructive: oklch(0.705 0.175 22); /* #FA6B6D                     */
     --wren-success: oklch(0.76 0.15 158); /* #48CD8C                          */
 
-    --wren-hairline: oklch(1 0 0 / 0.09);
+    /* --- Category hue family, dark ----------------------------------------
+       Amie's dark rule, which is counter-intuitive and correct: the saturated
+       SOLIDS do not mute in dark — they lift slightly. What inverts is the
+       ink, which becomes a LIGHT tint of the hue, and the wash, which goes to
+       a higher alpha over a much darker surface. Chromas clamped to sRGB. */
+    --wren-hue-green: oklch(0.72 0.155 150);
+    --wren-hue-teal: oklch(0.725 0.108 205);
+    --wren-hue-blue: oklch(0.68 0.17 258);
+    --wren-hue-violet: oklch(0.67 0.175 295);
+    --wren-hue-magenta: oklch(0.7 0.19 350);
+    --wren-hue-red: oklch(0.69 0.19 25);
+    --wren-hue-orange: oklch(0.77 0.157 55);
+    --wren-hue-yellow: oklch(0.85 0.14 88);
+
+    --wren-hue-green-ink: oklch(0.82 0.13 150); /* 10.28 on surface          */
+    --wren-hue-teal-ink: oklch(0.82 0.095 205); /* 10.14                     */
+    --wren-hue-blue-ink: oklch(0.8 0.101 258); /* 9.02                       */
+    --wren-hue-violet-ink: oklch(0.8 0.113 295); /* 8.77                     */
+    --wren-hue-magenta-ink: oklch(0.81 0.128 350); /* 8.92                   */
+    --wren-hue-red-ink: oklch(0.8 0.114 25); /* 8.35                         */
+    --wren-hue-orange-ink: oklch(0.84 0.102 55); /* 9.91                     */
+    --wren-hue-yellow-ink: oklch(0.88 0.115 88); /* 11.89                    */
+
+    --wren-hue-green-wash: oklch(0.72 0.155 150 / 0.22);
+    --wren-hue-teal-wash: oklch(0.725 0.108 205 / 0.22);
+    --wren-hue-blue-wash: oklch(0.68 0.17 258 / 0.22);
+    --wren-hue-violet-wash: oklch(0.67 0.175 295 / 0.22);
+    --wren-hue-magenta-wash: oklch(0.7 0.19 350 / 0.22);
+    --wren-hue-red-wash: oklch(0.69 0.19 25 / 0.22);
+    --wren-hue-orange-wash: oklch(0.77 0.157 55 / 0.22);
+    --wren-hue-yellow-wash: oklch(0.85 0.14 88 / 0.22);
+
+    --wren-hairline: oklch(1 0 0 / 0.08);
     --wren-hairline-strong: oklch(1 0 0 / 0.16);
     --wren-fill-hover: oklch(1 0 0 / 0.05);
     --wren-fill-active: oklch(1 0 0 / 0.09);
     --wren-fill-selected: oklch(0.745 0.12 268 / 0.14);
-    --wren-scrim: oklch(0.09 0.01 268 / 0.55);
+    --wren-scrim: oklch(0.08 0.002 286 / 0.6);
 
-    --wren-glass-tint: oklch(0.262 0.015 268 / 0.68);
-    --wren-glass-tint-strong: oklch(0.262 0.015 268 / 0.78);
+    --wren-glass-tint: oklch(0.285 0.005 286 / 0.68); /* tracks new raised    */
+    --wren-glass-tint-strong: oklch(0.285 0.005 286 / 0.78);
     --wren-glass-edge: oklch(1 0 0 / 0.1);
     /* Raised from 0.08: against a dark canvas a shadow stack does nothing, so
        the ring *is* the depth (MAGIC §3.10, `surfaces` §3 dark-mode rings). */
     --wren-glass-sheen: oklch(1 0 0 / 0.12);
 
-    /* Dark shadows need more alpha; the top sheen does the real lifting. */
-    --wren-shadow-xs: 0 1px 2px oklch(0 0 0 / 0.3);
+    /* The dark ring is a LIGHT hairline, not a dark one — against a black
+       canvas a dark ring is invisible and there is nothing left to separate a
+       floating surface from the pane behind it. Same ~25% reduction on the
+       blurs as light. */
+    --wren-shadow-xs:
+        0 0 0 1px oklch(1 0 0 / 0.06),
+        0 1px 2px oklch(0 0 0 / 0.28);
     --wren-shadow-sm:
-        0 1px 2px oklch(0 0 0 / 0.3),
-        0 2px 6px oklch(0 0 0 / 0.28);
+        0 0 0 1px oklch(1 0 0 / 0.06),
+        0 1px 2px oklch(0 0 0 / 0.26),
+        0 2px 6px oklch(0 0 0 / 0.24);
     --wren-shadow-md:
-        0 2px 4px oklch(0 0 0 / 0.3),
-        0 6px 16px oklch(0 0 0 / 0.36);
+        0 0 0 1px oklch(1 0 0 / 0.07),
+        0 2px 4px oklch(0 0 0 / 0.26),
+        0 8px 20px oklch(0 0 0 / 0.32);
     --wren-shadow-lg:
-        0 4px 8px oklch(0 0 0 / 0.32),
-        0 12px 32px oklch(0 0 0 / 0.44);
+        0 0 0 1px oklch(1 0 0 / 0.08),
+        0 2px 6px oklch(0 0 0 / 0.28),
+        0 14px 36px oklch(0 0 0 / 0.4);
     --wren-shadow-xl:
-        0 8px 16px oklch(0 0 0 / 0.36),
-        0 24px 64px oklch(0 0 0 / 0.56);
+        0 0 0 1px oklch(1 0 0 / 0.09),
+        0 6px 14px oklch(0 0 0 / 0.32),
+        0 28px 64px oklch(0 0 0 / 0.5);
 
     --background: var(--wren-surface-base);
     --foreground: var(--wren-text-1);
@@ -232,11 +359,11 @@
     --input: var(--wren-hairline-strong);
     --ring: var(--wren-accent);
 
-    --chart-1: var(--wren-accent);
-    --chart-2: oklch(0.72 0.12 232);
-    --chart-3: oklch(0.76 0.11 178);
-    --chart-4: oklch(0.8 0.135 80);
-    --chart-5: oklch(0.7 0.14 320);
+    --chart-1: var(--wren-hue-blue);
+    --chart-2: var(--wren-hue-teal);
+    --chart-3: var(--wren-hue-green);
+    --chart-4: var(--wren-hue-orange);
+    --chart-5: var(--wren-hue-violet);
 
     --sidebar: var(--wren-surface-base);
     --sidebar-foreground: var(--wren-text-2);
@@ -259,9 +386,19 @@
     --font-sans: var(--wren-font-body);
     --font-heading: var(--wren-font-ui);
 
+    /* The one place a hue solid is used as a *background*: a category tile,
+       a filled mark, a celebration disc. It does NOT flip with the theme —
+       every hue solid in both themes is light enough that a fixed dark ink
+       clears 5.1:1 on it, where white clears only 1.6–4.1 and fails outright
+       on green, teal, orange and yellow. Amie sets white here; Wren does not,
+       for that reason (AMIE-STUDY §7d, extending the meta-contrast refusal). */
+    --wren-hue-fg: oklch(0.205 0.004 286);
+
     --text-xs: 0.71875rem; /* 11.5px */
     --text-xs--line-height: 1rem; /* 16px  */
-    --text-xs--letter-spacing: 0.01em;
+    /* 0.01em -> 0.02em: xs now carries the all-caps eyebrow (AMIE-STUDY §3)
+       and 0.01em is too tight for caps. */
+    --text-xs--letter-spacing: 0.02em;
     --text-sm: 0.8125rem; /* 13px   */
     --text-sm--line-height: 1.125rem; /* 18px   */
     --text-sm--letter-spacing: 0em;
@@ -280,6 +417,9 @@
        spelling of the same number, and nothing ever read it. */
     --wren-weight-regular: 400;
     --wren-weight-medium: 500;
+    /* The eyebrow role: Open Runde 600, all-caps, --text-xs, in --wren-text-3
+       or a --wren-hue-*-ink. Section headers, field labels, metadata keys. */
+    --wren-weight-semibold: 600;
 
     /* Spacing is Tailwind's 4px scale — `gap-2` is the spelling, and a
        --wren-space-* mirror of it went unread in every component. */
@@ -292,9 +432,19 @@
     --wren-list-w: 400px;
     --wren-list-w-min: 340px;
     --wren-list-w-max: 520px;
+    /* Row height and the sender column HOLD. Amie's 24 px desktop row serves
+       one-line todos; a mail row carries sender, subject and snippet. */
     --wren-row-h: 68px;
     --wren-row-h-compact: 52px;
     --wren-list-sender-w: 152px;
+    /* The inset rounded row (AMIE-STUDY §5): every row is its own rounded rect
+       with a small gap, hover and selection fill THAT rect, and no divider is
+       needed inside a group at all. --wren-row-h stays the pitch; the visible
+       rect is that minus the gap, so nothing about the virtualizer moves. */
+    --wren-row-inset-x: 8px;
+    --wren-row-gap: 4px;
+    /* Amie's coloured squircle: a category tile in settings and label rows. */
+    --wren-tile: 28px;
     --wren-read-px: 32px;
     --wren-read-pt: 24px;
     --wren-read-measure: 68ch;
@@ -302,13 +452,17 @@
     --wren-icon-box: 24px;
     --wren-hit: 32px;
 
-    /* --- Radius ------------------------------------------------------------ */
-    --wren-radius-xs: 6px;
-    --wren-radius-sm: 8px;
-    --wren-radius-md: 12px;
-    --wren-radius-lg: 16px;
-    --wren-radius-xl: 20px;
-    --wren-radius-2xl: 28px;
+    /* --- Radius: retuned from a mobile scale to a desktop one ---------------
+       AMIE-STUDY §4.1. The bottom three hold; the top three come in, because
+       28 read as an iOS sheet on a 640 px floating card. Concentric nesting is
+       still the rule: inner = outer − inset, never two equal radii. */
+    --wren-radius-xs: 6px; /* chips, badges, keycaps                          */
+    --wren-radius-sm: 8px; /* inputs, small buttons, category tiles           */
+    --wren-radius-md: 12px; /* buttons, menu items                            */
+    --wren-radius-row: 10px; /* the inset list-row rect                       */
+    --wren-radius-lg: 14px; /* cards and panes — Amie's card radius, measured */
+    --wren-radius-xl: 18px; /* sheets, popovers                               */
+    --wren-radius-2xl: 24px; /* command palette, composer sheet               */
     --wren-radius-full: 999px;
 
     /* Icon glyph sizes and stroke widths are SVG attributes, not CSS: they
@@ -330,6 +484,9 @@
     /* Exits run at 0.7x the entrance, so leaving never reads as an entrance
        played backwards. */
     --wren-dur-exit: 140ms;
+    /* The one duration above --wren-dur-slow. Milestone celebrations only —
+       inbox zero, and nothing else. Never for a repeated action. */
+    --wren-dur-celebrate: 520ms;
     --wren-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     --wren-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
     /* Not a third named easing — --wren-ease-out read backwards. */
@@ -342,7 +499,11 @@
     --wren-lift: 8px;
     --wren-scale-in: 0.96;
     --wren-scale-out: 0.98;
-    --wren-pop: 1.28;
+    --wren-pop: 1.32; /* 1.28 -> 1.32: Amie's completion pop is bigger        */
+    /* The inbox-zero emoji's overshoot and its start rotation. Zeroed by the
+       reduced-motion block at the bottom, exactly like --wren-lift. */
+    --wren-pop-lg: 1.12;
+    --wren-spin: -8deg;
 
     /* --- Noise: kills banding across large blurred areas ------------------- */
     --wren-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
@@ -350,10 +511,18 @@
 
 /* --------------------------------------------------------------------------
    5. Glass recipe
-   Allowed: command palette, composer sheet, menus, tooltips, toasts,
-            onboarding cards, modal scrim.
-   Banned:  list rows, reading body, sidebar, pane headers, anything that
-            scrolls or is a child of a scroll container, nested glass.
+
+   Allowed: the command palette and the composer sheet. That is the whole
+            list (owner ruling, 2026-08-28). Settings, onboarding, the "?"
+            sheet, tooltips and toasts all used to take it and now take the
+            ring-plus-shadow recipe in §2 instead, which is Amie's and which
+            separates a floating surface from the canvas without asking a
+            large backdrop to re-rasterize.
+
+   Banned:  everything else — list rows, the reading body, the sidebar, pane
+            headers, anything that scrolls or is a child of a scroll
+            container, and nested glass.
+
    Budget:  max 2 concurrent glass layers. Never animate the blur.
    -------------------------------------------------------------------------- */
 
@@ -597,6 +766,75 @@
     animation: wren-pop var(--wren-dur-base) var(--wren-ease-spring);
 }
 
+/* --- Celebrations: AMIE-STUDY §7(c) ---------------------------------------
+   Three of them, and the register is one confident pop per action — never a
+   storm. Only archive's tick and send's fill repeat, so neither gets a
+   particle. Inbox zero gets the whole budget because it happens once.
+   Transform and opacity only, always. */
+
+/* Archive and send. The disc arrives already overshooting rather than growing
+   into an overshoot, which is what makes 260 ms read as a snap. */
+@keyframes wren-confirm-pop {
+    0% {
+        transform: scale(0.7);
+    }
+    45% {
+        transform: scale(var(--wren-pop));
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Send. The button is the celebration and the sheet's exit is the
+   punctuation, so this pop starts and ends at 1 — the button is already on
+   screen and already the right size, and it is confirming rather than
+   arriving. --wren-pop-lg is the gentler overshoot; --wren-pop would throw a
+   96 px pill a third of its own width. */
+@keyframes wren-fill-pop {
+    0% {
+        transform: scale(1);
+    }
+    45% {
+        transform: scale(var(--wren-pop-lg));
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* The archived row leaving. Transform only — the rows below settle by the
+   virtualizer's own translateY, never by animating a height. */
+@keyframes wren-row-out {
+    from {
+        opacity: 1;
+        transform: none;
+    }
+    to {
+        opacity: 0;
+        transform: translateX(calc(var(--wren-lift) * -1.5));
+    }
+}
+
+/* Inbox zero. Fires at most once per transition, never twice inside 60 s, and
+   never on the first mount of an already-empty inbox. The guard is the part
+   that decides whether this is charming or infuriating; it lives in
+   features/list/celebrate.ts. */
+@keyframes wren-celebrate-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.4) rotate(var(--wren-spin));
+    }
+    60% {
+        opacity: 1;
+        transform: scale(var(--wren-pop-lg)) rotate(0deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     /* Transform and size animation is removed by zeroing the two quantities
        every keyframe above is written in terms of; what survives is the
@@ -611,9 +849,12 @@
         --wren-scale-in: 1;
         --wren-scale-out: 1;
         --wren-pop: 1;
+        --wren-pop-lg: 1;
+        --wren-spin: 0deg;
         --wren-dur-base: 120ms;
         --wren-dur-slow: 120ms;
         --wren-dur-exit: 120ms;
+        --wren-dur-celebrate: 120ms;
     }
     [data-wren-pop] {
         animation: none;

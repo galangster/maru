@@ -39,7 +39,7 @@ function PopoverContent({
           className={cn(
             // Motion in surfaces.css. `origin-(--transform-origin)` is what
             // makes it scale up out of whatever summoned it.
-            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-3 rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden",
+            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-3 rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md outline-hidden",
             className
           )}
           {...props}

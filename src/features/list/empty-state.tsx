@@ -5,16 +5,22 @@
 // Two tiers, per MAGIC §3.6 and Family's Delight-Impact Curve. Every empty
 // folder gets the *ambient* tier: the blocks arrive one after another at
 // `staggerPreset`'s 40 ms step, which is arrival, not celebration. An inbox the
-// user emptied **in this session** gets the *earned* tier once: the mark settles
-// rather than lifting, and the copy says what happened instead of what is
-// missing. No confetti, no particles — Wren has no once-per-lifetime event.
+// user emptied **in this session** gets the *earned* tier: a day-seeded emoji
+// at 56 px and a single 18-particle burst, once per transition to zero and
+// never twice inside a minute (AMIE-STUDY §7c.2, `./celebrate`).
+//
+// That burst is the only one in the app. Archive and send are the actions that
+// repeat forty times a day and they get one pop each and nothing else, because
+// frequency is what kills delight.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 
 import type { MailView } from '@/core/types'
 import { DUR, EASE_OUT, staggerPreset, useMotionMode } from '@/lib/motion'
 import { cn } from '@/lib/utils'
+
+import { burst, celebrationEmoji, claimCelebration } from './celebrate'
 
 /** Three overlapping discs and a bar: a cloud, at 10% opacity. */
 export function CloudMark({ className }: { className?: string }) {
@@ -93,13 +99,49 @@ export function useInboxZeroTier(view: MailView, count: number): EmptyTier {
       setTier('ambient')
       return
     }
-    if (sawInboxMail && !earnedSpent) {
+    // `earnedSpent` is the once-per-session half; `claimCelebration` is the
+    // 60 s half. Both have to hold, and the second is what stops a refetch,
+    // a window focus or a pane remount from replaying the moment.
+    if (sawInboxMail && !earnedSpent && claimCelebration()) {
       earnedSpent = true
       setTier('earned')
     }
   }, [isInbox, count])
 
   return isInbox ? tier : 'ambient'
+}
+
+/**
+ * The earned mark: one 56 px glyph from a five-deck, chosen from the day so it
+ * varies without being noise, plus the burst.
+ *
+ * The particle layer is *never mounted* under reduced motion or in the capture
+ * path — `mode` gates the effect, not the CSS. Making it invisible would still
+ * put nineteen animating nodes on a machine that asked for none.
+ */
+function CelebrationMark({ mode }: { mode: 'full' | 'reduced' | 'off' }) {
+  const host = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (mode !== 'full' || !host.current) return
+    return burst(host.current)
+  }, [mode])
+
+  return (
+    <div ref={host} className="relative flex h-16 w-28 items-center justify-center select-none">
+      <span
+        aria-hidden
+        className="text-[56px] leading-none"
+        style={
+          mode === 'full'
+            ? { animation: 'wren-celebrate-in var(--wren-dur-celebrate) var(--wren-ease-spring) both' }
+            : undefined
+        }
+      >
+        {celebrationEmoji()}
+      </span>
+    </div>
+  )
 }
 
 /**
@@ -126,20 +168,23 @@ export function EmptyState({
   const shown = earned ? EARNED_COPY : copy
   const showMark = mark || earned
 
-  // The earned tier settles rather than arriving: one slow scale step on the
-  // mark, which is the opposite gesture to the ambient lift. `mode === 'off'`
-  // is the capture path and stays perfectly still.
+  // The earned mark animates itself — `wren-celebrate-in` owns its scale and
+  // its rotation — so its wrapper must not add a second transform on top of
+  // that. It gets opacity and nothing else. `mode === 'off'` is the capture
+  // path and stays perfectly still either way.
   const settle =
     mode === 'full'
       ? {
-          initial: { opacity: 0, scale: 0.94 },
-          animate: { opacity: 1, scale: 1 },
-          transition: { duration: DUR.slow, ease: EASE_OUT },
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          transition: { duration: DUR.fast, ease: EASE_OUT },
         }
       : { initial: item.initial, animate: item.animate, transition: item.transition }
 
   const rows = [
-    showMark ? <CloudMark key="mark" /> : null,
+    showMark ? (
+      earned ? <CelebrationMark key="mark" mode={mode} /> : <CloudMark key="mark" />
+    ) : null,
     <p
       key="title"
       className={cn('font-ui text-ink font-medium text-balance', showMark ? 'text-xl' : 'text-base')}

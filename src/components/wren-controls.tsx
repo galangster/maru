@@ -9,6 +9,7 @@ import { Icon, type IconName, type IconSize } from '@/components/ui/icon'
 import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
 import type { EmailAddress } from '@/core/types'
 import { initials } from '@/lib/format'
+import { hueSolid, hueVars, type Hue } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
 export type Tone = 'default' | 'star' | 'danger' | 'brand'
@@ -60,7 +61,10 @@ export function PrimaryButton({
     <button
       type="button"
       className={cn(
-        'font-ui bg-primary text-primary-foreground inline-flex items-center justify-center rounded-md text-base font-medium',
+        // A pill. Amie uses one for every primary action at both densities
+        // (AMIE-STUDY §4.1), and it is the one shape in the app that says
+        // "this is the thing to press" without a second colour.
+        'font-ui bg-primary text-primary-foreground inline-flex items-center justify-center rounded-full text-base font-medium',
         'shadow-xs transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         PRESS,
         'hover:bg-brand-hover focus-visible:ring-3 focus-visible:ring-ring/50 outline-none',
@@ -199,37 +203,76 @@ function FillingGlyph({
   )
 }
 
-/** 32 px circular chip, tinted by the account colour. The one saturated
- *  element in a list row — Family's lesson, and the reason rows need no
- *  borders to stay scannable. */
+/**
+ * 32 px circular chip, in one of the eight category hues. The one saturated
+ * element in a list row — Family's lesson, and the reason rows need no borders
+ * to stay scannable.
+ *
+ * The hue comes from a stable hash of the sender's address (AMIE-STUDY §7b),
+ * replacing the six ad-hoc hexes the account palette used to hand out. The
+ * chip is the hue's *wash* carrying its *ink*, so the initials are a
+ * contrast-verified token rather than a `color-mix` toward black that nothing
+ * had measured.
+ */
 export function AccountAvatar({
   address,
-  color,
-  ring = false,
+  hue,
+  ringHue,
   className,
 }: {
   address: EmailAddress
-  color: string
+  hue: Hue
   /** Draw a full-chroma hairline around the chip, for unified views where the
-   *  row has to say which account it came from. */
-  ring?: boolean
+   *  row has to say which account it came from. The account's own hue. */
+  ringHue?: Hue
   className?: string
 }) {
   return (
     <span
       aria-hidden
-      style={{ '--dot': color } as CSSProperties}
+      style={{ ...hueVars(hue), '--ring-hue': ringHue && hueSolid(ringHue) } as CSSProperties}
       className={cn(
         'font-ui inline-flex size-(--wren-avatar) shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-        'bg-[color-mix(in_oklab,var(--dot)_16%,transparent)] text-[color-mix(in_oklab,var(--dot)_86%,black)]',
-        'dark:bg-[color-mix(in_oklab,var(--dot)_28%,transparent)] dark:text-[color-mix(in_oklab,var(--dot)_55%,white)]',
+        'bg-(--hue-wash) text-(--hue-ink)',
         // An inset hairline, not a `ring`: it costs no layout, needs no offset
         // colour, and stays exactly 1 px on every DPI (DIRECTION §6).
-        ring && 'shadow-[inset_0_0_0_1px_var(--dot)]',
+        ringHue && 'shadow-[inset_0_0_0_1px_var(--ring-hue)]',
         className,
       )}
     >
       {initials(address)}
+    </span>
+  )
+}
+
+/**
+ * Amie's coloured squircle — a 28 px tile filled with a hue solid, carrying a
+ * white-ish glyph. It is the cheapest place in the app to buy personality, and
+ * it is what marks a settings section and a label.
+ *
+ * The glyph is `--wren-hue-fg`, a fixed dark ink in both themes rather than
+ * Amie's white: white measures 1.6–4.1 on these solids and fails the 3:1 a
+ * non-text glyph needs on four of the eight. See tokens.css §4.
+ */
+export function HueTile({
+  name,
+  hue,
+  className,
+}: {
+  name: IconName
+  hue: Hue
+  className?: string
+}) {
+  return (
+    <span
+      aria-hidden
+      style={hueVars(hue)}
+      className={cn(
+        'inline-flex size-(--wren-tile) shrink-0 items-center justify-center rounded-sm bg-(--hue)',
+        className,
+      )}
+    >
+      <Icon name={name} size={16} className="text-(--wren-hue-fg)" />
     </span>
   )
 }
@@ -241,11 +284,11 @@ export function AccountAvatar({
  *  that are themselves on the grid. 4 px disappears at 100% DPI and 8 px reads
  *  as a bullet rather than a marker. */
 export function AccountDot({
-  color,
+  hue,
   className,
   title,
 }: {
-  color: string
+  hue: Hue
   className?: string
   title?: string
 }) {
@@ -253,7 +296,7 @@ export function AccountDot({
     <span
       aria-hidden
       title={title}
-      style={{ backgroundColor: color }}
+      style={{ backgroundColor: hueSolid(hue) }}
       className={cn('inline-block size-1.5 shrink-0 rounded-full', className)}
     />
   )

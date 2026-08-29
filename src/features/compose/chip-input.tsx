@@ -49,10 +49,13 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
   }
 
   return (
-    <div className="border-hairline flex min-h-9 items-start gap-3 border-b px-4">
+    // A field well, not a bordered row — Amie's sheet pattern (AMIE-STUDY §5).
+    // `--wren-radius-md` is exactly the composer's 24 minus its 12 px inset,
+    // so the well is concentric with the sheet by construction.
+    <div className="bg-sunken rounded-md flex min-h-9 items-start gap-3 px-3">
       <label
         htmlFor={id}
-        className="font-ui text-ink-3 w-12 shrink-0 cursor-text py-2 text-xs"
+        className="font-ui text-ink-3 w-14 shrink-0 cursor-text py-2 text-xs font-semibold uppercase"
       >
         {label}
       </label>
@@ -63,7 +66,9 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
         {value.map((address) => (
           <span
             key={address.email}
-            className="bg-sunken text-ink-2 flex h-6 max-w-full items-center gap-1 rounded-xs pr-1 pl-2 text-xs"
+            // A pill, and `raised` rather than `sunken`: the well underneath
+            // is sunken now, and a chip has to sit *on* it.
+            className="bg-raised text-ink-2 shadow-xs flex h-6 max-w-full items-center gap-1 rounded-full pr-1 pl-2 text-xs"
           >
             <span className="truncate">{address.name ?? address.email}</span>
             {/* 16×16 was under WCAG 2.2 SC 2.5.8's 24×24 floor and half the
