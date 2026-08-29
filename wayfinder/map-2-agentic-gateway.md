@@ -33,8 +33,26 @@ model becomes the reference for how agents touch a person's mailbox.
 
 ## Decisions so far
 
-- Rounds 1–2 (above) — recorded in this map's Notes; ticket-level detail
-  lands as tickets close.
+- Rounds 1–2 (above) — the live grilling with Nick, all recommendations
+  accepted.
+- [R2a MCP practices](tickets/R2a-mcp-practices.md): unix socket 0600, no
+  loopback; approval = app-level pending-id; clientInfo display-only.
+- [R2b landscape](tickets/R2b-competitive-scan.md): the gap is the
+  *assembled* system, not approval gates alone; multi-provider roadmap is
+  table stakes; CASA claim needs legal read before public use.
+- [M1 trust substrate](tickets/M1-trust-model.md): shipped — migration #2,
+  credential-hashed agents, the nine-rule evaluate() (rule 9: one grant must
+  admit every recipient), approval queue + audit timeline + Agents settings.
+- [M2 gateway](tickets/M2-mcp-server.md): shipped — Rust frame relay
+  (0600 socket / named pipe via interprocess), TS session manager + SDK
+  server over RelayTransport, `bin/wren-mcp.mjs` shim; live handshake smoke.
+- [M3 tool surface](tickets/M3-tool-surface.md): shipped — eleven tools,
+  one authorize-and-audit path, size discipline to the frame-cap level;
+  live smoke walked search→read→draft→request_send→approve→sent.
+- Audit cycle 2 (docs/design/UI-REVIEW-2026-08-29.md): B+ on the new
+  surfaces, 2 blocking + 11 should-fix — all fixed same night, including
+  approval-focus/announcement, the credential moment, and `w` ("waiting on
+  you") as the queue's keyboard entry.
 
 ## Not yet specified
 

@@ -36,5 +36,25 @@ where, why, proof.
    succeeded (artifact `wren-windows`); Google OAuth client configured;
    account connected. Proof: run 33233183538; live sync in-session.
 
+7. **Universal keys + identity.** Delete/Backspace archive, ⌘⌫ trash,
+   arrows, Space reading rhythm, ⌘N/⌘,/⌘F, z undo, w approval queue; the
+   titlebar wordmark removed (Nick's ruling); Nick's coral bird is the app
+   icon. Where: keymap.ts, titlebar.tsx, src-tauri/icons. Proof: a0629de.
+8. **The agent gateway era (overnight 2026-08-29, map 2 M1–M3).** Trust
+   substrate (agents/grants/approvals/audit, nine-rule evaluate()), the
+   in-app MCP server over an authenticated 0600 unix socket with the
+   `bin/wren-mcp.mjs` shim, and eleven grant-gated tools with every send
+   queued for human approval. New surfaces: approval queue ("Waiting on
+   you"), audit timeline, Settings → Agents. Where: src/core/agents/,
+   src/core/gateway-server/, src-tauri/src/gateway.rs, src/features/
+   agents+approvals+audit, docs/CONNECT-AN-AGENT.md. Why: map 2 charted
+   with Nick 2026-08-29. Proof: 131c920, c6a0f9d, 92373a3; 387 tests; live
+   socket smokes in both M2 and M3.
+9. **Second full ui-review cycle** (docs/design/UI-REVIEW-2026-08-29.md):
+   B+ on the new surfaces; all blocking/should-fix findings fixed
+   (approval focus + announcements, credential-moment weight, badge
+   contrast 14.63:1, anchored dialog growth, virtualized audit table).
+   Proof: 28f093b + the theme-picker mirror fix.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

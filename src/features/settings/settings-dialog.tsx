@@ -386,7 +386,7 @@ function AppearanceSection() {
           System follows the desktop. Wren remembers whichever you pick, on this machine only.
         </Explainer>
         <div
-          role="radiogroup"
+          role="group"
           aria-label="Theme"
           className="bg-sunken inline-flex h-9 w-fit items-center gap-1 rounded-md p-1"
         >
@@ -396,8 +396,7 @@ function AppearanceSection() {
               <button
                 key={option.id}
                 type="button"
-                role="radio"
-                aria-checked={active}
+                aria-pressed={active}
                 onClick={() => {
                   setTheme(option.id)
                   save.mutate({ theme: option.id })
