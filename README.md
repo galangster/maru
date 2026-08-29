@@ -17,6 +17,19 @@ Typeset in Open Runde and DM Sans. ~10 MB core, talks only to Google.
 - Command palette (⌘/Ctrl K), full keyboard control, local full-text search
 - Light/dark, OS notifications, demo mode with fixture data
 
+## Agent gateway
+
+Wren is also an MCP gateway to your own mail: agents connect through a local
+socket, hold per-agent grants (read · draft · archive/label · scoped send),
+and every send waits for your approval in Wren. Nothing an agent does is
+invisible — every call, and every refusal, lands in an append-only audit log.
+
+- **[docs/CONNECT-AN-AGENT.md](docs/CONNECT-AN-AGENT.md)** — connect Claude
+  Code, Claude Desktop, or anything that speaks MCP over stdio.
+- **[docs/TRIAGE-MORNING.md](docs/TRIAGE-MORNING.md)** — the first story to
+  run: an agent triages your overnight inbox and you wake to a tidy inbox
+  and a queue of drafts waiting on your tap.
+
 ## Run it
 
 ```bash
@@ -49,6 +62,9 @@ plugins and ~80 lines of commands (keychain, OAuth loopback).
   MiniSearch index, MIME builder. UI-independent; 218 vitest tests.
 - `src/core/types.ts` — the contract. The UI consumes `MailService` only;
   `service/real.ts` (Gmail) and `service/demo.ts` (fixtures) implement it.
+- `src/core/agents/` + `src/core/gateway-server/` — the agent gateway:
+  grants, approval queue, audit log, and the in-app MCP server behind
+  `bin/wren-mcp.mjs` (stdio shim over a 0600 unix socket / named pipe).
 - `src/platform/` — the native seam (`Platform`): SQLite, native fetch,
   keychain, loopback listener, notifications.
 - `src/features/` — the app: shell, list, reading pane, composer, palette,

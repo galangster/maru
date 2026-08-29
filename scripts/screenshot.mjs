@@ -7,17 +7,15 @@
 // produce byte-comparable frames. Starts its own vite server if 1420 is not
 // already serving, and kills only the server it started.
 
-import { spawn } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
-import { createConnection } from 'node:net'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
+import { ORIGIN, startServerIfNeeded } from './dev-server.mjs'
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'docs/captures')
-const PORT = 1420
-const ORIGIN = `http://localhost:${PORT}`
 
 const VIEWPORT = { width: 1440, height: 900 }
 const SCALE = 2
@@ -171,50 +169,9 @@ const SHOTS = [
   },
 ]
 
-function portOpen(port) {
-  return new Promise((resolve) => {
-    // vite binds localhost, which resolves to ::1 first on macOS — probing
-    // 127.0.0.1 alone reports the port closed while the server is up.
-    const socket = createConnection({ port, host: 'localhost' })
-    socket.on('connect', () => {
-      socket.end()
-      resolve(true)
-    })
-    socket.on('error', () => resolve(false))
-    socket.setTimeout(500, () => {
-      socket.destroy()
-      resolve(false)
-    })
-  })
-}
-
-async function waitForPort(port, timeoutMs = 60_000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (await portOpen(port)) return true
-    await new Promise((r) => setTimeout(r, 300))
-  }
-  return false
-}
-
-async function startServerIfNeeded() {
-  if (await portOpen(PORT)) {
-    console.log(`vite already serving on ${PORT}; reusing it`)
-    return null
-  }
-  console.log('starting vite…')
-  const child = spawn('npm', ['run', 'dev'], { cwd: ROOT, stdio: 'ignore', detached: false })
-  if (!(await waitForPort(PORT))) {
-    child.kill('SIGTERM')
-    throw new Error(`vite did not come up on ${PORT}`)
-  }
-  return child
-}
-
 async function main() {
   await mkdir(OUT, { recursive: true })
-  const server = await startServerIfNeeded()
-  const browser = await chromium.launch()
+  const [server, browser] = await Promise.all([startServerIfNeeded(ROOT), chromium.launch()])
 
   try {
     const context = await browser.newContext({

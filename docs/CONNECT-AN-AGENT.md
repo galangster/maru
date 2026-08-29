@@ -8,6 +8,10 @@ until you have created an agent and handed it the credential Wren issues.
 Wren must be **running** for any of this to work. The shim is a pipe, not a
 server: if Wren is closed, the agent gets a clear error and no tools.
 
+Once connected, the first thing worth running is the story the gateway was
+built for: **[TRIAGE-MORNING.md](TRIAGE-MORNING.md)** — the agent triages
+your overnight inbox, and you wake to drafts waiting on your approval.
+
 ---
 
 ## 1. Create an agent in Wren
