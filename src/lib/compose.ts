@@ -148,13 +148,27 @@ export type QuoteSource = Pick<
   'from' | 'to' | 'date' | 'subject' | 'bodyHtml' | 'bodyText'
 >
 
-function quotedBody(message: QuoteSource): string {
-  if (message.bodyHtml) return message.bodyHtml
-  const text = message.bodyText ?? ''
+/**
+ * Plain text as message HTML: a blank line starts a paragraph, a single
+ * newline is a break, everything is escaped.
+ *
+ * Exported because the agent gateway composes bodies too (`body_text` on the
+ * draft tools), and two functions that both decide what a blank line means
+ * would eventually disagree about it in one of the two places.
+ */
+export function paragraphsToHtml(text: string): string {
   return text
+    .replace(/\r\n/g, '\n')
     .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter((p) => p !== '')
     .map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
     .join('')
+}
+
+function quotedBody(message: QuoteSource): string {
+  if (message.bodyHtml) return message.bodyHtml
+  return paragraphsToHtml(message.bodyText ?? '')
 }
 
 function addressLine(list: EmailAddress[]): string {

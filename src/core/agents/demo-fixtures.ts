@@ -114,9 +114,15 @@ const PENDING: { minutesAgo: number; draft: ComposeDraft }[] = [
 ]
 
 /**
- * The trail. Thirteen rows across yesterday and this morning, in the order
- * they happened — a triage pass, one send the human approved, one send the
- * grant model refused, and this morning's two requests still waiting.
+ * The trail. Twenty-five rows across yesterday and this morning, in the order
+ * they happened — two connections, a triage pass over both accounts, one send
+ * the human approved, one send the grant model refused, and this morning's two
+ * requests still waiting.
+ *
+ * Every summary is written in the exact voice the M3 tools write in, because
+ * the timeline never re-phrases a row: what a fixture shows is what a real
+ * agent's morning looks like, or the capture is showing a surface that does
+ * not exist. `tool` matches the real tool names for the same reason.
  */
 interface TrailRow {
   hoursAgo: number
@@ -128,57 +134,83 @@ interface TrailRow {
 
 const TRAIL: TrailRow[] = [
   {
+    hoursAgo: 25.7,
+    tool: 'connected',
+    summary: 'Scout connected over the local gateway socket.',
+    outcome: 'ok',
+  },
+  {
+    hoursAgo: 25.6,
+    tool: 'wren_ping',
+    summary: 'Checked its connection and capabilities.',
+    outcome: 'ok',
+  },
+  {
     hoursAgo: 25.5,
     tool: 'search_mail',
-    summary: 'Searched the last 24 hours for unread mail. 14 threads matched.',
+    summary: 'Searched for \u201cis:unread newer_than:1d\u201d. 14 threads matched.',
     outcome: 'ok',
   },
   {
     hoursAgo: 25.4,
     tool: 'read_thread',
-    summary: 'Read “Dependency advisory — action needed”.',
+    summary: 'Read \u201cDependency advisory \u2014 action needed\u201d.',
+    threadKey: 'demo-work/w-security',
+    outcome: 'ok',
+  },
+  {
+    hoursAgo: 25.35,
+    tool: 'modify_labels',
+    summary: 'Starred \u201cDependency advisory \u2014 action needed\u201d.',
     threadKey: 'demo-work/w-security',
     outcome: 'ok',
   },
   {
     hoursAgo: 25.3,
-    tool: 'archive',
-    summary: 'Archived “LAST CHANCE: 40% off everything”.',
+    tool: 'archive_thread',
+    summary: 'Archived \u201cLAST CHANCE: 40% off everything\u201d.',
     threadKey: 'demo-personal/p-trash-promo',
     outcome: 'ok',
   },
   {
     hoursAgo: 25.2,
-    tool: 'archive',
-    summary: 'Archived “Membership renews on the 1st”.',
+    tool: 'archive_thread',
+    summary: 'Archived \u201cMembership renews on the 1st\u201d.',
     threadKey: 'demo-personal/p-gym',
     outcome: 'ok',
   },
   {
+    hoursAgo: 25.15,
+    tool: 'get_attachment',
+    summary: 'Downloaded \u201cinvoice-40812.pdf\u201d (86 KB) from \u201cOrder #40812 confirmed\u201d.',
+    threadKey: 'demo-personal/p-order',
+    outcome: 'ok',
+  },
+  {
     hoursAgo: 25.1,
-    tool: 'label',
-    summary: 'Labelled “Renewal quote — observability” as Receipts.',
+    tool: 'modify_labels',
+    summary: 'Marked \u201cRenewal quote \u2014 observability\u201d as read.',
     threadKey: 'demo-work/w-vendor',
     outcome: 'ok',
   },
   {
     hoursAgo: 25,
     tool: 'draft_reply',
-    summary: 'Drafted a reply to “Moving standup to 09:45”.',
+    summary: 'Drafted a reply to \u201cMoving standup to 09:45\u201d.',
     threadKey: 'demo-work/w-standup',
     outcome: 'ok',
   },
   {
     hoursAgo: 24.9,
     tool: 'request_send',
-    summary: 'Asked to send “Re: Moving standup to 09:45” to dev.raman@fernwood.dev.',
+    summary: 'Asked to send \u201cRe: Moving standup to 09:45\u201d to dev.raman@fernwood.dev.',
     threadKey: 'demo-work/w-standup',
     outcome: 'pending',
   },
   {
     hoursAgo: 22,
     tool: 'send',
-    summary: 'You approved “Re: Moving standup to 09:45” to dev.raman@fernwood.dev. Sent.',
+    summary: 'You approved \u201cRe: Moving standup to 09:45\u201d to dev.raman@fernwood.dev. Sent.',
     threadKey: 'demo-work/w-standup',
     outcome: 'ok',
   },
@@ -189,31 +221,88 @@ const TRAIL: TrailRow[] = [
     outcome: 'blocked',
   },
   {
+    hoursAgo: 19.8,
+    tool: 'list_pending',
+    summary: 'Checked its own send requests. 0 still waiting.',
+    outcome: 'ok',
+  },
+  {
+    hoursAgo: 3,
+    tool: 'connected',
+    summary: 'Scout connected over the local gateway socket.',
+    outcome: 'ok',
+  },
+  {
+    hoursAgo: 2.9,
+    tool: 'list_accounts',
+    summary: 'Listed 2 accounts.',
+    outcome: 'ok',
+  },
+  {
     hoursAgo: 2.7,
     tool: 'search_mail',
-    summary: 'Searched overnight mail. 6 threads matched.',
+    summary: 'Searched for \u201cnewer_than:12h\u201d. 6 threads matched.',
     outcome: 'ok',
   },
   {
     hoursAgo: 2.6,
     tool: 'read_thread',
-    summary: 'Read “p95 latency after the cache change”.',
+    summary: 'Read \u201cp95 latency after the cache change\u201d.',
     threadKey: 'demo-work/w-latency',
     outcome: 'ok',
   },
   {
     hoursAgo: 2.5,
     tool: 'read_thread',
-    summary: 'Read “Design review: settings surface”.',
+    summary: 'Read \u201cDesign review: settings surface\u201d.',
     threadKey: 'demo-work/w-design-review',
     outcome: 'ok',
   },
   {
+    hoursAgo: 1.4,
+    tool: 'get_attachment',
+    summary:
+      'Downloaded \u201clanternhouse-msa-redlines.pdf\u201d (393 KB) from \u201cContract redlines \u2014 Lanternhouse\u201d.',
+    threadKey: 'demo-work/w-contract',
+    outcome: 'ok',
+  },
+  {
     hoursAgo: 0.9,
-    tool: 'archive',
-    summary: 'Archived “Your Alderfly Air itinerary — SFO to PDX”.',
+    tool: 'archive_thread',
+    summary: 'Archived \u201cYour Alderfly Air itinerary \u2014 SFO to PDX\u201d.',
     threadKey: 'demo-personal/p-flight',
     outcome: 'ok',
+  },
+  // The two rows the approval queue is showing. A fixture whose timeline and
+  // whose queue disagree is a fixture that teaches the wrong thing.
+  {
+    hoursAgo: 0.79,
+    tool: 'draft_reply',
+    summary: 'Drafted a reply to \u201cp95 latency after the cache change\u201d.',
+    threadKey: 'demo-work/w-latency',
+    outcome: 'ok',
+  },
+  {
+    hoursAgo: 0.783,
+    tool: 'request_send',
+    summary:
+      'Asked to send \u201cRe: p95 latency after the cache change\u201d to dev.raman@fernwood.dev.',
+    threadKey: 'demo-work/w-latency',
+    outcome: 'pending',
+  },
+  {
+    hoursAgo: 0.21,
+    tool: 'draft_reply',
+    summary: 'Drafted a reply to \u201cDesign review: settings surface\u201d.',
+    threadKey: 'demo-work/w-design-review',
+    outcome: 'ok',
+  },
+  {
+    hoursAgo: 0.2,
+    tool: 'request_send',
+    summary: 'Asked to send \u201cRe: Design review: settings surface\u201d to maya@fernwood.dev.',
+    threadKey: 'demo-work/w-design-review',
+    outcome: 'pending',
   },
 ]
 

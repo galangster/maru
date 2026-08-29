@@ -54,7 +54,7 @@ export class GatewaySession {
 
     this.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: TOOLS }))
     this.server.setRequestHandler(CallToolRequestSchema, (request) =>
-      callTool(request.params.name, this.context()),
+      callTool(request.params.name, this.context(), request.params.arguments),
     )
 
     // Fires once the client's `initialized` notification lands, which is the

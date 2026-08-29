@@ -22,5 +22,14 @@ export type {
 } from './relay'
 export { RelayTransport, type FrameLink } from './transport'
 export { GatewaySession, type SessionDeps } from './session'
-export { TOOLS, callTool, type ToolContext } from './tools'
+export { TOOLS, TOOL_CAPABILITIES, callTool, ToolRefusal, type ToolContext } from './tools'
+export {
+  ATTACHMENT_BYTES_MAX,
+  ATTACHMENT_DELIVERABLE_BYTES,
+  BODY_CHARS_MAX,
+  SEARCH_LIMIT_DEFAULT,
+  SEARCH_LIMIT_MAX,
+  SNIPPET_CHARS,
+} from './tools-read'
+export { markdownToHtml, textToHtml, MARKDOWN_SUBSET } from './body'
 export { GatewayServer, UNKNOWN_CREDENTIAL_ID, type GatewayServerDeps } from './server'

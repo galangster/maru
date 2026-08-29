@@ -1,157 +1,171 @@
-// The tool surface — two tools, deliberately.
+// The tool surface — eleven tools, and the one path all of them take.
 //
-// M3 owns the real eight (search_mail, read_thread, draft_reply, request_send
-// and the rest). What M2 has to prove is that a frame leaving `claude mcp` on
-// one side of a unix socket arrives at `AgentGateway.authorize` on the other,
-// and comes back. Two tools prove that better than eight: one that needs a
-// grant and one that does not, so both the allow path and the deny path are
-// exercised by the transport itself rather than by a unit test standing in for
-// it.
+// M2 shipped two as transport proof. M3 is the surface itself: search, read,
+// get an attachment, draft, ask to send, triage, and see what you asked for.
 //
-//   list_accounts  requires `read`. Ids, addresses and display names only —
-//                  the list-summaries-then-fetch-detail shape the research
-//                  notes record as the converged convention (§3).
-//   wren_ping      requires nothing. Answers "am I connected, as whom, and
-//                  what am I allowed to do" — the first question any agent
-//                  operator asks, and one an agent with zero grants must be
-//                  able to ask, or a fresh agent has no way to find out that
-//                  it has no grants.
+//   search_mail      read          summaries, never bodies
+//   read_thread      read          one thread, plain text, capped
+//   get_attachment   read          one file, base64, capped
+//   list_accounts    read          ids, addresses, display names
+//   draft_new        draft         a normalised draft, sent nowhere
+//   draft_reply      draft         the composer's own reply rules
+//   request_send     send*         queues for a human; never dispatches
+//   archive_thread   archiveLabel  inbox in, inbox out, trash, untrash
+//   modify_labels    archiveLabel  STARRED and UNREAD
+//   list_pending     —             an agent's own submissions
+//   wren_ping        —             am I connected, and what do I hold
 //
-// Names are snake_case verb_noun, per §3. Annotations are set: a Wren-hosted
-// server is a trusted server from its own client's point of view, so its
-// annotations can legitimately be relied on.
+// * `request_send` is authorised inside `AgentGateway.requestSend`, per
+//   recipient, because M1 rule 9 needs the recipient list and one grant has to
+//   admit every one of them. Every other tool is authorised here, once.
+//
+// THE SHARED PATH. `callTool` is the only place that authorises and the only
+// place that writes to the audit log. A handler returns the row it wants and
+// never appends one itself, so:
+//
+//   · a denial is logged exactly once, by `authorize`, which already writes it
+//   · a success is logged exactly once, here
+//   · a refusal is logged exactly once, here, unless a seam already did it
+//
+// Two rows for one call is the failure this shape exists to make impossible:
+// the timeline is the human's only account of what an agent did, and a
+// timeline that double-counts is one nobody can read for a number.
+//
+// Names are snake_case verb_noun and annotations are set, per the research
+// notes §3. A Wren-hosted server is a trusted server from its own client's
+// point of view, so its annotations can legitimately be relied on — which is
+// exactly why `archive_thread` admits that it is destructive and
+// `request_send` admits that it is not idempotent.
 
 import type { Tool, CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
-import type { AgentGateway, Agent, Capability } from '../agents'
-import { CAPABILITIES, liveGrants } from '../agents'
-import type { MailService } from '../types'
+import type { Capability } from '../agents'
+import type { Decision } from '../agents/grants'
+import { READ_TOOLS } from './tools-read'
+import { WRITE_TOOLS } from './tools-write'
+import {
+  argsOf,
+  denied,
+  ok,
+  ToolRefusal,
+  type ToolContext,
+  type ToolSpec,
+} from './tool-support'
 
-export interface ToolContext {
-  gateway: AgentGateway
-  mail: MailService
-  /** Resolved once, at connection time, from the credential. Never a claim. */
-  agent: Agent
-  appVersion: string
-  now: () => number
-}
+export type { ToolContext, ToolSpec } from './tool-support'
+export { ToolRefusal } from './tool-support'
 
-export const TOOLS: Tool[] = [
-  {
-    name: 'list_accounts',
-    title: 'List accounts',
-    description:
-      'List the mail accounts connected to Wren. Returns each account id, email address and display name. Account ids are what every other Wren tool takes; call this first.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    annotations: {
-      title: 'List accounts',
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  },
-  {
-    name: 'wren_ping',
-    title: 'Ping Wren',
-    description:
-      'Check the connection to Wren and report who this connection is authenticated as. Returns the Wren version, this agent name and the capabilities it currently holds. Needs no grant. Call this when a tool is refused, to see what has been granted.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    annotations: {
-      title: 'Ping Wren',
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  },
-]
+const SPECS: ToolSpec[] = [...READ_TOOLS, ...WRITE_TOOLS]
 
-/** JSON in a text block. `structuredContent` carries the same object typed. */
-function ok(payload: unknown): CallToolResult {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-    structuredContent: payload as Record<string, unknown>,
+const BY_NAME = new Map(SPECS.map((spec) => [spec.tool.name, spec]))
+
+/** What `tools/list` answers with. */
+export const TOOLS: Tool[] = SPECS.map((spec) => spec.tool)
+
+/** The grant each tool needs, for the docs table and for the tests. */
+export const TOOL_CAPABILITIES: Record<string, Capability | null> = Object.fromEntries(
+  SPECS.map((spec) => [spec.tool.name, spec.capability]),
+)
+
+/**
+ * Why a grant refused, in a sentence that says what to do about it.
+ *
+ * The agent is the reader. It cannot grant itself anything, so the useful
+ * content is which capability is missing and who can hand it over.
+ */
+function grantDenial(tool: string, capability: Capability, agentName: string, decision: Decision): string {
+  const reason = decision.allowed ? 'no-grant' : decision.reason
+  const head = `Wren refused ${tool}: `
+  const ask = 'Ask the person running Wren to grant it in Settings → Agents.'
+  switch (reason) {
+    case 'agent-revoked':
+      return `${head}${agentName} has been revoked. Nothing will be accepted on this connection.`
+    case 'revoked':
+      return `${head}${agentName} held the ${capability} capability and it was revoked. ${ask}`
+    default:
+      return `${head}${agentName} does not hold the ${capability} capability. ${ask}`
   }
 }
 
 /**
- * A refusal is an ordinary answer, not an exception. The agent has to be able
- * to read it and say so — an MCP error would surface as a transport-level
- * failure and tell the model nothing about what to ask the human for.
+ * One tool call, start to finish.
+ *
+ * `rawArgs` is whatever arrived in `params.arguments` — unvalidated, possibly
+ * absent, possibly not an object. Every handler reads it through the checked
+ * readers in tool-support.ts rather than trusting `inputSchema`, which the
+ * spec does not oblige a client to enforce.
  */
-function denied(message: string): CallToolResult {
-  return { content: [{ type: 'text', text: message }], isError: true }
-}
-
 export async function callTool(
   name: string,
   ctx: ToolContext,
+  rawArgs?: unknown,
 ): Promise<CallToolResult> {
-  switch (name) {
-    case 'list_accounts':
-      return listAccounts(ctx)
-    case 'wren_ping':
-      return ping(ctx)
-    default:
-      return denied(`Wren has no tool named ${name}.`)
-  }
-}
-
-async function listAccounts(ctx: ToolContext): Promise<CallToolResult> {
-  const { decision } = await ctx.gateway.authorize(ctx.agent.id, 'read', {
-    tool: 'list_accounts',
-  })
-  // `authorize` has already written the blocked row; adding another here would
-  // put every denial in the timeline twice.
-  if (!decision.allowed) {
+  const spec = BY_NAME.get(name)
+  if (!spec) {
+    await ctx.gateway.audit.append({
+      agentId: ctx.agent.id,
+      tool: name,
+      summary: `Called ${name}, which Wren does not have.`,
+      outcome: 'error',
+    })
     return denied(
-      `Wren refused list_accounts: ${ctx.agent.name} does not hold the read capability. Ask the person running Wren to grant it in Settings → Agents.`,
+      `Wren has no tool named ${name}. It has: ${TOOLS.map((tool) => tool.name).join(', ')}.`,
     )
   }
 
-  const accounts = await ctx.mail.listAccounts()
-  const payload = {
-    accounts: accounts.map((account) => ({
-      id: account.id,
-      email: account.email,
-      displayName: account.displayName,
-    })),
+  if (spec.capability) {
+    const { decision } = await ctx.gateway.authorize(ctx.agent.id, spec.capability, {
+      tool: name,
+      threadKey: threadKeyOf(rawArgs),
+    })
+    // `authorize` has already written the blocked row; adding another here
+    // would put every denial in the timeline twice.
+    if (!decision.allowed) {
+      return denied(grantDenial(name, spec.capability, ctx.agent.name, decision))
+    }
   }
-  await ctx.gateway.audit.append({
-    agentId: ctx.agent.id,
-    tool: 'list_accounts',
-    summary: `Listed ${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'}.`,
-    outcome: 'ok',
-  })
-  return ok(payload)
+
+  try {
+    const outcome = await spec.handler(ctx, argsOf(rawArgs))
+    if (outcome.audit) {
+      await ctx.gateway.audit.append({
+        agentId: ctx.agent.id,
+        tool: name,
+        summary: outcome.audit.summary,
+        threadKey: outcome.audit.threadKey,
+        outcome: outcome.audit.outcome ?? 'ok',
+      })
+    }
+    return ok(outcome.payload)
+  } catch (cause) {
+    const refusal =
+      cause instanceof ToolRefusal
+        ? cause
+        : new ToolRefusal(
+            `Wren could not finish ${name}: ${cause instanceof Error ? cause.message : String(cause)}`,
+          )
+    if (!refusal.logged) {
+      await ctx.gateway.audit.append({
+        agentId: ctx.agent.id,
+        tool: name,
+        summary: `Refused: ${refusal.message}`,
+        threadKey: refusal.threadKey ?? threadKeyOf(rawArgs),
+        outcome: refusal.outcome,
+      })
+    }
+    return denied(refusal.message)
+  }
 }
 
-async function ping(ctx: ToolContext): Promise<CallToolResult> {
-  const grants = await ctx.gateway.grants.list(ctx.agent.id)
-  const now = ctx.now()
-  const held: Capability[] = CAPABILITIES.filter(
-    (capability) => liveGrants(grants, capability, now).length > 0,
-  )
-
-  const payload = {
-    app: 'Wren',
-    version: ctx.appVersion,
-    agent: { id: ctx.agent.id, name: ctx.agent.name },
-    capabilities: held,
-    // Named for the human reading the audit log over the operator's shoulder,
-    // not for the model: "nothing yet" is the honest answer for a fresh agent.
-    summary:
-      held.length === 0
-        ? `Connected as ${ctx.agent.name}. No capabilities granted yet.`
-        : `Connected as ${ctx.agent.name}. Holds ${held.join(', ')}.`,
-  }
-
-  await ctx.gateway.audit.append({
-    agentId: ctx.agent.id,
-    tool: 'wren_ping',
-    summary: 'Checked its connection and capabilities.',
-    outcome: 'ok',
-  })
-  return ok(payload)
+/**
+ * The thread a call is about, if its arguments name one.
+ *
+ * Read defensively rather than validated: this runs *before* the handler, to
+ * hang a blocked row on the right thread in the timeline, and a refusal whose
+ * arguments were nonsense still has to be logged against something.
+ */
+function threadKeyOf(rawArgs: unknown): string | undefined {
+  if (rawArgs === null || typeof rawArgs !== 'object') return undefined
+  const key = (rawArgs as { thread_key?: unknown }).thread_key
+  return typeof key === 'string' && key !== '' ? key : undefined
 }

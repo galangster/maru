@@ -95,6 +95,19 @@ export class ApprovalQueue {
   }
 
   /**
+   * Everything one agent has ever submitted, resolved or not, newest first.
+   *
+   * What `list_pending` answers with. It needs no grant — an agent may always
+   * see its own submissions — so this is deliberately scoped to one agent id
+   * rather than filtered by a caller who might forget to.
+   */
+  async listForAgent(agentId: string): Promise<Approval[]> {
+    await this.expireStale()
+    const all = await this.deps.store.listApprovals()
+    return all.filter((approval) => approval.agentId === agentId)
+  }
+
+  /**
    * Send it. The one place an agent's draft becomes real mail.
    *
    * The order matters: dispatch first, mark second. Marking approved and then

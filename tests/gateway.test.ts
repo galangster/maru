@@ -424,7 +424,7 @@ describe('MCP over the relay', () => {
     )
   })
 
-  it('lists exactly the two tools, snake_case and annotated', async () => {
+  it('lists the whole surface over the wire, snake_case and annotated', async () => {
     await connected(h, 11, DEMO_AGENT_CREDENTIAL)
     h.relay.send(11, agentIdOf(h, 11), { jsonrpc: '2.0', id: 2, method: 'tools/list' })
     await until(
@@ -435,12 +435,26 @@ describe('MCP over the relay', () => {
     const result = h.relay.reply_for(11, 2)!.result as {
       tools: { name: string; annotations?: { readOnlyHint?: boolean } }[]
     }
-    expect(result.tools.map((t) => t.name).sort()).toEqual(['list_accounts', 'wren_ping'])
+    expect(result.tools.map((t) => t.name).sort()).toEqual([
+      'archive_thread',
+      'draft_new',
+      'draft_reply',
+      'get_attachment',
+      'list_accounts',
+      'list_pending',
+      'modify_labels',
+      'read_thread',
+      'request_send',
+      'search_mail',
+      'wren_ping',
+    ])
     for (const tool of result.tools) {
       expect(tool.name).toMatch(/^[a-z][a-z0-9_]*$/)
-      expect(tool.annotations?.readOnlyHint).toBe(true)
+      // Set on every tool, both ways: an unset hint is "unknown" per the spec,
+      // and a client that has to guess will guess conservatively about mail.
+      expect(typeof tool.annotations?.readOnlyHint).toBe('boolean')
     }
-    expect(TOOLS).toHaveLength(2)
+    expect(result.tools).toHaveLength(TOOLS.length)
   })
 
   it('answers wren_ping with the version and the capabilities the agent holds', async () => {

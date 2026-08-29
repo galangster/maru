@@ -117,6 +117,41 @@ Every capability is an explicit toggle in Settings → Agents, per agent:
   admitted by one single grant, so one stranger on the cc line refuses the
   whole message.
 
+### The tools
+
+Eleven, and what each one needs:
+
+| Tool | Grant | What it does |
+| --- | --- | --- |
+| `wren_ping` | — | Who this connection is, and what it currently holds. |
+| `list_pending` | — | This agent's own send requests, and how each was resolved. |
+| `list_accounts` | read | Account ids, addresses and display names. |
+| `search_mail` | read | Compact thread summaries. Never a message body. |
+| `read_thread` | read | One thread in full, as plain text, with its attachment list. |
+| `get_attachment` | read | One attachment, base64, up to 5 MB. |
+| `draft_new` | draft | A normalised new message. Sends nothing, stores nothing. |
+| `draft_reply` | draft | A reply, reply-all or forward, using Wren's own reply rules. |
+| `request_send` | send | Puts a message in the approval queue. Never dispatches. |
+| `archive_thread` | archive / label | archive, unarchive, trash, untrash. |
+| `modify_labels` | archive / label | Add or remove `STARRED` and `UNREAD`. |
+
+Two shapes run through the whole surface, and a prompt written against it
+should expect both.
+
+**Summaries, then detail.** `search_mail` returns a subject, a sender, a date
+and a 140-character snippet — never a body, however short the thread. Bodies
+arrive only from `read_thread`, one named thread at a time, capped at 40,000
+characters per message with `body_truncated` set when a message is longer than
+that. That is the convention every large-document MCP server converged on, and
+it is what keeps a wide search from silently losing its last results to a
+client's response cap.
+
+**Draft, then ask.** `draft_new` and `draft_reply` change nothing anywhere:
+they parse the recipients, resolve the sending account, render the body and
+hand the normalised message back. `request_send` takes those same fields and
+queues them. Wren has no draft store in v1, so a draft an agent does not pass
+on is a draft that never existed.
+
 Two rules are worth knowing before you grant anything:
 
 1. **A grant is not a send.** `send` lets an agent put a message in the
@@ -177,9 +212,12 @@ agent  ──stdio──▶  wren-mcp.mjs  ──unix socket──▶  Wren (Rus
 
 Wren is pre-1.0 and this surface is a night old. Honestly:
 
-- **Two tools ship today**: `list_accounts` and `wren_ping`. The real surface
-  — search, read, draft, request_send, archive/label, list_pending — is M3.
-  Connecting now proves the pipe, not the product.
+- **No user labels from an agent.** `modify_labels` moves `STARRED` and
+  `UNREAD`, which are the labels Wren's own mail engine can modify today.
+  Adding `Receipts` to a thread is still something you do by hand.
+- **No attachments out.** An agent can read an attachment; it cannot put one
+  on a message it asks to send. `attachments` on a queued draft is always
+  empty.
 - **macOS is the tested path.** The Windows named pipe compiles and is written
   against a cross-platform socket crate, but nobody has run it. Linux is in
   the same position.
