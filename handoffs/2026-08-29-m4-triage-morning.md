@@ -29,7 +29,7 @@ the ticket resolution. Not pushed this session.
 3. Carried from the overnight handoff: G1 (license, repo-public timing,
    `wren-mcp` naming), N5/N6 owner nits, Windows hand-smoke,
    production-status flip, Anron overlay alternates.
-4. **Push**: two commits are local-only (M4 + this wrap).
+4. ~~Push~~ — done same session; main is at e2ea9a1 on galangster/wren.
 
 ## Next tickets on the map
 
