@@ -306,7 +306,7 @@ export class RealMailService implements MailService {
     this.runtimes.get(accountId)?.engine.stop()
     this.runtimes.delete(accountId)
     const keys = await this.store.listThreadKeys(accountId)
-    await this.store.deleteAccount(accountId)
+    await this.store.deleteAccount(accountId, this.now())
     await this.tokenStore.clear(accountId)
     this.index.removeMany(keys)
     this.emit({ type: 'accountsChanged' })

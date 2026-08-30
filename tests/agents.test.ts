@@ -106,8 +106,8 @@ async function gatewayOn(
 
 describe('migration 2', () => {
   it('appends rather than editing migration 1', () => {
-    expect(MIGRATIONS).toHaveLength(2)
-    expect(SCHEMA_VERSION).toBe(2)
+    expect(MIGRATIONS).toHaveLength(3)
+    expect(SCHEMA_VERSION).toBe(3)
     expect(MIGRATIONS[0]).toContain('CREATE TABLE IF NOT EXISTS accounts')
     expect(MIGRATIONS[0]).not.toContain('agents')
   })

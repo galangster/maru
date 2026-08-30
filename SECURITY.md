@@ -28,6 +28,32 @@ the load-bearing facts:
 - **Every call and every refusal is audited**, append-only, per agent.
 - **OAuth tokens** live in the OS keychain, never in the database, never
   in exports.
+- **Mail content is encrypted at rest.** Message bodies, subjects,
+  snippets, addresses, attachment metadata, label names, queued agent
+  send drafts, and the mail-derived fields of the audit log are
+  AES-256-GCM ciphertext in the local database, keyed per account.
+
+## Encryption keys
+
+One 256-bit key per Gmail account, held in the OS keychain (entry
+`wren:key:account:<account-id>`, same keychain service as the OAuth
+tokens) and never written to the database or to exports.
+
+- **Creation** — generated from the OS random source the first time an
+  account is stored. Adding an account creates its key; nothing else
+  does.
+- **Rotation** — removing an account and signing in again issues a fresh
+  key; old ciphertext is gone with the removal. There is no in-place
+  rotation, because the durable copy of your mail is Gmail itself, not
+  Wren's cache.
+- **Recovery** — there is none, on purpose. If the keychain entry is
+  lost, the local cache is unreadable and Wren re-syncs the mailbox from
+  Gmail. Anything only the key could unlock stays locked.
+- **Deletion** — removing an account deletes its rows, then destroys its
+  key. Key destruction is what erases the mail-derived fields of that
+  account's audit history: the append-only rows keep their structure
+  (who, when, which tool, outcome) while their content fields become
+  undecryptable ciphertext.
 
 ## Scope notes for researchers
 

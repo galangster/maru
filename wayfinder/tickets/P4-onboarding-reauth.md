@@ -116,3 +116,56 @@ Remaining product work before submission: plan §3 (encryption at rest,
 deletion semantics, agent-session consent, prompt-injection tests) and
 the client-failure UI surfacing (Settings row offering BYO when
 OAuthClientError is the cause).
+
+## Progress — restricted-data gaps workstream (plan §3), 2026-08-30
+
+Two Sol delegates (high effort), reviewed, /simplify'd (fixes applied by
+a third), and sealed by the orchestrating session. 476 tests.
+
+- **Encryption at rest** (§3 items 1–2): AES-256-GCM, one key per
+  account in the OS keychain (`wren:key:account:<id>`), AAD-bound to the
+  account id. Encrypted columns: thread subject/snippet/participants,
+  all 13 message content columns, label names, approval payloads, and
+  the audit log's summary + thread key. Structural columns (ids, labels,
+  dates, flags) stay plaintext so every query still works. Legacy rows
+  are swept once at open (`meta` marker, keyset-paged); demo mode and
+  keyring-less tests pass through unchanged.
+- **Deletion semantics** (§3 items 5–6): account removal expires that
+  account's pending approvals, deletes its rows, then destroys its key —
+  which cryptographically erases the mail-derived audit fields while the
+  append-only structure (who/when/tool/outcome) survives. Erased rows
+  read back as "Content erased when its account was removed."
+- **Agent-session consent** (§3 item 7; Part 1 §2): grants stay durable;
+  a time-bounded in-memory session (15 m / 1 h / 8 h, restart = closed)
+  gates all nine mail-touching tools before the grant check. The consent
+  surface in Settings → Agents shows identity, live capabilities, data
+  classes, and the provider-path disclosure; a refused agent raises one
+  throttled `sessionRequested` OS notification. Session start/end/expiry
+  are audit rows; wren_ping reports session state.
+- **Prompt-injection defenses + tests** (§3 item 8): bodies, snippets
+  and attachment results marked untrusted (note + spoof-neutralized
+  markers); tests/injection.test.ts pins wrapping, marker spoofing,
+  and that hostile content never moves authorization.
+- Key lifecycle documented in SECURITY.md (§3 item 3).
+
+/simplify (two agents, four angles; fixes by Sol). Applied: one-time
+sweep marker (was re-scanning the mailbox every launch), keyset paging +
+parallel encrypts in the sweep, base64 dedup onto mime.ts, module-level
+encoders + AAD cache, parseThreadKey reuse, shared encrypted-column
+lists (killed the positional decrypt remap), humanDuration/minutesLeft
+shared, stripUntrustedMarkers split, updateColumnByKey rename, required
+`now` on deleteAccount, dataClasses ternary flattened, session polling
+gated. Skips with reasons: attachments `'[]'` sentinel (NOT NULL column;
+merge rule depends on it), accountId on AuditDraft (parseThreadKey is
+now the one canonical parse), approval expiry stays in Store.deleteAccount
+(service holds no gateway), multi-column sweep UPDATE (one-time code).
+
+**Gate N5 still open**: PERMISSION-MODEL.md untouched. The revised
+append-only design (structure forever, content erasable by key
+destruction) is written up for Nick's approval before the doc changes.
+
+Remaining §3 items: a user-facing "Delete local Google data" action
+beyond account removal (item 4), agent disclosure in the connection
+flow itself (item 9; the consent dialog covers half), in-app help links
+for deletion/revocation (item 10 — site drafts exist), and the
+client-failure UI surfacing carried over from §2.

@@ -42,6 +42,14 @@ export {
   type IssuedAgent,
 } from './registry'
 export { ApprovalQueue, APPROVAL_TTL_MS, describeDraft, type SendSeam } from './approvals'
+export {
+  SessionConsent,
+  SESSION_DURATIONS_MS,
+  DEFAULT_SESSION_MS,
+  humanDuration,
+  minutesLeft,
+  type AgentSession,
+} from './sessions'
 export { MemoryAgentStore, SqlAgentStore, publicAgent } from './store'
 export {
   AgentGateway,

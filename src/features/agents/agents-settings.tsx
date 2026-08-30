@@ -16,8 +16,16 @@ import { toast } from 'sonner'
 import { ConfirmPopover } from '@/components/confirm-popover'
 import { Icon } from '@/components/ui/icon'
 import { PRESS, PrimaryButton, SECTION_LABEL, textButtonClass } from '@/components/wren-controls'
-import type { Agent, Capability, Grant } from '@/core/agents'
-import { CAPABILITIES, DEMO_AGENT, DEMO_AGENT_CREDENTIAL } from '@/core/agents'
+import type { Agent, AgentSession, Capability, Grant } from '@/core/agents'
+import {
+  CAPABILITIES,
+  DEFAULT_SESSION_MS,
+  DEMO_AGENT,
+  DEMO_AGENT_CREDENTIAL,
+  humanDuration,
+  minutesLeft,
+  SESSION_DURATIONS_MS,
+} from '@/core/agents'
 import { useAgentGateway, useMailMode } from '@/features/mail/service'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { relativeTime } from '@/lib/format'
@@ -25,7 +33,7 @@ import { now, openExternalUrl } from '@/lib/env'
 import { cn } from '@/lib/utils'
 
 import { AgentDot, CAPABILITY_COPY, scopeSummary } from './identity'
-import { useAgents, useHeldGrants } from './queries'
+import { useAgents, useHeldGrants, useSessions } from './queries'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -45,6 +53,7 @@ function ageLabel(at: number, at_now = now()): string {
 export function AgentsSection() {
   const agents = useAgents()
   const held = useHeldGrants()
+  const sessions = useSessions().data ?? []
   const openAudit = useSurfaces((s) => s.openAudit)
   const list = agents.data ?? []
 
@@ -60,7 +69,12 @@ export function AgentsSection() {
       ) : (
         <ul className="flex flex-col gap-2">
           {list.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} held={held.get(agent.id) ?? {}} />
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              held={held.get(agent.id) ?? {}}
+              session={sessions.find((item) => item.agentId === agent.id) ?? null}
+            />
           ))}
         </ul>
       )}
@@ -127,9 +141,11 @@ function FirstAgentGuide() {
 function AgentCard({
   agent,
   held,
+  session,
 }: {
   agent: Agent
   held: Partial<Record<Capability, Grant>>
+  session: AgentSession | null
 }) {
   const gateway = useAgentGateway()
   const [confirming, setConfirming] = useState(false)
@@ -191,12 +207,169 @@ function AgentCard({
         </p>
       ) : (
         <>
+          <SessionBlock agent={agent} held={held} session={session} />
           <CapabilityToggles agentId={agent.id} agentName={agent.name} held={held} />
           {send && <SendScopeEditor agentId={agent.id} grant={send} />}
           <FixtureCredential agent={agent} />
         </>
       )}
     </li>
+  )
+}
+
+function SessionBlock({
+  agent,
+  held,
+  session,
+}: {
+  agent: Agent
+  held: Partial<Record<Capability, Grant>>
+  session: AgentSession | null
+}) {
+  const gateway = useAgentGateway()
+  const [opening, setOpening] = useState(false)
+  const [duration, setDuration] = useState<number>(DEFAULT_SESSION_MS)
+  const [busy, setBusy] = useState(false)
+  const remainingMinutes = session ? minutesLeft(session, now()) : null
+
+  const start = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await gateway.sessions.start(agent.id, duration)
+      setOpening(false)
+    } catch (cause) {
+      toast.error('Could not start the session', {
+        description: cause instanceof Error ? cause.message : String(cause),
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const end = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await gateway.sessions.end(agent.id)
+    } catch (cause) {
+      toast.error('Could not end the session', {
+        description: cause instanceof Error ? cause.message : String(cause),
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const allowed = CAPABILITIES.filter((capability) => held[capability])
+  let dataClasses = 'No mail data until you grant a capability'
+  if (held.read) {
+    dataClasses = 'Message content, addresses, subjects, attachments'
+  } else if (held.draft || held.send) {
+    dataClasses = 'Draft content, addresses, subjects'
+  } else if (held.archiveLabel) {
+    dataClasses = 'Thread keys and labels'
+  }
+
+  return (
+    <div className="bg-surface flex flex-col gap-2 rounded-md p-3">
+      <p className={SECTION_LABEL}>Agent session</p>
+      {session ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-ink-2 text-sm">Session active — ends in {remainingMinutes} min.</p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void end()}
+            className={textButtonClass('default', 'shrink-0 disabled:opacity-50')}
+          >
+            End session
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-ink-2 text-sm">No active session — mail tools are locked.</p>
+            <button
+              type="button"
+              onClick={() => setOpening(true)}
+              className={textButtonClass('default', 'shrink-0')}
+            >
+              Start session…
+            </button>
+          </div>
+          {opening && (
+            <div className="bg-sunken flex flex-col gap-3 rounded-sm p-3">
+              <div className="flex flex-col gap-1 text-sm">
+                <p className="text-ink font-medium">{agent.name}</p>
+                <p className="text-ink-3">
+                  Created {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(agent.createdAt)}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <p className={SECTION_LABEL}>Allowed actions</p>
+                {allowed.length === 0 ? (
+                  <p className="text-ink-3 text-sm">Nothing yet. Grant a capability first.</p>
+                ) : (
+                  <ul className="text-ink-2 flex list-disc flex-col gap-1 pl-4 text-sm">
+                    {allowed.map((capability) => (
+                      <li key={capability}>
+                        {CAPABILITY_COPY[capability].label}. {CAPABILITY_COPY[capability].help}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <p className="text-ink-2 text-sm">Data: {dataClasses}.</p>
+              <p className="text-ink-2 text-sm text-pretty">
+                Mail this agent reads leaves Wren for whatever model or service the agent runs on.
+              </p>
+
+              <fieldset className="flex flex-col gap-2">
+                <legend className={SECTION_LABEL}>Duration</legend>
+                <div role="group" aria-label="Session duration" className="flex flex-wrap gap-2">
+                  {SESSION_DURATIONS_MS.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={duration === value}
+                      onClick={() => setDuration(value)}
+                      className={cn(
+                        'font-ui focus-ring h-8 rounded-full px-3 text-base',
+                        duration === value
+                          ? 'bg-fill-selected text-ink font-medium'
+                          : 'text-ink-2 hover:bg-fill-hover',
+                      )}
+                    >
+                      {humanDuration(value)}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpening(false)}
+                  className={textButtonClass('default')}
+                >
+                  Keep locked
+                </button>
+                <PrimaryButton
+                  disabled={busy}
+                  onClick={() => void start()}
+                  className="h-8 px-3"
+                >
+                  Start session
+                </PrimaryButton>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 

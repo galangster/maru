@@ -8,10 +8,12 @@
 
 import type { ComposeDraft } from '../types'
 import type { SqlDb } from '../platform'
+import type { Keyring } from '../crypto/keyring'
 import { AuditLog } from './audit'
 import { evaluate, recipientsOf, GrantBook, type Decision, type DenyReason } from './grants'
 import { AgentRegistry } from './registry'
 import { ApprovalQueue, type SendSeam } from './approvals'
+import { SessionConsent } from './sessions'
 import { SqlAgentStore, publicAgent } from './store'
 import type { Agent, AgentEvent, AgentStore, Approval, Capability, Grant } from './types'
 
@@ -50,11 +52,13 @@ export class AgentGateway {
   readonly registry: AgentRegistry
   readonly grants: GrantBook
   readonly approvals: ApprovalQueue
+  readonly sessions: SessionConsent
   readonly audit: AuditLog
 
   private readonly listeners = new Set<(event: AgentEvent) => void>()
   private readonly store: AgentStore
   private readonly clock: () => number
+  private readonly lastSessionRequest = new Map<string, number>()
 
   constructor(opts: AgentGatewayOptions) {
     const now = opts.now ?? (() => Date.now())
@@ -76,6 +80,7 @@ export class AgentGateway {
 
     this.registry = new AgentRegistry({ store: opts.store, audit: this.audit, now, id })
     this.grants = new GrantBook({ store: opts.store, now })
+    this.sessions = new SessionConsent({ store: opts.store, audit: this.audit, now, emit })
     this.approvals = new ApprovalQueue({
       store: opts.store,
       audit: this.audit,
@@ -144,8 +149,18 @@ export class AgentGateway {
   }
 
   async revokeAgent(id: string): Promise<void> {
+    await this.sessions.end(id)
     await this.registry.revoke(id)
     this.emit({ type: 'agentsChanged' })
+  }
+
+  /** Emit at most one session request per agent in any 60-second window. */
+  requestSession(agentId: string, agentName: string): void {
+    const at = this.clock()
+    const last = this.lastSessionRequest.get(agentId)
+    if (last !== undefined && at - last < 60_000) return
+    this.lastSessionRequest.set(agentId, at)
+    this.emit({ type: 'sessionRequested', agentId, agentName })
   }
 
   async grant(...args: Parameters<GrantBook['grant']>): Promise<Grant> {
@@ -273,9 +288,10 @@ function denialSentence(
 export function createSqlGateway(
   db: SqlDb,
   mail: SendSeam,
-  opts: { now?: () => number; id?: () => string } = {},
+  opts: { now?: () => number; id?: () => string; keyring?: Keyring | null } = {},
 ): AgentGateway {
-  return new AgentGateway({ store: new SqlAgentStore(db), mail, ...opts })
+  const { keyring, ...gatewayOpts } = opts
+  return new AgentGateway({ store: new SqlAgentStore(db, keyring), mail, ...gatewayOpts })
 }
 
 // Demo mode has no equivalent factory: it constructs `new AgentGateway` over a

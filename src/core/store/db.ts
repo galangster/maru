@@ -24,8 +24,10 @@ import type {
   BodyState,
   Attachment,
 } from '../types'
+import { parseThreadKey } from '../types'
 import type { LabelDelta } from '../service/actions'
 import { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, viewLabel } from '../defaults'
+import { CIPHERTEXT_PREFIX, type Keyring, keyringFor } from '../crypto/keyring'
 
 export { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, FOLDER_LABELS } from '../defaults'
 
@@ -175,6 +177,13 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_audit_recent ON audit_log (at DESC);
   CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit_log (agent_id, at DESC);
   `,
+
+  // 3 — account ownership for encrypted agent content.
+  `
+  ALTER TABLE audit_log ADD COLUMN account_id TEXT;
+  ALTER TABLE approvals ADD COLUMN account_id TEXT;
+  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -239,6 +248,46 @@ interface MessageRow {
   in_reply_to: string | null
   unread: number
   starred: number
+}
+
+const ENCRYPTED_THREAD_COLUMNS = ['subject', 'snippet', 'participants'] as const
+// The write path in upsertMessages must name the same columns.
+const ENCRYPTED_MESSAGE_COLUMNS = [
+  'from_json',
+  'to_json',
+  'cc_json',
+  'bcc_json',
+  'reply_to_json',
+  'subject',
+  'snippet',
+  'body_html',
+  'body_text',
+  'attachments',
+  'rfc_message_id',
+  'references_hdr',
+  'in_reply_to',
+] as const
+
+const THREAD_COLUMN_FALLBACKS: Record<(typeof ENCRYPTED_THREAD_COLUMNS)[number], string> = {
+  subject: '',
+  snippet: '',
+  participants: '[]',
+}
+
+const MESSAGE_COLUMN_FALLBACKS: Record<(typeof ENCRYPTED_MESSAGE_COLUMNS)[number], string> = {
+  from_json: '{}',
+  to_json: '[]',
+  cc_json: '[]',
+  bcc_json: '[]',
+  reply_to_json: '[]',
+  subject: '',
+  snippet: '',
+  body_html: '',
+  body_text: '',
+  attachments: '[]',
+  rfc_message_id: '',
+  references_hdr: '',
+  in_reply_to: '',
 }
 
 function parseJson<T>(text: string, fallback: T): T {
@@ -383,19 +432,200 @@ function applyLabelDelta(labelIds: string[], delta: LabelDelta): string[] {
  * being taken.
  */
 export class Store {
-  constructor(private readonly db: SqlDb) {}
+  constructor(
+    private readonly db: SqlDb,
+    private readonly keyring: Keyring | null = null,
+  ) {}
 
   static async open(platform: Platform): Promise<Store> {
     const db = await platform.sqlOpen()
     // WAL lets pooled readers proceed while a write is in flight.
     await db.execute('PRAGMA journal_mode = WAL')
     await migrate(db)
-    return new Store(db)
+    const store = new Store(db, keyringFor(platform))
+    await store.encryptLegacyRows()
+    return store
+  }
+
+  private async encryptValue(accountId: string, value: string | null): Promise<string | null> {
+    if (value === null || !this.keyring) return value
+    return this.keyring.encrypt(accountId, value)
+  }
+
+  private async decryptValue(
+    accountId: string,
+    value: string | null,
+    fallback: string,
+  ): Promise<string | null> {
+    if (value === null || !this.keyring) return value
+    return (await this.keyring.decrypt(accountId, value)) ?? fallback
+  }
+
+  private async decryptThreadRow(row: ThreadRow): Promise<ThreadRow> {
+    const values = await Promise.all(
+      ENCRYPTED_THREAD_COLUMNS.map(async (column) => [
+        column,
+        await this.decryptValue(row.account_id, row[column], THREAD_COLUMN_FALLBACKS[column]),
+      ]),
+    )
+    return { ...row, ...Object.fromEntries(values) } as ThreadRow
+  }
+
+  private async decryptMessageRow(row: MessageRow): Promise<MessageRow> {
+    const values = await Promise.all(
+      ENCRYPTED_MESSAGE_COLUMNS.map(async (column) => [
+        column,
+        await this.decryptValue(row.account_id, row[column], MESSAGE_COLUMN_FALLBACKS[column]),
+      ]),
+    )
+    return { ...row, ...Object.fromEntries(values) } as MessageRow
+  }
+
+  private async updateColumnByKey(
+    table: string,
+    keyColumns: readonly string[],
+    column: string,
+    updates: Record<string, string>[],
+  ): Promise<void> {
+    const columns = [...keyColumns, 'value']
+    for (const group of chunkRows(updates, columns.length)) {
+      const matches = keyColumns
+        .map((key) => `updates.${key} = ${table}.${key}`)
+        .join(' AND ')
+      await this.db.execute(
+        `WITH updates(${columns.join(', ')}) AS (
+           VALUES ${valueGroups(group.length, columns.length)}
+         )
+         UPDATE ${table} SET
+           ${column} = (SELECT value FROM updates WHERE ${matches})
+         WHERE EXISTS (SELECT 1 FROM updates WHERE ${matches})`,
+        group.flatMap((row) => [...keyColumns.map((key) => row[key]), row.value]),
+      )
+    }
+  }
+
+  private async backfillAgentAccountIds(): Promise<void> {
+    let afterId = ''
+    while (true) {
+      const approvals = await this.db.select<{
+        id: string
+        payload_json: string
+      }>(
+        `SELECT id, payload_json FROM approvals
+         WHERE account_id IS NULL AND id > $1 ORDER BY id LIMIT $2`,
+        [afterId, MAX_BOUND_PARAMS],
+      )
+      if (approvals.length === 0) break
+      const updates: Record<string, string>[] = []
+      for (const row of approvals) {
+        const payload = parseJson<{ accountId?: unknown } | null>(row.payload_json, null)
+        if (typeof payload?.accountId === 'string' && payload.accountId) {
+          updates.push({ id: row.id, value: payload.accountId })
+        }
+      }
+      await this.updateColumnByKey('approvals', ['id'], 'account_id', updates)
+      afterId = approvals[approvals.length - 1].id
+    }
+
+    afterId = ''
+    while (true) {
+      const auditRows = await this.db.select<{ id: string; thread_key: string }>(
+        `SELECT id, thread_key FROM audit_log
+         WHERE account_id IS NULL AND thread_key IS NOT NULL AND id > $1
+         ORDER BY id LIMIT $2`,
+        [afterId, MAX_BOUND_PARAMS],
+      )
+      if (auditRows.length === 0) break
+      const updates: Record<string, string>[] = []
+      for (const row of auditRows) {
+        if (row.thread_key.startsWith(CIPHERTEXT_PREFIX)) continue
+        if (!row.thread_key.includes('/')) continue
+        const { accountId } = parseThreadKey(row.thread_key)
+        if (accountId) updates.push({ id: row.id, value: accountId })
+      }
+      await this.updateColumnByKey('audit_log', ['id'], 'account_id', updates)
+      afterId = auditRows[auditRows.length - 1].id
+    }
+  }
+
+  private async encryptTable(
+    table: string,
+    keyColumns: readonly string[],
+    columns: readonly string[],
+  ): Promise<void> {
+    if (!this.keyring) return
+    const pageSize = 500
+    let after = keyColumns.map(() => '')
+    while (true) {
+      const cursor =
+        keyColumns.length === 1
+          ? `${keyColumns[0]} > $1`
+          : `(${keyColumns.join(', ')}) > (${placeholderList(keyColumns.length)})`
+      const rows = await this.db.select<Record<string, string | null>>(
+        `SELECT ${[...keyColumns, 'account_id', ...columns].join(', ')}
+         FROM ${table}
+         WHERE account_id IS NOT NULL AND ${cursor}
+         ORDER BY ${keyColumns.join(', ')}
+         LIMIT $${keyColumns.length + 1}`,
+        [...after, pageSize],
+      )
+      if (rows.length === 0) return
+
+      for (const column of columns) {
+        const pageUpdates = await Promise.all(
+          rows.map(async (row): Promise<Record<string, string> | null> => {
+            const accountId = row.account_id
+            const value = row[column]
+            if (
+              !accountId ||
+              value === null ||
+              value === '' ||
+              value.startsWith(CIPHERTEXT_PREFIX) ||
+              (table === 'messages' && column === 'attachments' && value === '[]')
+            ) {
+              return null
+            }
+            const update: Record<string, string> = {
+              value: await this.keyring!.encrypt(accountId, value),
+            }
+            for (const key of keyColumns) update[key] = row[key] as string
+            return update
+          }),
+        )
+        const updates = pageUpdates.filter((update): update is Record<string, string> => update !== null)
+        await this.updateColumnByKey(table, keyColumns, column, updates)
+      }
+
+      const last = rows[rows.length - 1]
+      after = keyColumns.map((key) => last[key] as string)
+      if (rows.length < pageSize) return
+    }
+  }
+
+  private async encryptLegacyRows(): Promise<void> {
+    if (!this.keyring) return
+    const swept = await this.db.select<{ value: string }>(
+      `SELECT value FROM meta WHERE key = 'encryption-sweep'`,
+    )
+    if (swept.length > 0) return
+    await this.backfillAgentAccountIds()
+
+    const accounts = await this.db.select<{ id: string }>('SELECT id FROM accounts')
+    await Promise.all(accounts.map((account) => this.keyring!.keyFor(account.id)))
+
+    await this.encryptTable('threads', ['key'], ENCRYPTED_THREAD_COLUMNS)
+    await this.encryptTable('messages', ['id'], ENCRYPTED_MESSAGE_COLUMNS)
+    await this.encryptTable('labels', ['account_id', 'id'], ['name'])
+    await this.encryptTable('approvals', ['id'], ['payload_json'])
+    await this.encryptTable('audit_log', ['id'], ['summary', 'thread_key'])
+    // New rows encrypt on write, so one global marker covers all later opens.
+    await this.db.execute(`INSERT INTO meta (key, value) VALUES ('encryption-sweep', '1')`)
   }
 
   // -- accounts -------------------------------------------------------------
 
   async upsertAccount(a: Account): Promise<void> {
+    await this.keyring?.keyFor(a.id)
     await this.db.execute(
       `INSERT INTO accounts (id, email, display_name, color, added_at)
        VALUES ($1, $2, $3, $4, $5)
@@ -425,11 +655,18 @@ export class Store {
     }))
   }
 
-  async deleteAccount(accountId: string): Promise<void> {
+  async deleteAccount(accountId: string, now: number): Promise<void> {
+    await this.db.execute(
+      `UPDATE approvals SET status = 'expired', resolved_at = $1
+       WHERE account_id = $2 AND status = 'pending'`,
+      [now, accountId],
+    )
     for (const table of ['messages', 'thread_labels', 'threads', 'labels', 'sync_state']) {
       await this.db.execute(`DELETE FROM ${table} WHERE account_id = $1`, [accountId])
     }
     await this.db.execute('DELETE FROM accounts WHERE id = $1', [accountId])
+    // Key destruction cryptographically erases this account's append-only audit content.
+    await this.keyring?.destroy(accountId)
   }
 
   // -- threads --------------------------------------------------------------
@@ -439,20 +676,31 @@ export class Store {
     if (rows.length === 0) return
 
     for (const group of chunkRows(rows, THREAD_COLUMNS)) {
-      const params = group.flatMap((t) => [
-        t.key,
-        t.accountId,
-        t.gmailThreadId,
-        t.subject,
-        t.snippet,
-        t.lastMessageAt,
-        JSON.stringify(t.participants),
-        JSON.stringify(t.labelIds),
-        bit(t.unread),
-        bit(t.starred),
-        t.messageCount,
-        bit(t.hasAttachments),
-      ])
+      const params = (
+        await Promise.all(
+          group.map(async (t) => {
+            const [subject, snippet, participants] = await Promise.all([
+              this.encryptValue(t.accountId, t.subject),
+              this.encryptValue(t.accountId, t.snippet),
+              this.encryptValue(t.accountId, JSON.stringify(t.participants)),
+            ])
+            return [
+              t.key,
+              t.accountId,
+              t.gmailThreadId,
+              subject,
+              snippet,
+              t.lastMessageAt,
+              participants,
+              JSON.stringify(t.labelIds),
+              bit(t.unread),
+              bit(t.starred),
+              t.messageCount,
+              bit(t.hasAttachments),
+            ]
+          }),
+        )
+      ).flat()
       await this.db.execute(
         `INSERT INTO threads (key, account_id, gmail_thread_id, subject, snippet, last_message_at,
                               participants, label_ids, unread, starred, message_count, has_attachments)
@@ -495,12 +743,12 @@ export class Store {
 
   async getThread(key: string): Promise<Thread | null> {
     const rows = await this.db.select<ThreadRow>('SELECT * FROM threads WHERE key = $1', [key])
-    return rows.length ? rowToThread(rows[0]) : null
+    return rows.length ? rowToThread(await this.decryptThreadRow(rows[0])) : null
   }
 
   async allThreads(): Promise<Thread[]> {
     const rows = await this.db.select<ThreadRow>('SELECT * FROM threads ORDER BY last_message_at DESC')
-    return rows.map(rowToThread)
+    return Promise.all(rows.map(async (row) => rowToThread(await this.decryptThreadRow(row))))
   }
 
   async deleteThreads(keys: string[]): Promise<void> {
@@ -544,7 +792,7 @@ export class Store {
     args.push(opts.limit ?? DEFAULT_PAGE_SIZE)
     sql += ` ORDER BY t.last_message_at DESC, t.key ASC LIMIT $${args.length}`
     const rows = await this.db.select<ThreadRow>(sql, args)
-    return rows.map(rowToThread)
+    return Promise.all(rows.map(async (row) => rowToThread(await this.decryptThreadRow(row))))
   }
 
   async countUnread(view: MailView): Promise<number> {
@@ -563,30 +811,68 @@ export class Store {
     if (rows.length === 0) return
 
     for (const group of chunkRows(rows, MESSAGE_COLUMNS)) {
-      const params = group.flatMap((m) => [
-        m.id,
-        `${m.accountId}/${m.threadId}`,
-        m.threadId,
-        m.accountId,
-        JSON.stringify(m.from),
-        JSON.stringify(m.to),
-        JSON.stringify(m.cc),
-        JSON.stringify(m.bcc),
-        JSON.stringify(m.replyTo),
-        m.date,
-        m.subject,
-        m.snippet,
-        m.bodyHtml ?? null,
-        m.bodyText ?? null,
-        m.bodyState,
-        JSON.stringify(m.labelIds),
-        JSON.stringify(m.attachments),
-        m.rfcMessageId ?? null,
-        m.references ?? null,
-        m.inReplyTo ?? null,
-        bit(m.unread),
-        bit(m.starred),
-      ])
+      const params = (
+        await Promise.all(
+          group.map(async (m) => {
+            const attachments = JSON.stringify(m.attachments)
+            const [
+              from,
+              to,
+              cc,
+              bcc,
+              replyTo,
+              subject,
+              snippet,
+              bodyHtml,
+              bodyText,
+              encryptedAttachments,
+              rfcMessageId,
+              references,
+              inReplyTo,
+            ] = await Promise.all([
+              this.encryptValue(m.accountId, JSON.stringify(m.from)),
+              this.encryptValue(m.accountId, JSON.stringify(m.to)),
+              this.encryptValue(m.accountId, JSON.stringify(m.cc)),
+              this.encryptValue(m.accountId, JSON.stringify(m.bcc)),
+              this.encryptValue(m.accountId, JSON.stringify(m.replyTo)),
+              this.encryptValue(m.accountId, m.subject),
+              this.encryptValue(m.accountId, m.snippet),
+              this.encryptValue(m.accountId, m.bodyHtml ?? null),
+              this.encryptValue(m.accountId, m.bodyText ?? null),
+              attachments === '[]'
+                ? Promise.resolve(attachments)
+                : this.encryptValue(m.accountId, attachments),
+              this.encryptValue(m.accountId, m.rfcMessageId ?? null),
+              this.encryptValue(m.accountId, m.references ?? null),
+              this.encryptValue(m.accountId, m.inReplyTo ?? null),
+            ])
+            return [
+              m.id,
+              `${m.accountId}/${m.threadId}`,
+              m.threadId,
+              m.accountId,
+              from,
+              to,
+              cc,
+              bcc,
+              replyTo,
+              m.date,
+              subject,
+              snippet,
+              bodyHtml,
+              bodyText,
+              m.bodyState,
+              JSON.stringify(m.labelIds),
+              encryptedAttachments,
+              rfcMessageId,
+              references,
+              inReplyTo,
+              bit(m.unread),
+              bit(m.starred),
+            ]
+          }),
+        )
+      ).flat()
       await this.db.execute(
         `INSERT INTO messages (id, thread_key, thread_id, account_id, from_json, to_json, cc_json, bcc_json,
                                reply_to_json, date, subject, snippet, body_html, body_text, body_state,
@@ -693,7 +979,7 @@ export class Store {
       'SELECT * FROM messages WHERE thread_key = $1 ORDER BY date ASC, id ASC',
       [threadKey],
     )
-    return rows.map(rowToMessage)
+    return Promise.all(rows.map(async (row) => rowToMessage(await this.decryptMessageRow(row))))
   }
 
   /** Newest threads that still hold only metadata — the prefetch work list. */
@@ -714,10 +1000,21 @@ export class Store {
     const rows = dedupeBy(labels, (l) => l.id)
     await this.db.execute('DELETE FROM labels WHERE account_id = $1', [accountId])
     for (const group of chunkRows(rows, 5)) {
+      const params = (
+        await Promise.all(
+          group.map(async (label) => [
+            accountId,
+            label.id,
+            await this.encryptValue(accountId, label.name),
+            label.type,
+            label.unreadCount ?? null,
+          ]),
+        )
+      ).flat()
       await this.db.execute(
         `INSERT OR REPLACE INTO labels (account_id, id, name, type, unread_count)
          VALUES ${valueGroups(group.length, 5)}`,
-        group.flatMap((l) => [accountId, l.id, l.name, l.type, l.unreadCount ?? null]),
+        params,
       )
     }
   }
@@ -729,14 +1026,21 @@ export class Store {
       name: string
       type: string
       unread_count: number | null
-    }>('SELECT * FROM labels WHERE account_id = $1 ORDER BY type DESC, name ASC', [accountId])
-    return rows.map((r) => ({
-      id: r.id,
-      accountId: r.account_id,
-      name: r.name,
-      type: r.type === 'system' ? 'system' : 'user',
-      unreadCount: r.unread_count ?? undefined,
-    }))
+    }>('SELECT * FROM labels WHERE account_id = $1', [accountId])
+    const labels = await Promise.all(
+      rows.map(async (r) => ({
+        id: r.id,
+        accountId: r.account_id,
+        name: (await this.decryptValue(r.account_id, r.name, '')) ?? '',
+        type: r.type === 'system' ? ('system' as const) : ('user' as const),
+        unreadCount: r.unread_count ?? undefined,
+      })),
+    )
+    return labels.sort(
+      (a, b) =>
+        Number(b.type === 'system') - Number(a.type === 'system') ||
+        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    )
   }
 
   // -- sync state -----------------------------------------------------------

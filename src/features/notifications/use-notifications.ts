@@ -52,6 +52,15 @@ export function useNotifications(): void {
         )
         return
       }
+      if (event.type === 'sessionRequested') {
+        if (document.hasFocus()) return
+        void notify(
+          platform,
+          `${event.agentName} is waiting for a session`,
+          'Start a session in Settings → Agents to let it work with your mail.',
+        )
+        return
+      }
       if (event.type !== 'approvalPending') return
       if (document.hasFocus()) return
       void notify(platform, `${event.agentName} wants to send`, describeDraft(event.approval.payload))

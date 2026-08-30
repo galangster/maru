@@ -5,7 +5,7 @@
 import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import type { Agent, Capability, Grant } from '@/core/agents'
+import type { Agent, AgentSession, Capability, Grant } from '@/core/agents'
 import { liveGrants } from '@/core/agents'
 import { useAgentGateway } from '@/features/mail/service'
 import { now } from '@/lib/env'
@@ -13,6 +13,7 @@ import { now } from '@/lib/env'
 export const agentKeys = {
   agents: ['agents'] as const,
   grants: ['agent-grants'] as const,
+  sessions: ['agent-sessions'] as const,
   pending: ['agent-approvals'] as const,
   audit: (agentId?: string) => ['agent-audit', agentId ?? 'all'] as const,
 }
@@ -26,6 +27,15 @@ export function useAgents() {
 export function useGrants() {
   const gateway = useAgentGateway()
   return useQuery({ queryKey: agentKeys.grants, queryFn: () => gateway.grants.list() })
+}
+
+export function useSessions() {
+  const gateway = useAgentGateway()
+  return useQuery<AgentSession[]>({
+    queryKey: agentKeys.sessions,
+    queryFn: () => gateway.sessions.listActive(),
+    refetchInterval: (query) => (query.state.data?.length ? 30_000 : false),
+  })
 }
 
 /**
@@ -57,6 +67,9 @@ export function useAgentEvents(): void {
         case 'agentsChanged':
           void client.invalidateQueries({ queryKey: agentKeys.agents })
           void client.invalidateQueries({ queryKey: agentKeys.grants })
+          break
+        case 'sessionsChanged':
+          void client.invalidateQueries({ queryKey: agentKeys.sessions })
           break
         case 'approvalsChanged':
         case 'approvalPending':

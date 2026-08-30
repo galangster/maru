@@ -153,6 +153,10 @@ export interface AuditDraft {
 export type AgentEvent =
   /** An agent was created or revoked, or its grants moved. */
   | { type: 'agentsChanged' }
+  /** An agent session started, ended or expired. */
+  | { type: 'sessionsChanged' }
+  /** A mail tool is waiting for the person to start a session. */
+  | { type: 'sessionRequested'; agentId: string; agentName: string }
   /** The queue's contents moved. `pending` is the badge's number. */
   | { type: 'approvalsChanged'; pending: number }
   /**

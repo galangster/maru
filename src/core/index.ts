@@ -9,6 +9,7 @@ import { DemoMailService } from './service/demo'
 import { AgentGateway, createSqlGateway } from './agents/gateway'
 import { MemoryAgentStore } from './agents/store'
 import { seedDemoAgents } from './agents/demo-fixtures'
+import { keyringFor } from './crypto/keyring'
 
 export interface CreateMailServiceOptions {
   demo: boolean
@@ -61,7 +62,10 @@ export async function createAgentGateway(
   if (!platform) throw new Error('A Platform is required outside demo mode')
   // The same handle the mail store opened: TauriPlatform single-flights
   // sqlOpen, so this is one database and one connection, not two.
-  return createSqlGateway(await platform.sqlOpen(), opts.mail, { now: clock })
+  return createSqlGateway(await platform.sqlOpen(), opts.mail, {
+    now: clock,
+    keyring: keyringFor(platform),
+  })
 }
 
 export * from './types'

@@ -113,6 +113,20 @@ export async function callTool(
     )
   }
 
+  if (spec.restricted && !(await ctx.gateway.sessions.active(ctx.agent.id))) {
+    await ctx.gateway.audit.append({
+      agentId: ctx.agent.id,
+      tool: name,
+      summary: `Blocked: no active session, so ${name} is refused.`,
+      threadKey: threadKeyOf(rawArgs),
+      outcome: 'blocked',
+    })
+    ctx.gateway.requestSession(ctx.agent.id, ctx.agent.name)
+    return denied(
+      `Wren refused ${name}: no agent session is active. Sessions are a time-bounded consent the person running Wren starts in Settings → Agents. Ask them to start one; wren_ping shows session state.`,
+    )
+  }
+
   if (spec.capability) {
     const { decision } = await ctx.gateway.authorize(ctx.agent.id, spec.capability, {
       tool: name,

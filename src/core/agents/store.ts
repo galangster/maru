@@ -9,7 +9,8 @@
 // Neither decides anything. Rules live in grants.ts and approvals.ts.
 
 import type { SqlDb } from '../platform'
-import type { ComposeDraft } from '../types'
+import { parseThreadKey, type ComposeDraft } from '../types'
+import type { Keyring } from '../crypto/keyring'
 import type {
   Agent,
   AgentRecord,
@@ -72,6 +73,7 @@ interface ApprovalRow {
   status: string
   created_at: number
   resolved_at: number | null
+  account_id: string | null
 }
 
 interface AuditRow {
@@ -82,6 +84,7 @@ interface AuditRow {
   summary: string
   thread_key: string | null
   outcome: string
+  account_id: string | null
 }
 
 const EMPTY_DRAFT: ComposeDraft = {
@@ -139,7 +142,35 @@ function rowToAudit(r: AuditRow): AuditEntry {
 }
 
 export class SqlAgentStore implements AgentStore {
-  constructor(private readonly db: SqlDb) {}
+  constructor(
+    private readonly db: SqlDb,
+    private readonly keyring: Keyring | null = null,
+  ) {}
+
+  private async approvalFromRow(row: ApprovalRow): Promise<Approval | null> {
+    if (!this.keyring || !row.account_id) return rowToApproval(row)
+    const payload = await this.keyring.decrypt(row.account_id, row.payload_json)
+    if (payload === null) return null
+    return rowToApproval({ ...row, payload_json: payload })
+  }
+
+  private async auditFromRow(row: AuditRow): Promise<AuditEntry> {
+    if (!this.keyring || !row.account_id) return rowToAudit(row)
+    const [summary, threadKey] = await Promise.all([
+      this.keyring.decrypt(row.account_id, row.summary),
+      row.thread_key === null
+        ? Promise.resolve<string | null>(null)
+        : this.keyring.decrypt(row.account_id, row.thread_key),
+    ])
+    if (summary === null || (row.thread_key !== null && threadKey === null)) {
+      return rowToAudit({
+        ...row,
+        summary: 'Content erased when its account was removed.',
+        thread_key: null,
+      })
+    }
+    return rowToAudit({ ...row, summary, thread_key: threadKey })
+  }
 
   // -- agents -----------------------------------------------------------------
 
@@ -221,9 +252,11 @@ export class SqlAgentStore implements AgentStore {
   // -- approvals --------------------------------------------------------------
 
   async putApproval(approval: Approval): Promise<void> {
+    const accountId = approval.payload.accountId
+    const payload = JSON.stringify(approval.payload)
     await this.db.execute(
-      `INSERT INTO approvals (id, agent_id, kind, payload_json, status, created_at, resolved_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO approvals (id, agent_id, kind, payload_json, status, created_at, resolved_at, account_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT(id) DO UPDATE SET
          status = excluded.status,
          resolved_at = excluded.resolved_at`,
@@ -231,17 +264,18 @@ export class SqlAgentStore implements AgentStore {
         approval.id,
         approval.agentId,
         approval.kind,
-        JSON.stringify(approval.payload),
+        this.keyring ? await this.keyring.encrypt(accountId, payload) : payload,
         approval.status,
         approval.createdAt,
         approval.resolvedAt ?? null,
+        accountId,
       ],
     )
   }
 
   async getApproval(id: string): Promise<Approval | null> {
     const rows = await this.db.select<ApprovalRow>('SELECT * FROM approvals WHERE id = $1', [id])
-    return rows.length ? rowToApproval(rows[0]) : null
+    return rows.length ? this.approvalFromRow(rows[0]) : null
   }
 
   async listApprovals(status?: ApprovalStatus): Promise<Approval[]> {
@@ -253,7 +287,8 @@ export class SqlAgentStore implements AgentStore {
       : await this.db.select<ApprovalRow>(
           'SELECT * FROM approvals ORDER BY created_at DESC, id ASC',
         )
-    return rows.map(rowToApproval)
+    const approvals = await Promise.all(rows.map((row) => this.approvalFromRow(row)))
+    return approvals.filter((approval): approval is Approval => approval !== null)
   }
 
   async setApprovalStatus(id: string, status: ApprovalStatus, resolvedAt: number): Promise<void> {
@@ -267,17 +302,29 @@ export class SqlAgentStore implements AgentStore {
   // -- audit ------------------------------------------------------------------
 
   async appendAudit(entry: AuditEntry): Promise<void> {
+    const rawThreadKey = entry.threadKey ?? null
+    const parsed = rawThreadKey?.includes('/') ? parseThreadKey(rawThreadKey) : null
+    const accountId = parsed?.accountId || null
+    const summary =
+      this.keyring && accountId
+        ? await this.keyring.encrypt(accountId, entry.summary)
+        : entry.summary
+    const threadKey =
+      this.keyring && accountId && rawThreadKey
+        ? await this.keyring.encrypt(accountId, rawThreadKey)
+        : rawThreadKey
     await this.db.execute(
-      `INSERT INTO audit_log (id, agent_id, at, tool, summary, thread_key, outcome)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO audit_log (id, agent_id, at, tool, summary, thread_key, outcome, account_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         entry.id,
         entry.agentId,
         entry.at,
         entry.tool,
-        entry.summary,
-        entry.threadKey ?? null,
+        summary,
+        threadKey,
         entry.outcome,
+        accountId,
       ],
     )
   }
@@ -306,7 +353,7 @@ export class SqlAgentStore implements AgentStore {
       } ORDER BY at DESC, id DESC LIMIT $${args.length}`,
       args,
     )
-    return rows.map(rowToAudit)
+    return Promise.all(rows.map((row) => this.auditFromRow(row)))
   }
 }
 

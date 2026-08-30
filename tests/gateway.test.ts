@@ -146,6 +146,7 @@ async function harness(): Promise<Harness> {
   await seedDemoAgents(store, NOW)
   const mail = new DemoMailService({ now: NOW })
   const gateway = new AgentGateway({ store, mail, now: () => NOW })
+  await gateway.sessions.start(DEMO_AGENT.id, 60 * 60_000)
   const relay = new MockRelay()
   const server = await GatewayServer.start({
     relay,
@@ -532,6 +533,7 @@ describe('tool authorisation', () => {
   it('refuses list_accounts to an agent with no read grant, and logs the block', async () => {
     const issued = await h.gateway.createAgent('Probe')
     await connected(h, 20, issued.credential)
+    await h.gateway.sessions.start(issued.agent.id, 60 * 60_000)
 
     h.relay.send(20, issued.agent.id, {
       jsonrpc: '2.0',
@@ -581,6 +583,7 @@ describe('tool authorisation', () => {
     const issued = await h.gateway.createAgent('Probe')
     await connected(h, 22, issued.credential)
     await h.gateway.grant(issued.agent.id, 'read')
+    await h.gateway.sessions.start(issued.agent.id, 60 * 60_000)
 
     h.relay.send(22, issued.agent.id, {
       jsonrpc: '2.0',
@@ -601,6 +604,7 @@ describe('tool authorisation', () => {
     const issued = await h.gateway.createAgent('Probe')
     await h.gateway.grant(issued.agent.id, 'read')
     await connected(h, 23, issued.credential)
+    await h.gateway.sessions.start(issued.agent.id, 60 * 60_000)
     await h.gateway.revokeAgent(issued.agent.id)
 
     h.relay.send(23, issued.agent.id, {

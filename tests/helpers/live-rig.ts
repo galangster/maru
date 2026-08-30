@@ -24,6 +24,8 @@ import { afterEach } from 'vitest'
 
 import {
   AgentGateway,
+  DEFAULT_SESSION_MS,
+  DEMO_AGENT,
   DEMO_AGENT_CREDENTIAL,
   MemoryAgentStore,
   seedDemoAgents,
@@ -306,6 +308,10 @@ export function useLiveRig(): (base: number, version: string) => Promise<Rig> {
 
   return async (base, version) => {
     const core = await bootCore(base, version)
+    // Before the shim connects, so the trail order is deterministic: the
+    // `initialized` notification is fire-and-forget, and a session started
+    // after it would race its audit row.
+    await core.gateway.sessions.start(DEMO_AGENT.id, DEFAULT_SESSION_MS)
     const client = new ShimClient(core.socketPath, DEMO_AGENT_CREDENTIAL)
     await client.request('initialize', {
       protocolVersion: '2025-06-18',

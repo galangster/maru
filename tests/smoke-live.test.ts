@@ -109,6 +109,7 @@ describe.runIf(process.platform !== 'win32')('live smoke: shim, socket, tools, a
     // 9. The trail, connected, in order.
     const trail = await trailSince(gateway, DEMO_AGENT.id, BASE)
     expect(trail.map((row) => `${row.tool}:${row.outcome}`)).toEqual([
+      'session.start:ok',
       'connected:ok',
       'initialize:ok',
       'search_mail:ok',

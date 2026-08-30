@@ -206,11 +206,11 @@ describe('optimistic actions', () => {
     client.holdWrites()
 
     const pending = svc.performAction({ type: 'star', threadKey: 'acct-1/t-1' })
-    // The optimistic half is several awaits deep — a transaction and a flag
-    // write — so drain the queue until the announcement lands instead of
-    // guessing a tick count. The Gmail write is still parked, which is what
-    // makes this a test of "local first" rather than of timing.
-    for (let i = 0; i < 500 && events.length === 0; i++) await Promise.resolve()
+    // WebCrypto completes on an event-loop task. The Gmail write stays parked,
+    // so the assertion still proves that the local change happens first.
+    for (let i = 0; i < 50 && events.length === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
 
     expect((await store.getThread('acct-1/t-1'))?.starred).toBe(true)
     expect(events.filter((e) => e.type === 'threadsChanged')).toHaveLength(1)

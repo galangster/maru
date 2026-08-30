@@ -182,6 +182,7 @@ describe.runIf(process.platform !== 'win32')('live triage morning: survey, archi
     // 11. The whole morning, in order, in the one place the human reads it.
     const trail = await trailSince(gateway, DEMO_AGENT.id, BASE)
     expect(trail.map((row) => `${row.tool}:${row.outcome}`)).toEqual([
+      'session.start:ok',
       'connected:ok',
       'initialize:ok',
       'wren_ping:ok',

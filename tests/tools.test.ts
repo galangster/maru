@@ -12,6 +12,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 import {
   AgentGateway,
+  DEFAULT_SESSION_MS,
   DEMO_AGENT,
   MemoryAgentStore,
   seedDemoAgents,
@@ -28,6 +29,9 @@ import {
   SNIPPET_CHARS,
   TOOLS,
   TOOL_CAPABILITIES,
+  UNTRUSTED_CLOSE,
+  UNTRUSTED_NOTE,
+  UNTRUSTED_OPEN,
   type ToolContext,
 } from '../src/core/gateway-server'
 import { DemoMailService } from '../src/core'
@@ -64,6 +68,7 @@ async function scout(): Promise<Fixture> {
   const mail = new DemoMailService({ now: NOW })
   const gateway = new AgentGateway({ store, mail, now: () => NOW })
   const agent: Agent = { id: DEMO_AGENT.id, name: DEMO_AGENT.name, createdAt: NOW }
+  await gateway.sessions.start(agent.id, DEFAULT_SESSION_MS)
   return { store, mail, gateway, ctx: contextFor({ store, mail, gateway }, agent) }
 }
 
@@ -71,6 +76,7 @@ async function scout(): Promise<Fixture> {
 async function agentHolding(f: Fixture, name: string, held: Capability[]): Promise<ToolContext> {
   const issued = await f.gateway.createAgent(name)
   for (const capability of held) await f.gateway.grant(issued.agent.id, capability)
+  await f.gateway.sessions.start(issued.agent.id, DEFAULT_SESSION_MS)
   return contextFor(f, issued.agent)
 }
 
@@ -163,6 +169,116 @@ describe('the tool surface', () => {
   })
 })
 
+// -- sessions -----------------------------------------------------------------
+
+describe('agent sessions', () => {
+  async function fixture() {
+    let at = NOW
+    const store = new MemoryAgentStore()
+    const mail = new DemoMailService({ now: NOW })
+    const gateway = new AgentGateway({ store, mail, now: () => at })
+    const issued = await gateway.createAgent('Probe')
+    await gateway.grant(issued.agent.id, 'read')
+    const base = { store, mail, gateway }
+    return {
+      ...base,
+      ctx: { ...contextFor(base, issued.agent), now: () => at },
+      advance(ms: number) {
+        at += ms
+      },
+    }
+  }
+
+  it('refuses restricted tools once per call and throttles session requests', async () => {
+    const f = await fixture()
+    const events: string[] = []
+    f.gateway.onEvent((event) => events.push(event.type))
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const { result, written, rows } = await rowsWritten(f, f.ctx, 'search_mail', { query: '' })
+      expect(result.isError).toBe(true)
+      expect(textOf(result)).toContain('no agent session is active')
+      expect(textOf(result)).toContain('Ask them to start one')
+      expect(written).toBe(1)
+      expect(rows[0]).toMatchObject({
+        tool: 'search_mail',
+        summary: 'Blocked: no active session, so search_mail is refused.',
+        outcome: 'blocked',
+      })
+    }
+
+    expect(events.filter((type) => type === 'sessionRequested')).toHaveLength(1)
+  })
+
+  it('allows the call after start and reports the session in wren_ping', async () => {
+    const f = await fixture()
+    const first = await f.gateway.sessions.start(f.ctx.agent.id, 15 * 60_000)
+    f.advance(5 * 60_000)
+    const session = await f.gateway.sessions.start(f.ctx.agent.id, DEFAULT_SESSION_MS)
+    expect(session.startedAt).toBeGreaterThan(first.startedAt)
+    expect(await f.gateway.sessions.listActive()).toEqual([session])
+
+    const search = await callTool('search_mail', f.ctx, { query: '' })
+    expect(search.isError).toBeUndefined()
+
+    const ping = payloadOf(await callTool('wren_ping', f.ctx, {})) as {
+      session: { expires_at: string; minutes_left: number }
+      summary: string
+    }
+    expect(ping.session).toEqual({
+      expires_at: new Date(session.expiresAt).toISOString(),
+      minutes_left: 60,
+    })
+    expect(ping.summary).toContain('Session active for 60 more minutes.')
+  })
+
+  it('expires lazily, emits the change, and writes the expiry once', async () => {
+    const f = await fixture()
+    const events: string[] = []
+    f.gateway.onEvent((event) => events.push(event.type))
+    await f.gateway.sessions.start(f.ctx.agent.id, 15 * 60_000)
+    f.advance(15 * 60_000 + 1)
+
+    const result = await callTool('search_mail', f.ctx, { query: '' })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('no agent session is active')
+    await callTool('search_mail', f.ctx, { query: '' })
+
+    const expired = (await f.gateway.audit.query({ agentId: f.ctx.agent.id })).filter(
+      (row) => row.tool === 'session.expired',
+    )
+    expect(expired).toHaveLength(1)
+    expect(expired[0]).toMatchObject({
+      summary: 'The session expired after 15 minutes.',
+      outcome: 'ok',
+    })
+    expect(events.filter((type) => type === 'sessionsChanged')).toHaveLength(2)
+  })
+
+  it('locks immediately on end and removes a session on revocation', async () => {
+    const f = await fixture()
+    await f.gateway.sessions.start(f.ctx.agent.id, DEFAULT_SESSION_MS)
+    await f.gateway.sessions.end(f.ctx.agent.id)
+    expect(await f.gateway.sessions.active(f.ctx.agent.id)).toBeNull()
+    expect((await callTool('search_mail', f.ctx, { query: '' })).isError).toBe(true)
+
+    await f.gateway.sessions.start(f.ctx.agent.id, DEFAULT_SESSION_MS)
+    await f.gateway.revokeAgent(f.ctx.agent.id)
+    expect(await f.gateway.sessions.active(f.ctx.agent.id)).toBeNull()
+    const ended = (await f.gateway.audit.query({ agentId: f.ctx.agent.id })).filter(
+      (row) => row.tool === 'session.end',
+    )
+    expect(ended).toHaveLength(2)
+  })
+
+  it('keeps wren_ping and list_pending available without a session', async () => {
+    const f = await fixture()
+    const ping = payloadOf(await callTool('wren_ping', f.ctx, {})) as { session: unknown }
+    expect(ping.session).toBeNull()
+    expect((await callTool('list_pending', f.ctx, {})).isError).toBeUndefined()
+  })
+})
+
 // -- 2. search_mail -----------------------------------------------------------
 
 describe('search_mail', () => {
@@ -173,7 +289,11 @@ describe('search_mail', () => {
 
   it('returns compact summaries and never a body', async () => {
     const result = await callTool('search_mail', f.ctx, { query: 'latency' })
-    const payload = payloadOf(result) as { threads: Record<string, unknown>[] }
+    const payload = payloadOf(result) as {
+      untrusted_note: string
+      threads: Record<string, unknown>[]
+    }
+    expect(payload.untrusted_note).toBe(UNTRUSTED_NOTE)
     expect(payload.threads.length).toBeGreaterThan(0)
     for (const summary of payload.threads) {
       expect(Object.keys(summary).sort()).toEqual([
@@ -188,7 +308,12 @@ describe('search_mail', () => {
         'thread_key',
         'unread',
       ])
-      expect(String(summary.snippet).length).toBeLessThanOrEqual(SNIPPET_CHARS + 1)
+      const snippet = String(summary.snippet)
+      expect(snippet.startsWith(`${UNTRUSTED_OPEN}\n`)).toBe(true)
+      expect(snippet.endsWith(`\n${UNTRUSTED_CLOSE}`)).toBe(true)
+      expect(snippet.slice(UNTRUSTED_OPEN.length + 1, -(UNTRUSTED_CLOSE.length + 1)).length).toBeLessThanOrEqual(
+        SNIPPET_CHARS + 1,
+      )
       expect(String(summary.date)).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     }
   })
@@ -252,10 +377,12 @@ describe('read_thread', () => {
       await callTool('read_thread', f.ctx, { thread_key: THREAD_WITH_ATTACHMENT }),
     ) as {
       subject: string
+      untrusted_note: string
       messages: { body_text: string; attachments: Record<string, unknown>[] }[]
     }
 
     expect(payload.messages.length).toBeGreaterThan(0)
+    expect(payload.untrusted_note).toBe(UNTRUSTED_NOTE)
     const withAttachment = payload.messages.find((m) => m.attachments.length > 0)!
     expect(Object.keys(withAttachment.attachments[0]).sort()).toEqual([
       'filename',
@@ -265,6 +392,8 @@ describe('read_thread', () => {
       'size_bytes',
     ])
     for (const message of payload.messages) {
+      expect(message.body_text.startsWith(`${UNTRUSTED_OPEN}\n`)).toBe(true)
+      expect(message.body_text.endsWith(`\n${UNTRUSTED_CLOSE}`)).toBe(true)
       expect(message.body_text).not.toContain('<p')
       expect(message.body_text).not.toContain('&nbsp;')
     }
@@ -292,7 +421,12 @@ describe('read_thread', () => {
     const payload = payloadOf(await callTool('read_thread', ctx, { thread_key: 'stub/1' })) as {
       messages: { body_text: string; body_truncated?: boolean; body_total_chars?: number }[]
     }
-    expect(payload.messages[0].body_text).toHaveLength(BODY_CHARS_MAX)
+    const body = payload.messages[0].body_text
+    expect(body.startsWith(`${UNTRUSTED_OPEN}\n`)).toBe(true)
+    expect(body.endsWith(`\n${UNTRUSTED_CLOSE}`)).toBe(true)
+    expect(body.slice(UNTRUSTED_OPEN.length + 1, -(UNTRUSTED_CLOSE.length + 1))).toHaveLength(
+      BODY_CHARS_MAX,
+    )
     expect(payload.messages[0].body_truncated).toBe(true)
     expect(payload.messages[0].body_total_chars).toBe(long.length)
   })
@@ -455,8 +589,18 @@ describe('draft_new and draft_reply', () => {
         mode: 'replyAll',
         body_text: 'Agreed.',
       }),
-    ) as { draft: { to: { email: string }[]; cc: { email: string }[]; subject: string; body_html: string; reply: unknown } }
+    ) as {
+      untrusted_note: string
+      draft: {
+        to: { email: string }[]
+        cc: { email: string }[]
+        subject: string
+        body_html: string
+        reply: unknown
+      }
+    }
 
+    expect(payload.untrusted_note).toBe(UNTRUSTED_NOTE)
     expect(payload.draft.to.map((a) => a.email)).toEqual(expected.to.map((a) => a.email))
     expect(payload.draft.cc.map((a) => a.email)).toEqual(expected.cc.map((a) => a.email))
     expect(payload.draft.subject).toBe(replySubject(thread.subject, 'replyAll'))

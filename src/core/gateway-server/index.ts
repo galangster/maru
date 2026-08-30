@@ -23,6 +23,7 @@ export type {
 export { RelayTransport, type FrameLink } from './transport'
 export { GatewaySession, type SessionDeps } from './session'
 export { TOOLS, TOOL_CAPABILITIES, callTool, ToolRefusal, type ToolContext } from './tools'
+export { UNTRUSTED_CLOSE, UNTRUSTED_NOTE, UNTRUSTED_OPEN } from './tool-support'
 export {
   ATTACHMENT_BYTES_MAX,
   ATTACHMENT_DELIVERABLE_BYTES,

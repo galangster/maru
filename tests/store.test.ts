@@ -61,7 +61,7 @@ describe('accounts', () => {
     await store.upsertAccount(makeAccount())
     await store.upsertThreads([makeThread()])
     await store.upsertMessages([makeMessage()])
-    await store.deleteAccount('acct-1')
+    await store.deleteAccount('acct-1', 1_700_000_200_000)
     expect(await store.listAccounts()).toEqual([])
     expect(await store.listThreads({ kind: 'unified', folder: 'inbox' })).toEqual([])
     expect(await store.listMessages('acct-1/t-1')).toEqual([])
