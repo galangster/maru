@@ -160,5 +160,13 @@ where, why, proof.
     Why: Nick's two rulings + UX-FRICTION P1s. Proof: this commit;
     430 tests; live verification; three reading-pane captures.
 
+20. **Wren v0.1.0 shipped, in public.** The whole flip arc landed in one
+    night: repo public (flip driven through the in-app browser),
+    wren-mcp@0.1.0 on npm (cold-verified via npx), docs npx-first, and
+    the v0.1.0 GitHub release — signed, notarized via App Store Connect
+    API key (the pipeline's last password eliminated), stapled,
+    triple-verified, published by Nick, and confirmed from outside with
+    the auto-update endpoint resolving. Proof: the release itself.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

@@ -103,6 +103,16 @@ unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
   including a cold `npx wren-mcp` run). P6 closed. P10 closed the same
   evening (row-level focus, e-e-e triage, real attachment saves,
   crash-safe drafts, human labels).
+- **v0.1.0 SHIPPED** (2026-08-30, small hours): the draft I cut from the
+  first fully hands-off release run (API-key notarization — no password
+  exists in the pipeline) was published by Nick. Verified from outside:
+  tag live, all four assets downloadable anonymously, and the
+  auto-update endpoint (`releases/latest/download/latest.json`) resolves
+  — every installed Wren now updates itself from here. The stranger path
+  is real end-to-end: public repo → DMG → `npx wren-mcp` → the triage
+  morning. Remaining on the map: P4 (Nick's R3a read + Google flip),
+  P11 (unclaimed, needs his yes), the film, and P2's carried check
+  (fullscreen traffic lights).
 
 ## Not yet specified
 
