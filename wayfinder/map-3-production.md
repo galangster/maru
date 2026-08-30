@@ -83,9 +83,12 @@ local-client CASA exemption; Thunderbird precedent; bring-your-own stays
 the fork path — docs/research/shared-oauth-client.md), **P5** (clipboard
 settings transfer with checksum + preview), **P7** (debug report, no
 telemetry), **P8** (startup chunk 1,387 → 541 KB via latched lazy
-surfaces), **P9** (gateway CI matrix; first run triggered). Remaining:
-P2/P3 behind Apple enrollment, P4 behind R3a's owner read + the film,
-P6 behind the flip.
+surfaces), **P9** (gateway CI matrix; first run triggered). **P2**
+closed later the same night: cert via the portal under Nick's LLC, first
+signed+notarized+stapled DMG verified by Nick's own release-script run;
+plus the macOS 26 traffic-light saga (re-parented buttons, equidistant),
+the squircle icon, and the 52 px titlebar rhythm. Remaining: P3 (now
+unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
 
 ## Not yet specified
 
