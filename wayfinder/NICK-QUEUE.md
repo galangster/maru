@@ -6,9 +6,10 @@ asking in chat. Newest at the top of each section. Strike items done.
 
 ## Blocking the submission path
 
-1. **Confirm wren.so is registered and DNS is yours** (gate N2 said you
-   register it). The site drafts in `site/` are ready to publish once
-   hosting exists; publishing is yours to trigger.
+1. **Buy wrenmail.io** (wren.so turned out taken; Nick chose
+   wrenmail.io, 2026-08-30 — N2's name "Wren Mail" unchanged). Purchase
+   in progress via GoDaddy. Repo already swept to wrenmail.io. After
+   purchase: DNS, then the site publish (one approval).
 2. **Create the production Google Cloud project** (plan Part 2 §4, all
    console work): separate from dev, Gmail API on, External audience,
    one Desktop OAuth client, `gmail.modify` only on Data Access, two

@@ -66,6 +66,9 @@ audit, accepted):
 - **N2: name + domain.** Consent-screen name **"Wren Mail"**, domain
   **wren.so** (Nick registers it). Same name everywhere: homepage,
   consent screen, submission, demo.
+  **Amended 2026-08-30**: wren.so was already taken. Nick chose
+  **wrenmail.io** (name-matching, .io available; .dev/.org also free).
+  All live surfaces swept to wrenmail.io; the name "Wren Mail" stands.
 - **N3: scope.** `gmail.modify` only. `gmail.send`, `openid`, `email`
   all dropped — profile comes from users.getProfile.
 - **N4: data controls.** App-level encryption of mail/approvals/audit

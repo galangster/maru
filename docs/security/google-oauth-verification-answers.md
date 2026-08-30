@@ -44,11 +44,11 @@ The repository's current release-page pattern is `https://github.com/galangster/
 
 | Purpose | Submission URL | Repository source |
 | --- | --- | --- |
-| Homepage | `https://wren.so/` | `site/index.html` |
-| Privacy policy | `https://wren.so/privacy` | `site/privacy.html` |
-| Security and data flow | `https://wren.so/security` | `site/security.html` |
-| Support | `https://wren.so/support/google-data` | `site/support/google-data.html` |
-| Local deletion and Google revocation | `https://wren.so/support/google-data` | `site/support/google-data.html:26-53` |
+| Homepage | `https://wrenmail.io/` | `site/index.html` |
+| Privacy policy | `https://wrenmail.io/privacy` | `site/privacy.html` |
+| Security and data flow | `https://wrenmail.io/security` | `site/security.html` |
+| Support | `https://wrenmail.io/support/google-data` | `site/support/google-data.html` |
+| Local deletion and Google revocation | `https://wrenmail.io/support/google-data` | `site/support/google-data.html:26-53` |
 
 `«NICK: verify all five public URL entries load without authentication or redirects before submission.»`
 
@@ -68,7 +68,7 @@ The complete field inventory is in `docs/security/google-oauth-data-inventory.md
 
 ### How does a reviewer install and authorize Wren?
 
-1. Open `https://wren.so/` and choose **Download for macOS**.
+1. Open `https://wrenmail.io/` and choose **Download for macOS**.
 2. Download the frozen signed DMG identified above.
 3. Install and open Wren Mail.
 4. On first run, choose **Connect Gmail**. The same flow is available at **Settings → Accounts → Add account**. Sources: `README.md:44-54`, `src/features/onboarding/onboarding.tsx:96`, and `src/features/settings/settings-dialog.tsx:353-363`.
@@ -89,7 +89,7 @@ Attach the clean-account test record and exact reviewer account instructions.
 
 Open **Settings → Accounts → Delete local Google data**. Confirm **Delete**. Wren removes every connected account's cached mail, tokens, and encryption keys from the device. Nothing at Google changes. Source: `src/features/settings/settings-dialog.tsx:309-324` and `src/features/settings/settings-dialog.tsx:365-405`.
 
-To revoke Google access, follow `https://wren.so/support/google-data`. Source: `site/support/google-data.html:29-49`.
+To revoke Google access, follow `https://wrenmail.io/support/google-data`. Source: `site/support/google-data.html:29-49`.
 
 ### Demo video package
 

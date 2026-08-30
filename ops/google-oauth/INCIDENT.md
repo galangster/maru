@@ -42,7 +42,7 @@ Use the addresses in `ops/google-oauth/CONTACTS.md`.
 | `«NICK: second durable owner»` | Enter the second Google Cloud project owner. This person can act if the primary owner is unavailable. |
 | Project editor | Capture metrics, client state, scope state, and timestamps without changing configuration. |
 | Developer contact | Reproduce the error. Classify the affected release. Prepare a code or release correction when needed. |
-| `support@wren.so` | Collect user reports. Send the approved status and BYO fallback message. Source: `site/privacy.html:70-71`. |
+| `support@wrenmail.io` | Collect user reports. Send the approved status and BYO fallback message. Source: `site/privacy.html:70-71`. |
 
 ## Blast-radius decision
 

@@ -392,7 +392,7 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
         <div className="flex flex-wrap gap-x-1 gap-y-1">
           <button
             type="button"
-            onClick={() => void openExternalUrl('https://wren.so/support/google-data')}
+            onClick={() => void openExternalUrl('https://wrenmail.io/support/google-data')}
             className={textButtonClass('default')}
           >
             Deletion guide

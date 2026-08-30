@@ -7,7 +7,7 @@ Keep these addresses current in the production Google Cloud project and the annu
 | Primary durable project owner | `«NICK: primary durable owner address»` | Owns project access, policy notices, verification, and appeals. |
 | Second durable project owner | `«NICK: second durable owner address»` | Acts when the primary owner is unavailable. Must have independent durable access. |
 | Project editor | `«NICK: project editor address»` | Maintains approved Cloud configuration, dashboards, and evidence. |
-| User support | `support@wren.so` | Receives user questions about Google data, deletion, and access. Source: `site/privacy.html:70-71` and `site/support/google-data.html:52-53`. |
+| User support | `support@wrenmail.io` | Receives user questions about Google data, deletion, and access. Source: `site/privacy.html:70-71` and `site/support/google-data.html:52-53`. |
 | Developer contact | `«NICK: developer contact address»` | Receives Google developer notices and coordinates code or release corrections. |
 
 ## Review record
