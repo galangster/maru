@@ -11,10 +11,10 @@ asking in chat. Newest at the top of each section. Strike items done.
    - DNS records for getmaru.app once I stand up hosting (I deploy on
      one approval; then a CNAME/A from you or a signed-in session).
    - Mail routing so **support@getmaru.app** and security@ deliver.
-   - **Rename the GitHub repo** galangster/wren → maru (redirects keep
-     old links and the auto-update endpoint working) — recommended.
-   - **Publish `maru-mcp` on npm** (name is free; wren-mcp then gets a
-     deprecation notice pointing at it).
+   - ~~Rename the GitHub repo~~ — done 2026-08-30 (galangster/maru;
+     old maru project moved to maru-legacy).
+   - ~~Publish `maru-mcp`~~ — done 2026-08-30, verified cold from the
+     registry; wren-mcp deprecated with a pointer.
    - Consent screen name is **"Maru Mail"** when you reach the console.
    - The trademark/name-collision check matters more for "Maru" than it
      did for Wren — busier name.
