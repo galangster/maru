@@ -1,8 +1,29 @@
 {
   "name": "wren-mcp",
-  "version": "0.0.1",
-  "description": "Placeholder for the Wren agent-gateway MCP shim. The real shim ships when Wren's repository goes public.",
-  "bin": { "wren-mcp": "./index.mjs" },
+  "version": "0.1.0",
+  "description": "The MCP stdio shim for Wren \u2014 the open-source agent gateway to your own email. Connects Claude Code, Claude Desktop, or any MCP client to a running Wren app over a local socket.",
+  "bin": {
+    "wren-mcp": "./wren-mcp.mjs"
+  },
+  "files": [
+    "wren-mcp.mjs",
+    "README.md"
+  ],
   "license": "AGPL-3.0-only",
-  "repository": { "type": "git", "url": "https://github.com/galangster/wren" }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/galangster/wren"
+  },
+  "homepage": "https://github.com/galangster/wren#readme",
+  "keywords": [
+    "mcp",
+    "email",
+    "gmail",
+    "agent",
+    "claude",
+    "model-context-protocol"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
 }

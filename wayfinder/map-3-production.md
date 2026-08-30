@@ -97,6 +97,11 @@ unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
   P0s are P4's spine; **P10 (daily polish: save attachments, persistent
   drafts, human labels)** and **P11 (bulk actions + search operators)**
   proposed, awaiting Nick's cut.
+- **The repo is PUBLIC** (2026-08-29, late: flipped via the in-app
+  browser, verified from outside). P6's real package is built and
+  docs are npx-first; the registry publish waits on one `npm login`.
+  P10 closed the same evening (row-level focus, e-e-e triage, real
+  attachment saves, crash-safe drafts, human labels).
 
 ## Not yet specified
 

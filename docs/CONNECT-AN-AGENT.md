@@ -43,11 +43,13 @@ mailbox.
 ### Claude Code
 
 ```sh
-claude mcp add wren -- node /absolute/path/to/wren/bin/wren-mcp.mjs --token <credential>
+claude mcp add wren -- npx wren-mcp --token <credential>
 ```
 
-Use an absolute path: the agent host launches the shim from its own working
-directory, not from the repo.
+Running from a checkout instead? Point at the file:
+`claude mcp add wren -- node /absolute/path/to/wren/bin/wren-mcp.mjs --token <credential>`
+(absolute path — the agent host launches the shim from its own working
+directory, not from the repo).
 
 If you would rather keep the credential out of your shell history and out of
 `~/.claude.json`, drop the `--token` flag and set `WREN_AGENT_TOKEN` in the
@@ -61,8 +63,8 @@ Settings → Developer → Edit Config, then add Wren to `mcpServers`:
 {
   "mcpServers": {
     "wren": {
-      "command": "node",
-      "args": ["/absolute/path/to/wren/bin/wren-mcp.mjs"],
+      "command": "npx",
+      "args": ["wren-mcp"],
       "env": {
         "WREN_AGENT_TOKEN": "<credential>"
       }
@@ -77,7 +79,7 @@ and `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
 
 ### Anything else that speaks MCP over stdio
 
-Run `node bin/wren-mcp.mjs --help`. The shim takes `--token` / `WREN_AGENT_TOKEN`
+Run `npx wren-mcp --help`. The shim takes `--token` / `WREN_AGENT_TOKEN`
 and, if you have moved the socket, `--socket` / `WREN_GATEWAY_SOCKET`.
 
 ---
@@ -243,5 +245,5 @@ Wren is pre-1.0 and this surface is a night old. Honestly:
   row in its own words. That first connection is the moment a copied
   credential would surface. Nothing blocks; a new agent holds nothing
   until you grant it something.
-- **Nothing is published.** There is no npm package and no registry entry; the
-  shim is a file in this repo and the path in your config points at it.
+- **The shim is `wren-mcp` on npm**, versioned with the app; the file in
+  this repo (`bin/wren-mcp.mjs`) is the same code for from-source runs.
