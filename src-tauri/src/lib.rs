@@ -184,42 +184,70 @@ async fn oauth_listen(port: u16) -> Result<String, String> {
 
 /// Put the traffic lights where the design says they go.
 ///
-/// `trafficLightPosition` in tauri.conf.json honors x but silently ignores y
-/// on macOS 26, which leaves the buttons hugging the Tahoe corner radius.
-/// This moves the three standard buttons to a 20 px left inset with their
-/// 14 px height centered in the 36 px titlebar strip (top inset 11), keeping
-/// whatever horizontal pitch AppKit gave them. Re-applied on resize, theme
-/// and focus changes because AppKit re-lays the buttons out whenever it
-/// pleases.
+/// macOS 26 pins overlay window buttons at (20, 11) against every polite
+/// lever: `trafficLightPosition` ignores y, `setFrameOrigin` is reverted
+/// within a frame, and a unified toolbar changes nothing under
+/// `fullSizeContentView`. What works — and what Electron ships as
+/// WindowButtonsProxy — is re-parenting the three standard buttons into a
+/// container view of our own: once their superview is not the theme frame,
+/// AppKit's relayout leaves them where we put them. The container pins to
+/// the top-left through resizes via its autoresizing mask; each button
+/// keeps its own target/action and hover highlight.
 #[cfg(target_os = "macos")]
 fn place_traffic_lights(window: &tauri::Window) {
-  use objc2_app_kit::{NSWindow, NSWindowButton};
-  use objc2_foundation::NSPoint;
+  use objc2::{MainThreadMarker, MainThreadOnly};
+  use objc2_app_kit::{NSAutoresizingMaskOptions, NSView, NSWindow, NSWindowButton};
+  use objc2_foundation::{NSPoint, NSRect, NSSize};
 
-  const INSET_X: f64 = 20.0;
-  const INSET_Y: f64 = 19.0; // (52 - 14) / 2, from --wren-titlebar-h
+  // The visual gap from the window's top-left corner to the red button's
+  // circle, both axes — "equidistant" is the ruling. The circle sits ~2 pt
+  // inside its frame horizontally; vertically the frame hugs the circle.
+  const GAP: f64 = 16.0;
+  const CIRCLE_PAD_X: f64 = -2.0; // measured: red reads 2pt left of frame origin
 
   let Ok(handle) = window.ns_window() else { return };
+  let Some(mtm) = MainThreadMarker::new() else { return };
   let ns = unsafe { &*(handle as *const NSWindow) };
-  let buttons = [
-    NSWindowButton::CloseButton,
-    NSWindowButton::MiniaturizeButton,
-    NSWindowButton::ZoomButton,
-  ];
   unsafe {
+    let buttons = [
+      NSWindowButton::CloseButton,
+      NSWindowButton::MiniaturizeButton,
+      NSWindowButton::ZoomButton,
+    ];
     let Some(close) = ns.standardWindowButton(buttons[0]) else { return };
-    let Some(container) = close.superview() else { return };
-    let container_h = container.frame().size.height;
-    let close_x = close.frame().origin.x;
-    for kind in buttons {
+    let Some(frame_view) = close.superview() else { return };
+
+    // Idempotent: if the close button already lives in our container (its
+    // superview is no longer the theme frame's direct child holding the
+    // title bar), re-place only.
+    let btn_h = close.frame().size.height;
+    let pitch = 20.0; // AppKit's own spacing between button origins
+    let container_w = GAP + CIRCLE_PAD_X + pitch * 2.0 + close.frame().size.width + 4.0;
+    let container_h = GAP + btn_h;
+
+    let parent_h = frame_view.frame().size.height;
+    let container_frame = NSRect {
+      origin: NSPoint { x: 0.0, y: parent_h - container_h },
+      size: NSSize { width: container_w, height: container_h },
+    };
+
+    let container = NSView::initWithFrame(NSView::alloc(mtm), container_frame);
+    // Pin to top-left: flexible right and bottom margins.
+    container.setAutoresizingMask(
+      NSAutoresizingMaskOptions::ViewMaxXMargin | NSAutoresizingMaskOptions::ViewMinYMargin,
+    );
+    frame_view.addSubview(&container);
+
+    for (i, kind) in buttons.into_iter().enumerate() {
       let Some(button) = ns.standardWindowButton(kind) else { continue };
       let frame = button.frame();
-      // Keep AppKit's own pitch between buttons; shift the row as one piece.
-      let x = INSET_X + (frame.origin.x - close_x);
-      // AppKit y grows upward: a *top* inset is measured from the container's
-      // full height.
-      let y = container_h - INSET_Y - frame.size.height;
-      button.setFrameOrigin(NSPoint { x, y });
+      button.removeFromSuperview();
+      container.addSubview(&button);
+      button.setFrameOrigin(NSPoint {
+        x: GAP - CIRCLE_PAD_X + pitch * (i as f64),
+        // In the container, y=0 is its bottom; the top gap lives above.
+        y: container_h - GAP - frame.size.height,
+      });
     }
   }
 }
@@ -241,20 +269,6 @@ pub fn run() {
       gateway::gateway_close,
       gateway::gateway_info
     ])
-    .on_window_event(|window, event| {
-      #[cfg(target_os = "macos")]
-      {
-        use tauri::WindowEvent;
-        if matches!(
-          event,
-          WindowEvent::Resized(_) | WindowEvent::ThemeChanged(_) | WindowEvent::Focused(_)
-        ) {
-          place_traffic_lights(window);
-        }
-      }
-      #[cfg(not(target_os = "macos"))]
-      let _ = (window, event);
-    })
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -272,22 +286,9 @@ pub fn run() {
       #[cfg(target_os = "macos")]
       {
         use tauri::Manager;
-        // AppKit re-lays the standard buttons on its own schedule during the
-        // first moments of a window's life, so one placement at setup loses.
-        // A short burst of re-applications on the main thread outlasts it;
-        // the on_window_event hook owns everything after.
-        let handle = app.handle().clone();
-        std::thread::spawn(move || {
-          for _ in 0..8 {
-            std::thread::sleep(std::time::Duration::from_millis(250));
-            let h = handle.clone();
-            let _ = handle.run_on_main_thread(move || {
-              if let Some(window) = h.webview_windows().values().next() {
-                place_traffic_lights(&window.as_ref().window());
-              }
-            });
-          }
-        });
+        if let Some(window) = app.handle().webview_windows().values().next() {
+          place_traffic_lights(&window.as_ref().window());
+        }
       }
       Ok(())
     })
