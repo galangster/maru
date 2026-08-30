@@ -160,9 +160,13 @@ merge rule depends on it), accountId on AuditDraft (parseThreadKey is
 now the one canonical parse), approval expiry stays in Store.deleteAccount
 (service holds no gateway), multi-column sweep UPDATE (one-time code).
 
-**Gate N5 still open**: PERMISSION-MODEL.md untouched. The revised
-append-only design (structure forever, content erasable by key
-destruction) is written up for Nick's approval before the doc changes.
+**Gate N5: approved — Nick, 2026-08-30** ("Do what you recommend", on
+the presented design). Append-only means: structure forever (no row
+deleted or rewritten; who/when/tool/outcome survive account removal);
+mail-derived content fields erasable only by destroying that account's
+key on removal, all-or-nothing per account; non-mailbox rows (grants,
+sessions, connections) readable forever. PERMISSION-MODEL.md §8.1 and
+summary item 7 amended to match.
 
 Remaining §3 items: a user-facing "Delete local Google data" action
 beyond account removal (item 4), agent disclosure in the connection

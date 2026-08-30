@@ -255,6 +255,21 @@ object it touched. The timeline UI MUST NOT re-phrase rows; what the log
 says is what the person reads, which is why the writer writes prose, not
 key-value pairs.
 
+The log is append-only in structure forever; the mail-derived content of
+its rows is encrypted per account and is erased — cryptographically, not
+by deletion — when that account is removed. Precisely: no row is ever
+deleted or rewritten, and who acted, when, with which tool, and the
+outcome survive account removal unconditionally. The summary and thread
+reference of a row that touched a mailbox are ciphertext under that
+account's key; removing the account destroys the key, those two fields
+become permanently unreadable, and the timeline says so in place
+("Content erased when its account was removed."). There is no selective
+edit — erasure is all-or-nothing per account, and only account removal
+can do it. Rows that touch no mailbox — grants, revocations,
+connections, sessions, denials without a thread — stay readable forever:
+what *the person and the agent did* is never erased, only what *the
+mailbox's data said*.
+
 **8.2. One row per call — exactly one.** A success logs once; a refusal
 logs once. The discipline that enforces this in Wren: authorization writes
 the denial row at the moment it denies, and the shared tool path writes
@@ -366,7 +381,8 @@ A conforming gateway:
    the unanswered (§6);
 6. makes revocation bite on the next call without a reconnect (§7);
 7. logs every call, refusal, connection, and resolution exactly once,
-   append-only, in human language, with machine-no distinguished from
-   human-no (§8);
+   append-only in structure forever — mail-derived content erasable only
+   by destroying its account's key on removal — in human language, with
+   machine-no distinguished from human-no (§8);
 8. speaks only over user-restricted local IPC, authenticates the first
    frame, and lets one process own the store (§9).
