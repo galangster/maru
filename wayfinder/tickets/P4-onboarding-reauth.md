@@ -52,3 +52,26 @@ this diff.
 Still Nick-gated: R3a read + shared-client console work, the Google
 production flip, and re-testing the 7-day path against a production
 consent screen.
+
+## Decisions — Nick, 2026-08-30 (gates N1–N4 of the shared-client plan)
+
+Per docs/research/shared-client-implementation-plan.md (Sol's adversarial
+audit, accepted):
+
+- **N1: agent data path = position 1, fallback 2.** Shared OAuth supports
+  hosted agent clients, fully disclosed, requesting Google's written
+  assessment determination. If Google requires CASA, fall back to
+  position 2 (shared OAuth for the human client only; agents require
+  BYO) rather than paying for CASA unprompted.
+- **N2: name + domain.** Consent-screen name **"Wren Mail"**, domain
+  **wren.so** (Nick registers it). Same name everywhere: homepage,
+  consent screen, submission, demo.
+- **N3: scope.** `gmail.modify` only. `gmail.send`, `openid`, `email`
+  all dropped — profile comes from users.getProfile.
+- **N4: data controls.** App-level encryption of mail/approvals/audit
+  content, real deletion semantics (per-account field keys, key
+  destruction on removal), and time-bounded agent-session consent —
+  approved as product work.
+
+Workstreams now unblocked: OAuth corrections (plan §2), restricted-data
+gaps (plan §3), brand/site (plan §5, after domain registration).
