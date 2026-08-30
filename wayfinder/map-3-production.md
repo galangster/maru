@@ -89,6 +89,14 @@ signed+notarized+stapled DMG verified by Nick's own release-script run;
 plus the macOS 26 traffic-light saga (re-parented buttons, equidistant),
 the squircle icon, and the 52 px titlebar rhythm. Remaining: P3 (now
 unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
+- **P3 closed** same night (auto-update, key custody in the ticket) and
+  the **keychain prompt storms killed at the root**: stable signature +
+  recreate-on-write ACL self-healing + a dev-only keychain service.
+  Nick's UX directive produced
+  [UX-FRICTION-2026-08-29.md](../docs/design/UX-FRICTION-2026-08-29.md):
+  P0s are P4's spine; **P10 (daily polish: save attachments, persistent
+  drafts, human labels)** and **P11 (bulk actions + search operators)**
+  proposed, awaiting Nick's cut.
 
 ## Not yet specified
 

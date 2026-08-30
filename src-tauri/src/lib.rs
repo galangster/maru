@@ -6,6 +6,14 @@ use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
 use std::time::{Duration, Instant};
 
 /// Service name used for every Wren keychain entry.
+// Release and dev use different keychain services on purpose. A keychain
+// item's ACL trusts the app that *created* it; every differently-signed dev
+// build is a stranger to items the last one made, which is what produced the
+// password-prompt storms. Dev builds now churn their own throwaway items and
+// can never damage the ACLs on a person's real tokens.
+#[cfg(debug_assertions)]
+const KEYRING_SERVICE: &str = "dev.wren.app.dev";
+#[cfg(not(debug_assertions))]
 const KEYRING_SERVICE: &str = "dev.wren.app";
 
 /// How long `oauth_listen` waits for the browser redirect before giving up.
@@ -27,12 +35,22 @@ fn keyring_entry(key: &str) -> Result<keyring::Entry, String> {
 }
 
 /// Store `value` under `key` in the OS keychain.
+///
+/// Delete-then-create, never update-in-place: `set_password` on an existing
+/// item keeps the ACL of whichever build created it, so an item born under
+/// an old signature keeps prompting forever. Recreating the item re-anchors
+/// its ACL to the current app on every write — and since tokens rewrite
+/// themselves on refresh, a user's keychain self-heals to the signed
+/// identity within a session, after which macOS never asks again.
 #[tauri::command]
 async fn secret_set(key: String, value: String) -> Result<(), String> {
   tauri::async_runtime::spawn_blocking(move || {
-    keyring_entry(&key)?
-      .set_password(&value)
-      .map_err(|e| e.to_string())
+    let entry = keyring_entry(&key)?;
+    match entry.delete_credential() {
+      Ok(()) | Err(keyring::Error::NoEntry) => {}
+      Err(e) => return Err(e.to_string()),
+    }
+    entry.set_password(&value).map_err(|e| e.to_string())
   })
   .await
   .map_err(|e| e.to_string())?
