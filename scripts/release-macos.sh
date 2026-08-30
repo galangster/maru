@@ -3,11 +3,15 @@
 #
 #   ./scripts/release-macos.sh
 #
-# Wants, in the environment (Tauri reads these itself):
+# Notarization uses the App Store Connect API key by default — no
+# passwords, no OTPs. The trio below is baked in (ids are not secrets;
+# the .p8 lives beside the other release keys):
+#   APPLE_API_ISSUER / APPLE_API_KEY / APPLE_API_KEY_PATH
+# Signing still wants:
 #   APPLE_SIGNING_IDENTITY   "Developer ID Application: <name> (<team>)"
-#   APPLE_ID                 the Apple account email
-#   APPLE_PASSWORD           an app-specific password (appleid.apple.com)
-#   APPLE_TEAM_ID            the 10-character team id
+# (APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID remain a manual fallback: set
+# all three and unset APPLE_API_KEY to use the app-specific-password
+# route instead.)
 #
 # Updater artifacts are signed too (P3):
 #   TAURI_SIGNING_PRIVATE_KEY_PATH  defaults to ~/.wren-release/updater.key
@@ -27,9 +31,13 @@ else
     echo "error: identity '$APPLE_SIGNING_IDENTITY' is not in the keychain."
     exit 1
   }
-  for var in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-    [[ -n "${!var:-}" ]] || { echo "error: $var is not set (needed to notarize)."; exit 1; }
-  done
+  export APPLE_API_ISSUER="${APPLE_API_ISSUER:-52f4e617-a4b3-4cee-bcd0-23f8e653d7b5}"
+  export APPLE_API_KEY="${APPLE_API_KEY:-PTF7XH7JWF}"
+  export APPLE_API_KEY_PATH="${APPLE_API_KEY_PATH:-$HOME/.wren-release/AuthKey_${APPLE_API_KEY}.p8}"
+  [[ -f "$APPLE_API_KEY_PATH" ]] || {
+    echo "error: notary API key not found at $APPLE_API_KEY_PATH."
+    exit 1
+  }
 fi
 
 # The contents variant: the _PATH variant silently skips signature
