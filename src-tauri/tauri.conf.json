@@ -57,6 +57,15 @@
           "y": 170
         }
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVFNTIxQjVBNUVFMDEwRjMKUldUekVPQmVXaHRTWGpsMzNUMVhMbXE0Z0tCR3h1OTY2TmFnSlkyRXRNZFZWSzczRnVRMVR0cXAK",
+      "endpoints": [
+        "https://github.com/galangster/wren/releases/latest/download/latest.json"
+      ]
     }
   }
 }

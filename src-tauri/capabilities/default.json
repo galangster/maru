@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capability for the Wren main window.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
@@ -21,12 +23,24 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://gmail.googleapis.com/*" },
-        { "url": "https://oauth2.googleapis.com/*" },
-        { "url": "https://accounts.google.com/*" },
-        { "url": "https://www.googleapis.com/*" },
-        { "url": "https://openidconnect.googleapis.com/*" }
+        {
+          "url": "https://gmail.googleapis.com/*"
+        },
+        {
+          "url": "https://oauth2.googleapis.com/*"
+        },
+        {
+          "url": "https://accounts.google.com/*"
+        },
+        {
+          "url": "https://www.googleapis.com/*"
+        },
+        {
+          "url": "https://openidconnect.googleapis.com/*"
+        }
       ]
-    }
+    },
+    "updater:default",
+    "process:allow-restart"
   ]
 }

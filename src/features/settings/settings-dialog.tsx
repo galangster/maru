@@ -64,6 +64,7 @@ import {
   transferDiff,
 } from './transfer'
 import { buildDebugReport } from '@/lib/debug-report'
+import { checkForUpdates } from '@/lib/updates'
 import pkg from '../../../package.json'
 
 const SECTION_ICONS: Record<SettingsSection, IconName> = {
@@ -732,13 +733,22 @@ function AboutSection() {
           phoning home: versions, settings and recent errors, with addresses
           and secrets scrubbed before they ever reach the clipboard.
         </Explainer>
-        <button
-          type="button"
-          onClick={() => void copyReport()}
-          className={textButtonClass('default', 'w-fit')}
-        >
-          Copy debug report
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void copyReport()}
+            className={textButtonClass('default', 'w-fit')}
+          >
+            Copy debug report
+          </button>
+          <button
+            type="button"
+            onClick={() => void checkForUpdates({ announceNoUpdate: true })}
+            className={textButtonClass('default', 'w-fit')}
+          >
+            Check for updates
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -6,6 +6,7 @@
 #   APPLE_CERTIFICATE_PASSWORD    the .p12 password
 #   APPLE_SIGNING_IDENTITY        "Developer ID Application: … (TEAMID)"
 #   APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID   notarization credentials
+#   TAURI_SIGNING_PRIVATE_KEY                    the updater key's contents
 # Tauri imports the certificate into a temp keychain itself and notarizes.
 
 name: macos-release
@@ -35,8 +36,11 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       - uses: actions/upload-artifact@v4
         with:
           name: wren-macos
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/release/bundle/macos/*.app.tar.gz.sig

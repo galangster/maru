@@ -13,6 +13,7 @@ import { CommandPalette } from '@/features/palette/command-palette'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { setSoundsEnabled } from '@/lib/sound'
+import { checkForUpdates } from '@/lib/updates'
 
 // The heavy floating surfaces load on first open, not at startup (P8): the
 // composer carries the whole tiptap editor, and settings/agents carry their
@@ -57,6 +58,12 @@ export default function App() {
   // not a user gesture, and lib/sound waits for one before it builds anything.
   const sounds = useSettings().data?.sounds ?? false
   useEffect(() => setSoundsEnabled(sounds), [sounds])
+
+  // One silent update check per launch. Found updates toast with a consent
+  // action; anything else stays quiet — About has the loud version.
+  useEffect(() => {
+    void checkForUpdates({ announceNoUpdate: false })
+  }, [])
 
   // Every floating surface is a sibling of the shell, never a child of a pane:
   // glass mounts at the root so no ancestor can become its backdrop root
