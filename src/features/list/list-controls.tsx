@@ -5,7 +5,7 @@
 
 import { Icon } from '@/components/ui/icon'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { SECTION_LABEL, SegmentedGroup, iconButtonClass } from '@/components/wren-controls'
+import { OptionRow, SECTION_LABEL, SegmentedGroup, iconButtonClass } from '@/components/wren-controls'
 import {
   isDefaultPrefs,
   useListPrefs,
@@ -55,26 +55,15 @@ export function ListControls() {
         <div className="flex flex-col gap-1.5">
           <p className={SECTION_LABEL}>Show</p>
           <div role="group" aria-label="Show" className="flex flex-col gap-0.5">
-            {FILTERS.map((filter) => {
-              const selected = filter === prefs.filter
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setListPrefs(view, { filter })}
-                  className={cn(
-                    'font-ui flex h-8 items-center justify-between rounded-md px-2 text-left text-base',
-                    'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-                    'focus-ring hover:bg-fill-hover',
-                    selected ? 'text-ink font-medium' : 'text-ink-2',
-                  )}
-                >
-                  {FILTER_LABELS[filter]}
-                  {selected && <Icon name="check" size={16} className="text-brand" />}
-                </button>
-              )
-            })}
+            {FILTERS.map((filter) => (
+              <OptionRow
+                key={filter}
+                selected={filter === prefs.filter}
+                onClick={() => setListPrefs(view, { filter })}
+              >
+                {FILTER_LABELS[filter]}
+              </OptionRow>
+            ))}
           </div>
         </div>
       </PopoverContent>

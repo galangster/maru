@@ -103,7 +103,9 @@ export const ThreadRow = memo(function ThreadRow({
         'group relative flex h-[calc(var(--wren-row-h)-var(--wren-row-gap))] w-[calc(100%-2*var(--wren-row-inset-x))]',
         'mx-(--wren-row-inset-x) cursor-default items-center gap-3 rounded-row px-2',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-        selected ? 'bg-fill-selected' : 'hover:bg-fill-hover',
+        selected
+          ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring/50 group-focus-visible/listbox:ring-inset'
+          : 'hover:bg-fill-hover',
         ticking && 'pointer-events-none',
       )}
     >

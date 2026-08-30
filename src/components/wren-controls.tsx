@@ -236,6 +236,40 @@ export function SegmentedGroup<T extends string>({
   )
 }
 
+/**
+ * One choice in a small popover list — the filter menu and the label menu
+ * share it: aria-pressed, quiet until hovered, a brand check when on.
+ */
+export function OptionRow({
+  selected,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  selected: boolean
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'font-ui flex h-8 items-center justify-between rounded-md px-2 text-left text-base',
+        'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        'focus-ring hover:bg-fill-hover disabled:opacity-40',
+        selected ? 'text-ink font-medium' : 'text-ink-2',
+      )}
+    >
+      {children}
+      {selected && <Icon name="check" size={16} className="text-brand" />}
+    </button>
+  )
+}
+
 /** A key, as printed. The palette's footer and the "?" sheet share it. */
 export function Keycap({
   children,

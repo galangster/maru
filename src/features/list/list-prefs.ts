@@ -10,7 +10,15 @@
 
 import type { Thread } from '@/core/types'
 import type { EmptyCopy } from '@/components/empty-state'
-import type { ListFilter, ListPrefs } from '@/features/mail/ui-store'
+import {
+  DEFAULT_LIST_PREFS,
+  useUi,
+  viewKey,
+  type ListFilter,
+  type ListPrefs,
+} from '@/features/mail/ui-store'
+import { keys as queryKeys } from '@/features/mail/queries'
+import type { QueryClient } from '@tanstack/react-query'
 
 const PASSES: Record<ListFilter, (thread: Thread) => boolean> = {
   all: () => true,
@@ -59,4 +67,29 @@ export function filterEmptyCopy(filter: Exclude<ListFilter, 'all'>): EmptyCopy {
     case 'attachments':
       return { title: 'No attachments', subtitle: 'Nothing here carries a file.' }
   }
+}
+
+/**
+ * Where the selection lands after the selected thread leaves the view
+ * (archive, trash): the next thread down, the previous when it was last,
+ * nothing when it was alone. One keystroke per message — e, e, e — is the
+ * whole point (P10 ruling), so this is computed *before* the row goes.
+ */
+export function nextAfterRemoval(visible: Thread[], removedKey: string): string | null {
+  const index = visible.findIndex((t) => t.key === removedKey)
+  if (index === -1) return null
+  const next = visible[index + 1] ?? visible[index - 1]
+  return next ? next.key : null
+}
+
+/**
+ * The visible list, read at event time: the current view's cached threads
+ * through the current lens. The keyboard and the reading toolbar both need
+ * "the list the person is looking at" inside a handler without subscribing
+ * a whole surface to the cache — this is that one spelling.
+ */
+export function visibleThreadsSnapshot(client: QueryClient): Thread[] {
+  const s = useUi.getState()
+  const raw = client.getQueryData<Thread[]>(queryKeys.threads(s.view)) ?? []
+  return applyListPrefs(raw, s.listPrefs[viewKey(s.view)] ?? DEFAULT_LIST_PREFS)
 }

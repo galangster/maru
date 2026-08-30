@@ -150,5 +150,15 @@ where, why, proof.
     (sixth call site) and lib/hash + lib/clipboard. Proof: commits
     d3ad18f, 5f4706b, cf11536, cb08df2; 427 tests; captures (t9-09 only).
 
+19. **P10, daily polish.** Focus indication moved from the listbox
+    container to the active row (with focus-scrolls-selection closing
+    the virtualization gap); archive/trash advances to the next thread
+    from every trigger (and j/k finally walks the lensed list);
+    attachments actually save (Rust-side dialog — the webview never
+    names a path); drafts survive crashes via a text-only mirror;
+    humans apply labels through the M9 seam. Kit gained OptionRow.
+    Why: Nick's two rulings + UX-FRICTION P1s. Proof: this commit;
+    430 tests; live verification; three reading-pane captures.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

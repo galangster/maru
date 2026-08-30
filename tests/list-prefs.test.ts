@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest'
 
 import type { Thread } from '../src/core/types'
-import { applyListPrefs, filterEmptyCopy } from '../src/features/list/list-prefs'
+import { applyListPrefs, filterEmptyCopy, nextAfterRemoval } from '../src/features/list/list-prefs'
 import { DEFAULT_LIST_PREFS } from '../src/features/mail/ui-store'
 
 function thread(key: string, at: number, flags: Partial<Thread> = {}): Thread {
@@ -90,5 +90,20 @@ describe('filterEmptyCopy', () => {
       expect(copy.title.length).toBeGreaterThan(0)
       expect(copy.subtitle.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('nextAfterRemoval', () => {
+  it('selects the next thread down', () => {
+    expect(nextAfterRemoval(MAILBOX, 'b')).toBe('c')
+  })
+
+  it('selects the previous when the last one goes', () => {
+    expect(nextAfterRemoval(MAILBOX, 'd')).toBe('c')
+  })
+
+  it('selects nothing when the only thread goes, or the key is unknown', () => {
+    expect(nextAfterRemoval([MAILBOX[0]], 'a')).toBeNull()
+    expect(nextAfterRemoval(MAILBOX, 'nope')).toBeNull()
   })
 })

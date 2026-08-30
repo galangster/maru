@@ -113,7 +113,7 @@ export function MessageCard({
       {attachments.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
           {attachments.map((attachment) => (
-            <AttachmentChip key={attachment.id} attachment={attachment} />
+            <AttachmentChip key={attachment.id} threadKey={threadKey} attachment={attachment} />
           ))}
         </div>
       )}

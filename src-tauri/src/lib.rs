@@ -80,6 +80,37 @@ async fn secret_delete(key: String) -> Result<(), String> {
   .map_err(|e| e.to_string())?
 }
 
+/// Ask where to save, then write — dialog and write both on this side.
+///
+/// The webview sends a suggested filename and bytes, never a path: an email
+/// client renders hostile HTML, and a compromised page must not be able to
+/// aim a write at LaunchAgents. Returns false when the person cancelled.
+#[tauri::command]
+async fn save_file(
+  app: tauri::AppHandle,
+  filename: String,
+  data_base64: String,
+) -> Result<bool, String> {
+  use base64::Engine;
+  use tauri_plugin_dialog::DialogExt;
+
+  let bytes = base64::engine::general_purpose::STANDARD
+    .decode(data_base64.as_bytes())
+    .map_err(|e| e.to_string())?;
+  tauri::async_runtime::spawn_blocking(move || {
+    let Some(path) = app.dialog().file().set_file_name(&filename).blocking_save_file() else {
+      return Ok(false);
+    };
+    let Some(path) = path.as_path().map(|p| p.to_path_buf()) else {
+      return Err("the chosen location has no filesystem path".to_string());
+    };
+    std::fs::write(path, bytes).map_err(|e| e.to_string())?;
+    Ok(true)
+  })
+  .await
+  .map_err(|e| e.to_string())?
+}
+
 // ---------------------------------------------------------------------------
 // OAuth loopback listener
 // ---------------------------------------------------------------------------
@@ -275,6 +306,7 @@ pub fn run() {
     .plugin(tauri_plugin_sql::Builder::default().build())
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
+    .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_opener::init())
@@ -284,6 +316,7 @@ pub fn run() {
       secret_get,
       secret_delete,
       oauth_listen,
+      save_file,
       gateway::gateway_auth_result,
       gateway::gateway_reply,
       gateway::gateway_close,

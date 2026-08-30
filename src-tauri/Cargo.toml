@@ -38,6 +38,8 @@ keyring = { version = "3", features = [
 interprocess = "2.4.3"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
+tauri-plugin-dialog = "2.7.2"
+base64 = "0.23.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

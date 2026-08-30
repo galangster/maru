@@ -3,12 +3,14 @@
 // reply / reply all / forward open the composer on the newest message.
 
 import { useLayoutEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
-import { IconButton, Keycap, PRESS } from '@/components/wren-controls'
-import type { Message, Thread } from '@/core/types'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { IconButton, Keycap, OptionRow, PRESS } from '@/components/wren-controls'
+import type { Label, Message, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import type { ReplyMode } from '@/lib/compose'
 import {
@@ -18,9 +20,11 @@ import {
   useSaveSettings,
   useSettings,
   useThread,
+  useModifyLabels,
 } from '@/features/mail/queries'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
+import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 
 import { displayMessages, expandedIds, normalizeExpansion, toggleExpanded } from './conversation'
 import { EmptyState } from '@/components/empty-state'
@@ -40,6 +44,7 @@ export function ReadingPane() {
   const now = useNow()
 
   const detail = useThread(selectedKey)
+  const queryClient = useQueryClient()
   const action = usePerformAction()
   const settings = useSettings()
   const saveSettings = useSaveSettings()
@@ -117,9 +122,6 @@ export function ReadingPane() {
   // One spelling of "everything is open", shared with the keymap's `o`:
   // manual sets that reach all-open normalize to 'all' on the way in.
   const allOpen = expansion === 'all'
-  const chips = (labels.data ?? []).filter(
-    (l) => l.type === 'user' && thread.labelIds.includes(l.id),
-  )
 
   // The same descriptor the row's hover cluster and the palette read; only the
   // order differs here, because the toolbar reads left to right as triage then
@@ -147,6 +149,16 @@ export function ReadingPane() {
               pop={spec.pop}
               disabled={spec.disabled}
               onClick={() => {
+                // Same advance rule as the keys: removing the open thread
+                // shows the next one, so triage stays one press per message.
+                if (spec.type === 'archive' || spec.type === 'trash') {
+                  useUi
+                    .getState()
+                    .setSelected(
+                      nextAfterRemoval(visibleThreadsSnapshot(queryClient), thread.key),
+                      'keyboard',
+                    )
+                }
                 const next = { type: spec.type, threadKey: thread.key }
                 action.mutate(next)
                 // A deliberate press, so it is worth a ⌘Z. The mark-read that
@@ -192,7 +204,11 @@ export function ReadingPane() {
           transition={fade.transition}
           className="mx-auto w-full max-w-[calc(var(--wren-read-measure)+2*var(--wren-read-px))] px-(--wren-read-px) pt-(--wren-read-pt) pb-12"
         >
-          <ThreadHeader thread={thread} messages={messages} chips={chips.map((l) => l.name)} />
+          <ThreadHeader
+            thread={thread}
+            messages={messages}
+            userLabels={(labels.data ?? []).filter((l) => l.type === 'user')}
+          />
 
           <motion.div
             initial={fade.initial}
@@ -226,15 +242,17 @@ export function ReadingPane() {
 function ThreadHeader({
   thread,
   messages,
-  chips,
+  userLabels,
 }: {
   thread: Thread
   messages: Message[]
-  chips: string[]
+  userLabels: Label[]
 }) {
+  const modify = useModifyLabels()
   const people = (thread.participants.length > 0 ? thread.participants : messages.map((m) => m.from))
     .map(displayName)
     .join(', ')
+  const applied = userLabels.filter((l) => thread.labelIds.includes(l.id))
 
   return (
     <div className="flex flex-col gap-2">
@@ -248,9 +266,9 @@ function ThreadHeader({
           {messages.length} message{messages.length === 1 ? '' : 's'}
         </span>
       </p>
-      {chips.length > 0 && (
-        <ul className="flex flex-wrap gap-2 pt-1">
-          {chips.map((name) => (
+      {userLabels.length > 0 && (
+        <ul className="flex flex-wrap items-center gap-2 pt-1">
+          {applied.map((label) => (
             // A hue chip: the label's own wash carrying its own ink, as a pill
             // (AMIE-STUDY §7b). This is one of exactly two places a category
             // hue is allowed to appear — a real Gmail label, and the sender
@@ -258,13 +276,50 @@ function ThreadHeader({
             // contrast-verified against both, so the chip reads at 20 px
             // without a border.
             <li
-              key={name}
-              style={hueVars(hueFor(name))}
+              key={label.id}
+              style={hueVars(hueFor(label.name))}
               className="font-ui bg-(--hue-wash) text-(--hue-ink) flex h-5 items-center rounded-full px-2 text-xs font-medium"
             >
-              {name}
+              {label.name}
             </li>
           ))}
+          <li>
+            {/* The M9 seam's human half (P10): the same modifyLabels agents
+                use, from a quiet popover. Cache refresh rides the service's
+                own threadsChanged event, like every other mail action. */}
+            <Popover>
+              <PopoverTrigger
+                aria-label="Labels"
+                className="font-ui text-ink-3 hover:bg-fill-hover hover:text-ink focus-ring flex h-5 items-center rounded-full px-2 text-xs font-medium transition-colors duration-(--wren-dur-fast)"
+              >
+                + Label
+              </PopoverTrigger>
+              <PopoverContent align="start" sideOffset={6} className="w-56">
+                <div role="group" aria-label="Labels" className="flex flex-col gap-0.5">
+                  {userLabels.map((label) => {
+                    const on = thread.labelIds.includes(label.id)
+                    return (
+                      <OptionRow
+                        key={label.id}
+                        selected={on}
+                        disabled={modify.isPending}
+                        onClick={() =>
+                          modify.mutate({
+                            threadKey: thread.key,
+                            changes: on
+                              ? { addLabelIds: [], removeLabelIds: [label.id] }
+                              : { addLabelIds: [label.id], removeLabelIds: [] },
+                          })
+                        }
+                      >
+                        {label.name}
+                      </OptionRow>
+                    )
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </li>
         </ul>
       )}
     </div>

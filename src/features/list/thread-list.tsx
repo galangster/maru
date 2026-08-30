@@ -38,7 +38,7 @@ import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/empty-state'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
 import { ListControls } from './list-controls'
-import { FILTER_LABELS, applyListPrefs, filterEmptyCopy } from './list-prefs'
+import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
 import { ThreadRow, threadRowId } from './thread-row'
 
 const GROUP_H = 40
@@ -153,8 +153,17 @@ export function ThreadList() {
     [setSelected],
   )
 
+  // The rows' copy of the advance rule: acting on the *selected* thread
+  // (archive/trash from the hover cluster) selects the next visible one
+  // immediately — the pane shows it while the old row animates out.
+  const visibleRef = useRef<Thread[]>([])
+  visibleRef.current = rows.filter((r) => r.kind === 'thread').map((r) => r.thread)
+
   const onAction = useCallback(
     (thread: Thread, type: MailActionType) => {
+      if ((type === 'archive' || type === 'trash') && useUi.getState().selected === thread.key) {
+        useUi.getState().setSelected(nextAfterRemoval(visibleRef.current, thread.key), 'keyboard')
+      }
       // Archive is the one action with a row-level celebration; everything else
       // goes straight through. A second archive on a row already ticking is not
       // a second celebration — it goes through as well.
@@ -379,9 +388,22 @@ export function ThreadList() {
             // — the primary surface had no navigable structure at all (B3).
             // j/k are bound globally and already compute the right target.
             tabIndex={0}
+            // The focus indicator lives on the selected row, and the row is
+            // virtualized — so focusing the list scrolls the selection into
+            // view, or there would be visible focus nowhere (WCAG 2.4.7).
+            onFocus={() => {
+              if (!selected) return
+              const index = rows.findIndex(
+                (r) => r.kind === 'thread' && r.thread.key === selected,
+              )
+              if (index >= 0) virtualizer.scrollToIndex(index, { align: 'auto' })
+            }}
             aria-activedescendant={selected ? threadRowId(selected) : undefined}
             data-wren-listbox
-            className="focus-ring relative w-full focus-visible:ring-inset"
+            // No ring around the whole list (Nick's ruling): the container
+            // stays the tab stop, but focus is *shown* on the active row via
+            // the named group below — indication on the thing that is active.
+            className="group/listbox relative w-full outline-none"
             style={{ height: virtualizer.getTotalSize() }}
           >
             {virtualizer.getVirtualItems().map((item) => {

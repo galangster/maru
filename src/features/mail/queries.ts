@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { threadMatchesView } from '@/core/defaults'
 import { applyActionToThread, reverseAction } from '@/core/service/actions'
 import type {
+  LabelChanges,
   Account,
   MailAction,
   MailActionType,
@@ -102,6 +103,18 @@ export function useUnreadCount(view: MailView) {
 export function useSettings() {
   const service = useMailService()
   return useQuery({ queryKey: keys.settings, queryFn: () => service.getSettings() })
+}
+
+/**
+ * Toggle user labels on a thread through the M9 seam. Cache refresh rides
+ * the service's own threadsChanged event, exactly like performAction.
+ */
+export function useModifyLabels() {
+  const service = useMailService()
+  return useMutation({
+    mutationFn: (input: { threadKey: string; changes: LabelChanges }) =>
+      service.modifyLabels(input.threadKey, input.changes),
+  })
 }
 
 /** Patch settings and refresh every reader. Settings dialog, palette, pane. */

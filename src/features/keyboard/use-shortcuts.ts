@@ -26,6 +26,7 @@ import { useComposeActions } from '@/features/compose/use-compose-actions'
 import { keys as queryKeys, registerActionUndo, usePerformAction } from '@/features/mail/queries'
 import { threadActions } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
+import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
 import { UNDO_TOAST_ID } from '@/lib/undo'
@@ -58,6 +59,12 @@ export function useShortcuts() {
     act: (type) => {
       const selected = useUi.getState().selected
       if (!selected) return
+      // Removing the thread you are on selects the next one *first*, so the
+      // reading pane is already showing it when the row leaves — e, e, e.
+      if (type === 'archive' || type === 'trash') {
+        const follow = nextAfterRemoval(live.current.threads(), selected)
+        useUi.getState().setSelected(follow, 'keyboard')
+      }
       const next = { type, threadKey: selected }
       action.mutate(next)
       // Every triage key is a deliberate press, so every one is undoable. The
@@ -73,7 +80,9 @@ export function useShortcuts() {
     markRead: (threadKey) => action.mutate({ type: 'markRead', threadKey }),
     compose,
     reply: replyToSelected,
-    threads: () => client.getQueryData<Thread[]>(queryKeys.threads(useUi.getState().view)) ?? [],
+    // Through the lens, not the raw query: j/k and advance-on-archive must
+    // walk the same list the person is looking at (M7's filter and sort).
+    threads: () => visibleThreadsSnapshot(client),
   }
 
   useEffect(() => {

@@ -58,6 +58,41 @@ interface ComposeState {
   remember: (accountId: string) => void
 }
 
+// Crash insurance (P10): the dirty draft mirrors into localStorage on every
+// edit and is cleared by close (which the dirty-confirm already guards) and
+// by send. A draft found here at startup means the app died mid-thought —
+// the next blank Compose restores it instead of an empty window.
+const DRAFT_STORE_KEY = 'wren-draft-v1'
+
+function persistDraft(draft: Draft | null): void {
+  try {
+    // Text only: attachment bytes would blow the storage quota mid-typing
+    // and leave a *stale* mirror behind — a crash would then resurrect an
+    // outdated draft. Losing attachments in a crash is the honest trade.
+    if (draft) {
+      localStorage.setItem(DRAFT_STORE_KEY, JSON.stringify({ ...draft, attachments: [] }))
+    } else localStorage.removeItem(DRAFT_STORE_KEY)
+  } catch {
+    // Storage can be unavailable (capture path, private mode); losing the
+    // mirror must never break typing.
+  }
+}
+
+let recovered: Draft | null = (() => {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORE_KEY)
+    return raw ? (JSON.parse(raw) as Draft) : null
+  } catch {
+    return null
+  }
+})()
+
+/** A blank compose passes {} (use-compose-actions); anything with fields is
+ * a reply, forward or palette-prefilled draft and must win over recovery. */
+function blankInit(init: Partial<Draft>): boolean {
+  return Object.keys(init).length === 0
+}
+
 export const useComposer = create<ComposeState>((set) => ({
   open: false,
   minimized: false,
@@ -69,21 +104,36 @@ export const useComposer = create<ComposeState>((set) => ({
   lastAccountId: '',
 
   openWith: (init) =>
-    set((s) => ({
-      open: true,
-      minimized: false,
-      dirty: false,
-      confirming: false,
-      seed: s.seed + 1,
-      showCc: (init.cc?.length ?? 0) > 0 || (init.bcc?.length ?? 0) > 0,
-      draft: { ...emptyDraft(), accountId: s.lastAccountId, ...init },
-    })),
-  close: () =>
-    set({ open: false, minimized: false, dirty: false, confirming: false, draft: emptyDraft() }),
+    set((s) => {
+      // A blank compose after a crash gets the unsent draft back.
+      const restore = blankInit(init) ? recovered : null
+      recovered = null
+      return {
+        open: true,
+        minimized: false,
+        dirty: restore !== null,
+        confirming: false,
+        seed: s.seed + 1,
+        showCc:
+          (restore ?? init).cc !== undefined && ((restore ?? init).cc?.length ?? 0) > 0,
+        draft: restore ?? { ...emptyDraft(), accountId: s.lastAccountId, ...init },
+      }
+    }),
+  close: () => {
+    // Close is a decision (the dirty confirm stands in front of it), so the
+    // crash mirror goes too.
+    persistDraft(null)
+    set({ open: false, minimized: false, dirty: false, confirming: false, draft: emptyDraft() })
+  },
   setMinimized: (minimized) => set({ minimized }),
   setConfirming: (confirming) => set({ confirming }),
   setShowCc: (showCc) => set({ showCc }),
-  edit: (patch) => set((s) => ({ draft: { ...s.draft, ...patch }, dirty: true })),
+  edit: (patch) =>
+    set((s) => {
+      const draft = { ...s.draft, ...patch }
+      persistDraft(draft)
+      return { draft, dirty: true }
+    }),
   set: (patch) => set((s) => ({ draft: { ...s.draft, ...patch } })),
   remember: (lastAccountId) => set({ lastAccountId }),
 }))
