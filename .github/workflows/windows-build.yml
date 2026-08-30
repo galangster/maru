@@ -24,10 +24,16 @@ jobs:
 
       - run: npm ci
 
+      # createUpdaterArtifacts is on (P3), so the build needs the updater
+      # signing key or it fails producing the .sig files. The password is
+      # explicitly empty — the key has none, and the CLI treats an unset
+      # password variable differently from an empty one.
       - name: Build Windows bundles (NSIS + MSI)
         run: npx tauri build
         env:
           CI: true
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
 
       - uses: actions/upload-artifact@v4
         with:
