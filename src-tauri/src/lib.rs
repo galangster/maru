@@ -197,7 +197,7 @@ fn place_traffic_lights(window: &tauri::Window) {
   use objc2_foundation::NSPoint;
 
   const INSET_X: f64 = 20.0;
-  const INSET_Y: f64 = 11.0; // (36 - 14) / 2, from --wren-titlebar-h
+  const INSET_Y: f64 = 19.0; // (52 - 14) / 2, from --wren-titlebar-h
 
   let Ok(handle) = window.ns_window() else { return };
   let ns = unsafe { &*(handle as *const NSWindow) };
