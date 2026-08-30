@@ -39,7 +39,7 @@
 
   <h2>Where your data is stored</h2>
   <ul>
-    <li><strong>Messages, threads, and attachments</strong> are stored in an encrypted local database on your device. Encryption keys are held in your operating system's keychain.</li>
+    <li><strong>Messages, threads, and attachment metadata</strong> are stored in an encrypted local database on your device, one encryption key per account, held in your operating system's keychain. Attachment contents are fetched from Gmail when you open or save them, not kept in the database.</li>
     <li><strong>OAuth tokens</strong> (the credentials Wren uses to talk to Gmail) are stored in your operating system's keychain.</li>
     <li><strong>Search indexes, settings, agent grants, send approvals, and the audit log</strong> are stored locally on your device. Audit entries that contain Google-derived content (such as message subjects) are encrypted with per-account keys.</li>
   </ul>

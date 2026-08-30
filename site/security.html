@@ -54,7 +54,7 @@ Wren process on your device
 
   <h2>Encryption</h2>
   <ul>
-    <li>Message content and attachments are encrypted at rest in Wren's local store; keys are created per install, held in the OS keychain, and never leave your device.</li>
+    <li>Message content and attachment metadata are encrypted at rest in Wren's local store; one key per account, held in the OS keychain, never leaving your device. Attachment contents are fetched from Gmail on demand, not cached.</li>
     <li>Audit-log fields containing Google-derived content use per-account keys, destroyed when you remove the account — the log's structure survives, its restricted content does not.</li>
     <li>All Google traffic is TLS.</li>
   </ul>

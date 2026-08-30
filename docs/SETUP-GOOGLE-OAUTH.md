@@ -25,7 +25,8 @@ OAuth client — about five minutes, once, covering all your accounts.
 
 ## What Wren asks for
 
-`gmail.modify` (read, archive, trash, star, mark read) and `gmail.send`.
+`gmail.modify` only (read, archive, trash, star, mark read — and send,
+which Google's `users.messages.send` accepts under this scope).
 It never touches contacts, Drive, or anything else. Tokens are stored in
 the OS keychain (DPAPI on Windows, Keychain on macOS).
 

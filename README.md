@@ -6,7 +6,9 @@ inbox for all your Gmail accounts: local-first, no third-party servers,
 talks only to Google.
 
 > **Pre-1.0.** Wren works — five real accounts and a real agent gateway
-> run on it daily — but it is weeks old, macOS-verified, and unsigned.
+> run on it daily — but it is weeks old and macOS-verified. macOS builds
+> are signed and notarized; the Windows installer is unsigned and not
+> yet hand-tested.
 > Read [SECURITY.md](SECURITY.md) before trusting it with a mailbox.
 > Wren is free and open (AGPL); a paid hosted **sync** service is planned
 > — the app never becomes the product's hostage.

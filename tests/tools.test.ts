@@ -271,11 +271,13 @@ describe('agent sessions', () => {
     expect(ended).toHaveLength(2)
   })
 
-  it('keeps wren_ping and list_pending available without a session', async () => {
+  it('keeps wren_ping available without a session, and gates list_pending', async () => {
     const f = await fixture()
     const ping = payloadOf(await callTool('wren_ping', f.ctx, {})) as { session: unknown }
     expect(ping.session).toBeNull()
-    expect((await callTool('list_pending', f.ctx, {})).isError).toBeUndefined()
+    // A queued reply draft quotes mail content, so the queue is session data
+    // like everything else that can carry it.
+    expect((await callTool('list_pending', f.ctx, {})).isError).toBe(true)
   })
 })
 

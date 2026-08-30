@@ -324,7 +324,8 @@ function SessionBlock({
 
               <p className="text-ink-2 text-sm">Data: {dataClasses}.</p>
               <p className="text-ink-2 text-sm text-pretty">
-                Mail this agent reads leaves Wren for whatever model or service the agent runs on.
+                Mail this agent reads leaves Wren for whatever model or service the agent runs
+                on — that may be a hosted provider outside this device.
               </p>
 
               <fieldset className="flex flex-col gap-2">

@@ -508,14 +508,16 @@ const getAttachment: ToolSpec = {
 const listPending: ToolSpec = {
   // No grant, and not an oversight. An agent may always see what it itself
   // asked for: a queue an agent cannot read is a queue it has to guess about,
-  // and it would guess by asking again.
+  // and it would guess by asking again. It IS session-gated: a queued reply
+  // draft carries thread-derived subjects and recipients, which are exactly
+  // the restricted data a closed session withholds.
   capability: null,
-  restricted: false,
+  restricted: true,
   tool: {
     name: 'list_pending',
     title: 'List my send requests',
     description:
-      'List the send requests this agent has submitted and what happened to them: pending, approved, denied or expired. Needs no grant — an agent can always see its own submissions. Nothing here can be approved from outside Wren; a person resolves each one in the app.',
+      'List the send requests this agent has submitted and what happened to them: pending, approved, denied or expired. Needs no grant, but does need an active agent session — submissions can quote mail content. Nothing here can be approved from outside Wren; a person resolves each one in the app.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: {
       title: 'List my send requests',

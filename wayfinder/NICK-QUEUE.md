@@ -25,6 +25,14 @@ asking in chat. Newest at the top of each section. Strike items done.
 5. **Demo video** (plan §8) needs the production consent screen, so it
    sits behind items 2–3. The app-side surfaces it shows are done.
 
+## Dossier placeholders
+
+The submission dossier is written (`docs/security/`, `ops/google-oauth/`).
+Every field only you can fill is marked `«NICK: …»` — grep for it.
+Concentrations: verification-answers (project id, client id, trademark
+receipt, frozen release, demo package), QUOTA (dashboards + alerts),
+CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
+
 ## Non-blocking
 
 - **Re-test the 7-day re-auth path** against the production consent

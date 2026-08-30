@@ -195,3 +195,24 @@ two-recovery button split into two plain buttons, confirm copy aligned
 with the section copy. Skips: sequential removeAccount loop kept
 deliberately (shared-store mutation ordering; N ≤ 3), onNeedsClient
 rename (churn-only).
+
+## Progress — submission dossier (plan §6–§7), 2026-08-30 (autonomous)
+
+One Sol delegate wrote the ten dossier artifacts (`docs/security/`,
+`ops/google-oauth/`): data flow (with the hosted-model hop), restricted-
+data inventory, an eleven-method scope matrix cited to api.ts lines,
+encryption/deletion (quoting PERMISSION-MODEL §8.1's erasure paragraph),
+agent consent + injection coverage, verification answers with §7's
+wording verbatim, and the incident/quota/reverification/contacts
+runbooks. Console-only facts are `«NICK»` placeholders (indexed in
+NICK-QUEUE.md).
+
+Its cross-check surfaced five gaps; fixed four in the same seal:
+`list_pending` is now session-gated (queued reply drafts quote mail),
+the consent dialog names off-device processing explicitly, the site
+drafts' key claims corrected (per-account, attachment bytes not
+cached), SETUP-GOOGLE-OAUTH now says one scope and README says signed/
+notarized macOS + unsigned Windows. Skipped with reason: widening
+generic Gmail 403s to the "Use your own client" recovery would
+misclassify rate limits — recorded as a dossier NOTE instead.
+477 tests.
