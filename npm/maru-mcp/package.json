@@ -12,9 +12,9 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/galangster/wren"
+    "url": "https://github.com/galangster/maru"
   },
-  "homepage": "https://github.com/galangster/wren#readme",
+  "homepage": "https://github.com/galangster/maru#readme",
   "keywords": [
     "mcp",
     "email",
