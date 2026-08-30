@@ -484,11 +484,13 @@
     --wren-titlebar-h: 36px;
     /* The macOS overlay traffic lights, as a measure the strip can reserve.
        tauri.conf.json pins them at (16, 11) and macOS draws three 12 px discs
-       at a 20 px pitch, so they occupy 16 + 12 + 8 + 12 + 8 + 12 = 68 px. The
+       at a 20 px pitch, so they occupy 20 + 12 + 8 + 12 + 8 + 12 = 72 px. The
        zone is that plus a 12 px gutter — the same gutter the sidebar gives its
-       own content — which lands on 80 and stays on DIRECTION §5's 4 px grid.
+       own content — which lands on 84 and stays on DIRECTION §5's 4 px grid.
+       The 20 px inset (with y=12, centering the lights in the 36 px strip) is
+       macOS 26's doing: the Tahoe window radius swallowed the old (16, 11).
        Change it here if `trafficLightPosition` ever moves. */
-    --wren-titlebar-lights-w: 80px;
+    --wren-titlebar-lights-w: 84px;
     /* Windows draws minimise / maximise / close on the trailing edge and
        reserves 140 px for them. Same idea, other end, other platform. */
     --wren-titlebar-overlay-w: 140px;

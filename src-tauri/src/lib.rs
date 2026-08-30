@@ -181,6 +181,49 @@ async fn oauth_listen(port: u16) -> Result<String, String> {
 // ---------------------------------------------------------------------------
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+
+/// Put the traffic lights where the design says they go.
+///
+/// `trafficLightPosition` in tauri.conf.json honors x but silently ignores y
+/// on macOS 26, which leaves the buttons hugging the Tahoe corner radius.
+/// This moves the three standard buttons to a 20 px left inset with their
+/// 14 px height centered in the 36 px titlebar strip (top inset 11), keeping
+/// whatever horizontal pitch AppKit gave them. Re-applied on resize, theme
+/// and focus changes because AppKit re-lays the buttons out whenever it
+/// pleases.
+#[cfg(target_os = "macos")]
+fn place_traffic_lights(window: &tauri::Window) {
+  use objc2_app_kit::{NSWindow, NSWindowButton};
+  use objc2_foundation::NSPoint;
+
+  const INSET_X: f64 = 20.0;
+  const INSET_Y: f64 = 11.0; // (36 - 14) / 2, from --wren-titlebar-h
+
+  let Ok(handle) = window.ns_window() else { return };
+  let ns = unsafe { &*(handle as *const NSWindow) };
+  let buttons = [
+    NSWindowButton::CloseButton,
+    NSWindowButton::MiniaturizeButton,
+    NSWindowButton::ZoomButton,
+  ];
+  unsafe {
+    let Some(close) = ns.standardWindowButton(buttons[0]) else { return };
+    let Some(container) = close.superview() else { return };
+    let container_h = container.frame().size.height;
+    let close_x = close.frame().origin.x;
+    for kind in buttons {
+      let Some(button) = ns.standardWindowButton(kind) else { continue };
+      let frame = button.frame();
+      // Keep AppKit's own pitch between buttons; shift the row as one piece.
+      let x = INSET_X + (frame.origin.x - close_x);
+      // AppKit y grows upward: a *top* inset is measured from the container's
+      // full height.
+      let y = container_h - INSET_Y - frame.size.height;
+      button.setFrameOrigin(NSPoint { x, y });
+    }
+  }
+}
+
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_sql::Builder::default().build())
@@ -198,6 +241,20 @@ pub fn run() {
       gateway::gateway_close,
       gateway::gateway_info
     ])
+    .on_window_event(|window, event| {
+      #[cfg(target_os = "macos")]
+      {
+        use tauri::WindowEvent;
+        if matches!(
+          event,
+          WindowEvent::Resized(_) | WindowEvent::ThemeChanged(_) | WindowEvent::Focused(_)
+        ) {
+          place_traffic_lights(window);
+        }
+      }
+      #[cfg(not(target_os = "macos"))]
+      let _ = (window, event);
+    })
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -211,6 +268,26 @@ pub fn run() {
       match gateway::start(app.handle()) {
         Ok(path) => log::info!("gateway: listening on {path}"),
         Err(e) => log::error!("gateway: {e}"),
+      }
+      #[cfg(target_os = "macos")]
+      {
+        use tauri::Manager;
+        // AppKit re-lays the standard buttons on its own schedule during the
+        // first moments of a window's life, so one placement at setup loses.
+        // A short burst of re-applications on the main thread outlasts it;
+        // the on_window_event hook owns everything after.
+        let handle = app.handle().clone();
+        std::thread::spawn(move || {
+          for _ in 0..8 {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            let h = handle.clone();
+            let _ = handle.run_on_main_thread(move || {
+              if let Some(window) = h.webview_windows().values().next() {
+                place_traffic_lights(&window.as_ref().window());
+              }
+            });
+          }
+        });
       }
       Ok(())
     })
