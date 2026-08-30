@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete Your Data — Wren Mail</title>
+<style>
+  :root { --ink:#1a1a1e; --ink2:#55555e; --bg:#fdfdfc; --accent:#5b5bd6; --line:#e6e6e2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#ececef; --ink2:#a2a2ab; --bg:#141416; --accent:#8f8fe8; --line:#2a2a2e; }
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font:16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:640px; margin:0 auto; padding:64px 24px; }
+  h1 { font-size:28px; letter-spacing:-0.02em; }
+  h2 { font-size:19px; margin:36px 0 8px; }
+  p, li { color:var(--ink2); margin:10px 0; }
+  ol li { margin:8px 0; }
+  ol { padding-left:22px; }
+  strong { color:var(--ink); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Deleting your data, revoking access</h1>
+  <p>Everything Wren Mail stores lives on your own device, so deletion is local, immediate, and yours to perform. Three levels, from mildest to complete:</p>
+
+  <h2>1. Remove an account from Wren</h2>
+  <ol>
+    <li>Open Wren → Settings (⌘,) → <strong>Accounts</strong>.</li>
+    <li>Click <strong>Remove</strong> next to the account, and confirm.</li>
+  </ol>
+  <p>This deletes that account's cached mail, search index entries, and OAuth tokens from your device, and destroys the encryption keys protecting its content in the audit log. Nothing at Google changes — your mailbox is untouched.</p>
+
+  <h2>2. Revoke Wren's access at Google</h2>
+  <ol>
+    <li>Go to <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+    <li>Find <strong>Wren Mail</strong> and click <strong>Remove access</strong>.</li>
+  </ol>
+  <p>Google immediately invalidates Wren's tokens for that account. Wren will show the account as signed out; remove it in Settings (step 1) to also clear the local copy.</p>
+
+  <h2>3. Remove Wren entirely</h2>
+  <ol>
+    <li>Do steps 1–2 for each account.</li>
+    <li>Revoke any agent credentials in Settings → <strong>Agents</strong>, so nothing can reconnect.</li>
+    <li>Delete the app, and its data folder if you want zero residue:<br>
+      macOS: <code>~/Library/Application Support/dev.wren.app</code><br>
+      Windows: <code>%APPDATA%\dev.wren.app</code></li>
+  </ol>
+
+  <h2>Questions</h2>
+  <p>Anything unclear, or something that didn't delete the way this page promises: <a href="mailto:support@wren.so">support@wren.so</a>. That promise is testable — Wren is <a href="https://github.com/galangster/wren">open source</a>.</p>
+</main>
+</body>
+</html>

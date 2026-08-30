@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security &amp; Data Flow — Wren Mail</title>
+<style>
+  :root { --ink:#1a1a1e; --ink2:#55555e; --bg:#fdfdfc; --card:#f4f4f2; --accent:#5b5bd6; --line:#e6e6e2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#ececef; --ink2:#a2a2ab; --bg:#141416; --card:#1e1e21; --accent:#8f8fe8; --line:#2a2a2e; }
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font:16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:640px; margin:0 auto; padding:64px 24px; }
+  h1 { font-size:28px; letter-spacing:-0.02em; }
+  h2 { font-size:19px; margin:36px 0 8px; }
+  p, li { color:var(--ink2); margin:10px 0; }
+  li { margin:6px 0; }
+  ul { padding-left:22px; }
+  strong { color:var(--ink); }
+  a { color:var(--accent); }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; overflow-x:auto; font-size:13px; line-height:1.5; margin:16px 0; color:var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Security &amp; Data Flow</h1>
+  <p>How mail moves through Wren Mail, and every boundary it can cross.</p>
+
+  <h2>The data flow, complete</h2>
+<pre>
+Google Gmail API  (TLS, OAuth 2.0 + PKCE)
+   │
+   ▼
+Wren process on your device
+   │
+   ├── encrypted local database  (mail, index, approvals, audit)
+   ├── OS keychain               (OAuth tokens, encryption keys)
+   │
+   └── optional: local socket (0600) ──► agent process you connected
+                                            │
+                                            └── possibly that agent's
+                                                hosted model provider
+                                                (outside your device)
+</pre>
+  <p>There is no Wren server anywhere in this diagram, because none exists. The final hop — an agent forwarding data to its model provider — happens only for agents you created, granted, and consented to, and it is the agent's hop, disclosed by Wren before you consent.</p>
+
+  <h2>Sign-in</h2>
+  <ul>
+    <li>OAuth 2.0 for installed apps: your system browser, a loopback redirect bound to 127.0.0.1, and PKCE (S256). Wren never sees or asks for your Google password.</li>
+    <li>Wren requests one Gmail scope, <code>gmail.modify</code> — the minimum that supports reading, labeling, and user-approved sending. Wren cannot permanently delete mail.</li>
+    <li>Refresh tokens live in the OS keychain, bound to the client that issued them.</li>
+  </ul>
+
+  <h2>Encryption</h2>
+  <ul>
+    <li>Message content and attachments are encrypted at rest in Wren's local store; keys are created per install, held in the OS keychain, and never leave your device.</li>
+    <li>Audit-log fields containing Google-derived content use per-account keys, destroyed when you remove the account — the log's structure survives, its restricted content does not.</li>
+    <li>All Google traffic is TLS.</li>
+  </ul>
+
+  <h2>The agent gateway</h2>
+  <ul>
+    <li>The gateway is a Unix socket (macOS/Linux, mode 0600 in a 0700 directory) or named pipe (Windows) — never a network port.</li>
+    <li>Agents authenticate with a credential Wren issues; Wren stores only its SHA-256 digest.</li>
+    <li>Capabilities are explicit per-agent grants. A new agent holds nothing.</li>
+    <li>Each agent session requires fresh, time-bounded consent that names the agent, the data classes it may read, and the possibility of hosted-model processing.</li>
+    <li>Message bodies and attachments are delivered to agents marked as untrusted content — prompt-injection text inside mail is data, not instructions, and Wren's own send gate is immune to it: <strong>no path exists from any tool call to a dispatched email without a human approving it in the Wren UI</strong>.</li>
+    <li>Every connection, call, refusal, and approval is written to an append-only audit log you can read in the app.</li>
+  </ul>
+
+  <h2>Reporting a vulnerability</h2>
+  <p>Wren is open source (AGPL-3.0). Report security issues to <a href="mailto:security@wren.so">security@wren.so</a> — see <a href="https://github.com/galangster/wren/blob/main/SECURITY.md">SECURITY.md</a> for scope and expectations. The full permission model is specified in <a href="https://github.com/galangster/wren/blob/main/docs/PERMISSION-MODEL.md">PERMISSION-MODEL.md</a>.</p>
+</main>
+</body>
+</html>

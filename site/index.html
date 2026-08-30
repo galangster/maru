@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wren Mail — a quiet, local-first Gmail client</title>
+<meta name="description" content="Wren Mail is an open-source desktop Gmail client that keeps your mail on your device — and an agent gateway where every send waits for your approval.">
+<style>
+  :root { --ink:#1a1a1e; --ink2:#55555e; --bg:#fdfdfc; --card:#f4f4f2; --accent:#5b5bd6; --line:#e6e6e2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#ececef; --ink2:#a2a2ab; --bg:#141416; --card:#1e1e21; --accent:#8f8fe8; --line:#2a2a2e; }
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font:16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:640px; margin:0 auto; padding:64px 24px; }
+  h1 { font-size:32px; letter-spacing:-0.02em; }
+  h2 { font-size:20px; margin:40px 0 8px; letter-spacing:-0.01em; }
+  p { color:var(--ink2); margin:12px 0; }
+  p strong { color:var(--ink); }
+  a { color:var(--accent); }
+  .tag { color:var(--ink2); font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin:16px 0; }
+  .card p { margin:6px 0; font-size:15px; }
+  nav { margin-top:48px; padding-top:16px; border-top:1px solid var(--line); font-size:14px; }
+  nav a { margin-right:16px; }
+  .cta { display:inline-block; background:var(--accent); color:#fff; border-radius:999px; padding:10px 20px; text-decoration:none; font-weight:500; margin-top:16px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="tag">Wren Mail</p>
+  <h1>One quiet window for every Gmail account you have.</h1>
+  <p>Wren Mail is an open-source desktop mail client for Gmail. It syncs your mail to your own device, works at keyboard speed, and is also a gateway for AI agents — with a permission model built on earned trust: agents hold only what you grant, every outgoing message waits for your explicit approval, and everything they do lands in an append-only audit log.</p>
+  <a class="cta" href="https://github.com/galangster/wren/releases/latest">Download for macOS</a>
+  <p class="tag">Free and open source (AGPL-3.0). Windows preview available.</p>
+
+  <h2>Where your mail lives</h2>
+  <div class="card">
+    <p>Wren stores your mailbox data on this device and connects directly to Google for Gmail. Wren operates no mail server.</p>
+    <p>If you connect an agent and grant it access, Wren sends the selected data to that agent through a local socket. The agent or its model provider may process that data outside this device. Review that provider's terms before granting access.</p>
+  </div>
+
+  <h2>What it does</h2>
+  <p><strong>A real mail client.</strong> Unified inbox across accounts, full-text search with operators, one-keystroke triage, bulk actions, drafts that survive crashes — all offline-capable, all local.</p>
+  <p><strong>An agent gateway.</strong> Your agents connect over a local socket with a credential Wren issues. They can read, triage, and draft under explicit per-capability grants. They cannot send: every send request enters an approval queue that only you can resolve. The permission model is <a href="https://github.com/galangster/wren/blob/main/docs/PERMISSION-MODEL.md">an open specification</a>.</p>
+  <p><strong>No telemetry, ever.</strong> Wren phones home to no one. The only network peer for your mail is Google.</p>
+
+  <nav>
+    <a href="/privacy">Privacy policy</a>
+    <a href="/security">Security &amp; data flow</a>
+    <a href="/support/google-data">Delete your data</a>
+    <a href="https://github.com/galangster/wren">Source code</a>
+    <a href="mailto:support@wren.so">support@wren.so</a>
+  </nav>
+</main>
+</body>
+</html>
