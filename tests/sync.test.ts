@@ -1,4 +1,4 @@
-import { OAuthError } from '../src/core/auth/oauth'
+import { OAuthClientError, OAuthError } from '../src/core/auth/oauth'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { SyncEngine, WINDOW_QUERY, type SyncGmailClient } from '../src/core/sync/engine'
 import { Store } from '../src/core/store/db'
@@ -207,6 +207,18 @@ describe('fullBackfill', () => {
     await expect(engine.fullBackfill()).rejects.toBeInstanceOf(OAuthError)
     const last = events.filter((e) => e.type === 'syncStatus').at(-1)
     expect(last).toMatchObject({ status: { state: 'error', needsReauth: true } })
+  })
+
+  it('types a rejected refresh client separately from a dead grant', async () => {
+    const { api, engine, events } = await harness()
+    api.listThreads = async () => {
+      throw new OAuthClientError('invalid_client')
+    }
+    await expect(engine.fullBackfill()).rejects.toBeInstanceOf(OAuthClientError)
+    const last = events.filter((e) => e.type === 'syncStatus').at(-1)
+    expect(last).toMatchObject({
+      status: { state: 'error', clientFailure: true, needsReauth: false },
+    })
   })
 })
 

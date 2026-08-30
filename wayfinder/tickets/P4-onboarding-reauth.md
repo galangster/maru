@@ -168,8 +168,30 @@ key on removal, all-or-nothing per account; non-mailbox rows (grants,
 sessions, connections) readable forever. PERMISSION-MODEL.md §8.1 and
 summary item 7 amended to match.
 
-Remaining §3 items: a user-facing "Delete local Google data" action
-beyond account removal (item 4), agent disclosure in the connection
-flow itself (item 9; the consent dialog covers half), in-app help links
-for deletion/revocation (item 10 — site drafts exist), and the
-client-failure UI surfacing carried over from §2.
+## Progress — §3 stragglers + client-failure UI, 2026-08-30 (autonomous)
+
+Under Nick's standing order ("keep going autonomously"). One Sol
+delegate, reviewed, /simplify'd, sealed here. 477 tests. Plan §3 is now
+fully closed; owner-only work lives in wayfinder/NICK-QUEUE.md.
+
+- **Client failure surfaces in the row** (§2 remainder):
+  `SyncStatus.clientFailure` typed end-to-end via `isClientFailure`
+  (the serialization-safe discriminant guard, exported from oauth.ts);
+  the row says the account is fine and offers "Use your own client",
+  which routes to Settings → Google.
+- **"Delete local Google data"** (§3 item 4): confirm-gated action in
+  Settings → Accounts; iterates removeAccount, so rows, tokens, keys,
+  and pending approvals all go through the one tested path.
+- **Agent disclosure in the connection flow** (§3 item 9): one shared
+  AGENT_DISCLOSURE constant rendered in onboarding's choose step and
+  beside the Add-account button.
+- **In-app help** (§3 item 10): deletion guide (wren.so), Google
+  permissions revocation, and a Manage-agents section link.
+
+/simplify (two agents, four angles; fixes applied directly — too small
+to delegate): isClientFailure guard replacing the inline duck-type,
+disclosure copy deduped into features/agents/disclosure.ts, the
+two-recovery button split into two plain buttons, confirm copy aligned
+with the section copy. Skips: sequential removeAccount loop kept
+deliberately (shared-store mutation ordering; N ≤ 3), onNeedsClient
+rename (churn-only).

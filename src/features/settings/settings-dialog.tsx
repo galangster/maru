@@ -64,7 +64,9 @@ import {
   transferDiff,
 } from './transfer'
 import { buildDebugReport } from '@/lib/debug-report'
+import { openExternalUrl } from '@/lib/env'
 import { checkForUpdates } from '@/lib/updates'
+import { AGENT_DISCLOSURE } from '@/features/agents/disclosure'
 import pkg from '../../../package.json'
 
 const SECTION_ICONS: Record<SettingsSection, IconName> = {
@@ -192,7 +194,14 @@ function SettingsBody({ section }: { section: SettingsSection }) {
             Agents — run past the fixed 440, and a field sliced flat against the
             dialog's bottom edge is the hard edge DIRECTION §1 rules out. */}
         <div className="scroll-fade min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {section === 'accounts' && <AccountsSection onNeedsClient={() => setNeedsClient(true)} />}
+          {section === 'accounts' && (
+            <AccountsSection
+              onNeedsClient={() => {
+                setNeedsClient(true)
+                openSettings('google')
+              }}
+            />
+          )}
           {section === 'agents' && <AgentsSection />}
           {section === 'appearance' && <AppearanceSection />}
           {section === 'google' && <GoogleSection highlight={needsClient} />}
@@ -266,13 +275,14 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
   const settings = useSettings()
   const openSettings = useSurfaces((s) => s.openSettings)
   const [busy, setBusy] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [confirmingClear, setConfirmingClear] = useState(false)
 
   const statuses = useSyncStatus()
 
   const add = async () => {
     if (!demo && !settings.data?.googleClientId) {
       onNeedsClient()
-      openSettings('google')
       return
     }
     setBusy(true)
@@ -296,6 +306,23 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
 
   const list = accounts.data ?? []
 
+  const clearLocalData = async () => {
+    setConfirmingClear(false)
+    setClearing(true)
+    try {
+      for (const account of list) await service.removeAccount(account.id)
+      toast.success(
+        'Local Google data deleted. Mail, tokens and encryption keys are gone from this device.',
+      )
+    } catch (cause) {
+      toast.error('Could not delete all local Google data', {
+        description: cause instanceof Error ? cause.message : String(cause),
+      })
+    } finally {
+      setClearing(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <Explainer>
@@ -316,13 +343,14 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
               // guard, same relink-aware toast — reaching it from the row
               // that needs it.
               onReauth={() => void add()}
+              onNeedsClient={onNeedsClient}
               reauthBusy={busy}
             />
           ))}
         </ul>
       )}
 
-      <div>
+      <div className="flex flex-col gap-2">
         <PrimaryButton onClick={() => void add()} disabled={busy} className="h-9 gap-2 px-3">
           <Icon
             name={busy ? 'sync' : 'add'}
@@ -331,6 +359,59 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
           />
           {busy ? 'Waiting for Google…' : 'Add account'}
         </PrimaryButton>
+        <p className="text-ink-3 text-sm text-pretty">{AGENT_DISCLOSURE}</p>
+      </div>
+
+      <div className="border-hairline flex flex-col gap-2 border-t pt-4">
+        <p className={SECTION_LABEL}>Local data</p>
+        <p className="text-ink-3 text-sm text-pretty">
+          Removes every account's cached mail, tokens and encryption keys from this device. Nothing
+          at Google changes.
+        </p>
+        <ConfirmPopover
+          open={confirmingClear}
+          onOpenChange={setConfirmingClear}
+          title="Delete local Google data?"
+          description="Removes every account's cached mail, tokens and encryption keys from this device. Nothing at Google changes."
+          cancelLabel="Keep it"
+          confirmLabel="Delete"
+          onConfirm={() => void clearLocalData()}
+          align="start"
+          trigger={
+            <button
+              type="button"
+              disabled={list.length === 0 || clearing}
+              className={textButtonClass(
+                'danger',
+                'w-fit disabled:pointer-events-none disabled:opacity-40',
+              )}
+            />
+          }
+          triggerContent={clearing ? 'Deleting…' : 'Delete local Google data…'}
+        />
+        <div className="flex flex-wrap gap-x-1 gap-y-1">
+          <button
+            type="button"
+            onClick={() => void openExternalUrl('https://wren.so/support/google-data')}
+            className={textButtonClass('default')}
+          >
+            Deletion guide
+          </button>
+          <button
+            type="button"
+            onClick={() => void openExternalUrl('https://myaccount.google.com/permissions')}
+            className={textButtonClass('default')}
+          >
+            Revoke Wren's Google access
+          </button>
+          <button
+            type="button"
+            onClick={() => openSettings('agents')}
+            className={textButtonClass('default')}
+          >
+            Manage agents
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -340,11 +421,13 @@ function AccountRow({
   account,
   status,
   onReauth,
+  onNeedsClient,
   reauthBusy,
 }: {
   account: Account
   status: SyncStatus | undefined
   onReauth: () => void
+  onNeedsClient: () => void
   reauthBusy: boolean
 }) {
   const service = useMailService()
@@ -354,6 +437,7 @@ function AccountRow({
   // from the message's wording. Anything else keeps the raw error; a wrong
   // friendly message is worse.
   const signedOut = failed && status.needsReauth === true
+  const clientRejected = failed && status.clientFailure === true
 
   const remove = async () => {
     setConfirming(false)
@@ -379,21 +463,37 @@ function AccountRow({
         </span>
         <span className="text-ink-3 truncate text-sm">{account.email}</span>
         {failed && (
-          <span className="text-destructive truncate text-sm">
-            {signedOut ? 'Signed out by Google — sign in again to reconnect.' : (status.error ?? 'Sync failed')}
+          <span className={cn('text-destructive text-sm', clientRejected ? 'text-pretty' : 'truncate')}>
+            {clientRejected
+              ? 'Google rejected the OAuth client — the account is fine. Set up your own client to reconnect.'
+              : signedOut
+                ? 'Signed out by Google — sign in again to reconnect.'
+                : (status.error ?? 'Sync failed')}
           </span>
         )}
       </div>
-      {failed && (
-        <button
-          type="button"
-          onClick={onReauth}
-          disabled={reauthBusy}
-          className={textButtonClass('default', 'shrink-0 rounded-md')}
-        >
-          Sign in again
-        </button>
-      )}
+      {/* Two recoveries, two buttons: a rejected client is fixed in Settings →
+          Google, a dead grant by signing in again. One button doing both had
+          three coordinated ternaries. */}
+      {failed &&
+        (clientRejected ? (
+          <button
+            type="button"
+            onClick={onNeedsClient}
+            className={textButtonClass('default', 'shrink-0 rounded-md')}
+          >
+            Use your own client
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onReauth}
+            disabled={reauthBusy}
+            className={textButtonClass('default', 'shrink-0 rounded-md')}
+          >
+            Sign in again
+          </button>
+        ))}
       <ConfirmPopover
         open={confirming}
         onOpenChange={setConfirming}

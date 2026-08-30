@@ -18,6 +18,7 @@ import { useSurfaces } from '@/features/shell/surface-store'
 import { onboardingPreview } from '@/lib/env'
 import { sheetPreset, staggerPreset, useMotionMode } from '@/lib/motion'
 import { cn } from '@/lib/utils'
+import { AGENT_DISCLOSURE } from '@/features/agents/disclosure'
 
 export function Onboarding() {
   const { demo, switchToDemo } = useMailMode()
@@ -107,6 +108,7 @@ export function Onboarding() {
               subtitle="Two fictional accounts, plus a third you can add. Nothing is sent or stored."
               onClick={explore}
             />
+            <p className="text-ink-3 px-1 text-sm text-pretty">{AGENT_DISCLOSURE}</p>
           </div>,
         ]
 

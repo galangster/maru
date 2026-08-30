@@ -35,6 +35,16 @@ export class OAuthError extends Error {
   }
 }
 
+/**
+ * True for an OAuthClientError however it arrives — the `clientFailure`
+ * discriminant survives serialization boundaries that `instanceof` does not.
+ */
+export function isClientFailure(err: unknown): boolean {
+  return (
+    typeof err === 'object' && err !== null && 'clientFailure' in err && err.clientFailure === true
+  )
+}
+
 export class OAuthClientError extends OAuthError {
   readonly clientFailure = true
 

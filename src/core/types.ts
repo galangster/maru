@@ -133,6 +133,9 @@ export interface SyncStatus {
   /** The error is a dead grant — signing in again is the fix (P4). Typed
    *  here so no UI ever has to regex an error message for it. */
   needsReauth?: boolean
+  /** Google rejected the OAuth client, not the account. A custom client is
+   *  the recovery path, so keep that distinct from a dead grant. */
+  clientFailure?: boolean
   lastSyncAt?: number
 }
 
