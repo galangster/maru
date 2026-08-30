@@ -135,6 +135,16 @@ unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
   first-agent walkthrough in Settings → Agents. Ticket stays open for
   Nick's console half. 448 tests.
 
+- **Autonomous run 3** (2026-08-30, daytime, under Nick's standing
+  order): plan §3 closed end-to-end (encryption at rest with per-account
+  keychain keys, crypto-erasing deletion, agent-session consent,
+  injection tests, delete-local-data action, disclosures, help links),
+  gate N5 decided and PERMISSION-MODEL amended, and the plan §6–§7
+  submission dossier written with «NICK» placeholders. 477 tests.
+  Commits 20fa907 → b673dfe; handoff
+  handoffs/2026-08-30-autonomous-run-3.md. Repo-side map work is
+  exhausted — everything left lives in wayfinder/NICK-QUEUE.md.
+
 ## Not yet specified
 
 - The shared-client outcome (R3a) reshapes P4's scope either way.
