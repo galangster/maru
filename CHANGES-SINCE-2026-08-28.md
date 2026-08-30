@@ -181,5 +181,19 @@ where, why, proof.
     "ship more" overnight directive, 2026-08-30 (ticket P11). Proof:
     this commit; 447 tests; live demo verification.
 
+22. **P4 app-side: re-auth without a dead end, Windows on the release.**
+    Signing in again with a known address re-links the account (fresh
+    tokens, engine restart — the recovery for Google's 7-day testing
+    tokens); a failed account row names the state and offers "Sign in
+    again"; dead grants are typed (`SyncStatus.needsReauth`), never
+    regexed from message text; Settings → Agents teaches the first
+    agent in-app. v0.1.0 gained the unsigned Windows NSIS + MSI with an
+    honest SmartScreen note (auto-update deliberately not extended to
+    Windows until hand-tested). Where: core/service/real.ts,
+    core/sync/engine.ts, core/types.ts, features/settings,
+    features/agents, .github/workflows/windows-build.yml. Why: P4's
+    console-independent half under the overnight directive. Proof: this
+    commit; 449 tests; release assets live.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

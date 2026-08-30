@@ -149,10 +149,14 @@ describe('addAccount', () => {
     expect(added.color).not.toBe(existing.color)
   })
 
-  it('refuses to add the same address twice', async () => {
+  it('re-links instead of duplicating when the same address signs in again', async () => {
+    // The recovery path for an expired grant (P4): same email, fresh tokens,
+    // same account — never a duplicate, never an error.
     const { svc } = await harness()
-    await svc.addAccount()
-    await expect(svc.addAccount()).rejects.toThrow(/already/i)
+    const first = await svc.addAccount()
+    const again = await svc.addAccount()
+    expect(again.id).toBe(first.id)
+    expect((await svc.listAccounts()).filter((a) => a.email === first.email)).toHaveLength(1)
   })
 })
 

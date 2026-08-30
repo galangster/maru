@@ -235,11 +235,14 @@ export class RealMailService implements MailService {
     const result = await this.authFlow(this.platform, settings.googleClientId, settings.googleClientSecret)
 
     const existing = await this.store.listAccounts()
-    if (existing.some((a) => a.email.toLowerCase() === result.email.toLowerCase())) {
-      throw new Error(`${result.email} is already added to Wren.`)
-    }
 
-    const account: Account = {
+    // Signing in with an address Wren already holds is a RE-LINK, not an
+    // error: fresh tokens under the existing account, and its engine
+    // restarts. This is the whole recovery path for an expired grant (P4) —
+    // Google's testing-mode consent screen kills refresh tokens after seven
+    // days, and "Add account" has to be the way back in.
+    const current = existing.find((a) => a.email.toLowerCase() === result.email.toLowerCase())
+    const account: Account = current ?? {
       id: this.newId(),
       email: result.email,
       displayName: result.email.split('@')[0],
@@ -253,7 +256,12 @@ export class RealMailService implements MailService {
       expiresAt: result.tokens.expiresAt,
       clientId: settings.googleClientId,
     })
-    await this.store.upsertAccount(account)
+    if (current) {
+      this.runtimes.get(current.id)?.engine.stop()
+      this.runtimes.delete(current.id)
+    } else {
+      await this.store.upsertAccount(account)
+    }
 
     const runtime = this.attach(account, settings)
     this.emit({ type: 'accountsChanged' })

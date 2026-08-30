@@ -1,3 +1,4 @@
+import { OAuthError } from '../src/core/auth/oauth'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { SyncEngine, WINDOW_QUERY, type SyncGmailClient } from '../src/core/sync/engine'
 import { Store } from '../src/core/store/db'
@@ -195,7 +196,17 @@ describe('fullBackfill', () => {
     }
     await expect(engine.fullBackfill()).rejects.toBeInstanceOf(HttpError)
     const last = events.filter((e) => e.type === 'syncStatus').at(-1)
-    expect(last).toMatchObject({ status: { state: 'error' } })
+    expect(last).toMatchObject({ status: { state: 'error', needsReauth: false } })
+  })
+
+  it('types a dead grant as needsReauth so no UI has to regex the message', async () => {
+    const { api, engine, events } = await harness()
+    api.listThreads = async () => {
+      throw new OAuthError('invalid_grant', 'Google rejected the token request', true)
+    }
+    await expect(engine.fullBackfill()).rejects.toBeInstanceOf(OAuthError)
+    const last = events.filter((e) => e.type === 'syncStatus').at(-1)
+    expect(last).toMatchObject({ status: { state: 'error', needsReauth: true } })
   })
 })
 

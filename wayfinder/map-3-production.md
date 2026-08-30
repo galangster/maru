@@ -124,6 +124,16 @@ unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
   ticket). Windows CI got the updater signing key the same night; the
   build was dispatched to attach an installer to v0.1.0. Remaining:
   P4, the film, fullscreen lights, Windows hand-smoke.
+- **Windows is ON the v0.1.0 release** (same night): CI-built NSIS
+  installer + MSI attached, release notes carry the honest unsigned /
+  not-hand-tested / SmartScreen warning. latest.json deliberately does
+  NOT list windows-x86_64 yet — auto-update must not point at a binary
+  nobody has run; add it after the first hand-smoke.
+- **P4's app-side half closed** (same night): re-auth = re-add (re-link
+  semantics in addAccount, pinned), `needsReauth` typed end-to-end
+  (OAuthError → SyncStatus → the row's "Sign in again"), and the
+  first-agent walkthrough in Settings → Agents. Ticket stays open for
+  Nick's console half. 449 tests.
 
 ## Not yet specified
 

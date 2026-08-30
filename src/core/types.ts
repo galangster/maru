@@ -130,6 +130,9 @@ export interface SyncStatus {
   state: 'idle' | 'syncing' | 'error'
   progress?: number // 0..1 during backfill
   error?: string
+  /** The error is a dead grant — signing in again is the fix (P4). Typed
+   *  here so no UI ever has to regex an error message for it. */
+  needsReauth?: boolean
   lastSyncAt?: number
 }
 

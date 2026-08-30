@@ -41,7 +41,7 @@ import {
   SurfaceHeader,
   textButtonClass,
 } from '@/components/wren-controls'
-import type { Account, Settings } from '@/core/types'
+import type { Account, Settings, SyncStatus } from '@/core/types'
 import { AgentsSection } from '@/features/agents/agents-settings'
 import { useAccounts, useSaveSettings, useSettings, useSyncStatus } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
@@ -267,6 +267,8 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
   const openSettings = useSurfaces((s) => s.openSettings)
   const [busy, setBusy] = useState(false)
 
+  const statuses = useSyncStatus()
+
   const add = async () => {
     if (!demo && !settings.data?.googleClientId) {
       onNeedsClient()
@@ -275,8 +277,14 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
     }
     setBusy(true)
     try {
+      const known = new Set((accounts.data ?? []).map((a) => a.id))
       const account = await service.addAccount()
-      toast.success(demo ? 'Demo account added' : `Added ${account.email}`)
+      // Same email again is a re-link (fresh tokens for an existing account,
+      // the recovery path for an expired grant) — say that, not "added".
+      const relinked = known.has(account.id)
+      toast.success(
+        demo ? 'Demo account added' : relinked ? `Reconnected ${account.email}` : `Added ${account.email}`,
+      )
     } catch (cause) {
       toast.error('Could not add the account', {
         description: cause instanceof Error ? cause.message : String(cause),
@@ -300,7 +308,16 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
       ) : (
         <ul className="flex flex-col">
           {list.map((account) => (
-            <AccountRow key={account.id} account={account} />
+            <AccountRow
+              key={account.id}
+              account={account}
+              status={statuses[account.id]}
+              // "Sign in again" IS the add flow — same OAuth run, same busy
+              // guard, same relink-aware toast — reaching it from the row
+              // that needs it.
+              onReauth={() => void add()}
+              reauthBusy={busy}
+            />
           ))}
         </ul>
       )}
@@ -319,9 +336,24 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
   )
 }
 
-function AccountRow({ account }: { account: Account }) {
+function AccountRow({
+  account,
+  status,
+  onReauth,
+  reauthBusy,
+}: {
+  account: Account
+  status: SyncStatus | undefined
+  onReauth: () => void
+  reauthBusy: boolean
+}) {
   const service = useMailService()
   const [confirming, setConfirming] = useState(false)
+  const failed = status?.state === 'error'
+  // Typed by the sync engine from OAuthError.needsReauth — never guessed
+  // from the message's wording. Anything else keeps the raw error; a wrong
+  // friendly message is worse.
+  const signedOut = failed && status.needsReauth === true
 
   const remove = async () => {
     setConfirming(false)
@@ -336,7 +368,7 @@ function AccountRow({ account }: { account: Account }) {
   }
 
   return (
-    <li className="flex h-14 items-center gap-3">
+    <li className={cn('flex items-center gap-3', failed ? 'min-h-14 py-2' : 'h-14')}>
       <AccountAvatar
         address={{ name: account.displayName, email: account.email }}
         hue={hueFor(account.email)}
@@ -346,7 +378,22 @@ function AccountRow({ account }: { account: Account }) {
           {account.displayName}
         </span>
         <span className="text-ink-3 truncate text-sm">{account.email}</span>
+        {failed && (
+          <span className="text-destructive truncate text-sm">
+            {signedOut ? 'Signed out by Google — sign in again to reconnect.' : (status.error ?? 'Sync failed')}
+          </span>
+        )}
       </div>
+      {failed && (
+        <button
+          type="button"
+          onClick={onReauth}
+          disabled={reauthBusy}
+          className={textButtonClass('default', 'shrink-0 rounded-md')}
+        >
+          Sign in again
+        </button>
+      )}
       <ConfirmPopover
         open={confirming}
         onOpenChange={setConfirming}
@@ -361,7 +408,9 @@ function AccountRow({ account }: { account: Account }) {
             // Every account row says "Remove". Read out of context that is
             // two identical buttons; the label says which one.
             aria-label={`Remove ${account.email}`}
-            className="font-ui text-ink-2 hover:bg-fill-hover hover:text-destructive focus-ring h-8 shrink-0 rounded-md px-3 text-base font-medium transition-colors duration-(--wren-dur-fast)"
+            // The kit's text-button recipe; rounded-md kept deliberately —
+            // these sit inside list rows, not on an open surface.
+            className={textButtonClass('danger', 'shrink-0 rounded-md')}
           />
         }
         triggerContent="Remove"

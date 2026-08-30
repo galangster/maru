@@ -21,7 +21,7 @@ import { CAPABILITIES, DEMO_AGENT, DEMO_AGENT_CREDENTIAL } from '@/core/agents'
 import { useAgentGateway, useMailMode } from '@/features/mail/service'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { relativeTime } from '@/lib/format'
-import { now } from '@/lib/env'
+import { now, openExternalUrl } from '@/lib/env'
 import { cn } from '@/lib/utils'
 
 import { AgentDot, CAPABILITY_COPY, scopeSummary } from './identity'
@@ -56,7 +56,7 @@ export function AgentsSection() {
       </p>
 
       {list.length === 0 ? (
-        <p className="text-ink-3 text-sm">No agents yet. Create one below to get a credential.</p>
+        <FirstAgentGuide />
       ) : (
         <ul className="flex flex-col gap-2">
           {list.map((agent) => (
@@ -77,6 +77,46 @@ export function AgentsSection() {
         className={textButtonClass('default', 'w-fit')}
       >
         Open the audit log
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The onboarding's agent half (P4), in the app rather than only in docs: what
+ * happens after "Create". Shown only while no agent exists — once one does,
+ * its card carries the real credential moment and this guide has done its job.
+ */
+const CONNECT_COMMAND = 'claude mcp add wren -- npx wren-mcp --token <credential>'
+
+function FirstAgentGuide() {
+  return (
+    <div className="bg-surface flex flex-col gap-3 rounded-lg p-4 shadow-xs">
+      <ol className="text-ink-2 flex list-decimal flex-col gap-2 pl-4 text-sm">
+        <li>Create an agent below. Wren issues a credential and shows it once.</li>
+        <li>
+          <span>Register the shim with your agent, credential in hand:</span>
+          <button
+            type="button"
+            onClick={() => {
+              void copyText(CONNECT_COMMAND).then((ok) =>
+                ok ? toast.success('Command copied') : toast.error('Could not reach the clipboard'),
+              )
+            }}
+            className="focus-ring bg-fill-hover text-ink mt-1.5 block w-full truncate rounded-md px-2.5 py-1.5 text-left font-mono text-xs"
+            title="Copy the command"
+          >
+            {CONNECT_COMMAND}
+          </button>
+        </li>
+        <li>Grant it capabilities here. It starts with nothing, on purpose.</li>
+      </ol>
+      <button
+        type="button"
+        onClick={() => void openExternalUrl('https://github.com/galangster/wren/blob/main/docs/CONNECT-AN-AGENT.md')}
+        className={textButtonClass('default', 'w-fit')}
+      >
+        The full guide, other clients included
       </button>
     </div>
   )
