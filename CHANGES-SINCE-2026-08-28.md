@@ -193,7 +193,7 @@ where, why, proof.
     core/sync/engine.ts, core/types.ts, features/settings,
     features/agents, .github/workflows/windows-build.yml. Why: P4's
     console-independent half under the overnight directive. Proof: this
-    commit; 449 tests; release assets live.
+    commit; 448 tests; release assets live.
 
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

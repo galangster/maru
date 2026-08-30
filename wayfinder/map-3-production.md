@@ -133,7 +133,7 @@ unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
   semantics in addAccount, pinned), `needsReauth` typed end-to-end
   (OAuthError → SyncStatus → the row's "Sign in again"), and the
   first-agent walkthrough in Settings → Agents. Ticket stays open for
-  Nick's console half. 449 tests.
+  Nick's console half. 448 tests.
 
 ## Not yet specified
 
