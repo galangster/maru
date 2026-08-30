@@ -17,5 +17,7 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
   },
-  envPrefix: ["VITE_", "TAURI_"],
+  // Every WREN_* build variable lands in the client bundle — never name a
+  // secret WREN_*. The official OAuth client id is public by design.
+  envPrefix: ["VITE_", "TAURI_", "WREN_"],
 });

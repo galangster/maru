@@ -95,6 +95,7 @@ async function harness(opts: { seed?: boolean } = {}) {
   const store = await Store.open(platform)
   const client = new FakeClient()
   const events: MailEvent[] = []
+  const clientBindings: { accountId: string; clientId: string; clientSecret?: string }[] = []
 
   if (opts.seed !== false) {
     await store.upsertAccount(makeAccount())
@@ -111,7 +112,10 @@ async function harness(opts: { seed?: boolean } = {}) {
     platform,
     store,
     autoStart: false,
-    createClient: () => client,
+    createClient: (accountId, clientId, clientSecret) => {
+      clientBindings.push({ accountId, clientId, clientSecret })
+      return client
+    },
     runAuthFlow: async () => ({
       email: 'new@gmail.com',
       historyId: '2000',
@@ -119,14 +123,20 @@ async function harness(opts: { seed?: boolean } = {}) {
     }),
   })
   svc.onEvent((e) => events.push(e))
-  return { platform, store, client, svc, events }
+  return { platform, store, client, svc, events, clientBindings }
 }
 
 describe('addAccount', () => {
-  it('refuses to start without a Google client id and secret', async () => {
+  it('refuses to start without a Google client id', async () => {
     const { store, svc } = await harness({ seed: false })
     await store.setSettings({ googleClientId: undefined, googleClientSecret: undefined })
     await expect(svc.addAccount()).rejects.toBeInstanceOf(MissingOAuthClientError)
+  })
+
+  it('accepts a custom desktop client without a secret', async () => {
+    const { store, svc } = await harness({ seed: false })
+    await store.setSettings({ googleClientId: 'public-client', googleClientSecret: undefined })
+    await expect(svc.addAccount()).resolves.toMatchObject({ email: 'new@gmail.com' })
   })
 
   it('stores the account, persists the refresh token and announces the change', async () => {
@@ -138,8 +148,17 @@ describe('addAccount', () => {
     expect((await store.listAccounts()).map((a) => a.email)).toContain('new@gmail.com')
 
     const saved = JSON.parse(platform.secrets.get(`wren:account:${account.id}`)!)
-    expect(saved).toMatchObject({ refreshToken: 'rt-new', clientId: 'cid' })
+    expect(saved).toMatchObject({ refreshToken: 'rt-new', clientId: 'cid', source: 'custom' })
     expect(events.some((e) => e.type === 'accountsChanged')).toBe(true)
+  })
+
+  it('attaches an existing account with its issuing client instead of current settings', async () => {
+    const { clientBindings } = await harness()
+    expect(clientBindings[0]).toEqual({
+      accountId: 'acct-1',
+      clientId: 'cid',
+      clientSecret: 'csecret',
+    })
   })
 
   it('gives the second account a different palette colour', async () => {
@@ -147,6 +166,22 @@ describe('addAccount', () => {
     const added = await svc.addAccount()
     const existing = (await svc.listAccounts()).find((a) => a.id !== added.id)!
     expect(added.color).not.toBe(existing.color)
+  })
+
+  it('replays the last sync status to a late subscriber', async () => {
+    // Startup failures fire before the UI can subscribe; the service retains
+    // the last status per account and replays it on onEvent.
+    const { svc } = await harness()
+    await svc.addAccount()
+    ;(svc as unknown as { emit: (e: unknown) => void }).emit({
+      type: 'syncStatus',
+      status: { accountId: 'late', state: 'error', error: 'boom' },
+    })
+    const seen: unknown[] = []
+    svc.onEvent((e) => {
+      if (e.type === 'syncStatus') seen.push(e.status)
+    })
+    expect(seen).toContainEqual({ accountId: 'late', state: 'error', error: 'boom' })
   })
 
   it('re-links instead of duplicating when the same address signs in again', async () => {

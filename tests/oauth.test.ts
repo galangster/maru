@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
+import { GMAIL_MODIFY_SCOPE,
   GOOGLE_SCOPES,
   TOKEN_ENDPOINT,
   buildAuthUrl,
@@ -14,6 +14,7 @@ import {
   TokenStore,
   TokenManager,
   OAuthError,
+  OAuthClientError,
 } from '../src/core/auth/oauth'
 import { NodePlatform, jsonResponse, errorResponse } from './helpers/node-platform'
 
@@ -85,13 +86,8 @@ describe('buildAuthUrl', () => {
     expect(prompt).toContain('consent')
   })
 
-  it('requests exactly the four scopes Wren needs', () => {
-    expect(GOOGLE_SCOPES).toEqual([
-      'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/gmail.send',
-      'openid',
-      'email',
-    ])
+  it('requests only gmail.modify', () => {
+    expect(GOOGLE_SCOPES).toEqual(['https://www.googleapis.com/auth/gmail.modify'])
     expect(url().searchParams.get('scope')).toBe(GOOGLE_SCOPES.join(' '))
   })
 })
@@ -114,7 +110,13 @@ describe('exchangeCode', () => {
   it('posts a form-encoded body with the verifier and the desktop client secret', async () => {
     const p = new NodePlatform()
     p.handler = () =>
-      jsonResponse({ access_token: 'at-1', refresh_token: 'rt-1', expires_in: 3599, token_type: 'Bearer' })
+      jsonResponse({
+        access_token: 'at-1',
+        refresh_token: 'rt-1',
+        expires_in: 3599,
+        token_type: 'Bearer',
+        scope: GMAIL_MODIFY_SCOPE,
+      })
 
     const now = 1_700_000_000_000
     const tokens = await exchangeCode(p, {
@@ -139,6 +141,44 @@ describe('exchangeCode', () => {
     expect(form.get('client_id')).toBe(CLIENT_ID)
     expect(form.get('client_secret')).toBe(CLIENT_SECRET)
     expect(form.get('redirect_uri')).toBe('http://127.0.0.1:50001/callback')
+  })
+
+  it('omits an empty desktop client secret', async () => {
+    const p = new NodePlatform()
+    p.handler = () =>
+      jsonResponse({
+        access_token: 'at-1',
+        refresh_token: 'rt-1',
+        scope: GMAIL_MODIFY_SCOPE,
+      })
+
+    await exchangeCode(p, {
+      clientId: CLIENT_ID,
+      clientSecret: '',
+      code: 'auth-code-1',
+      codeVerifier: 'verifier-1',
+      redirectUri: 'http://127.0.0.1:50001/callback',
+    })
+
+    expect(new URLSearchParams(p.requests[0].body).has('client_secret')).toBe(false)
+  })
+
+  it('refuses a partial grant without gmail.modify', async () => {
+    const p = new NodePlatform()
+    p.handler = () =>
+      jsonResponse({ access_token: 'at-1', refresh_token: 'rt-1', scope: 'openid email' })
+
+    await expect(
+      exchangeCode(p, {
+        clientId: CLIENT_ID,
+        code: 'auth-code-1',
+        codeVerifier: 'verifier-1',
+        redirectUri: 'http://127.0.0.1:50001/callback',
+      }),
+    ).rejects.toMatchObject({
+      code: 'missing_scope',
+      message: expect.stringContaining('Gmail access'),
+    })
   })
 
   it('raises a typed OAuthError carrying Google error text', async () => {
@@ -176,6 +216,32 @@ describe('refreshAccessToken', () => {
     expect(form.get('grant_type')).toBe('refresh_token')
     expect(form.get('refresh_token')).toBe('rt-1')
   })
+
+  it('omits an empty desktop client secret from refresh', async () => {
+    const p = new NodePlatform()
+    p.handler = () => jsonResponse({ access_token: 'at-2', expires_in: 3600 })
+
+    await refreshAccessToken(p, {
+      clientId: CLIENT_ID,
+      clientSecret: '',
+      refreshToken: 'rt-1',
+    })
+
+    expect(new URLSearchParams(p.requests[0].body).has('client_secret')).toBe(false)
+  })
+
+  it('types project and client failures separately from account revocation', async () => {
+    const p = new NodePlatform()
+    p.handler = () => new Response(JSON.stringify({ error: 'invalid_client' }), { status: 400 })
+
+    const error = await refreshAccessToken(p, {
+      clientId: CLIENT_ID,
+      refreshToken: 'rt-1',
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(OAuthClientError)
+    expect(error).toMatchObject({ code: 'invalid_client', needsReauth: false, clientFailure: true })
+  })
 })
 
 describe('TokenStore', () => {
@@ -187,6 +253,7 @@ describe('TokenStore', () => {
       accessToken: 'at-1',
       expiresAt: 42,
       clientId: CLIENT_ID,
+      source: 'custom',
     })
     expect([...p.secrets.keys()]).toEqual(['wren:account:acct-1'])
     expect(await store.load('acct-1')).toEqual({
@@ -194,6 +261,7 @@ describe('TokenStore', () => {
       accessToken: 'at-1',
       expiresAt: 42,
       clientId: CLIENT_ID,
+      source: 'custom',
     })
     await store.clear('acct-1')
     expect(await store.load('acct-1')).toBeNull()
@@ -203,6 +271,20 @@ describe('TokenStore', () => {
     const p = new NodePlatform()
     p.secrets.set('wren:account:acct-1', 'not json')
     expect(await new TokenStore(p).load('acct-1')).toBeNull()
+  })
+
+  it('migrates a stored client id to a custom issuing source', async () => {
+    const p = new NodePlatform()
+    p.secrets.set(
+      'wren:account:acct-1',
+      JSON.stringify({ refreshToken: 'rt-1', clientId: CLIENT_ID }),
+    )
+
+    expect(await new TokenStore(p).load('acct-1')).toEqual({
+      refreshToken: 'rt-1',
+      clientId: CLIENT_ID,
+      source: 'custom',
+    })
   })
 })
 
@@ -269,13 +351,50 @@ describe('TokenManager', () => {
     const m = manager(p, 0)
     await expect(m.forceRefresh()).rejects.toMatchObject({ name: 'OAuthError', needsReauth: true })
   })
+
+  it('refreshes with the stored issuing client after settings change', async () => {
+    const p = new NodePlatform()
+    p.handler = () => jsonResponse({ access_token: 'at-new', expires_in: 3600 })
+    p.secrets.set(
+      'wren:account:acct-1',
+      JSON.stringify({
+        refreshToken: 'rt-1',
+        accessToken: 'at-old',
+        expiresAt: 0,
+        clientId: 'issuing-client',
+        source: 'custom',
+      }),
+    )
+    const m = new TokenManager({
+      platform: p,
+      store: new TokenStore(p),
+      accountId: 'acct-1',
+      clientId: 'new-settings-client',
+      clientSecret: 'new-settings-secret',
+    })
+
+    await m.forceRefresh()
+
+    const form = new URLSearchParams(p.requests[0].body)
+    expect(form.get('client_id')).toBe('issuing-client')
+    expect(form.has('client_secret')).toBe(false)
+    expect(JSON.parse(p.secrets.get('wren:account:acct-1')!)).toMatchObject({
+      clientId: 'issuing-client',
+      source: 'custom',
+    })
+  })
 })
 
 describe('runAuthFlow', () => {
   function goodHandler(p: NodePlatform) {
     p.handler = (req) => {
       if (req.url === TOKEN_ENDPOINT) {
-        return jsonResponse({ access_token: 'at-1', refresh_token: 'rt-1', expires_in: 3600 })
+        return jsonResponse({
+          access_token: 'at-1',
+          refresh_token: 'rt-1',
+          expires_in: 3600,
+          scope: GMAIL_MODIFY_SCOPE,
+        })
       }
       if (req.url.includes('/gmail/v1/users/me/profile')) {
         return jsonResponse({ emailAddress: 'nick@gmail.com', historyId: '5150' })

@@ -13,6 +13,7 @@ import { GMAIL_BUDGET_PER_MINUTE, TokenBucket } from '../gmail/limiter'
 import { SyncEngine, type SyncGmailClient } from '../sync/engine'
 import { ThreadSearchIndex } from '../search/index'
 import { TokenManager, TokenStore, runAuthFlow as defaultRunAuthFlow, type AuthFlowResult } from '../auth/oauth'
+import { resolveOAuthClient } from '../auth/client-config'
 import { buildRawMessage } from '../mime'
 import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } from './actions'
 import { bodyTextOf, sentRowsFor } from './sent'
@@ -32,6 +33,7 @@ import type {
   Settings,
   Thread,
   ListThreadsOptions,
+  SyncStatus,
 } from '../types'
 import { parseThreadKey, threadKey } from '../types'
 
@@ -47,7 +49,9 @@ export interface MailGmailClient extends SyncGmailClient {
 export class MissingOAuthClientError extends Error {
   readonly code = 'missing_oauth_client'
   constructor() {
-    super('Add your Google OAuth client ID and secret in Settings before adding an account.')
+    // Thrown from addAccount AND from attach on an existing account, so the
+    // wording assumes neither. A build with an official client never throws it.
+    super('No Google OAuth client is configured. Add your client ID in Settings.')
     this.name = 'MissingOAuthClientError'
   }
 }
@@ -63,8 +67,8 @@ export interface RealMailServiceOptions {
   platform: Platform
   store: Store
   /** Overridable so tests can drive the service without a network. */
-  createClient?: (accountId: string, clientId: string, clientSecret: string) => MailGmailClient
-  runAuthFlow?: (platform: Platform, clientId: string, clientSecret: string) => Promise<AuthFlowResult>
+  createClient?: (accountId: string, clientId: string, clientSecret?: string) => MailGmailClient
+  runAuthFlow?: (platform: Platform, clientId: string, clientSecret?: string) => Promise<AuthFlowResult>
   /** False in tests: skip the backfill and the poll timer. */
   autoStart?: boolean
   newId?: () => string
@@ -84,8 +88,8 @@ export class RealMailService implements MailService {
   private readonly index = new ThreadSearchIndex()
   private readonly listeners = new Set<(e: MailEvent) => void>()
   private readonly runtimes = new Map<string, AccountRuntime>()
-  private readonly createClient: (accountId: string, clientId: string, clientSecret: string) => MailGmailClient
-  private readonly authFlow: (platform: Platform, clientId: string, clientSecret: string) => Promise<AuthFlowResult>
+  private readonly createClient: (accountId: string, clientId: string, clientSecret?: string) => MailGmailClient
+  private readonly authFlow: (platform: Platform, clientId: string, clientSecret?: string) => Promise<AuthFlowResult>
   private readonly autoStart: boolean
   private readonly newId: () => string
   private readonly now: () => number
@@ -109,7 +113,7 @@ export class RealMailService implements MailService {
     return service
   }
 
-  private gmailApi(accountId: string, clientId: string, clientSecret: string): MailGmailClient {
+  private gmailApi(accountId: string, clientId: string, clientSecret?: string): MailGmailClient {
     const tokens = new TokenManager({
       platform: this.platform,
       store: this.tokenStore,
@@ -134,8 +138,22 @@ export class RealMailService implements MailService {
       this.store.listAccounts(),
     ])
     for (const account of accounts) {
-      const runtime = this.attach(account, settings)
-      if (this.autoStart) this.beginSync(runtime, settings)
+      // One account with an unreadable token record or no resolvable client
+      // must not take the whole service down at startup — it surfaces as that
+      // account's own error state, and every other account still syncs.
+      try {
+        const runtime = await this.attach(account, settings)
+        if (this.autoStart) this.beginSync(runtime, settings)
+      } catch (err) {
+        this.emit({
+          type: 'syncStatus',
+          status: {
+            accountId: account.id,
+            state: 'error',
+            error: err instanceof Error ? err.message : String(err),
+          },
+        })
+      }
     }
     this.indexReady = this.buildIndex(threads)
   }
@@ -167,11 +185,12 @@ export class RealMailService implements MailService {
     })
   }
 
-  private attach(account: Account, settings: Settings): AccountRuntime {
+  private async attach(account: Account, settings: Settings): Promise<AccountRuntime> {
     if (this.runtimes.has(account.id)) return this.runtimes.get(account.id)!
-    const clientId = settings.googleClientId ?? ''
-    const clientSecret = settings.googleClientSecret ?? ''
-    const client = this.createClient(account.id, clientId, clientSecret)
+    const stored = await this.tokenStore.load(account.id)
+    const oauthClient = resolveOAuthClient({ issuingClient: stored, settings })
+    if (!oauthClient) throw new MissingOAuthClientError()
+    const client = this.createClient(account.id, oauthClient.clientId, oauthClient.clientSecret)
     const engine = new SyncEngine({
       api: client,
       store: this.store,
@@ -213,12 +232,20 @@ export class RealMailService implements MailService {
 
   // -- events ---------------------------------------------------------------
 
+  /** Sync status is emit-only state, and startup errors fire before any UI
+   *  listener exists — so the last status per account is retained and
+   *  replayed to each new subscriber, or the per-account failure isolation
+   *  in start() would signal into a room with nobody in it. */
+  private readonly lastSyncStatus = new Map<string, SyncStatus>()
+
   onEvent(cb: (e: MailEvent) => void): () => void {
     this.listeners.add(cb)
+    for (const status of this.lastSyncStatus.values()) cb({ type: 'syncStatus', status })
     return () => this.listeners.delete(cb)
   }
 
   private emit(e: MailEvent): void {
+    if (e.type === 'syncStatus') this.lastSyncStatus.set(e.status.accountId, e.status)
     for (const cb of [...this.listeners]) cb(e)
   }
 
@@ -230,9 +257,14 @@ export class RealMailService implements MailService {
 
   async addAccount(): Promise<Account> {
     const settings = await this.store.getSettings()
-    if (!settings.googleClientId || !settings.googleClientSecret) throw new MissingOAuthClientError()
+    const oauthClient = resolveOAuthClient({ settings })
+    if (!oauthClient) throw new MissingOAuthClientError()
 
-    const result = await this.authFlow(this.platform, settings.googleClientId, settings.googleClientSecret)
+    const result = await this.authFlow(
+      this.platform,
+      oauthClient.clientId,
+      oauthClient.clientSecret,
+    )
 
     const existing = await this.store.listAccounts()
 
@@ -254,7 +286,8 @@ export class RealMailService implements MailService {
       refreshToken: result.tokens.refreshToken,
       accessToken: result.tokens.accessToken,
       expiresAt: result.tokens.expiresAt,
-      clientId: settings.googleClientId,
+      clientId: oauthClient.clientId,
+      source: oauthClient.source,
     })
     if (current) {
       this.runtimes.get(current.id)?.engine.stop()
@@ -263,7 +296,7 @@ export class RealMailService implements MailService {
       await this.store.upsertAccount(account)
     }
 
-    const runtime = this.attach(account, settings)
+    const runtime = await this.attach(account, settings)
     this.emit({ type: 'accountsChanged' })
     if (this.autoStart) this.beginSync(runtime, settings)
     return account

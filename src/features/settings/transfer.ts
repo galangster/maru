@@ -10,6 +10,10 @@
 // friction. The file says so on its face.
 
 import type { Settings } from '@/core/types'
+import {
+  OFFICIAL_GOOGLE_CLIENT_ID,
+  isOfficialGoogleClientId,
+} from '@/core/auth/client-config'
 import { sha256Hex } from '@/lib/hash'
 
 export const TRANSFER_VERSION = 1
@@ -59,9 +63,16 @@ function canonical(settings: Partial<TransferSettings>): string {
 export async function exportSettings(
   settings: Settings,
   exportedAt: Date = new Date(),
+  officialClientId: string | undefined = OFFICIAL_GOOGLE_CLIENT_ID,
 ): Promise<string> {
   const picked: Partial<TransferSettings> = {}
   for (const field of FIELDS) {
+    if (
+      (field === 'googleClientId' || field === 'googleClientSecret') &&
+      isOfficialGoogleClientId(settings.googleClientId, officialClientId)
+    ) {
+      continue
+    }
     const value = settings[field]
     if (value !== undefined) (picked as Record<string, unknown>)[field] = value
   }

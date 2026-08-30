@@ -41,6 +41,19 @@ describe('exportSettings → parseSettingsTransfer', () => {
     expect(text).not.toContain('wren_agent_')
   })
 
+  it('never exports an official client id or its paired secret', async () => {
+    const text = await exportSettings(
+      { ...SETTINGS, googleClientId: 'official-client', googleClientSecret: 'ignored-secret' },
+      new Date('2026-08-29T12:00:00Z'),
+      'official-client',
+    )
+    const file = JSON.parse(text)
+    expect(file.settings.googleClientId).toBeUndefined()
+    expect(file.settings.googleClientSecret).toBeUndefined()
+    expect(text).not.toContain('official-client')
+    expect(text).not.toContain('ignored-secret')
+  })
+
   it('refuses altered text by checksum, whole-file', async () => {
     const text = await exportSettings(SETTINGS)
     const tampered = text.replace('"theme": "dark"', '"theme": "light"')

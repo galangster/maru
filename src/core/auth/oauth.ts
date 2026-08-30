@@ -1,24 +1,20 @@
 // Google OAuth 2.0 for an installed app: loopback redirect + PKCE (S256).
 //
-// Google still issues a client_secret for the "Desktop app" client type and
-// accepts it on the token exchange, so Wren sends it. Per RFC 8252 it is not a
-// security boundary — PKCE is what protects the exchange.
+// Desktop clients are public clients. A client_secret is optional, and PKCE is
+// what protects the exchange.
 //
 // Nothing in this file logs a token, a code, or a secret.
 
 import type { Platform } from '../platform'
 import { base64UrlEncodeBytes } from '../mime'
+import type { OAuthClientSource } from './client-config'
 
 export const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 export const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 export const GMAIL_PROFILE_ENDPOINT = 'https://gmail.googleapis.com/gmail/v1/users/me/profile'
 
-export const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/gmail.send',
-  'openid',
-  'email',
-] as const
+export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify'
+export const GOOGLE_SCOPES = [GMAIL_MODIFY_SCOPE] as const
 
 /** Ephemeral range, high enough to avoid the common dev-server ports. */
 export const PORT_MIN = 49500
@@ -39,6 +35,18 @@ export class OAuthError extends Error {
   }
 }
 
+export class OAuthClientError extends OAuthError {
+  readonly clientFailure = true
+
+  constructor(code: string) {
+    super(
+      code,
+      `Google rejected this account's OAuth client (${code}). Check the OAuth client in Settings.`,
+    )
+    this.name = 'OAuthClientError'
+  }
+}
+
 export interface OAuthTokens {
   accessToken: string
   refreshToken: string
@@ -50,6 +58,7 @@ export interface StoredAccountTokens {
   accessToken?: string
   expiresAt?: number
   clientId: string
+  source: OAuthClientSource
 }
 
 // ---------------------------------------------------------------------------
@@ -140,11 +149,12 @@ interface TokenResponse {
   access_token?: string
   refresh_token?: string
   expires_in?: number
+  scope?: string
   error?: string
   error_description?: string
 }
 
-const REAUTH_CODES = new Set(['invalid_grant', 'unauthorized_client', 'invalid_client'])
+const CLIENT_FAILURE_CODES = new Set(['invalid_client', 'deleted_client', 'unauthorized_client'])
 
 async function postToken(platform: Platform, form: URLSearchParams): Promise<TokenResponse> {
   const res = await platform.fetch(TOKEN_ENDPOINT, {
@@ -160,9 +170,10 @@ async function postToken(platform: Platform, form: URLSearchParams): Promise<Tok
   }
   if (!res.ok || json.error) {
     const code = json.error ?? `http_${res.status}`
+    if (CLIENT_FAILURE_CODES.has(code)) throw new OAuthClientError(code)
     // Only Google's own error code and description travel into the message;
     // the request body (which holds the code and secret) never does.
-    throw new OAuthError(code, `Google rejected the token request: ${code}`, REAUTH_CODES.has(code))
+    throw new OAuthError(code, `Google rejected the token request: ${code}`, code === 'invalid_grant')
   }
   if (!json.access_token) throw new OAuthError('no_access_token', 'Google returned no access token')
   return json
@@ -170,7 +181,7 @@ async function postToken(platform: Platform, form: URLSearchParams): Promise<Tok
 
 export interface ExchangeParams {
   clientId: string
-  clientSecret: string
+  clientSecret?: string
   code: string
   codeVerifier: string
   redirectUri: string
@@ -178,22 +189,28 @@ export interface ExchangeParams {
 }
 
 export async function exchangeCode(platform: Platform, p: ExchangeParams): Promise<OAuthTokens> {
-  const json = await postToken(
-    platform,
-    new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: p.code,
-      code_verifier: p.codeVerifier,
-      client_id: p.clientId,
-      client_secret: p.clientSecret,
-      redirect_uri: p.redirectUri,
-    }),
-  )
+  const form = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: p.code,
+    code_verifier: p.codeVerifier,
+    client_id: p.clientId,
+    redirect_uri: p.redirectUri,
+  })
+  if (p.clientSecret) form.set('client_secret', p.clientSecret)
+  const json = await postToken(platform, form)
   if (!json.refresh_token) {
     throw new OAuthError(
       'no_refresh_token',
       'Google returned no refresh token. Remove Wren from your Google account permissions and try again.',
       true,
+    )
+  }
+  const grantedScopes = new Set(json.scope?.split(/\s+/).filter(Boolean) ?? [])
+  const missing = GOOGLE_SCOPES.filter((scope) => !grantedScopes.has(scope))
+  if (missing.length > 0) {
+    throw new OAuthError(
+      'missing_scope',
+      'Google did not grant Gmail access. Approve it on the consent screen, then add the account again.',
     )
   }
   return {
@@ -205,21 +222,19 @@ export async function exchangeCode(platform: Platform, p: ExchangeParams): Promi
 
 export interface RefreshParams {
   clientId: string
-  clientSecret: string
+  clientSecret?: string
   refreshToken: string
   now?: number
 }
 
 export async function refreshAccessToken(platform: Platform, p: RefreshParams): Promise<OAuthTokens> {
-  const json = await postToken(
-    platform,
-    new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: p.refreshToken,
-      client_id: p.clientId,
-      client_secret: p.clientSecret,
-    }),
-  )
+  const form = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: p.refreshToken,
+    client_id: p.clientId,
+  })
+  if (p.clientSecret) form.set('client_secret', p.clientSecret)
+  const json = await postToken(platform, form)
   return {
     accessToken: json.access_token!,
     // Google usually omits refresh_token on a refresh: keep the one we hold.
@@ -243,8 +258,24 @@ export class TokenStore {
     const raw = await this.platform.secretGet(tokenKey(accountId))
     if (!raw) return null
     try {
-      const parsed = JSON.parse(raw) as StoredAccountTokens
-      return parsed && typeof parsed.refreshToken === 'string' ? parsed : null
+      const parsed = JSON.parse(raw) as Partial<StoredAccountTokens>
+      if (
+        !parsed ||
+        typeof parsed.refreshToken !== 'string' ||
+        typeof parsed.clientId !== 'string'
+      ) {
+        return null
+      }
+      // Known fields only — unknown keys from old records must not ride along
+      // and re-persist forever on the next save.
+      return {
+        refreshToken: parsed.refreshToken,
+        accessToken: parsed.accessToken,
+        expiresAt: parsed.expiresAt,
+        clientId: parsed.clientId,
+        // Records written before client provenance existed were all BYO.
+        source: parsed.source === 'official' ? 'official' : 'custom',
+      }
     } catch {
       return null
     }
@@ -267,8 +298,8 @@ export interface TokenManagerOptions {
   platform: Platform
   store: TokenStore
   accountId: string
-  clientId: string
-  clientSecret: string
+  clientId?: string
+  clientSecret?: string
   now?: () => number
 }
 
@@ -329,8 +360,8 @@ export class TokenManager {
   private async doRefresh(): Promise<string> {
     const stored = this.cached ?? (await this.load())
     const tokens = await refreshAccessToken(this.opts.platform, {
-      clientId: this.opts.clientId,
-      clientSecret: this.opts.clientSecret,
+      clientId: stored.clientId,
+      clientSecret: this.opts.clientId === stored.clientId ? this.opts.clientSecret : undefined,
       refreshToken: stored.refreshToken,
       now: this.now(),
     })
@@ -338,7 +369,8 @@ export class TokenManager {
       refreshToken: tokens.refreshToken,
       accessToken: tokens.accessToken,
       expiresAt: tokens.expiresAt,
-      clientId: this.opts.clientId,
+      clientId: stored.clientId,
+      source: stored.source,
     }
     this.cached = next
     await this.opts.store.save(this.opts.accountId, next)
@@ -368,7 +400,7 @@ function parseCallback(path: string): URLSearchParams {
 export async function runAuthFlow(
   platform: Platform,
   clientId: string,
-  clientSecret: string,
+  clientSecret?: string,
   opts: { random?: () => number; now?: number } = {},
 ): Promise<AuthFlowResult> {
   const port = pickLoopbackPort(opts.random)
@@ -386,7 +418,10 @@ export async function runAuthFlow(
 
   const params = parseCallback(await callback)
   const error = params.get('error')
-  if (error) throw new OAuthError(error, `Google returned "${error}" from the consent screen`)
+  if (error) {
+    if (CLIENT_FAILURE_CODES.has(error)) throw new OAuthClientError(error)
+    throw new OAuthError(error, `Google returned "${error}" from the consent screen`)
+  }
   if (params.get('state') !== state) {
     throw new OAuthError('state_mismatch', 'The sign-in response did not match this request')
   }
