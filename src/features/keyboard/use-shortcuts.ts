@@ -23,9 +23,15 @@ import { UNIFIED_ORDER } from '@/core/defaults'
 import type { MailActionType, Thread } from '@/core/types'
 import { requestComposerClose } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
-import { keys as queryKeys, registerActionUndo, usePerformAction } from '@/features/mail/queries'
+import {
+  keys as queryKeys,
+  registerActionUndo,
+  showUndoToast,
+  usePerformAction,
+} from '@/features/mail/queries'
 import { threadActions } from '@/features/mail/thread-actions'
 import { useUi } from '@/features/mail/ui-store'
+import { bulkAction, isBulkAction } from '@/features/list/bulk'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
@@ -57,6 +63,12 @@ export function useShortcuts() {
   const live = useRef<Live>(null as unknown as Live)
   live.current = {
     act: (type) => {
+      // Checked threads turn the triage keys into batch verbs — pressing `e`
+      // with twelve threads marked archives the twelve, not the one under the
+      // cursor. Star stays per-thread; with nothing checked, bulkAction acts
+      // on nothing and reports zero, and the key falls through to the row.
+      if (isBulkAction(type) && bulkAction((a) => action.mutate(a), live.current.threads(), type) > 0)
+        return
       const selected = useUi.getState().selected
       if (!selected) return
       // Removing the thread you are on selects the next one *first*, so the
@@ -72,10 +84,7 @@ export function useShortcuts() {
       // keyboard path has no row animation to stand in for the confirmation.
       registerActionUndo(action.mutate, next)
       if (type !== 'archive' && type !== 'trash') return
-      toast(type === 'archive' ? 'Archived' : 'Moved to trash', {
-        id: UNDO_TOAST_ID,
-        action: { label: 'Undo', onClick: () => useUi.getState().runUndo() },
-      })
+      showUndoToast(type === 'archive' ? 'Archived' : 'Moved to trash')
     },
     markRead: (threadKey) => action.mutate({ type: 'markRead', threadKey }),
     compose,
@@ -126,6 +135,7 @@ export function useShortcuts() {
       // row, the toolbar and the palette render, so `#` on a trashed thread
       // restores it for exactly the reason the button says it will.
       archive: () => live.current.act('archive'),
+      select: () => withThread((t) => useUi.getState().toggleChecked(t.key)),
       trash: () => withThread((t) => live.current.act(threadActions(t).trash.type)),
       star: () => withThread((t) => live.current.act(threadActions(t).star.type)),
       read: () => withThread((t) => live.current.act(threadActions(t).read.type)),
@@ -270,11 +280,16 @@ export function useShortcuts() {
         return
       }
 
-      // Topmost first: the search bar, then the composer.
+      // Topmost first: the search bar, then a pending batch, then the composer.
       if (event.key === 'Escape') {
         if (useSurfaces.getState().searchOpen) {
           event.preventDefault()
           useSurfaces.getState().closeSearch()
+          return
+        }
+        if (useUi.getState().checked.size > 0) {
+          event.preventDefault()
+          useUi.getState().clearChecked()
           return
         }
         if (requestComposerClose()) event.preventDefault()

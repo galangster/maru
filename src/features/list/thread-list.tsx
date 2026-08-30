@@ -8,7 +8,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { toast } from 'sonner'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { Icon } from '@/components/ui/icon'
@@ -17,6 +16,7 @@ import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
   MIN_SEARCH_LENGTH,
   registerActionUndo,
+  showUndoToast,
   useAccountsById,
   useLabels,
   usePerformAction,
@@ -30,12 +30,12 @@ import { useSurfaces } from '@/features/shell/surface-store'
 import { HeldMutations } from '@/lib/deferred'
 import { dateGroup, type DateGroup } from '@/lib/format'
 import { DUR } from '@/lib/motion'
-import { UNDO_TOAST_ID } from '@/lib/undo'
 import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 import { EmptyState } from '@/components/empty-state'
+import { bulkAction, type BulkActionType } from './bulk'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
 import { ListControls } from './list-controls'
 import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
@@ -76,6 +76,7 @@ export function ThreadList() {
   const view = useUi((s) => s.view)
   const selected = useUi((s) => s.selected)
   const setSelected = useUi((s) => s.setSelected)
+  const checked = useUi((s) => s.checked)
   const now = useNow()
   const service = useMailService()
 
@@ -143,8 +144,27 @@ export function ThreadList() {
   // composer's held send makes, through the same helper.
   useEffect(() => () => held.flushAll(), [held])
 
+  // The rows' copy of the advance rule: acting on the *selected* thread
+  // (archive/trash from the hover cluster) selects the next visible one
+  // immediately — the pane shows it while the old row animates out.
+  const visibleRef = useRef<Thread[]>([])
+  visibleRef.current = rows.filter((r) => r.kind === 'thread').map((r) => r.thread)
+
   const onSelect = useCallback(
-    (thread: Thread) => {
+    (thread: Thread, shiftKey: boolean) => {
+      // Shift-click extends the batch from the last toggled row, both
+      // directions, like every list since the Finder. It never opens the
+      // thread — a range is an intent about many, not a read of one.
+      const ui = useUi.getState()
+      if (shiftKey && ui.checkAnchor) {
+        const list = visibleRef.current
+        const a = list.findIndex((t) => t.key === ui.checkAnchor)
+        const b = list.findIndex((t) => t.key === thread.key)
+        if (a !== -1 && b !== -1) {
+          ui.checkMany(list.slice(Math.min(a, b), Math.max(a, b) + 1).map((t) => t.key))
+          return
+        }
+      }
       // Pointer-initiated: the reading pane is licensed to animate its arrival.
       // j/k traversal passes 'keyboard' and gets a hard cut instead.
       setSelected(thread.key, 'pointer')
@@ -153,11 +173,13 @@ export function ThreadList() {
     [setSelected],
   )
 
-  // The rows' copy of the advance rule: acting on the *selected* thread
-  // (archive/trash from the hover cluster) selects the next visible one
-  // immediately — the pane shows it while the old row animates out.
-  const visibleRef = useRef<Thread[]>([])
-  visibleRef.current = rows.filter((r) => r.kind === 'thread').map((r) => r.thread)
+  const onCheck = useCallback((thread: Thread) => {
+    useUi.getState().toggleChecked(thread.key)
+  }, [])
+
+  const onBulk = useCallback((type: BulkActionType) => {
+    bulkAction((a) => actionRef.current.mutate(a), visibleRef.current, type)
+  }, [])
 
   const onAction = useCallback(
     (thread: Thread, type: MailActionType) => {
@@ -214,11 +236,7 @@ export function ThreadList() {
       // DIRECTION §2 (Superhuman 5): small, bottom-left, inline UNDO. The
       // affordance is on screen for the toast's own life; ⌘Z keeps offering the
       // same undo for the rest of the 10 s window.
-      toast('Archived', {
-        id: UNDO_TOAST_ID,
-        description: thread.subject || '(no subject)',
-        action: { label: 'Undo', onClick: () => useUi.getState().runUndo() },
-      })
+      showUndoToast('Archived', thread.subject || '(no subject)')
     },
     [held],
   )
@@ -234,6 +252,11 @@ export function ThreadList() {
       : (labelName ?? 'Label')
   const subtitle =
     view.kind === 'account' ? accountsById.get(view.accountId)?.email : undefined
+
+  const checkedCount = useMemo(
+    () => rows.filter((r) => r.kind === 'thread' && checked.has(r.thread.key)).length,
+    [rows, checked],
+  )
 
   const showAccount = view.kind === 'unified' && accounts.length > 1
   const hits = searching ? (results.data ?? []) : []
@@ -290,10 +313,40 @@ export function ThreadList() {
         </div>
       )}
 
+      {/* The bulk bar: the batch's verbs, in the same strip the lens and the
+          search count use. It exists only while something is checked, and it
+          outranks the lens bar — a pending batch is the more urgent fact
+          about the list. */}
+      {!searching && checkedCount > 0 && (
+        <div className="border-hairline flex h-8 shrink-0 items-center gap-3 border-b px-4 text-xs">
+          <span className="text-ink font-medium whitespace-nowrap tabular-nums">
+            {checkedCount} selected
+          </span>
+          {checkedCount < threadCount && (
+            <StripButton
+              label={`All ${threadCount}`}
+              onClick={() => useUi.getState().checkMany(visibleRef.current.map((t) => t.key))}
+            />
+          )}
+          <span className="flex-1" />
+          {view.kind === 'unified' && view.folder === 'trash' ? (
+            <StripButton label="Restore" onClick={() => onBulk('untrash')} />
+          ) : (
+            <>
+              <StripButton label="Archive" onClick={() => onBulk('archive')} />
+              <StripButton label="Trash" onClick={() => onBulk('trash')} />
+            </>
+          )}
+          <StripButton label="Read" onClick={() => onBulk('markRead')} />
+          <StripButton label="Unread" onClick={() => onBulk('markUnread')} />
+          <StripButton label="Clear" hint="esc" onClick={() => useUi.getState().clearChecked()} />
+        </div>
+      )}
+
       {/* The lens bar: the same strip the search count uses, shown while the
           list is not the whole mailbox. The list must never quietly be a
           subset — the strip names the lens and offers the way back. */}
-      {!searching && lensed && (
+      {!searching && checkedCount === 0 && lensed && (
         <div className="border-hairline text-ink-3 flex h-8 shrink-0 items-center gap-1 border-b px-4 text-xs">
           <span>
             {FILTER_LABELS[prefs.filter]}
@@ -303,13 +356,9 @@ export function ThreadList() {
           <span className="tabular-nums">
             {threadCount} thread{threadCount === 1 ? '' : 's'}
           </span>
-          <button
-            type="button"
-            onClick={() => setListPrefs(view, DEFAULT_LIST_PREFS)}
-            className="focus-ring text-ink-2 hover:text-ink ml-auto rounded-sm font-medium"
-          >
-            Reset
-          </button>
+          <span className="ml-auto">
+            <StripButton label="Reset" onClick={() => setListPrefs(view, DEFAULT_LIST_PREFS)} />
+          </span>
         </div>
       )}
 
@@ -345,7 +394,7 @@ export function ThreadList() {
                     role="option"
                     aria-selected={selected === thread.key}
                     data-thread-key={thread.key}
-                    onClick={() => onSelect(thread)}
+                    onClick={(event) => onSelect(thread, event.shiftKey)}
                     className={cn(
                       'rounded-row flex h-(--wren-row-h-compact) w-full items-center px-2 text-left',
                       'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
@@ -424,11 +473,13 @@ export function ThreadList() {
                       thread={row.thread}
                       account={accountsById.get(row.thread.accountId)}
                       selected={selected === row.thread.key}
+                      checked={checked.has(row.thread.key)}
                       showAccount={showAccount}
                       selfEmails={selfEmails}
                       ticking={ticking === row.thread.key}
                       onSelect={onSelect}
                       onAction={onAction}
+                      onCheck={onCheck}
                     />
                   )}
                 </div>
@@ -438,6 +489,30 @@ export function ThreadList() {
         )}
       </div>
     </section>
+  )
+}
+
+/** The 8-high strips' one text button — the bulk bar's verbs and the lens
+ *  bar's Reset. Feature-local on purpose: the kit's textButtonClass is
+ *  surface geometry (h-8 rounded-full), not strip geometry. */
+function StripButton({
+  label,
+  hint,
+  onClick,
+}: {
+  label: string
+  hint?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="focus-ring text-ink-2 hover:text-ink rounded-sm font-medium whitespace-nowrap"
+    >
+      {label}
+      {hint && <span className="text-ink-3 ml-1">{hint}</span>}
+    </button>
   )
 }
 

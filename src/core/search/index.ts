@@ -109,6 +109,13 @@ export class ThreadSearchIndex {
     for (const key of keys) this.remove(key)
   }
 
+  /** Every indexed thread, newest first — the base for operator-only queries. */
+  all(): Thread[] {
+    return [...this.threads.values()].sort(
+      (a, b) => b.lastMessageAt - a.lastMessageAt || a.key.localeCompare(b.key),
+    )
+  }
+
   /** Threads in local relevance order. */
   search(query: string, limit = 100): Thread[] {
     const q = query.trim()

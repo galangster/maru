@@ -67,6 +67,15 @@ interface UiState {
   /** Thread keys the user has un-blocked images for. Session scoped, on purpose. */
   imagesAllowed: Set<string>
   /**
+   * Bulk selection: the threads marked (`x`, shift-click, select-all) for one
+   * batch action. Distinct from `selected`, which is the thread being *read*.
+   * Session scoped and dropped on view change — a batch is an intent about
+   * the list on screen, not a persistent set.
+   */
+  checked: ReadonlySet<string>
+  /** The last key toggled — the fixed end of a shift-click range. */
+  checkAnchor: string | null
+  /**
    * Per-view list preferences, keyed by `viewKey`. Sparse: a view absent here
    * is at `DEFAULT_LIST_PREFS`. Session scoped like the rest of this store —
    * a filter is a way of looking, not a setting.
@@ -88,6 +97,10 @@ interface UiState {
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleAccount: (accountId: string) => void
   allowImages: (threadKey: string) => void
+  toggleChecked: (threadKey: string) => void
+  /** Add a batch (a shift-click range, or select-all). Never removes. */
+  checkMany: (threadKeys: string[]) => void
+  clearChecked: () => void
   /** Change part of a view's list lens; the rest keeps its current value. */
   setListPrefs: (view: MailView, patch: Partial<ListPrefs>) => void
   setReadingExpansion: (next: ReadingExpansion) => void
@@ -112,6 +125,8 @@ export const useUi = create<UiState>((set, get) => ({
   expandedAccounts:
     INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
   imagesAllowed: new Set<string>(),
+  checked: new Set<string>(),
+  checkAnchor: null,
   listPrefs: {},
   readingExpansion: 'default',
   undoable: null,
@@ -123,6 +138,8 @@ export const useUi = create<UiState>((set, get) => ({
     set((s) => ({
       view,
       selected: null,
+      checked: new Set<string>(),
+      checkAnchor: null,
       readingExpansion: 'default',
       expandedAccounts:
         view.kind === 'account'
@@ -139,6 +156,20 @@ export const useUi = create<UiState>((set, get) => ({
     })),
   allowImages: (threadKey) =>
     set((s) => ({ imagesAllowed: new Set(s.imagesAllowed).add(threadKey) })),
+  toggleChecked: (threadKey) =>
+    set((s) => {
+      const checked = new Set(s.checked)
+      if (checked.has(threadKey)) checked.delete(threadKey)
+      else checked.add(threadKey)
+      return { checked, checkAnchor: threadKey }
+    }),
+  checkMany: (threadKeys) =>
+    set((s) => {
+      const checked = new Set(s.checked)
+      for (const key of threadKeys) checked.add(key)
+      return { checked }
+    }),
+  clearChecked: () => set({ checked: new Set<string>(), checkAnchor: null }),
   setReadingExpansion: (readingExpansion) => set({ readingExpansion }),
   setListPrefs: (view, patch) =>
     set((s) => {
@@ -148,7 +179,14 @@ export const useUi = create<UiState>((set, get) => ({
       // A re-picked verb is a no-op: keeping the map's identity is what keeps
       // the list from re-filtering and re-rendering for nothing.
       if (next.sort === current.sort && next.filter === current.filter) return s
-      return { listPrefs: { ...s.listPrefs, [key]: next } }
+      // A lens change replaces the list on screen, and the batch was an
+      // intent about that list — so it is dropped here, by the state's owner,
+      // rather than survived invisibly and re-materialized by a later toggle.
+      return {
+        listPrefs: { ...s.listPrefs, [key]: next },
+        checked: new Set<string>(),
+        checkAnchor: null,
+      }
     }),
 
   registerUndo: (entry) => set({ undoable: { ...entry, at: Date.now() } }),

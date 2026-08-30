@@ -4,6 +4,7 @@
 // reviewer sees before they have set up a Google OAuth client. It implements
 // the same MailService contract as the real one, including events.
 
+import { searchWithOperators } from '../search/operators'
 import { ThreadSearchIndex } from '../search/index'
 import { buildDemoData, buildExtraAccount, labelsFor } from '../demo/fixtures'
 import { applyLabelChanges, applyActionToMessage, applyActionToThread } from './actions'
@@ -152,7 +153,10 @@ export class DemoMailService implements MailService {
   }
 
   async search(q: string): Promise<Thread[]> {
-    return this.index.search(q).map((t) => ({ ...t }))
+    const labels = (
+      await Promise.all(this.accounts.map((a) => this.listLabels(a.id)))
+    ).flat()
+    return searchWithOperators(this.index, q, labels).map((t) => ({ ...t }))
   }
 
   async refresh(): Promise<void> {

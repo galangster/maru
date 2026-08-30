@@ -27,6 +27,7 @@ export type ShortcutId =
   | 'scan'
   | 'expandAll'
   | 'folders'
+  | 'select'
   | 'archive'
   | 'trash'
   | 'star'
@@ -69,6 +70,9 @@ export const SHORTCUTS: ShortcutSpec[] = [
   { id: 'expandAll', keys: ['O'], label: 'Expand or collapse all messages', group: 'Move', key: 'o' },
   { id: 'folders', keys: [`${MOD}1`, `${MOD}4`], label: 'Inbox … Trash', group: 'Move' },
 
+  // `x`, Gmail's select. Checked threads turn e/#/u into batch verbs; the
+  // bulk bar above the list offers the same verbs to the mouse.
+  { id: 'select', keys: ['X'], label: 'Select for a batch', group: 'Triage', key: 'x' },
   { id: 'archive', keys: ['E'], label: 'Archive', group: 'Triage', key: 'e', aliases: ['Backspace', 'Delete'] },
   { id: 'trash', keys: ['#'], label: 'Trash or restore', group: 'Triage', key: '#' },
   { id: 'star', keys: ['S'], label: 'Star', group: 'Triage', key: 's' },

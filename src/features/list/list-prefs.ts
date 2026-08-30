@@ -75,11 +75,17 @@ export function filterEmptyCopy(filter: Exclude<ListFilter, 'all'>): EmptyCopy {
  * nothing when it was alone. One keystroke per message — e, e, e — is the
  * whole point (P10 ruling), so this is computed *before* the row goes.
  */
-export function nextAfterRemoval(visible: Thread[], removedKey: string): string | null {
-  const index = visible.findIndex((t) => t.key === removedKey)
+export function nextAfterRemoval(
+  visible: Thread[],
+  removed: string | ReadonlySet<string>,
+): string | null {
+  const gone = typeof removed === 'string' ? new Set([removed]) : removed
+  const index = visible.findIndex((t) => gone.has(t.key))
   if (index === -1) return null
-  const next = visible[index + 1] ?? visible[index - 1]
-  return next ? next.key : null
+  for (let i = index + 1; i < visible.length; i++)
+    if (!gone.has(visible[i].key)) return visible[i].key
+  for (let i = index - 1; i >= 0; i--) if (!gone.has(visible[i].key)) return visible[i].key
+  return null
 }
 
 /**

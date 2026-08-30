@@ -113,6 +113,17 @@ unblocked), P4 behind R3a's owner read + the film, P6 behind the flip.
   morning. Remaining on the map: P4 (Nick's R3a read + Google flip),
   P11 (unclaimed, needs his yes), the film, and P2's carried check
   (fullscreen traffic lights).
+- **P11 closed** (overnight, 2026-08-30, under Nick's "ship more"
+  directive): Gmail-grammar search operators (`from:`/`to:`/`is:`/
+  `has:attachment`/`label:`, quoted values, operator-only queries over
+  the whole index) shared by both services via
+  `src/core/search/operators.ts`, and bulk triage (`x`, shift-click
+  ranges, select-all, the bulk strip, batch verbs on `e`/`#`/`u`, ONE
+  undo per batch, lens-change clears the batch). 447 tests; /simplify's
+  two-agent pass applied nine findings (three skips recorded in the
+  ticket). Windows CI got the updater signing key the same night; the
+  build was dispatched to attach an installer to v0.1.0. Remaining:
+  P4, the film, fullscreen lights, Windows hand-smoke.
 
 ## Not yet specified
 

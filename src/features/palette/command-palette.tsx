@@ -141,7 +141,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           autoFocus
           value={query}
           onValueChange={setQuery}
-          placeholder="Search threads, or run a command…"
+          placeholder="Search threads (from: is:unread label:), or run a command…"
           className="text-ink placeholder:text-ink-3 h-8 min-w-0 flex-1 bg-transparent text-base outline-none"
         />
       </div>

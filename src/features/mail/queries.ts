@@ -18,7 +18,10 @@ import type {
   Thread,
   Settings,
 } from '@/core/types'
+import { toast } from 'sonner'
+
 import { playSound } from '@/lib/sound'
+import { UNDO_TOAST_ID } from '@/lib/undo'
 
 import { useMailService } from './service'
 import { useUi, viewKey } from './ui-store'
@@ -209,7 +212,7 @@ interface ActionContext {
 }
 
 /** Past tense, because it is what the confirmation says happened. */
-const UNDO_LABELS: Record<MailActionType, string> = {
+export const UNDO_LABELS: Record<MailActionType, string> = {
   archive: 'Archived',
   unarchive: 'Moved to Inbox',
   trash: 'Moved to trash',
@@ -232,6 +235,16 @@ const UNDO_LABELS: Record<MailActionType, string> = {
  * The reverse is dispatched through `mutate` and not through this function, so
  * an undo never registers a redo: ⌘Z twice is one undo, not a loop.
  */
+/** The one undo toast. Every surface that offers an inline Undo goes through
+ *  here, so the id, the action wiring and the wording cannot drift apart. */
+export function showUndoToast(label: string, description?: string): void {
+  toast(label, {
+    id: UNDO_TOAST_ID,
+    description,
+    action: { label: 'Undo', onClick: () => useUi.getState().runUndo() },
+  })
+}
+
 export function registerActionUndo(
   mutate: (action: MailAction) => void,
   action: MailAction,

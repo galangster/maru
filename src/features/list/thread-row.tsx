@@ -31,6 +31,8 @@ export interface ThreadRowProps {
   thread: Thread
   account: Account | undefined
   selected: boolean
+  /** Marked for a batch action — `x`, shift-click, or the avatar. */
+  checked: boolean
   showAccount: boolean
   selfEmails: string[]
   /**
@@ -45,8 +47,9 @@ export interface ThreadRowProps {
    * per-row arrow made the memo a no-op and re-rendered the whole viewport on
    * every keystroke in the search field.
    */
-  onSelect: (thread: Thread) => void
+  onSelect: (thread: Thread, shiftKey: boolean) => void
   onAction: (thread: Thread, type: MailActionType) => void
+  onCheck: (thread: Thread) => void
 }
 
 /** The DOM id of a row, so the listbox can point `aria-activedescendant` at it.
@@ -60,11 +63,13 @@ export const ThreadRow = memo(function ThreadRow({
   thread,
   account,
   selected,
+  checked,
   showAccount,
   selfEmails,
   ticking = false,
   onSelect,
   onAction,
+  onCheck,
 }: ThreadRowProps) {
   // The row owns its own clock. Held by the list, the minute tick re-rendered
   // every row in the viewport; here it re-renders only the timestamps.
@@ -81,7 +86,7 @@ export const ThreadRow = memo(function ThreadRow({
       aria-selected={selected}
       data-thread-key={thread.key}
       data-unread={thread.unread || undefined}
-      onClick={() => onSelect(thread)}
+      onClick={(event) => onSelect(thread, event.shiftKey)}
       // The exit is transform and opacity only, and it starts 120 ms after the
       // tick so the check is legible before the row leaves. Rows below settle
       // through the virtualizer's own translateY — never an animated height.
@@ -105,7 +110,9 @@ export const ThreadRow = memo(function ThreadRow({
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         selected
           ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring/50 group-focus-visible/listbox:ring-inset'
-          : 'hover:bg-fill-hover',
+          : checked
+            ? 'bg-fill-selected'
+            : 'hover:bg-fill-hover',
         ticking && 'pointer-events-none',
       )}
     >
@@ -118,15 +125,32 @@ export const ThreadRow = memo(function ThreadRow({
         )}
       </span>
 
+      {/* The avatar is also the mouse's checkbox, the way Gmail's is: a
+          click on it checks the thread instead of opening it. Not a button —
+          ARIA forbids focusable content inside an option — the keyboard's way
+          in is `x`, printed in the sheet. */}
       {ticking ? (
         <ArchiveTick />
       ) : (
-        <AccountAvatar
-          address={lead}
-          hue={hueFor(lead.email)}
-          ringHue={showAccount && account ? hueFor(account.email) : undefined}
-        />
+        <span
+          className="inline-flex shrink-0"
+          onClick={(event) => {
+            event.stopPropagation()
+            onCheck(thread)
+          }}
+        >
+          {checked ? (
+            <CheckedChip />
+          ) : (
+            <AccountAvatar
+              address={lead}
+              hue={hueFor(lead.email)}
+              ringHue={showAccount && account ? hueFor(account.email) : undefined}
+            />
+          )}
+        </span>
       )}
+      {checked && <span className="sr-only">Selected for a batch</span>}
       {showAccount && account && <span className="sr-only">{account.email}</span>}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -203,6 +227,17 @@ export const ThreadRow = memo(function ThreadRow({
     </div>
   )
 })
+
+/** The checked state, in the avatar's slot and geometry: one shape changing,
+ *  exactly like the archive tick, but in the brand colour and with no pop —
+ *  checking is an intent, not a completion. */
+function CheckedChip() {
+  return (
+    <span aria-hidden className={cn(AVATAR_CHIP, 'bg-brand text-primary-foreground')}>
+      <Icon name="check" size={16} />
+    </span>
+  )
+}
 
 /**
  * The archive celebration, and the whole of it — AMIE-STUDY §7(c).1.

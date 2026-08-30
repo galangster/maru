@@ -168,5 +168,18 @@ where, why, proof.
     triple-verified, published by Nick, and confirmed from outside with
     the auto-update endpoint resolving. Proof: the release itself.
 
+21. **P11, operators + bulk triage.** Search grew Gmail's grammar
+    (`from:` `to:` `is:unread/read/starred` `has:attachment` `label:`,
+    quoted values; operator-only queries walk the whole index newest
+    first; unknown labels match nothing) in one shared layer under both
+    services. The list grew a batch: `x` / shift-click / avatar-click /
+    select-all, a bulk strip (Archive, Trash or Restore, Read, Unread,
+    Clear), triage keys act on the batch, one undo per batch, and a
+    lens change drops the batch by store-owned rule. Where:
+    src/core/search/operators.ts, src/features/list/{bulk.ts,
+    thread-list.tsx,thread-row.tsx}, ui-store, keymap. Why: Nick's
+    "ship more" overnight directive, 2026-08-30 (ticket P11). Proof:
+    this commit; 447 tests; live demo verification.
+
 Unchanged from baseline: MailService/Platform contracts (additive only),
 engine test suite semantics, fonts, PRD scope.

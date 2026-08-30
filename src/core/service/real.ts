@@ -5,6 +5,7 @@
 // threadsChanged event happen first, the Gmail call second, and a failure
 // restores the exact rows that were replaced.
 
+import { searchWithOperators } from '../search/operators'
 import type { Platform } from '../platform'
 import type { Store } from '../store/db'
 import { GmailApi } from '../gmail/api'
@@ -313,7 +314,11 @@ export class RealMailService implements MailService {
 
   async search(q: string): Promise<Thread[]> {
     await this.indexReady
-    return this.index.search(q)
+    const accounts = await this.store.listAccounts()
+    const labels = (
+      await Promise.all(accounts.map((a) => this.store.listLabels(a.id)))
+    ).flat()
+    return searchWithOperators(this.index, q, labels)
   }
 
   async refresh(): Promise<void> {
