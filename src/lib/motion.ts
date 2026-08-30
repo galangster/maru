@@ -5,7 +5,7 @@
 // seconds that motion/react wants.
 //
 // Division of labour:
-//   * motion/react drives the surfaces Wren mounts itself — the composer
+//   * motion/react drives the surfaces Maru mounts itself — the composer
 //     sheet, the reading pane's content, the onboarding cards.
 //   * CSS keyframes drive every surface Base UI mounts (dialogs, popovers,
 //     tooltips, menus), because Base UI is the unmount authority there and
@@ -30,7 +30,7 @@ export const EASE_OUT = [0.22, 1, 0.36, 1] as const
 /**
  * DIRECTION's second easing, `--wren-ease-in-out`, is not mirrored here on
  * purpose: it is for movement between two on-screen states, which is CSS
- * transition work. Nothing motion/react drives in Wren needs it.
+ * transition work. Nothing motion/react drives in Maru needs it.
  */
 /**
  * Exits accelerate away. Not a third named easing — it is EASE_OUT read

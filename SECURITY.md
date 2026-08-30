@@ -7,10 +7,10 @@ security advisory on this repository. Please do not open a public issue
 for anything exploitable. You will get a human reply; there is no bounty
 program, only gratitude and a fast fix.
 
-## What Wren trusts, in one page
+## What Maru trusts, in one page
 
-Wren is local-first: the app talks to Google's APIs and to nothing else.
-There is no Wren server, no telemetry, and no network listener. The full
+Maru is local-first: the app talks to Google's APIs and to nothing else.
+There is no Maru server, no telemetry, and no network listener. The full
 model is specified in [docs/PERMISSION-MODEL.md](docs/PERMISSION-MODEL.md);
 the load-bearing facts:
 
@@ -18,13 +18,13 @@ the load-bearing facts:
   `0700` directory) or an owner-ACL named pipe — never a TCP port. Any
   process running as your user can reach the socket; that is the trust
   boundary, and it is the same one your keychain already lives behind.
-- **Agent credentials** are bearer tokens. Wren stores only SHA-256
+- **Agent credentials** are bearer tokens. Maru stores only SHA-256
   digests; the token itself exists in your agent's config. Anything that
   can read that config can act as that agent — revoke the agent in
   Settings → Agents the moment you suspect a leak (it bites on the next
   call, no restart).
 - **No grant lets an agent send mail.** The widest grant queues a message
-  for your approval; a human taps every send in Wren's own UI.
+  for your approval; a human taps every send in Maru's own UI.
 - **Every call and every refusal is audited**, append-only, per agent.
 - **OAuth tokens** live in the OS keychain, never in the database, never
   in exports.
@@ -45,9 +45,9 @@ tokens) and never written to the database or to exports.
 - **Rotation** — removing an account and signing in again issues a fresh
   key; old ciphertext is gone with the removal. There is no in-place
   rotation, because the durable copy of your mail is Gmail itself, not
-  Wren's cache.
+  Maru's cache.
 - **Recovery** — there is none, on purpose. If the keychain entry is
-  lost, the local cache is unreadable and Wren re-syncs the mailbox from
+  lost, the local cache is unreadable and Maru re-syncs the mailbox from
   Gmail. Anything only the key could unlock stays locked.
 - **Deletion** — removing an account deletes its rows, then destroys its
   key. Key destruction is what erases the mail-derived fields of that

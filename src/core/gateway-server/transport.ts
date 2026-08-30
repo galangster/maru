@@ -1,7 +1,7 @@
 // An MCP `Transport` over one relayed socket connection.
 //
 // The SDK's own transports all own their channel: StdioServerTransport reads
-// process.stdin, the HTTP ones own a request. Wren's channel is owned by Rust
+// process.stdin, the HTTP ones own a request. Maru's channel is owned by Rust
 // and reaches the webview as events, so the transport is written inside-out —
 // `send` pushes a frame at the relay, and `deliver` is called by the session
 // manager when a frame arrives. Nothing in here knows what a credential is;

@@ -46,7 +46,7 @@ interface TransferFile {
 }
 
 const NOTE =
-  'Wren settings. Carries your own Google OAuth client registration; ' +
+  'Maru settings. Carries your own Google OAuth client registration; ' +
   'never account tokens, never agents, grants, or mail.'
 
 /** Canonical form: the checksum must not care about key order or whitespace. */
@@ -102,7 +102,7 @@ const VALID: { [F in TransferField]: (v: unknown) => boolean } = {
 
 /**
  * Parse pasted text back into a settings patch. Field-by-field: unknown keys
- * are dropped silently (a newer export into an older Wren keeps working),
+ * are dropped silently (a newer export into an older Maru keeps working),
  * a known key with a wrong shape refuses the whole file — a half-applied
  * import is worse than none.
  */
@@ -111,7 +111,7 @@ export async function parseSettingsTransfer(text: string): Promise<ParseResult> 
   try {
     raw = JSON.parse(text)
   } catch {
-    return { ok: false, reason: 'That is not a Wren settings export (not valid JSON).' }
+    return { ok: false, reason: 'That is not a Maru settings export (not valid JSON).' }
   }
   const file = raw as Partial<TransferFile>
   if (file.wren_settings !== TRANSFER_VERSION) {
@@ -119,8 +119,8 @@ export async function parseSettingsTransfer(text: string): Promise<ParseResult> 
       ok: false,
       reason:
         typeof file.wren_settings === 'number'
-          ? `This export is version ${file.wren_settings}; this Wren reads version ${TRANSFER_VERSION}.`
-          : 'That is not a Wren settings export.',
+          ? `This export is version ${file.wren_settings}; this Maru reads version ${TRANSFER_VERSION}.`
+          : 'That is not a Maru settings export.',
     }
   }
   if (typeof file.settings !== 'object' || file.settings === null) {
@@ -137,7 +137,7 @@ export async function parseSettingsTransfer(text: string): Promise<ParseResult> 
     ;(picked as Record<string, unknown>)[field] = value
   }
   if (Object.keys(picked).length === 0) {
-    return { ok: false, reason: 'The export carries no settings this Wren recognizes.' }
+    return { ok: false, reason: 'The export carries no settings this Maru recognizes.' }
   }
   if (file.checksum !== (await sha256Hex(canonical(picked)))) {
     return { ok: false, reason: 'The checksum does not match — the text was altered in transit.' }

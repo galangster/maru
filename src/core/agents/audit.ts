@@ -50,7 +50,7 @@ export class AuditLog {
     } catch (cause) {
       // Deliberately swallowed — see the file header. The entry is still
       // returned so the session's own view is honest.
-      console.error('[wren] audit append failed', cause)
+      console.error('[maru] audit append failed', cause)
     }
     this.deps.onAppend?.(entry)
     return entry

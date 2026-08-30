@@ -1,4 +1,4 @@
-// Agent sessions are deliberately in memory. Wren never persists them, so an
+// Agent sessions are deliberately in memory. Maru never persists them, so an
 // app restart ends every session and returns mail tools to the safe, closed
 // state.
 

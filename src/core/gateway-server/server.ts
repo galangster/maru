@@ -21,7 +21,7 @@ import { GatewaySession } from './session'
  * A token that does not resolve has no agent to hang the row on — and by
  * registry.ts's design it *cannot* have one, because a revoked agent and a
  * wrong token are deliberately indistinguishable here. The row still has to be
- * written: a process on this machine probing Wren with bad credentials is
+ * written: a process on this machine probing Maru with bad credentials is
  * exactly the thing an audit log exists to make visible. It lands under this
  * id, which matches no agent, so it appears in the timeline's "All" view and
  * under no agent's tab.
@@ -45,7 +45,7 @@ function tokenOf(frame: string): string | null {
 }
 
 const REJECTION =
-  'Wren does not recognise this credential. Create an agent in Wren under Settings → Agents and use the credential it issues.'
+  'Maru does not recognise this credential. Create an agent in Maru under Settings → Agents and use the credential it issues.'
 
 export class GatewayServer {
   private readonly sessions = new Map<number, GatewaySession>()
@@ -103,7 +103,7 @@ export class GatewayServer {
         summary:
           token === null
             ? 'A connection was refused: its first frame was not a credential.'
-            : 'A connection was refused: the credential is not one Wren issued, or its agent is revoked.',
+            : 'A connection was refused: the credential is not one Maru issued, or its agent is revoked.',
         outcome: 'blocked',
       })
       await this.deps.relay.authResult(connId, { accepted: false, message: REJECTION })

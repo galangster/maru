@@ -1,4 +1,4 @@
-// Gmail REST wire shapes. Only the fields Wren reads are declared; the API
+// Gmail REST wire shapes. Only the fields Maru reads are declared; the API
 // returns more. Everything is optional because `format` changes what is sent
 // (minimal: ids+labels, metadata: +headers, full: +body data).
 

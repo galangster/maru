@@ -54,10 +54,10 @@ export interface GatewayRelay {
   /**
    * Stop serving a connection from this side.
    *
-   * Wren never yanks the socket out from under a running agent: the shim owns
+   * Maru never yanks the socket out from under a running agent: the shim owns
    * the connection's lifetime, and the relay drops its registry entry so no
    * further frame is written. The file descriptor itself goes when the shim
-   * exits, or when Wren does.
+   * exits, or when Maru does.
    */
   close(connId: number): Promise<void>
   info(): Promise<GatewayInfo>

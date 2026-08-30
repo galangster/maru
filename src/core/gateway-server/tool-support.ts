@@ -1,4 +1,4 @@
-// What every Wren tool is built out of: the context it runs in, the shape it
+// What every Maru tool is built out of: the context it runs in, the shape it
 // answers with, and the argument readers that stand between a model's guess
 // and the mail store.
 //
@@ -65,7 +65,7 @@ export interface ToolSpec {
    * The grant `callTool` checks before the handler runs.
    *
    * `null` means one of two things, and each is spelled out where it is used:
-   * the tool needs no grant at all (`wren_ping`, `list_pending`), or a seam
+   * the tool needs no grant at all (`maru_ping`, `list_pending`), or a seam
    * below does its own authorisation and its own logging (`request_send`,
    * through `AgentGateway.requestSend`).
    */
@@ -273,12 +273,12 @@ export function clip(text: string, max: number): string {
  */
 export function resolveAccount(accounts: Account[], accountId: string | undefined, tool: string): Account {
   if (accounts.length === 0) {
-    throw new ToolRefusal('Wren has no mail accounts connected yet, so there is nothing to send from.')
+    throw new ToolRefusal('Maru has no mail accounts connected yet, so there is nothing to send from.')
   }
   if (accountId === undefined) {
     if (accounts.length === 1) return accounts[0]
     throw new ToolRefusal(
-      `${tool} needs account_id: Wren has ${accounts.length} accounts (${accounts
+      `${tool} needs account_id: Maru has ${accounts.length} accounts (${accounts
         .map((a) => `${a.id} — ${a.email}`)
         .join('; ')}).`,
     )
@@ -286,7 +286,7 @@ export function resolveAccount(accounts: Account[], accountId: string | undefine
   const found = accounts.find((a) => a.id === accountId)
   if (!found) {
     throw new ToolRefusal(
-      `Wren has no account with id “${accountId}”. Call list_accounts; the ids are ${accounts
+      `Maru has no account with id “${accountId}”. Call list_accounts; the ids are ${accounts
         .map((a) => a.id)
         .join(', ')}.`,
     )

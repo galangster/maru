@@ -285,7 +285,7 @@ function ArchiveTick() {
  * announces as its text rather than as its text plus four button labels (B3).
  *
  * There is no `@media (hover: hover)` gate here, and that is a decision rather
- * than an omission (N11): Wren is a desktop-only Tauri target with no touch
+ * than an omission (N11): Maru is a desktop-only Tauri target with no touch
  * input, so a hover-revealed affordance has no sticky-hover case to answer for.
  * Recorded so it is not rediscovered as a defect.
  *

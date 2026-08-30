@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Wren — design tokens
+   Maru — design tokens
    Spec: docs/design/DIRECTION.md (T7 design direction lane)
 
    Import AFTER src/index.css so the :root / .dark blocks below override the
@@ -64,7 +64,7 @@
 :root {
     color-scheme: light;
 
-    /* --- Wren surfaces ----------------------------------------------------
+    /* --- Maru surfaces ----------------------------------------------------
        De-tinted. Amie's neutral ramp is achromatic and the periwinkle tint at
        hue 268 read as a cast once the category hues arrived beside it; hue 286
        at chroma 0.002–0.005 is a true neutral that still avoids a dead grey.
@@ -78,14 +78,14 @@
        text-1 goes blacker, which is strictly more contrast and always safe.
        text-2 and text-3 HOLD their lightness exactly and move only chroma and
        hue, so the verified AA table carries over unchanged. Amie's own meta
-       tier measures ~2.8:1 and Wren declines it (AMIE-STUDY §7d.2). */
+       tier measures ~2.8:1 and Maru declines it (AMIE-STUDY §7d.2). */
     --wren-text-1: oklch(0.205 0.004 286); /* #171719  17.92 on surface       */
     --wren-text-2: oklch(0.47 0.004 286); /* #5A5A5D   6.83 on surface        */
     --wren-text-3: oklch(0.535 0.004 286); /* #6D6D6F  5.17 on surface        */
 
     /* --- Accent: periwinkle indigo ---------------------------------------
        HELD at hue 268 by owner ruling. AMIE-STUDY §7(e) question 1 offered a
-       nudge to 258; the accent is Wren's identity anchor and does not move.  */
+       nudge to 258; the accent is Maru's identity anchor and does not move.  */
     --wren-accent: oklch(0.545 0.185 268); /* #4364DA                         */
     --wren-accent-hover: oklch(0.495 0.185 268); /* #3654C9                   */
     --wren-accent-fg: oklch(1 0 0); /* white on accent = 5.17                 */
@@ -206,7 +206,7 @@
        Amie's recipe, measured (AMIE-STUDY §4.2). The ring is what separates a
        floating card from the canvas; the blur only softens. Every tier gains
        that ring as its first layer and every blur alpha drops ~25%. This is
-       also what Wren's non-glass fallback path had been missing, and it is
+       also what Maru's non-glass fallback path had been missing, and it is
        what lets the palette and the composer be the only glass in the app. */
     --wren-shadow-xs:
         0 0 0 1px oklch(0.205 0.004 286 / 0.04),
@@ -231,7 +231,7 @@
     /* ======================================================================
        shadcn overrides — names mirror src/index.css exactly.
        NOTE: shadcn's --accent is the SUBTLE HOVER FILL, not the brand colour.
-       Wren's brand accent maps to --primary and --ring.
+       Maru's brand accent maps to --primary and --ring.
        ====================================================================== */
     --background: var(--wren-surface-base);
     --foreground: var(--wren-text-1);
@@ -757,7 +757,7 @@
    7. Motion keyframes
    Every surface Base UI mounts (dialogs, popovers, tooltips, menus, selects)
    animates from CSS, because Base UI reads the running animation to know when
-   it may unmount the node. The surfaces Wren mounts itself use motion/react —
+   it may unmount the node. The surfaces Maru mounts itself use motion/react —
    src/lib/motion.ts says which is which and why.
 
    Only `opacity` and `transform` are ever animated. Never the blur, never the

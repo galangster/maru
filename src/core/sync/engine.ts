@@ -198,7 +198,7 @@ export class SyncEngine {
       // Surfaces in the dev log; the UI only shows a short status string.
       const detail =
         err instanceof Error ? `${err.name} | ${err.message} | ${err.stack?.split('\n')[1] ?? ''}` : JSON.stringify(err)
-      console.error('[wren] backfill failed:', detail)
+      console.error('[maru] backfill failed:', detail)
       this.failed(err)
       throw err
     }

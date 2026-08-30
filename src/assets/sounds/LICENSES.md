@@ -30,7 +30,7 @@ Five of the six are byte-identical copies of the candidate, renamed only.
 
 ### The one transcode: `palette.wav`
 
-The Octave set ships AIFF, and AIFF is not a format either engine Wren targets
+The Octave set ships AIFF, and AIFF is not a format either engine Maru targets
 can be relied on to decode. `AudioContext.decodeAudioData` is backed by
 CoreAudio in WKWebView, which takes AIFF, and by FFmpeg in Chromium/WebView2,
 where AIFF is not among the formats Chromium documents as supported — so the

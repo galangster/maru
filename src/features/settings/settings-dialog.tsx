@@ -326,7 +326,7 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
   return (
     <div className="flex flex-col gap-4">
       <Explainer>
-        Wren shows every account in one list. Removing one takes its mail out of Wren; nothing at
+        Maru shows every account in one list. Removing one takes its mail out of Maru; nothing at
         Google changes.
       </Explainer>
 
@@ -392,7 +392,7 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
         <div className="flex flex-wrap gap-x-1 gap-y-1">
           <button
             type="button"
-            onClick={() => void openExternalUrl('https://wrenmail.io/support/google-data')}
+            onClick={() => void openExternalUrl('https://getmaru.app/support/google-data')}
             className={textButtonClass('default')}
           >
             Deletion guide
@@ -402,7 +402,7 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
             onClick={() => void openExternalUrl('https://myaccount.google.com/permissions')}
             className={textButtonClass('default')}
           >
-            Revoke Wren's Google access
+            Revoke Maru's Google access
           </button>
           <button
             type="button"
@@ -498,7 +498,7 @@ function AccountRow({
         open={confirming}
         onOpenChange={setConfirming}
         title={`Remove ${account.email}?`}
-        description="Its mail leaves Wren and its tokens are deleted. Nothing at Google changes, and you can add it back."
+        description="Its mail leaves Maru and its tokens are deleted. Nothing at Google changes, and you can add it back."
         cancelLabel="Keep it"
         confirmLabel="Remove"
         onConfirm={() => void remove()}
@@ -538,7 +538,7 @@ function AppearanceSection() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Explainer>
-          System follows the desktop. Wren remembers whichever you pick, on this machine only.
+          System follows the desktop. Maru remembers whichever you pick, on this machine only.
         </Explainer>
         <SegmentedGroup
           label="Theme"
@@ -551,7 +551,7 @@ function AppearanceSection() {
         />
       </div>
 
-      {/* Off by default — SOUNDS.md §3. Wren's most frequent cue is unsolicited
+      {/* Off by default — SOUNDS.md §3. Maru's most frequent cue is unsolicited
           and it is read in meetings and open offices, so the switch is opt-in
           rather than something to opt out of after it surprised someone once. */}
       <SoundsToggle
@@ -611,7 +611,7 @@ function GoogleSection({ highlight }: { highlight: boolean }) {
   return (
     <div className="flex flex-col gap-4">
       <Explainer>
-        Wren talks to Gmail with your own OAuth client, so your mail never passes through anyone
+        Maru talks to Gmail with your own OAuth client, so your mail never passes through anyone
         else's server. It takes about five minutes to create one.
       </Explainer>
 
@@ -664,7 +664,7 @@ function GoogleSection({ highlight }: { highlight: boolean }) {
               <span className="w-4 shrink-0" aria-hidden />
               <span className="text-pretty">
                 While the consent screen stays in Testing status, Google expires the refresh token
-                after 7 days and Wren will ask you to sign in again. Publishing the app removes
+                after 7 days and Maru will ask you to sign in again. Publishing the app removes
                 that limit.
               </span>
             </li>
@@ -700,7 +700,7 @@ function SyncSection() {
   return (
     <div className="flex flex-col gap-4">
       <Explainer>
-        How often Wren asks Gmail for new mail. Shorter is fresher and costs more battery; Gmail's
+        How often Maru asks Gmail for new mail. Shorter is fresher and costs more battery; Gmail's
         quota is generous either way.
       </Explainer>
       <div className="flex flex-col gap-1">
@@ -747,7 +747,7 @@ function TransferBlock() {
     if (ok) {
       toast('Settings copied', {
         description:
-          'Paste into Wren on your other device — Sync → Import. Carries your OAuth client, never tokens or agents.',
+          'Paste into Maru on your other device — Sync → Import. Carries your OAuth client, never tokens or agents.',
       })
     } else {
       toast.error('Could not reach the clipboard')
@@ -779,7 +779,7 @@ function TransferBlock() {
     <div className="border-hairline flex flex-col gap-2 border-t pt-4">
       <p className={SECTION_LABEL}>This device</p>
       <Explainer>
-        Move your settings to another Wren by clipboard: export here, paste into
+        Move your settings to another Maru by clipboard: export here, paste into
         the other device's import. Your Google OAuth client travels; account
         tokens, agents and grants never do — each device earns its own trust.
       </Explainer>
@@ -872,13 +872,13 @@ function AboutSection() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <p className="font-ui text-ink text-xl font-semibold">Wren</p>
+        <p className="font-ui text-ink text-xl font-semibold">Maru</p>
         <p className="text-ink-3 text-sm tabular-nums">Version {pkg.version}</p>
         <p className="text-ink-2 text-sm text-pretty">Local-first. Talks only to Google.</p>
       </div>
       <div className="flex flex-col gap-2">
         <Explainer>
-          Something broke? The report below is how Wren asks for help without
+          Something broke? The report below is how Maru asks for help without
           phoning home: versions, settings and recent errors, with addresses
           and secrets scrubbed before they ever reach the clipboard.
         </Explainer>

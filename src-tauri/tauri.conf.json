@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Wren",
+  "productName": "Maru",
   "version": "0.1.0",
   "identifier": "dev.wren.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Wren",
+        "title": "Maru",
         "width": 1280,
         "height": 800,
         "minWidth": 940,

@@ -2,7 +2,7 @@
 // channel, below MCP entirely.
 //
 // Three parties speak it: the Rust relay (src-tauri/src/gateway.rs), the stdio
-// shim (bin/wren-mcp.mjs) and this file. Rust already splits complete lines
+// shim (bin/maru-mcp.mjs) and this file. Rust already splits complete lines
 // before it emits them, and the shim has its own four-line splitter because it
 // runs as plain Node with no build step and cannot import TypeScript. So this
 // module is not the only implementation of the rule — it is the one that is

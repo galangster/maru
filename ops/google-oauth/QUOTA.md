@@ -6,9 +6,9 @@ The corrected launch figures come from `docs/research/shared-client-implementati
 
 > For projects created on or after May 1, 2026, Google's current shared limits are 1,200,000 units per minute per project and 6,000 units per minute per user. The daily billing threshold is 80,000,000 units per project. Older active projects can remain on the previous quota model. Google says later-2026 charges will receive at least 90 days' notice. The daily threshold cannot be increased.
 
-The same section gives Wren's working arithmetic:
+The same section gives Maru's working arithmetic:
 
-> Wren limits each account to 4,500 units per minute. Project capacity is therefore about 266 simultaneously saturated accounts before other traffic. Backoff and batch pacing spread a large sync across many minutes.
+> Maru limits each account to 4,500 units per minute. Project capacity is therefore about 266 simultaneously saturated accounts before other traffic. Backoff and batch pacing spread a large sync across many minutes.
 
 > 10 units per threads.list page
 > + 40 units per thread metadata fetch
@@ -47,19 +47,19 @@ Record the alert destination and escalation owner. These owner and dashboard tas
 
 Cloud budgets are alerts. They do not guarantee a charge stop. Source: `docs/research/shared-client-implementation-plan.md` Part 1 §7.
 
-## What Wren does under HTTP 429
+## What Maru does under HTTP 429
 
-Wren uses one token bucket per account. The bucket has a 4,500-unit capacity and refills at 4,500 units per minute. A request waits until its estimated method cost is available. Sources: `src/core/gmail/api.ts:171-185` and `src/core/gmail/limiter.ts:19-72`.
+Maru uses one token bucket per account. The bucket has a 4,500-unit capacity and refills at 4,500 units per minute. A request waits until its estimated method cost is available. Sources: `src/core/gmail/api.ts:171-185` and `src/core/gmail/limiter.ts:19-72`.
 
-For a normal Gmail request, HTTP 429 is retryable. Wren uses exponential backoff with jitter. The default starts from 500 milliseconds, caps the nominal delay at 32 seconds, and makes at most five attempts. After the last failed attempt, Wren returns the `HttpError`. Sources: `src/core/gmail/limiter.ts:79-105` and `src/core/gmail/limiter.ts:107-155`.
+For a normal Gmail request, HTTP 429 is retryable. Maru uses exponential backoff with jitter. The default starts from 500 milliseconds, caps the nominal delay at 32 seconds, and makes at most five attempts. After the last failed attempt, Maru returns the `HttpError`. Sources: `src/core/gmail/limiter.ts:79-105` and `src/core/gmail/limiter.ts:107-155`.
 
-For an inner request in a Gmail batch, Wren retries only the parts that returned 429 or a 5xx response. It waits between rounds and permits four retry rounds after the first batch round. If parts remain throttled, it throws an HTTP 429 error. Sources: `src/core/gmail/api.ts:289-359`.
+For an inner request in a Gmail batch, Maru retries only the parts that returned 429 or a 5xx response. It waits between rounds and permits four retry rounds after the first batch round. If parts remain throttled, it throws an HTTP 429 error. Sources: `src/core/gmail/api.ts:289-359`.
 
 Batch chunks contain at most ten inner requests. The smaller burst limits the per-user spike from batched reads. Source: `src/core/gmail/api.ts:8-13` and `src/core/gmail/api.ts:40-44`.
 
-After retries fail, the sync engine reports an error state to the local UI. Wren has no telemetry service that reports the event to the project operator. Sources: `src/core/sync/engine.ts:111-120`, `src/core/sync/engine.ts:197-203`, and `SECURITY.md:10-14`.
+After retries fail, the sync engine reports an error state to the local UI. Maru has no telemetry service that reports the event to the project operator. Sources: `src/core/sync/engine.ts:111-120`, `src/core/sync/engine.ts:197-203`, and `SECURITY.md:10-14`.
 
-> NOTE: Wren enforces a per-account quota budget. It does not enforce the shared project limit in the desktop clients. Cloud dashboards, staged cohorts, and operator alerts must control aggregate launch traffic. Source: `src/core/gmail/api.ts:171-185` and `docs/research/shared-client-implementation-plan.md` Part 1 §7.
+> NOTE: Maru enforces a per-account quota budget. It does not enforce the shared project limit in the desktop clients. Cloud dashboards, staged cohorts, and operator alerts must control aggregate launch traffic. Source: `src/core/gmail/api.ts:171-185` and `docs/research/shared-client-implementation-plan.md` Part 1 §7.
 
 ## Response actions
 

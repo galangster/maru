@@ -1,6 +1,6 @@
 // The undo registry's rules, with no store and no React around them.
 //
-// Wren promises UNDO in two places — the send toast and the archive toast —
+// Maru promises UNDO in two places — the send toast and the archive toast —
 // and ⌘Z is the third door onto the same thing. All three ask the same two
 // questions: *is there something to undo*, and *is it still recent enough to
 // mean it*. Those two answers are pure functions of an entry and a clock, so

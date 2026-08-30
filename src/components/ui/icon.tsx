@@ -1,6 +1,6 @@
 // The icon seam — DIRECTION.md §8.
 //
-// Every icon in Wren comes from here, by semantic name. No component imports
+// Every icon in Maru comes from here, by semantic name. No component imports
 // from `lucide-react` directly, which is what made the swap below a one-file
 // change.
 //
@@ -102,7 +102,7 @@ function warnMissingTwin(name: IconName): void {
   if (!import.meta.env.DEV || warned.has(name)) return
   warned.add(name)
   console.warn(
-    `[wren] Icon "${name}" has no Style=Filled twin; drawing the Line glyph. ` +
+    `[maru] Icon "${name}" has no Style=Filled twin; drawing the Line glyph. ` +
       'Add it to ANRON_FILLED_PATHS, or drop `filled` at the call site.',
   )
 }

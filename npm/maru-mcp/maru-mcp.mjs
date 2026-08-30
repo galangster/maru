@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 /**
- * wren-mcp — the stdio shim an agent launches to talk to a running Wren.
+ * maru-mcp — the stdio shim an agent launches to talk to a running Maru.
  *
  * From the agent's point of view this process IS the MCP server. It is not:
- * the real server lives inside the Wren app, which owns the mail store, the
+ * the real server lives inside the Maru app, which owns the mail store, the
  * grants and the approval queue. This is a pipe with a credential on the front
- * of it — stdio on one side, Wren's local socket on the other, newline-
+ * of it — stdio on one side, Maru's local socket on the other, newline-
  * delimited JSON in both directions.
  *
  *   USAGE
- *     wren-mcp [--token <credential>] [--socket <path>]
+ *     maru-mcp [--token <credential>] [--socket <path>]
  *
  *   CREDENTIAL
- *     --token, or WREN_AGENT_TOKEN. Create an agent in Wren under
+ *     --token, or MARU_AGENT_TOKEN (WREN_AGENT_TOKEN still honored for
+ *     configs from the Wren era). Create an agent in Maru under
  *     Settings -> Agents; the credential is shown once, when you create it.
  *
  *   SOCKET
- *     --socket, or WREN_GATEWAY_SOCKET, or the per-OS default:
+ *     --socket, or MARU_GATEWAY_SOCKET (WREN_GATEWAY_SOCKET honored), or
+ *     the per-OS default:
  *       macOS    ~/Library/Application Support/dev.wren.app/gateway.sock
  *       Linux    $XDG_DATA_HOME/dev.wren.app/gateway.sock
  *                (falling back to ~/.local/share)
@@ -25,8 +27,8 @@
  *   EXIT CODES
  *     0  the connection closed cleanly
  *     2  no credential was given
- *     3  Wren is not running, or the socket is not reachable
- *     4  Wren rejected the credential
+ *     3  Maru is not running, or the socket is not reachable
+ *     4  Maru rejected the credential
  *     5  the connection dropped before the handshake finished
  *
  * Plain Node >= 20, no dependencies and no build step, because an agent host
@@ -44,21 +46,21 @@ const EXIT_NO_SOCKET = 3
 const EXIT_REJECTED = 4
 const EXIT_DROPPED = 5
 
-const USAGE = `wren-mcp — connect an agent to a running Wren.
+const USAGE = `maru-mcp — connect an agent to a running Maru.
 
-  wren-mcp [--token <credential>] [--socket <path>]
+  maru-mcp [--token <credential>] [--socket <path>]
 
-  --token   <credential>  the credential Wren issued for this agent
-                          (or set WREN_AGENT_TOKEN)
+  --token   <credential>  the credential Maru issued for this agent
+                          (or set MARU_AGENT_TOKEN)
   --socket  <path>        override the gateway socket path
-                          (or set WREN_GATEWAY_SOCKET)
+                          (or set MARU_GATEWAY_SOCKET)
   --help                  print this and exit
 
-Create an agent in Wren under Settings -> Agents to get a credential.
+Create an agent in Maru under Settings -> Agents to get a credential.
 `
 
 function fail(message, code) {
-  process.stderr.write(`wren-mcp: ${message}\n`)
+  process.stderr.write(`maru-mcp: ${message}\n`)
   process.exit(code)
 }
 
@@ -92,15 +94,17 @@ if (args.help) {
   process.exit(EXIT_OK)
 }
 
-const token = args.token || process.env.WREN_AGENT_TOKEN || ''
+// WREN_AGENT_TOKEN: the pre-rename name, honored so existing agent
+// configs keep connecting.
+const token = args.token || process.env.MARU_AGENT_TOKEN || process.env.WREN_AGENT_TOKEN || ''
 if (!token.trim()) {
   fail(
-    'no credential. Pass --token <credential> or set WREN_AGENT_TOKEN. Create an agent in Wren under Settings -> Agents to get one.',
+    'no credential. Pass --token <credential> or set MARU_AGENT_TOKEN. Create an agent in Maru under Settings -> Agents to get one.',
     EXIT_NO_TOKEN,
   )
 }
 
-const socketPath = args.socket || process.env.WREN_GATEWAY_SOCKET || defaultSocketPath()
+const socketPath = args.socket || process.env.MARU_GATEWAY_SOCKET || process.env.WREN_GATEWAY_SOCKET || defaultSocketPath()
 
 const socket = net.connect(socketPath)
 socket.setEncoding('utf8')
@@ -118,11 +122,11 @@ function exit(code) {
 
 socket.on('error', (error) => {
   if (authenticated) {
-    fail(`the connection to Wren failed: ${error.message}`, EXIT_DROPPED)
+    fail(`the connection to Maru failed: ${error.message}`, EXIT_DROPPED)
     return
   }
   fail(
-    `could not connect to Wren at ${socketPath} (${error.code || error.message}). Is Wren running?`,
+    `could not connect to Maru at ${socketPath} (${error.code || error.message}). Is Maru running?`,
     EXIT_NO_SOCKET,
   )
 })
@@ -151,17 +155,17 @@ socket.on('data', (chunk) => {
   try {
     ack = JSON.parse(line)
   } catch {
-    fail(`Wren sent something that is not JSON during the handshake: ${line.slice(0, 200)}`, EXIT_DROPPED)
+    fail(`Maru sent something that is not JSON during the handshake: ${line.slice(0, 200)}`, EXIT_DROPPED)
     return
   }
 
   if (ack.type !== 'auth_ok') {
-    fail(ack.message || 'Wren rejected the credential.', EXIT_REJECTED)
+    fail(ack.message || 'Maru rejected the credential.', EXIT_REJECTED)
     return
   }
 
   authenticated = true
-  // Anything Wren sent in the same packet as the ack is already MCP traffic.
+  // Anything Maru sent in the same packet as the ack is already MCP traffic.
   if (rest) process.stdout.write(rest)
 
   // Only now does the agent's stdin reach the socket. Before the handshake it

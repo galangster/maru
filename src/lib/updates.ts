@@ -1,5 +1,5 @@
 // Auto-update — P3. The local-first version of it: the app asks a static,
-// signature-verified manifest on GitHub Releases (no Wren server, nothing
+// signature-verified manifest on GitHub Releases (no Maru server, nothing
 // identifying sent), and never installs without the person saying so.
 //
 // Two callers, one function: App checks silently on launch (only a found
@@ -20,10 +20,10 @@ export async function checkForUpdates(opts: { announceNoUpdate: boolean }): Prom
     const { check } = await import('@tauri-apps/plugin-updater')
     const update = await check()
     if (!update) {
-      if (opts.announceNoUpdate) toast('Wren is up to date')
+      if (opts.announceNoUpdate) toast('Maru is up to date')
       return
     }
-    toast(`Wren ${update.version} is available`, {
+    toast(`Maru ${update.version} is available`, {
       // Sticky: an update offer is worth outliving the 4-second default,
       // and it must never install itself — the action is the consent.
       duration: 30_000,

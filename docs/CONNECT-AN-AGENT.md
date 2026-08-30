@@ -1,12 +1,12 @@
-# Connect an agent to Wren
+# Connect an agent to Maru
 
-Wren hosts an MCP server inside the running app. Agents reach it through a
-thin stdio shim, `bin/wren-mcp.mjs`, over a local socket only your own user
+Maru hosts an MCP server inside the running app. Agents reach it through a
+thin stdio shim, `bin/maru-mcp.mjs`, over a local socket only your own user
 account can open. Nothing is exposed on a network port, and nothing works
-until you have created an agent and handed it the credential Wren issues.
+until you have created an agent and handed it the credential Maru issues.
 
-Wren must be **running** for any of this to work. The shim is a pipe, not a
-server: if Wren is closed, the agent gets a clear error and no tools.
+Maru must be **running** for any of this to work. The shim is a pipe, not a
+server: if Maru is closed, the agent gets a clear error and no tools.
 
 Once connected, the first thing worth running is the story the gateway was
 built for: **[TRIAGE-MORNING.md](TRIAGE-MORNING.md)** — the agent triages
@@ -14,26 +14,26 @@ your overnight inbox, and you wake to drafts waiting on your approval.
 
 ---
 
-## 1. Create an agent in Wren
+## 1. Create an agent in Maru
 
 Settings → Agents → **Add an agent**. Give it a name — the name is a label for
 you, not a login; it appears on every row that agent writes to the audit log.
 
-Wren issues a credential and shows it **once**. Copy it then. Wren stores only
+Maru issues a credential and shows it **once**. Copy it then. Maru stores only
 a SHA-256 digest of it, so "you won't see this again" is a fact about the
 database rather than a policy: there is nothing left to show you.
 
-A new agent holds **nothing**. It can connect and it can call `wren_ping`, and
+A new agent holds **nothing**. It can connect and it can call `maru_ping`, and
 that is all, until you grant it something. That is deliberate — see
 [Grants](#4-what-the-agent-can-and-cannot-do).
 
 ### Trying it without a real mailbox
 
-Run Wren in demo mode (`?demo=1`) and Settings → Agents shows a fixture agent,
+Run Maru in demo mode (`?demo=1`) and Settings → Agents shows a fixture agent,
 **Scout**, with its credential printed in full. Scout is seeded into an
 in-memory store that holds no real mail and reaches no real network, so its
 credential is a fixture rather than a secret. Point a real agent at it to
-watch the whole flow — including the refusals — before you trust Wren with a
+watch the whole flow — including the refusals — before you trust Maru with a
 mailbox.
 
 ---
@@ -43,11 +43,11 @@ mailbox.
 ### Claude Code
 
 ```sh
-claude mcp add wren -- npx wren-mcp --token <credential>
+claude mcp add maru -- npx maru-mcp --token <credential>
 ```
 
 Running from a checkout instead? Point at the file:
-`claude mcp add wren -- node /absolute/path/to/wren/bin/wren-mcp.mjs --token <credential>`
+`claude mcp add maru -- node /absolute/path/to/wren/bin/maru-mcp.mjs --token <credential>`
 (absolute path — the agent host launches the shim from its own working
 directory, not from the repo).
 
@@ -57,14 +57,14 @@ environment the agent runs in instead.
 
 ### Claude Desktop
 
-Settings → Developer → Edit Config, then add Wren to `mcpServers`:
+Settings → Developer → Edit Config, then add Maru to `mcpServers`:
 
 ```json
 {
   "mcpServers": {
-    "wren": {
+    "maru": {
       "command": "npx",
-      "args": ["wren-mcp"],
+      "args": ["maru-mcp"],
       "env": {
         "WREN_AGENT_TOKEN": "<credential>"
       }
@@ -79,20 +79,20 @@ and `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
 
 ### Anything else that speaks MCP over stdio
 
-Run `npx wren-mcp --help`. The shim takes `--token` / `WREN_AGENT_TOKEN`
+Run `npx maru-mcp --help`. The shim takes `--token` / `WREN_AGENT_TOKEN`
 and, if you have moved the socket, `--socket` / `WREN_GATEWAY_SOCKET`.
 
 ---
 
 ## 3. Check the connection
 
-Ask the agent to call `wren_ping`. It needs no grant, which is the point of it
+Ask the agent to call `maru_ping`. It needs no grant, which is the point of it
 — an agent that holds nothing must still be able to find out that it holds
 nothing.
 
 ```json
 {
-  "app": "Wren",
+  "app": "Maru",
   "version": "0.1.0",
   "agent": { "id": "…", "name": "Scout" },
   "capabilities": ["read", "draft", "archiveLabel", "send"],
@@ -105,8 +105,8 @@ If the shim exits instead, the reason is on stderr and in the exit code:
 | Code | Meaning |
 | --- | --- |
 | 2 | No credential was given. |
-| 3 | Wren is not running, or the socket is not reachable. |
-| 4 | Wren rejected the credential — wrong token, or the agent was revoked. |
+| 3 | Maru is not running, or the socket is not reachable. |
+| 4 | Maru rejected the credential — wrong token, or the agent was revoked. |
 | 5 | The connection dropped before the handshake finished. |
 
 ---
@@ -129,14 +129,14 @@ Eleven, and what each one needs:
 
 | Tool | Grant | What it does |
 | --- | --- | --- |
-| `wren_ping` | — | Who this connection is, and what it currently holds. |
+| `maru_ping` | — | Who this connection is, and what it currently holds. |
 | `list_pending` | — | This agent's own send requests, and how each was resolved. |
 | `list_accounts` | read | Account ids, addresses, display names, and each account’s own label names. |
 | `search_mail` | read | Compact thread summaries. Never a message body. |
 | `read_thread` | read | One thread in full, as plain text, with its attachment list. |
 | `get_attachment` | read | One attachment, base64, up to 5 MB. |
 | `draft_new` | draft | A normalised new message. Sends nothing, stores nothing. |
-| `draft_reply` | draft | A reply, reply-all or forward, using Wren's own reply rules. |
+| `draft_reply` | draft | A reply, reply-all or forward, using Maru's own reply rules. |
 | `request_send` | send | Puts a message — attachments included — in the approval queue. Never dispatches. |
 | `archive_thread` | archive / label | archive, unarchive, trash, untrash. |
 | `modify_labels` | archive / label | Add or remove `STARRED`, `UNREAD`, or the account’s own labels by name. |
@@ -155,13 +155,13 @@ client's response cap.
 **Draft, then ask.** `draft_new` and `draft_reply` change nothing anywhere:
 they parse the recipients, resolve the sending account, render the body and
 hand the normalised message back. `request_send` takes those same fields and
-queues them. Wren has no draft store in v1, so a draft an agent does not pass
+queues them. Maru has no draft store in v1, so a draft an agent does not pass
 on is a draft that never existed.
 
 Two rules are worth knowing before you grant anything:
 
 1. **A grant is not a send.** `send` lets an agent put a message in the
-   approval queue. A human approves it in Wren before anything leaves the
+   approval queue. A human approves it in Maru before anything leaves the
    machine. There is no setting that skips that.
 2. **Revocation wins backwards.** Revoking a capability suppresses every older
    grant of it, so you never have to hunt for a second grant that is quietly
@@ -174,11 +174,11 @@ in a return value.
 
 ### Where approvals land
 
-In Wren. A pending send raises a count badge in the sidebar footer, and an OS
+In Maru. A pending send raises a count badge in the sidebar footer, and an OS
 notification you can tap. The queue itself is the surface behind that badge.
 Nothing in MCP can approve anything: there is no deferred-approval primitive
 in the protocol, so `tools/call` returns a pending id immediately and the
-human resolves it in Wren's own UI.
+human resolves it in Maru's own UI.
 
 ### Where the record lives
 
@@ -194,7 +194,7 @@ model — identity, grants, evaluation rules, queue, audit — is specified in
 [PERMISSION-MODEL.md](PERMISSION-MODEL.md).
 
 ```
-agent  ──stdio──▶  wren-mcp.mjs  ──unix socket──▶  Wren (Rust relay)  ──event──▶  Wren (webview)
+agent  ──stdio──▶  maru-mcp  ──unix socket──▶  Maru (Rust relay)  ──event──▶  Maru (webview)
                                     0600, in a 0700 dir                             MCP server
                                                                                     grants, audit
 ```
@@ -207,7 +207,7 @@ agent  ──stdio──▶  wren-mcp.mjs  ──unix socket──▶  Wren (Rus
   authentication story, and the DNS-rebinding advisories against the reference
   SDKs are what happens to people who assumed otherwise.
 - The first frame of every connection is the credential, and it is resolved
-  **once**, by Wren, before anything else is relayed. Every later frame is
+  **once**, by Maru, before anything else is relayed. Every later frame is
   tagged with the agent id that credential resolved to.
 - `clientInfo` from `initialize` — the name an MCP client gives for itself —
   is captured for the audit log and used nowhere else. It is self-reported and
@@ -218,7 +218,7 @@ agent  ──stdio──▶  wren-mcp.mjs  ──unix socket──▶  Wren (Rus
 
 ## Testing-era caveats
 
-Wren is pre-1.0 and this surface is a night old. Honestly:
+Maru is pre-1.0 and this surface is a night old. Honestly:
 
 - **Labels are applied, never invented.** `modify_labels` takes your own
   Gmail labels by name (`list_accounts` shows them), but an agent cannot
@@ -236,14 +236,14 @@ Wren is pre-1.0 and this surface is a night old. Honestly:
   agent. Prefer the environment variable, and revoke an agent the moment you
   suspect its config leaked — revocation takes effect on the next call, with
   no reconnect needed.
-- **Wren does not hang up on you.** If you revoke an agent mid-session, its
+- **Maru does not hang up on you.** If you revoke an agent mid-session, its
   socket stays open and every call it makes is refused. The connection closes
   when the agent exits.
 - **Consent is a notice, not a gate.** Registering the shim is the consent
   step, exactly as for every other stdio MCP server — and the first time a
-  credential is ever used, Wren says so: an OS notification, and an audit
+  credential is ever used, Maru says so: an OS notification, and an audit
   row in its own words. That first connection is the moment a copied
   credential would surface. Nothing blocks; a new agent holds nothing
   until you grant it something.
-- **The shim is `wren-mcp` on npm**, versioned with the app; the file in
-  this repo (`bin/wren-mcp.mjs`) is the same code for from-source runs.
+- **The shim is `maru-mcp` on npm**, versioned with the app; the file in
+  this repo (`bin/maru-mcp.mjs`) is the same code for from-source runs.

@@ -1,9 +1,9 @@
-# The Wren permission model
+# The Maru permission model
 
 **A specification for letting agents touch a person's mailbox.**
 
 Status: draft, version 0.1 (2026-08-29). Everything specified here is
-implemented in Wren and demonstrated end-to-end by machine-verifiable tests
+implemented in Maru and demonstrated end-to-end by machine-verifiable tests
 (see [Provenance](#10-provenance)). This document is licensed
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — borrow it,
 adapt it, cite it — independently of the code's AGPL-3.0. Its final home
@@ -11,7 +11,7 @@ adapt it, cite it — independently of the code's AGPL-3.0. Its final home
 
 This is written for people building *other* agent gateways — over mail, or
 over any store of a person's data where an agent's reads are cheap and its
-writes can reach strangers. Wren is the reference implementation, and mail
+writes can reach strangers. Maru is the reference implementation, and mail
 is the worked example throughout, but the model is not mail-specific: swap
 "send" for any action that leaves the machine and the shape holds.
 
@@ -67,10 +67,10 @@ agent ──credential──▶ identity ──grants──▶ evaluate() ──
 ## 3. Identity
 
 **3.1.** The gateway MUST issue its own credential per agent: a random
-token with at least 128 bits of entropy (Wren: 32 CSPRNG bytes,
+token with at least 128 bits of entropy (Maru: 32 CSPRNG bytes,
 base64url, prefixed `wren_agent_` so a leaked token is greppable). The
 token is shown to the human **once**, at creation, and never stored: the
-gateway keeps only a digest (Wren: SHA-256). No salt or KDF is required —
+gateway keeps only a digest (Maru: SHA-256). No salt or KDF is required —
 this is a high-entropy machine token, not a guessable password, and the
 digest doubles as the lookup key that makes verification one indexed read.
 
@@ -85,7 +85,7 @@ log, used nowhere else. A grant that attached to a claimed name would be a
 grant any process on the machine could take by typing the right string.
 
 **3.4.** The credential MUST be resolved **once per connection**, before
-any other traffic is relayed (in Wren, the token is the first frame on the
+any other traffic is relayed (in Maru, the token is the first frame on the
 socket). Every subsequent frame on that connection is attributed to the
 agent that credential resolved to. The session holds the resolved
 identity; it never re-reads the token and never lets the client restate
@@ -93,7 +93,7 @@ who it is.
 
 **3.5.** The first-ever use of a credential SHOULD be distinguished: the
 connection's audit row says so in its own words, and the gateway raises an
-out-of-band notice (Wren: an OS notification). A fresh credential's first
+out-of-band notice (Maru: an OS notification). A fresh credential's first
 connection is the moment a copied one would surface. The notice tier is
 deliberate — a blocking consent gate would park every first handshake on a
 human, while a newly connected agent already holds nothing (§1.1); an
@@ -101,7 +101,7 @@ implementation MAY still gate when its threat model warrants the friction.
 
 ## 4. Capabilities and scopes
 
-**4.1.** Wren's capability set, in increasing order of consequence:
+**4.1.** Maru's capability set, in increasing order of consequence:
 
 | Capability | Authorizes | Scope |
 | --- | --- | --- |
@@ -127,7 +127,7 @@ capability that can reach a stranger MUST be the one that carries a scope.
 **4.3.** Addresses are normalized (trimmed, lowercased) before any
 comparison, and the empty string is admitted by **no** scope. Malformed
 addresses SHOULD be rejected before scope evaluation ever sees them — in
-Wren that happens at the tool layer, which parses recipients with the same
+Maru that happens at the tool layer, which parses recipients with the same
 parser the human composer uses, so a chip the UI would reject is a chip
 the gateway rejects. The scope matcher itself assumes parsed input.
 
@@ -138,7 +138,7 @@ a context `{ now, agent, recipients? }` — same inputs, same answer,
 forever. Purity is not a testing convenience: it is what lets an audit row
 from six months ago still be explained by replaying the decision. There
 MUST be exactly one implementation, consumed by everything that decides —
-in Wren, the gateway's authorize path behind every tool call, and the
+in Maru, the gateway's authorize path behind every tool call, and the
 settings summary of what an agent holds (drawn through the same live-grant
 filter). The approval queue holds no rules at all and never re-evaluates
 (§6.3). A second copy of "may it send here?" is a second thing that can
@@ -175,7 +175,7 @@ A denial MUST distinguish, at minimum: *never granted*, *granted and
 revoked*, *agent revoked*, *no recipients*, and *out of scope* — because
 "did I refuse this, or was it never allowed?" are different conversations
 for the person reading the log. An out-of-scope denial SHOULD name exactly
-the addresses that failed (Wren returns them as `blocked`), so a
+the addresses that failed (Maru returns them as `blocked`), so a
 well-behaved agent can drop them and ask again instead of guessing — and a
 probing one leaves a legible trail.
 
@@ -222,7 +222,7 @@ about its own requests — by asking (`list_pending`), which needs no grant:
 an agent may always see the status of what it itself submitted, and only
 that.
 
-**6.7. Approvals expire.** A pending request older than a TTL (Wren: 24
+**6.7. Approvals expire.** A pending request older than a TTL (Maru: 24
 hours) MUST become unactionable — the queue is a morning ritual, and
 something asked for last week must not go out on a misclick. Expiry is
 swept lazily, on every read of the queue and before every resolution,
@@ -271,14 +271,14 @@ what *the person and the agent did* is never erased, only what *the
 mailbox's data said*.
 
 **8.2. One row per call — exactly one.** A success logs once; a refusal
-logs once. The discipline that enforces this in Wren: authorization writes
+logs once. The discipline that enforces this in Maru: authorization writes
 the denial row at the moment it denies, and the shared tool path writes
 the success row from what the handler returns — a handler never appends
 its own. A timeline that double-counts is one nobody can read for a
 number.
 
 **8.3. Refusals are rows.** Every grant denial and every malformed call
-reached through an authenticated session is logged with the reason. (Wren
+reached through an authenticated session is logged with the reason. (Maru
 has one unreachable-in-practice exception: an agent id the store has never
 seen denies before the logging point — an id that can only exist if the
 connection discipline in §3.4 has already been broken.) The outcome vocabulary distinguishes the machine
@@ -304,7 +304,7 @@ holds too: the *denial* row is written before the refusal is returned, so
 client's self-reported name — which is where `clientInfo` goes to be seen
 and goes no further (§3.3).
 
-**8.6. Reads are capped** (Wren: 500 rows per query) so an agent that ran
+**8.6. Reads are capped** (Maru: 500 rows per query) so an agent that ran
 overnight cannot make the timeline unrenderable. The cap bounds a read,
 never a write.
 
@@ -312,7 +312,7 @@ never a write.
 (`list_pending`) writes a row per call like everything else, so an agent
 told to poll for its verdict fills the timeline with a metronome. Prompt
 discipline — *request and stop; the human resolves in the app* — is part
-of the model's operating manual, and Wren ships it in the triage-morning
+of the model's operating manual, and Maru ships it in the triage-morning
 playbook rather than special-casing the audit path.
 
 ## 9. Transport and session requirements
@@ -322,7 +322,7 @@ These bind any gateway that hosts its MCP server inside a desktop app:
 - **9.1.** The channel between the stdio shim and the app MUST be a
   user-restricted local IPC endpoint — a unix domain socket with `0600`
   permissions inside a `0700` directory, or a named pipe with an
-  equivalent owner-only ACL. (Wren applies these permissions at startup
+  equivalent owner-only ACL. (Maru applies these permissions at startup
   and treats a pre-existing directory it cannot tighten as the owner's
   configuration rather than refusing to start; a hardened deployment
   SHOULD verify them, and an implementation MAY fail closed.) It MUST NOT
@@ -333,8 +333,8 @@ These bind any gateway that hosts its MCP server inside a desktop app:
 - **9.2.** The first frame of a connection is the credential; nothing else
   is relayed until it resolves (§3.4). A refused credential closes the
   connection with a distinguishable error.
-- **9.3.** Frames SHOULD be size-capped (Wren: 1 MiB) and concurrent
-  connections bounded (Wren: 8). A tool result that cannot fit the frame
+- **9.3.** Frames SHOULD be size-capped (Maru: 1 MiB) and concurrent
+  connections bounded (Maru: 8). A tool result that cannot fit the frame
   cap MUST be refused with the real number rather than truncated silently
   or allowed to kill the connection.
 - **9.4.** One process owns the store. The app that renders the approval
@@ -343,7 +343,7 @@ These bind any gateway that hosts its MCP server inside a desktop app:
 
 ## 10. Provenance
 
-This model is implemented in [Wren](../README.md) (`src/core/agents/`,
+This model is implemented in [Maru](../README.md) (`src/core/agents/`,
 `src/core/gateway-server/`) and held in place by:
 
 - `tests/agents.test.ts` — the nine rules, one per test; replacement

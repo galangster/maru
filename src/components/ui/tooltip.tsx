@@ -1,8 +1,8 @@
-// Wren's tooltip.
+// Maru's tooltip.
 //
 // Retuned from the shadcn default, which shipped tw-animate-css's zoom/slide
 // vocabulary and a 12 px popup — neither of which is in DIRECTION. The popup is
-// now a solid inverted chip on the Wren radius and type scale, and its motion is
+// now a solid inverted chip on the Maru radius and type scale, and its motion is
 // the same `wren-anchored-*` pair every other anchored surface uses, declared in
 // features/shell/surfaces.css because Base UI owns the unmount.
 //

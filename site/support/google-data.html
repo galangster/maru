@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Delete Your Data — Wren Mail</title>
+<title>Delete Your Data — Maru Mail</title>
 <style>
   :root { --ink:#1a1a1e; --ink2:#55555e; --bg:#fdfdfc; --accent:#5b5bd6; --line:#e6e6e2; }
   @media (prefers-color-scheme: dark) {
@@ -24,23 +24,23 @@
 <body>
 <main>
   <h1>Deleting your data, revoking access</h1>
-  <p>Everything Wren Mail stores lives on your own device, so deletion is local, immediate, and yours to perform. Three levels, from mildest to complete:</p>
+  <p>Everything Maru Mail stores lives on your own device, so deletion is local, immediate, and yours to perform. Three levels, from mildest to complete:</p>
 
-  <h2>1. Remove an account from Wren</h2>
+  <h2>1. Remove an account from Maru</h2>
   <ol>
-    <li>Open Wren → Settings (⌘,) → <strong>Accounts</strong>.</li>
+    <li>Open Maru → Settings (⌘,) → <strong>Accounts</strong>.</li>
     <li>Click <strong>Remove</strong> next to the account, and confirm.</li>
   </ol>
   <p>This deletes that account's cached mail, search index entries, and OAuth tokens from your device, and destroys the encryption keys protecting its content in the audit log. Nothing at Google changes — your mailbox is untouched.</p>
 
-  <h2>2. Revoke Wren's access at Google</h2>
+  <h2>2. Revoke Maru's access at Google</h2>
   <ol>
     <li>Go to <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
-    <li>Find <strong>Wren Mail</strong> and click <strong>Remove access</strong>.</li>
+    <li>Find <strong>Maru Mail</strong> and click <strong>Remove access</strong>.</li>
   </ol>
-  <p>Google immediately invalidates Wren's tokens for that account. Wren will show the account as signed out; remove it in Settings (step 1) to also clear the local copy.</p>
+  <p>Google immediately invalidates Maru's tokens for that account. Maru will show the account as signed out; remove it in Settings (step 1) to also clear the local copy.</p>
 
-  <h2>3. Remove Wren entirely</h2>
+  <h2>3. Remove Maru entirely</h2>
   <ol>
     <li>Do steps 1–2 for each account.</li>
     <li>Revoke any agent credentials in Settings → <strong>Agents</strong>, so nothing can reconnect.</li>
@@ -50,7 +50,7 @@
   </ol>
 
   <h2>Questions</h2>
-  <p>Anything unclear, or something that didn't delete the way this page promises: <a href="mailto:support@wrenmail.io">support@wrenmail.io</a>. That promise is testable — Wren is <a href="https://github.com/galangster/wren">open source</a>.</p>
+  <p>Anything unclear, or something that didn't delete the way this page promises: <a href="mailto:support@getmaru.app">support@getmaru.app</a>. That promise is testable — Maru is <a href="https://github.com/galangster/maru">open source</a>.</p>
 </main>
 </body>
 </html>

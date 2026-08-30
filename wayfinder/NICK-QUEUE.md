@@ -6,10 +6,18 @@ asking in chat. Newest at the top of each section. Strike items done.
 
 ## Blocking the submission path
 
-1. **Buy wrenmail.io** (wren.so turned out taken; Nick chose
-   wrenmail.io, 2026-08-30 — N2's name "Wren Mail" unchanged). Purchase
-   in progress via GoDaddy. Repo already swept to wrenmail.io. After
-   purchase: DNS, then the site publish (one approval).
+1. **getmaru.app is the domain** (renamed Wren → Maru, 2026-08-30;
+   you already own it — no purchase). Your buttons now:
+   - DNS records for getmaru.app once I stand up hosting (I deploy on
+     one approval; then a CNAME/A from you or a signed-in session).
+   - Mail routing so **support@getmaru.app** and security@ deliver.
+   - **Rename the GitHub repo** galangster/wren → maru (redirects keep
+     old links and the auto-update endpoint working) — recommended.
+   - **Publish `maru-mcp` on npm** (name is free; wren-mcp then gets a
+     deprecation notice pointing at it).
+   - Consent screen name is **"Maru Mail"** when you reach the console.
+   - The trademark/name-collision check matters more for "Maru" than it
+     did for Wren — busier name.
 2. **Create the production Google Cloud project** (plan Part 2 §4, all
    console work): separate from dev, Gmail API on, External audience,
    one Desktop OAuth client, `gmail.modify` only on Data Access, two

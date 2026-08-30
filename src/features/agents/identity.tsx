@@ -59,7 +59,7 @@ export const CAPABILITY_COPY: Record<Capability, { label: string; help: string }
   },
   draft: {
     label: 'Draft',
-    help: 'Write replies. A draft never leaves Wren on its own.',
+    help: 'Write replies. A draft never leaves Maru on its own.',
   },
   archiveLabel: {
     label: 'Archive & label',

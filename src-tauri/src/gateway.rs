@@ -27,7 +27,7 @@
 //!    a relayed frame comes from this tag and never from the frame itself
 //!    (notes §2: `clientInfo` is a display label, not a credential).
 //!
-//! The socket path is deliberately inside Wren's own app-data directory, which
+//! The socket path is deliberately inside Maru's own app-data directory, which
 //! is chmodded 0700, with the socket itself at 0600. macOS ignores permission
 //! bits on the socket file for `connect()`, so the 0700 *directory* is what
 //! actually enforces "same user only" there; the 0600 is belt to that braces.
@@ -60,7 +60,7 @@ const MAX_CONNECTIONS: usize = 8;
 /// answers must not leak a thread and a socket per connection attempt.
 const AUTH_VERDICT_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// The Windows pipe name. Mirrored by `bin/wren-mcp.mjs`.
+/// The Windows pipe name. Mirrored by `bin/maru-mcp.mjs`.
 #[cfg(windows)]
 const PIPE_NAME: &str = "dev.wren.app-gateway";
 
@@ -98,7 +98,7 @@ pub const EVENT_CLOSE: &str = "gateway://close";
 
 /// What `gateway_info` tells the webview. The version travels with it so the
 /// TS layer never has to reach for a Tauri app-info permission just to answer
-/// `wren_ping`.
+/// `maru_ping`.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GatewayInfo {
@@ -193,7 +193,7 @@ fn handle_connection<R: Runtime>(app: AppHandle<R>, stream: LocalSocketStream) {
         &conn,
         &control_frame(
           "error",
-          "Wren is already serving the maximum number of agent connections.",
+          "Maru is already serving the maximum number of agent connections.",
         ),
       );
       return;
@@ -250,23 +250,23 @@ fn authenticate_and_relay<R: Runtime>(
         frame: auth_frame,
       },
     )
-    .map_err(|e| format!("could not reach the Wren window: {e}"))?;
+    .map_err(|e| format!("could not reach the Maru window: {e}"))?;
 
   let verdict = verdict_rx
     .recv_timeout(AUTH_VERDICT_TIMEOUT)
-    .map_err(|_| "Wren did not answer the connection request in time.".to_string())?;
+    .map_err(|_| "Maru did not answer the connection request in time.".to_string())?;
 
   if !verdict.accepted {
     let message = verdict
       .message
-      .unwrap_or_else(|| "Wren rejected this credential.".to_string());
+      .unwrap_or_else(|| "Maru rejected this credential.".to_string());
     let _ = write_frame(conn, &control_frame("auth_error", &message));
     return Ok(());
   }
 
   let agent_id = verdict
     .agent_id
-    .ok_or_else(|| "Wren accepted the credential without naming an agent.".to_string())?;
+    .ok_or_else(|| "Maru accepted the credential without naming an agent.".to_string())?;
 
   write_frame(conn, &control_frame("auth_ok", "connected"))
     .map_err(|e| format!("write failed: {e}"))?;
@@ -286,7 +286,7 @@ fn authenticate_and_relay<R: Runtime>(
           frame,
         },
       )
-      .map_err(|e| format!("could not reach the Wren window: {e}"))?;
+      .map_err(|e| format!("could not reach the Maru window: {e}"))?;
   }
   Ok(())
 }

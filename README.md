@@ -1,16 +1,16 @@
-# Wren
+# Maru
 
 A lightweight, beautiful unified-Gmail desktop client — and an MCP
 gateway that lets your agents touch your mailbox on your terms. One quiet
 inbox for all your Gmail accounts: local-first, no third-party servers,
 talks only to Google.
 
-> **Pre-1.0.** Wren works — five real accounts and a real agent gateway
+> **Pre-1.0.** Maru works — five real accounts and a real agent gateway
 > run on it daily — but it is weeks old and macOS-verified. macOS builds
 > are signed and notarized; the Windows installer is unsigned and not
 > yet hand-tested.
 > Read [SECURITY.md](SECURITY.md) before trusting it with a mailbox.
-> Wren is free and open (AGPL); a paid hosted **sync** service is planned
+> Maru is free and open (AGPL); a paid hosted **sync** service is planned
 > — the app never becomes the product's hostage.
 
 Built with Tauri 2 + React 19 + TypeScript + Tailwind v4 + shadcn/ui.
@@ -28,9 +28,9 @@ Typeset in Open Runde and DM Sans. ~10 MB core, talks only to Google.
 
 ## Agent gateway
 
-Wren is also an MCP gateway to your own mail: agents connect through a local
+Maru is also an MCP gateway to your own mail: agents connect through a local
 socket, hold per-agent grants (read · draft · archive/label · scoped send),
-and every send waits for your approval in Wren. Nothing an agent does is
+and every send waits for your approval in Maru. Nothing an agent does is
 invisible — every call, and every refusal, lands in an append-only audit log.
 
 - **[docs/CONNECT-AN-AGENT.md](docs/CONNECT-AN-AGENT.md)** — connect Claude
@@ -77,7 +77,7 @@ plugins and ~80 lines of commands (keychain, OAuth loopback).
   `service/real.ts` (Gmail) and `service/demo.ts` (fixtures) implement it.
 - `src/core/agents/` + `src/core/gateway-server/` — the agent gateway:
   grants, approval queue, audit log, and the in-app MCP server behind
-  `bin/wren-mcp.mjs` (stdio shim over a 0600 unix socket / named pipe).
+  `bin/maru-mcp.mjs` (stdio shim over a 0600 unix socket / named pipe).
 - `src/platform/` — the native seam (`Platform`): SQLite, native fetch,
   keychain, loopback listener, notifications.
 - `src/features/` — the app: shell, list, reading pane, composer, palette,
@@ -99,6 +99,6 @@ swap-ready). Fonts are bundled in `src/assets/fonts/` under their licenses
   CC BY 4.0 — it exists to be borrowed by other agent gateways.
 - **Bundled assets** keep their own licenses: fonts under the OFL and the
   Open Runde license (src/assets/fonts/), interface sounds CC0, and the
-  Anron icon glyphs all-rights-reserved with a named exception for Wren
+  Anron icon glyphs all-rights-reserved with a named exception for Maru
   builds ([src/assets/icons/anron/LICENSE.md](src/assets/icons/anron/LICENSE.md)
   — forks can drop them and fall back to lucide through the Icon seam).

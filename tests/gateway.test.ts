@@ -323,7 +323,7 @@ describe('gateway auth', () => {
     h = await harness()
   })
 
-  it('accepts a credential Wren issued and tags the connection with its agent', async () => {
+  it('accepts a credential Maru issued and tags the connection with its agent', async () => {
     h.relay.connect(1, DEMO_AGENT_CREDENTIAL)
     await until(
       () => h.relay.verdicts.length === 1,
@@ -400,13 +400,13 @@ describe('MCP over the relay', () => {
     h = await harness()
   })
 
-  it('answers initialize as wren and records the client it was told about', async () => {
+  it('answers initialize as maru and records the client it was told about', async () => {
     await connected(h, 10, DEMO_AGENT_CREDENTIAL)
 
     const response = h.relay.reply_for(10, 1) as {
       result: { serverInfo: { name: string; version: string }; capabilities: unknown }
     }
-    expect(response.result.serverInfo.name).toBe('wren')
+    expect(response.result.serverInfo.name).toBe('maru')
     expect(response.result.serverInfo.version).toBe('0.1.0-test')
 
     // clientInfo is display metadata: it reaches the audit log and nothing
@@ -444,11 +444,11 @@ describe('MCP over the relay', () => {
       'get_attachment',
       'list_accounts',
       'list_pending',
+      'maru_ping',
       'modify_labels',
       'read_thread',
       'request_send',
       'search_mail',
-      'wren_ping',
     ])
     for (const tool of result.tools) {
       expect(tool.name).toMatch(/^[a-z][a-z0-9_]*$/)
@@ -459,21 +459,21 @@ describe('MCP over the relay', () => {
     expect(result.tools).toHaveLength(TOOLS.length)
   })
 
-  it('answers wren_ping with the version and the capabilities the agent holds', async () => {
+  it('answers maru_ping with the version and the capabilities the agent holds', async () => {
     await connected(h, 12, DEMO_AGENT_CREDENTIAL)
     h.relay.send(12, agentIdOf(h, 12), {
       jsonrpc: '2.0',
       id: 3,
       method: 'tools/call',
-      params: { name: 'wren_ping', arguments: {} },
+      params: { name: 'maru_ping', arguments: {} },
     })
     await until(
       () => h.relay.reply_for(12, 3) !== undefined,
-      () => 'no wren_ping response',
+      () => 'no maru_ping response',
     )
 
     const payload = toolPayload(h.relay.reply_for(12, 3)!)
-    expect(payload.app).toBe('Wren')
+    expect(payload.app).toBe('Maru')
     expect(payload.version).toBe('0.1.0-test')
     expect(payload.agent).toEqual({ id: DEMO_AGENT.id, name: DEMO_AGENT.name })
     // Scout's seeded grants, in capability order.
@@ -559,7 +559,7 @@ describe('tool authorisation', () => {
     expect(blocked[0].summary).toMatch(/never been granted/)
   })
 
-  it('still answers wren_ping for an agent that holds nothing', async () => {
+  it('still answers maru_ping for an agent that holds nothing', async () => {
     const issued = await h.gateway.createAgent('Probe')
     await connected(h, 21, issued.credential)
 
@@ -567,7 +567,7 @@ describe('tool authorisation', () => {
       jsonrpc: '2.0',
       id: 7,
       method: 'tools/call',
-      params: { name: 'wren_ping', arguments: {} },
+      params: { name: 'maru_ping', arguments: {} },
     })
     await until(
       () => h.relay.reply_for(21, 7) !== undefined,

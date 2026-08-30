@@ -5,7 +5,7 @@
 // toggle, the send scope defaults to specific domains rather than to everyone,
 // and revoking asks.
 //
-// The credential is shown exactly once, on creation. Wren stores only its
+// The credential is shown exactly once, on creation. Maru stores only its
 // SHA-256 digest, so "you won't see this again" is a statement of fact rather
 // than a policy — see core/agents/registry.ts.
 
@@ -60,7 +60,7 @@ export function AgentsSection() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-ink-3 text-sm text-pretty">
-        An agent connects with a credential Wren issues, not with a name it claims. It starts with
+        An agent connects with a credential Maru issues, not with a name it claims. It starts with
         nothing and holds only what you grant it here.
       </p>
 
@@ -101,13 +101,13 @@ export function AgentsSection() {
  * happens after "Create". Shown only while no agent exists — once one does,
  * its card carries the real credential moment and this guide has done its job.
  */
-const CONNECT_COMMAND = 'claude mcp add wren -- npx wren-mcp --token <credential>'
+const CONNECT_COMMAND = 'claude mcp add maru -- npx maru-mcp --token <credential>'
 
 function FirstAgentGuide() {
   return (
     <div className="bg-surface flex flex-col gap-3 rounded-lg p-4 shadow-xs">
       <ol className="text-ink-2 flex list-decimal flex-col gap-2 pl-4 text-sm">
-        <li>Create an agent below. Wren issues a credential and shows it once.</li>
+        <li>Create an agent below. Maru issues a credential and shows it once.</li>
         <li>
           <span>Register the shim with your agent, credential in hand:</span>
           <button
@@ -127,7 +127,7 @@ function FirstAgentGuide() {
       </ol>
       <button
         type="button"
-        onClick={() => void openExternalUrl('https://github.com/galangster/wren/blob/main/docs/CONNECT-AN-AGENT.md')}
+        onClick={() => void openExternalUrl('https://github.com/galangster/maru/blob/main/docs/CONNECT-AN-AGENT.md')}
         className={textButtonClass('default', 'w-fit')}
       >
         The full guide, other clients included
@@ -324,7 +324,7 @@ function SessionBlock({
 
               <p className="text-ink-2 text-sm">Data: {dataClasses}.</p>
               <p className="text-ink-2 text-sm text-pretty">
-                Mail this agent reads leaves Wren for whatever model or service the agent runs
+                Mail this agent reads leaves Maru for whatever model or service the agent runs
                 on — that may be a hosted provider outside this device.
               </p>
 
@@ -382,7 +382,7 @@ function SessionBlock({
  * different: its credential is a fixture in the source tree, seeded into an
  * in-memory store that holds no real mail and reaches no real network. Showing
  * it is what lets someone connect a real agent to the gateway and watch the
- * grant model refuse things, before they have trusted Wren with a mailbox.
+ * grant model refuse things, before they have trusted Maru with a mailbox.
  */
 function FixtureCredential({ agent }: { agent: Agent }) {
   const { demo } = useMailMode()
@@ -744,7 +744,7 @@ function CredentialOnce({
         {/* Out of the meta tier. This line carries the only irreversible
             consequence in the app and it was set in `text-3`, the tier
             DIRECTION §3 reserves for timestamps and counts — the quietest type
-            in Wren on the loudest sentence in it (S1). `text-ink-2` plus the
+            in Maru on the loudest sentence in it (S1). `text-ink-2` plus the
             star hue on the mark: star is the app's own warning colour and this
             is the one place worth spending it. */}
         <p className="text-ink-2 flex gap-2 text-sm text-pretty">
@@ -752,7 +752,7 @@ function CredentialOnce({
               DIRECTION §5's two licensed exceptions to the 4 px grid. */}
           <Icon name="error" size={16} className="text-star mt-px shrink-0" />
           <span>
-            Copy it into the agent's config now. Wren stored only a hash of it, so this is the one
+            Copy it into the agent's config now. Maru stored only a hash of it, so this is the one
             time it can be shown — you won't see it again.
           </span>
         </p>
@@ -793,7 +793,7 @@ function CredentialOnce({
             open={confirming}
             onOpenChange={setConfirming}
             title="Discard the credential?"
-            description="It has not been copied yet, and Wren keeps only a hash of it. Closing this is the last time it exists."
+            description="It has not been copied yet, and Maru keeps only a hash of it. Closing this is the last time it exists."
             cancelLabel="Keep it open"
             confirmLabel="Discard"
             onConfirm={onDone}

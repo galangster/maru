@@ -42,13 +42,13 @@ export class GatewaySession {
   readonly server: Server
 
   private constructor(private readonly deps: SessionDeps) {
-    this.transport = new RelayTransport(deps.link, `wren-${deps.connId}`)
+    this.transport = new RelayTransport(deps.link, `maru-${deps.connId}`)
     this.server = new Server(
-      { name: 'wren', title: 'Wren', version: deps.appVersion },
+      { name: 'maru', title: 'Maru', version: deps.appVersion },
       {
         capabilities: { tools: {} },
         instructions:
-          'Wren is a local-first mail client. Every tool call is authorised against the capabilities the person running Wren granted this agent, and anything that leaves the machine waits for their approval. Call wren_ping to see what this connection currently holds.',
+          'Maru is a local-first mail client. Every tool call is authorised against the capabilities the person running Maru granted this agent, and anything that leaves the machine waits for their approval. Call maru_ping to see what this connection currently holds.',
       },
     )
 

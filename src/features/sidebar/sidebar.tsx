@@ -319,7 +319,7 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
   const detail = demo
     ? `Demo data · ${plural}`
     : failed
-      ? 'Sync failed · Wren is retrying'
+      ? 'Sync failed · Maru is retrying'
       : syncing
         ? `Syncing ${plural}`
         : `${plural} · up to date`

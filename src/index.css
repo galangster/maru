@@ -63,7 +63,7 @@
     --default-transition-duration: var(--wren-dur-fast);
     --default-transition-timing-function: var(--wren-ease-out);
 
-    /* Wren surfaces and text tiers as utilities. Named for what they are, so
+    /* Maru surfaces and text tiers as utilities. Named for what they are, so
        `bg-surface` / `text-ink-2` read as the system, not as hex. */
     --color-canvas: var(--wren-surface-base);
     --color-sunken: var(--wren-surface-sunken);
@@ -99,7 +99,7 @@
     /* The fixed dark ink that sits *on* a hue solid — tokens.css §4. */
     --color-hue-fg: var(--wren-hue-fg);
 
-    /* shadcn bridge — unchanged names, now pointing at the Wren tokens. */
+    /* shadcn bridge — unchanged names, now pointing at the Maru tokens. */
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);

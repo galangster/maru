@@ -9,7 +9,7 @@
 // The arc it asserts, connected end to end:
 //
 //   connect → search_mail → read_thread → draft_reply → request_send
-//           → (a person approves in Wren) → sent → the audit trail says so
+//           → (a person approves in Maru) → sent → the audit trail says so
 //
 // Run it on its own, with output, as the gate:
 //
@@ -91,7 +91,7 @@ describe.runIf(process.platform !== 'win32')('live smoke: shim, socket, tools, a
     const queued = await gateway.approvals.listPending()
     expect(queued.map((a) => a.id)).toContain(requested.approval_id)
 
-    // 7. A person approves it in Wren. There is no tool for this, on purpose.
+    // 7. A person approves it in Maru. There is no tool for this, on purpose.
     const approved = await gateway.approvals.approve(requested.approval_id)
     expect(approved.status).toBe('approved')
 
@@ -123,7 +123,7 @@ describe.runIf(process.platform !== 'win32')('live smoke: shim, socket, tools, a
     printTrail('audit trail', trail)
   }, 30_000)
 
-  it('refuses a credential Wren never issued, and the shim exits 4', async () => {
+  it('refuses a credential Maru never issued, and the shim exits 4', async () => {
     const core = await bootCore(BASE, APP_VERSION)
 
     const child = spawnShim(core.socketPath, 'wren_agent_nope')

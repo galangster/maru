@@ -36,7 +36,7 @@ export function ShortcutsOverlay() {
           Keyboard shortcuts
         </DialogTitle>
         <DialogDescription className="sr-only">
-          Every key Wren answers to, grouped by what it does.
+          Every key Maru answers to, grouped by what it does.
         </DialogDescription>
         <div className="grid grid-cols-2 gap-x-8 gap-y-6">
           {/* Rows come from the keymap table use-shortcuts binds, so a key

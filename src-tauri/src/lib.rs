@@ -5,7 +5,7 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
 use std::time::{Duration, Instant};
 
-/// Service name used for every Wren keychain entry.
+/// Service name used for every Maru keychain entry.
 // Release and dev use different keychain services on purpose. A keychain
 // item's ACL trusts the app that *created* it; every differently-signed dev
 // build is a stranger to items the last one made, which is what produced the
@@ -22,7 +22,7 @@ const OAUTH_TIMEOUT: Duration = Duration::from_secs(180);
 /// How long a single accepted connection may take to send its request line.
 const OAUTH_SOCKET_TIMEOUT: Duration = Duration::from_secs(10);
 
-const OAUTH_SUCCESS_BODY: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Wren</title></head><body style=\"font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#1e293b\"><p>Signed in &mdash; you can close this tab and return to Wren.</p></body></html>";
+const OAUTH_SUCCESS_BODY: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Maru</title></head><body style=\"font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#1e293b\"><p>Signed in &mdash; you can close this tab and return to Maru.</p></body></html>";
 
 const OAUTH_NOT_FOUND_BODY: &str = "Not Found";
 
@@ -330,7 +330,7 @@ pub fn run() {
             .build(),
         )?;
       }
-      // The agent gateway. A failure here must not stop Wren from being a mail
+      // The agent gateway. A failure here must not stop Maru from being a mail
       // client — the socket is an extra surface, not a dependency of the app.
       match gateway::start(app.handle()) {
         Ok(path) => log::info!("gateway: listening on {path}"),

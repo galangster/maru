@@ -1,4 +1,4 @@
-// Wren core contract — domain model and the MailService seam.
+// Maru core contract — domain model and the MailService seam.
 // The UI consumes MailService only. Two implementations exist:
 // service/real.ts (Gmail over Platform) and service/demo.ts (fixtures).
 // Changing a shape here is a contract change: note it in the lane report.
@@ -173,8 +173,8 @@ export interface Settings {
   imagePolicy: 'block' | 'allow'
   pollIntervalSec: number // default 60
   /**
-   * Interface sounds. Off by default, on purpose: Wren's most frequent cue is
-   * new mail, which is unsolicited, can fire many times an hour, and Wren is
+   * Interface sounds. Off by default, on purpose: Maru's most frequent cue is
+   * new mail, which is unsolicited, can fire many times an hour, and Maru is
    * read in meetings and open offices. Ship it excellent and opt-in rather than
    * asking everyone to opt out of something that surprised them once in a quiet
    * room. See docs/design/SOUNDS.md §3.

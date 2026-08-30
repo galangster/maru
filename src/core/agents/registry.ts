@@ -9,7 +9,7 @@
 // display label. A grant that attached to it would be a grant any process on
 // the machine could claim by typing the right name.
 //
-// Wren therefore issues its own credential. The human creates an agent in
+// Maru therefore issues its own credential. The human creates an agent in
 // Settings, copies the token once, and pastes it into that agent's own config.
 // Everything downstream — grants, the approval queue, every audit row — hangs
 // off the `Agent.id` that token resolves to, and off nothing the client said
@@ -75,7 +75,7 @@ export interface AgentRegistryDeps {
 export interface IssuedAgent {
   agent: Agent
   /**
-   * Shown once, in the create dialog, with a copy button. Wren cannot show it
+   * Shown once, in the create dialog, with a copy button. Maru cannot show it
    * again: only the digest was written.
    */
   credential: string

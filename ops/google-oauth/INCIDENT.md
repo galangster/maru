@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This runbook covers a failure or suspension of Wren's shared production OAuth client. A shared-client incident can affect every account authorized through that client. Accounts that use a custom client remain isolated under their own Google projects. Sources: `docs/research/shared-client-implementation-plan.md` Part 1 §6 and `src/core/auth/client-config.ts:22-58`.
+This runbook covers a failure or suspension of Maru's shared production OAuth client. A shared-client incident can affect every account authorized through that client. Accounts that use a custom client remain isolated under their own Google projects. Sources: `docs/research/shared-client-implementation-plan.md` Part 1 §6 and `src/core/auth/client-config.ts:22-58`.
 
-Wren has no telemetry server. Detection depends on Google Cloud signals, project-contact mailboxes, support reports, and errors visible on each device. Sources: `SECURITY.md:10-14` and `docs/research/shared-client-implementation-plan.md` Part 1 §6.
+Maru has no telemetry server. Detection depends on Google Cloud signals, project-contact mailboxes, support reports, and errors visible on each device. Sources: `SECURITY.md:10-14` and `docs/research/shared-client-implementation-plan.md` Part 1 §6.
 
 ## What users see
 
@@ -14,7 +14,7 @@ The OAuth token path classifies `invalid_client`, `deleted_client`, and `unautho
 
 The row also shows **Use your own client**. Sources: `src/core/auth/oauth.ts:38-58`, `src/core/auth/oauth.ts:167-187`, `src/core/sync/engine.ts:111-120`, and `src/features/settings/settings-dialog.tsx:465-486`.
 
-A single user's `invalid_grant` is different. Wren marks it as a reauthorization problem and shows **Sign in again**. Do not declare a project incident from one `invalid_grant`. Sources: `src/core/auth/oauth.ts:181-187` and `src/features/settings/settings-dialog.tsx:467-495`.
+A single user's `invalid_grant` is different. Maru marks it as a reauthorization problem and shows **Sign in again**. Do not declare a project incident from one `invalid_grant`. Sources: `src/core/auth/oauth.ts:181-187` and `src/features/settings/settings-dialog.tsx:467-495`.
 
 > NOTE: A project suspension can also appear as an OAuth or Gmail 403. Current code does not classify a generic 403 as `OAuthClientError`. It can appear as a raw sync error without the **Use your own client** action. This is a gap against the error-classification work in `docs/research/shared-client-implementation-plan.md` Part 2 §2.
 
@@ -42,7 +42,7 @@ Use the addresses in `ops/google-oauth/CONTACTS.md`.
 | `«NICK: second durable owner»` | Enter the second Google Cloud project owner. This person can act if the primary owner is unavailable. |
 | Project editor | Capture metrics, client state, scope state, and timestamps without changing configuration. |
 | Developer contact | Reproduce the error. Classify the affected release. Prepare a code or release correction when needed. |
-| `support@wrenmail.io` | Collect user reports. Send the approved status and BYO fallback message. Source: `site/privacy.html:70-71`. |
+| `support@getmaru.app` | Collect user reports. Send the approved status and BYO fallback message. Source: `site/privacy.html:70-71`. |
 
 ## Blast-radius decision
 
@@ -94,7 +94,7 @@ A replacement client cannot refresh tokens issued to the old client. Affected us
 
 Use this message only after the incident owner confirms a shared-client problem:
 
-> Google is rejecting Wren Mail's shared OAuth client. Your Gmail account and mailbox are unchanged. Do not repeat sign-in with the shared client. In Wren, open Settings and choose Use your own client for the affected account. Follow Wren's Google OAuth setup guide. Existing custom-client accounts are separate from this incident.
+> Google is rejecting Maru Mail's shared OAuth client. Your Gmail account and mailbox are unchanged. Do not repeat sign-in with the shared client. In Maru, open Settings and choose Use your own client for the affected account. Follow Maru's Google OAuth setup guide. Existing custom-client accounts are separate from this incident.
 
 The in-app recovery action and account-safety statement come from `src/features/settings/settings-dialog.tsx:465-486`. The custom-client setup path is documented in `docs/SETUP-GOOGLE-OAUTH.md`.
 

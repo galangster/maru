@@ -2,7 +2,7 @@
 //
 // Extracted from the M3 smoke so the M4 triage test is the same product path
 // rather than a second copy of it: a real unix domain socket on disk, the real
-// `bin/wren-mcp.mjs` shim launched as a child process exactly as an agent host
+// `bin/maru-mcp.mjs` shim launched as a child process exactly as an agent host
 // launches it, the real `GatewayServer`, the real `AgentGateway` over the store
 // demo mode seeds, and the real `DemoMailService` underneath.
 //
@@ -42,7 +42,7 @@ import type {
 import { DemoMailService } from '../../src/core'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
-const SHIM = join(ROOT, 'bin/wren-mcp.mjs')
+const SHIM = join(ROOT, 'bin/maru-mcp.mjs')
 
 /**
  * The real shim, launched exactly as an agent host launches it. The one place

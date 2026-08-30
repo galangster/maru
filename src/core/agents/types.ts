@@ -1,9 +1,9 @@
 // The earned-autonomy contract — M1.
 //
-// Wren's thesis is that an agent gets *more* rope by having behaved, and that
+// Maru's thesis is that an agent gets *more* rope by having behaved, and that
 // the human can always see what it did. Four objects carry that:
 //
-//   Agent      an identity Wren issued a credential to
+//   Agent      an identity Maru issued a credential to
 //   Grant      one capability that identity holds, with a scope
 //   Approval   a side effect the identity asked for and a human must resolve
 //   AuditEntry what actually happened, forever
@@ -14,10 +14,10 @@
 //  §2 — `clientInfo` on the MCP `initialize` call is self-reported and nothing
 //       in the spec authenticates it. So a grant never attaches to a name a
 //       client claims; it attaches to `Agent.id`, which is only ever reached
-//       through a credential Wren issued (registry.ts).
+//       through a credential Maru issued (registry.ts).
 //  §4 — there is no deferred-approval primitive in MCP. `tools/call` is
 //       synchronous. So `Approval` is an app-level object with an ID the tool
-//       call returns immediately, and the human resolves it in Wren's own UI.
+//       call returns immediately, and the human resolves it in Maru's own UI.
 //
 // This file is additive to src/core/types.ts and does not change it. The agent
 // event bus is its own union rather than new `MailEvent` variants: MailService

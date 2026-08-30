@@ -1,6 +1,6 @@
 // Quota discipline for the Gmail client.
 //
-// Gmail's 2026-05 model gives 6,000 quota units per minute per user. Wren
+// Gmail's 2026-05 model gives 6,000 quota units per minute per user. Maru
 // budgets 4,500 (75%) so that a manual refresh, a send, or a body prefetch
 // racing the poll loop still lands inside the real ceiling.
 

@@ -67,7 +67,7 @@ export function Onboarding() {
       ? [
           <CloudMark key="mark" />,
           <div key="copy" className="flex flex-col items-center gap-2 text-center">
-            <h1 className="font-ui text-ink text-xl font-semibold">Wren</h1>
+            <h1 className="font-ui text-ink text-xl font-semibold">Maru</h1>
             <p className="text-ink-2 max-w-72 text-sm text-pretty">
               One quiet window for every Gmail account you have. Nothing leaves this machine
               except what goes to Google.

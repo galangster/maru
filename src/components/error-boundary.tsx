@@ -7,7 +7,7 @@
 // button.
 //
 // A class, because `getDerivedStateFromError` has no hook equivalent — this is
-// the one component in Wren that cannot be a function.
+// the one component in Maru that cannot be a function.
 //
 // It does not try to recover in place. A tree that threw while rendering is in
 // an unknown state, and "try again" on the same broken tree is a second white
@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
     // The card is for the user; this is for whoever is watching the console.
     // The component stack is the half that says *where*, and React only ever
     // hands it over here.
-    console.error('[wren] render error', error, info.componentStack)
+    console.error('[maru] render error', error, info.componentStack)
   }
 
   render(): ReactNode {
@@ -56,7 +56,7 @@ export class ErrorBoundary extends Component<Props, State> {
           {/* Family 2: every action card carries a one-line "why", so the
               button is a choice rather than an instruction. */}
           <p className="text-ink-2 text-sm text-pretty">
-            Wren hit an error it could not recover from. Reloading starts the window again — your
+            Maru hit an error it could not recover from. Reloading starts the window again — your
             mail and your accounts are on disk and are not affected.
           </p>
           {/* The message, quietly. It is the one line that makes a bug report

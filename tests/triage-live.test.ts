@@ -6,7 +6,7 @@
 // agent wakes to a full inbox, surveys it, archives the noise its grant
 // admits, stars what needs a human's eyes, drafts two real replies, asks to
 // send them, and is refused the one recipient its scope does not admit. The
-// human opens Wren to a tidy inbox, approves both sends, and the audit trail
+// human opens Maru to a tidy inbox, approves both sends, and the audit trail
 // reads back as the whole morning in order.
 //
 // Run it on its own, with the trail printed, as the gate:
@@ -70,7 +70,7 @@ describe.runIf(process.platform !== 'win32')('live triage morning: survey, archi
     const { client, gateway, mail } = await boot(BASE, APP_VERSION)
 
     // 1. Who am I, and what do I hold? The agent's first question.
-    const ping = (await client.call('wren_ping')) as { capabilities: string[] }
+    const ping = (await client.call('maru_ping')) as { capabilities: string[] }
     expect(ping.capabilities).toEqual(['read', 'draft', 'archiveLabel', 'send'])
 
     // 2. The accounts, then the morning's inbox.
@@ -162,7 +162,7 @@ describe.runIf(process.platform !== 'win32')('live triage morning: survey, archi
     const queued = await gateway.approvals.listPending()
     for (const id of approvalIds) expect(queued.map((a) => a.id)).toContain(id)
 
-    // 9. The human's half: both approvals tapped in Wren. There is no tool for
+    // 9. The human's half: both approvals tapped in Maru. There is no tool for
     //    this, on purpose.
     for (const id of approvalIds) {
       const approved = await gateway.approvals.approve(id)
@@ -185,7 +185,7 @@ describe.runIf(process.platform !== 'win32')('live triage morning: survey, archi
       'session.start:ok',
       'connected:ok',
       'initialize:ok',
-      'wren_ping:ok',
+      'maru_ping:ok',
       'list_accounts:ok',
       'search_mail:ok',
       'archive_thread:ok',

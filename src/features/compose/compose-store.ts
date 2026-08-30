@@ -1,4 +1,4 @@
-// The one open draft. Wren docks a single composer, Spark-style, so this is a
+// The one open draft. Maru docks a single composer, Spark-style, so this is a
 // singleton rather than a collection — a second Compose replaces the first
 // only after the first has been dealt with.
 

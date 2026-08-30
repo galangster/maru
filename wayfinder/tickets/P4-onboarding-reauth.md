@@ -69,6 +69,13 @@ audit, accepted):
   **Amended 2026-08-30**: wren.so was already taken. Nick chose
   **wrenmail.io** (name-matching, .io available; .dev/.org also free).
   All live surfaces swept to wrenmail.io; the name "Wren Mail" stands.
+  **Amended again, same day**: before the wrenmail.io purchase closed,
+  Nick renamed the product — **Wren → Maru**, consent name **"Maru
+  Mail"**, domain **getmaru.app** (already his; no purchase). Bird logo
+  stays. User- and agent-visible surfaces swept (maru_ping, maru-mcp);
+  state-carrying internals deliberately keep `wren` — see ticket
+  [P12](P12-internal-rename-migration.md). "Maru" is a busier name than
+  Wren, so the brand-verification name-collision check gains weight.
 - **N3: scope.** `gmail.modify` only. `gmail.send`, `openid`, `email`
   all dropped — profile comes from users.getProfile.
 - **N4: data controls.** App-level encryption of mail/approvals/audit
@@ -219,3 +226,20 @@ notarized macOS + unsigned Windows. Skipped with reason: widening
 generic Gmail 403s to the "Use your own client" recovery would
 misclassify rate limits — recorded as a dossier NOTE instead.
 477 tests.
+
+## Progress — Wren → Maru rename, 2026-08-30 (autonomous)
+
+One Sol delegate swept every user- and agent-visible surface; the
+orchestrator verified the keep-list, renamed the shim package
+(npm/maru-mcp, bin/maru-mcp.mjs, MARU_* env vars with WREN_* honored
+for existing configs), updated repo URLs after renaming the GitHub repo
+(galangster/wren -> galangster/maru; the old private maru project moved
+to maru-legacy), and relabeled CI artifacts. 477 tests.
+
+Verified untouched (state-carrying, ticket P12): keychain service
+dev.wren.app + dev.wren.app.dev, key prefixes wren:account:* and
+wren:key:account:*, ciphertext prefix wrenc1:, bundle identifier
+dev.wren.app, socket paths, CSS/design tokens.
+
+/simplify skipped with reason: a rename sweep is mechanical string and
+copy work with no new structure; the orchestrator exemption applies.

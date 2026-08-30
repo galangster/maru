@@ -155,7 +155,7 @@ describe('the tool surface', () => {
       // Authorised inside AgentGateway.requestSend, per recipient.
       request_send: null,
       // Deliberately ungated: identity, and an agent's own submissions.
-      wren_ping: null,
+      maru_ping: null,
       list_pending: null,
     })
   })
@@ -210,7 +210,7 @@ describe('agent sessions', () => {
     expect(events.filter((type) => type === 'sessionRequested')).toHaveLength(1)
   })
 
-  it('allows the call after start and reports the session in wren_ping', async () => {
+  it('allows the call after start and reports the session in maru_ping', async () => {
     const f = await fixture()
     const first = await f.gateway.sessions.start(f.ctx.agent.id, 15 * 60_000)
     f.advance(5 * 60_000)
@@ -221,7 +221,7 @@ describe('agent sessions', () => {
     const search = await callTool('search_mail', f.ctx, { query: '' })
     expect(search.isError).toBeUndefined()
 
-    const ping = payloadOf(await callTool('wren_ping', f.ctx, {})) as {
+    const ping = payloadOf(await callTool('maru_ping', f.ctx, {})) as {
       session: { expires_at: string; minutes_left: number }
       summary: string
     }
@@ -271,9 +271,9 @@ describe('agent sessions', () => {
     expect(ended).toHaveLength(2)
   })
 
-  it('keeps wren_ping available without a session, and gates list_pending', async () => {
+  it('keeps maru_ping available without a session, and gates list_pending', async () => {
     const f = await fixture()
-    const ping = payloadOf(await callTool('wren_ping', f.ctx, {})) as { session: unknown }
+    const ping = payloadOf(await callTool('maru_ping', f.ctx, {})) as { session: unknown }
     expect(ping.session).toBeNull()
     // A queued reply draft quotes mail content, so the queue is session data
     // like everything else that can carry it.
@@ -967,7 +967,7 @@ describe('the audit log', () => {
   it('writes exactly one row for every call, refusals included', async () => {
     const f = await scout()
     const calls: [string, Record<string, unknown>][] = [
-      ['wren_ping', {}],
+      ['maru_ping', {}],
       ['list_accounts', {}],
       ['search_mail', { query: 'latency' }],
       ['search_mail', { query: 'latency', nonsense: true }],

@@ -13,7 +13,7 @@
 //   archive_thread   archiveLabel  inbox in, inbox out, trash, untrash
 //   modify_labels    archiveLabel  STARRED and UNREAD
 //   list_pending     —             an agent's own submissions
-//   wren_ping        —             am I connected, and what do I hold
+//   maru_ping        —             am I connected, and what do I hold
 //
 // * `request_send` is authorised inside `AgentGateway.requestSend`, per
 //   recipient, because M1 rule 9 needs the recipient list and one grant has to
@@ -32,7 +32,7 @@
 // timeline that double-counts is one nobody can read for a number.
 //
 // Names are snake_case verb_noun and annotations are set, per the research
-// notes §3. A Wren-hosted server is a trusted server from its own client's
+// notes §3. A Maru-hosted server is a trusted server from its own client's
 // point of view, so its annotations can legitimately be relied on — which is
 // exactly why `archive_thread` admits that it is destructive and
 // `request_send` admits that it is not idempotent.
@@ -75,8 +75,8 @@ export const TOOL_CAPABILITIES: Record<string, Capability | null> = Object.fromE
  */
 function grantDenial(tool: string, capability: Capability, agentName: string, decision: Decision): string {
   const reason = decision.allowed ? 'no-grant' : decision.reason
-  const head = `Wren refused ${tool}: `
-  const ask = 'Ask the person running Wren to grant it in Settings → Agents.'
+  const head = `Maru refused ${tool}: `
+  const ask = 'Ask the person running Maru to grant it in Settings → Agents.'
   switch (reason) {
     case 'agent-revoked':
       return `${head}${agentName} has been revoked. Nothing will be accepted on this connection.`
@@ -105,11 +105,11 @@ export async function callTool(
     await ctx.gateway.audit.append({
       agentId: ctx.agent.id,
       tool: name,
-      summary: `Called ${name}, which Wren does not have.`,
+      summary: `Called ${name}, which Maru does not have.`,
       outcome: 'error',
     })
     return denied(
-      `Wren has no tool named ${name}. It has: ${TOOLS.map((tool) => tool.name).join(', ')}.`,
+      `Maru has no tool named ${name}. It has: ${TOOLS.map((tool) => tool.name).join(', ')}.`,
     )
   }
 
@@ -123,7 +123,7 @@ export async function callTool(
     })
     ctx.gateway.requestSession(ctx.agent.id, ctx.agent.name)
     return denied(
-      `Wren refused ${name}: no agent session is active. Sessions are a time-bounded consent the person running Wren starts in Settings → Agents. Ask them to start one; wren_ping shows session state.`,
+      `Maru refused ${name}: no agent session is active. Sessions are a time-bounded consent the person running Maru starts in Settings → Agents. Ask them to start one; maru_ping shows session state.`,
     )
   }
 
@@ -156,7 +156,7 @@ export async function callTool(
       cause instanceof ToolRefusal
         ? cause
         : new ToolRefusal(
-            `Wren could not finish ${name}: ${cause instanceof Error ? cause.message : String(cause)}`,
+            `Maru could not finish ${name}: ${cause instanceof Error ? cause.message : String(cause)}`,
           )
     if (!refusal.logged) {
       await ctx.gateway.audit.append({

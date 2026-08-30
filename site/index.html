@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wren Mail — a quiet, local-first Gmail client</title>
-<meta name="description" content="Wren Mail is an open-source desktop Gmail client that keeps your mail on your device — and an agent gateway where every send waits for your approval.">
+<title>Maru Mail — a quiet, local-first Gmail client</title>
+<meta name="description" content="Maru Mail is an open-source desktop Gmail client that keeps your mail on your device — and an agent gateway where every send waits for your approval.">
 <style>
   :root { --ink:#1a1a1e; --ink2:#55555e; --bg:#fdfdfc; --card:#f4f4f2; --accent:#5b5bd6; --line:#e6e6e2; }
   @media (prefers-color-scheme: dark) {
@@ -28,29 +28,29 @@
 </head>
 <body>
 <main>
-  <p class="tag">Wren Mail</p>
+  <p class="tag">Maru Mail</p>
   <h1>One quiet window for every Gmail account you have.</h1>
-  <p>Wren Mail is an open-source desktop mail client for Gmail. It syncs your mail to your own device, works at keyboard speed, and is also a gateway for AI agents — with a permission model built on earned trust: agents hold only what you grant, every outgoing message waits for your explicit approval, and everything they do lands in an append-only audit log.</p>
-  <a class="cta" href="https://github.com/galangster/wren/releases/latest">Download for macOS</a>
+  <p>Maru Mail is an open-source desktop mail client for Gmail. It syncs your mail to your own device, works at keyboard speed, and is also a gateway for AI agents — with a permission model built on earned trust: agents hold only what you grant, every outgoing message waits for your explicit approval, and everything they do lands in an append-only audit log.</p>
+  <a class="cta" href="https://github.com/galangster/maru/releases/latest">Download for macOS</a>
   <p class="tag">Free and open source (AGPL-3.0). Windows preview available.</p>
 
   <h2>Where your mail lives</h2>
   <div class="card">
-    <p>Wren stores your mailbox data on this device and connects directly to Google for Gmail. Wren operates no mail server.</p>
-    <p>If you connect an agent and grant it access, Wren sends the selected data to that agent through a local socket. The agent or its model provider may process that data outside this device. Review that provider's terms before granting access.</p>
+    <p>Maru stores your mailbox data on this device and connects directly to Google for Gmail. Maru operates no mail server.</p>
+    <p>If you connect an agent and grant it access, Maru sends the selected data to that agent through a local socket. The agent or its model provider may process that data outside this device. Review that provider's terms before granting access.</p>
   </div>
 
   <h2>What it does</h2>
   <p><strong>A real mail client.</strong> Unified inbox across accounts, full-text search with operators, one-keystroke triage, bulk actions, drafts that survive crashes — all offline-capable, all local.</p>
-  <p><strong>An agent gateway.</strong> Your agents connect over a local socket with a credential Wren issues. They can read, triage, and draft under explicit per-capability grants. They cannot send: every send request enters an approval queue that only you can resolve. The permission model is <a href="https://github.com/galangster/wren/blob/main/docs/PERMISSION-MODEL.md">an open specification</a>.</p>
-  <p><strong>No telemetry, ever.</strong> Wren phones home to no one. The only network peer for your mail is Google.</p>
+  <p><strong>An agent gateway.</strong> Your agents connect over a local socket with a credential Maru issues. They can read, triage, and draft under explicit per-capability grants. They cannot send: every send request enters an approval queue that only you can resolve. The permission model is <a href="https://github.com/galangster/maru/blob/main/docs/PERMISSION-MODEL.md">an open specification</a>.</p>
+  <p><strong>No telemetry, ever.</strong> Maru phones home to no one. The only network peer for your mail is Google.</p>
 
   <nav>
     <a href="/privacy">Privacy policy</a>
     <a href="/security">Security &amp; data flow</a>
     <a href="/support/google-data">Delete your data</a>
-    <a href="https://github.com/galangster/wren">Source code</a>
-    <a href="mailto:support@wrenmail.io">support@wrenmail.io</a>
+    <a href="https://github.com/galangster/maru">Source code</a>
+    <a href="mailto:support@getmaru.app">support@getmaru.app</a>
   </nav>
 </main>
 </body>

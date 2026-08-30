@@ -9,7 +9,7 @@
 //
 // So this is the app-level composition the notes describe: `submit` returns a
 // pending id immediately, the agent's tool call returns that id and finishes,
-// and the human resolves it later in Wren's own UI. Nothing here ever blocks
+// and the human resolves it later in Maru's own UI. Nothing here ever blocks
 // on a person.
 //
 // Everything is audited. An approval that was never resolved is as much a fact

@@ -268,7 +268,7 @@ export class RealMailService implements MailService {
 
     const existing = await this.store.listAccounts()
 
-    // Signing in with an address Wren already holds is a RE-LINK, not an
+    // Signing in with an address Maru already holds is a RE-LINK, not an
     // error: fresh tokens under the existing account, and its engine
     // restarts. This is the whole recovery path for an expired grant (P4) —
     // Google's testing-mode consent screen kills refresh tokens after seven

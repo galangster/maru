@@ -1,4 +1,4 @@
-// The debug report — Wren's whole answer to "it broke" (P7). Nothing ever
+// The debug report — Maru's whole answer to "it broke" (P7). Nothing ever
 // phones home: the person copies this text and pastes it into an issue by
 // hand, which is the ratified no-telemetry posture made useful.
 //
@@ -56,7 +56,7 @@ export interface DebugReportInput {
 /** The report, as the text a person pastes into an issue. */
 export function buildDebugReport(input: DebugReportInput): string {
   const lines = [
-    `Wren debug report`,
+    `Maru debug report`,
     `version: ${input.version}`,
     `mode: ${input.mode}`,
     `platform: ${input.userAgent}`,

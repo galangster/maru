@@ -62,7 +62,7 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
         setRuntime({ service, agents, platform })
 
         // M2's socket. Additive on purpose: a gateway that cannot open must
-        // not stop Wren being a mail client, so this failure is logged and
+        // not stop Maru being a mail client, so this failure is logged and
         // swallowed rather than raised into the error state above.
         if (isTauri()) {
           try {
@@ -93,7 +93,7 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
   if (error) {
     return (
       <div className="text-ink-2 flex h-full items-center justify-center p-8 text-center text-base">
-        Wren could not start: {error.message}
+        Maru could not start: {error.message}
       </div>
     )
   }

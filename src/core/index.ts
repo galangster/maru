@@ -39,7 +39,7 @@ export async function createMailService(
  *
  * It takes the MailService rather than the other way round: approving a queued
  * send dispatches through `MailService.send`, which is what makes an agent's
- * message an ordinary Wren send — same optimistic write, same `threadsChanged`
+ * message an ordinary Maru send — same optimistic write, same `threadsChanged`
  * event, same Sent list. Nothing in the mail engine knows agents exist.
  *
  * In demo mode it is in-memory and pre-seeded, so every M1 surface has real

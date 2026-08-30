@@ -211,7 +211,7 @@ export async function exchangeCode(platform: Platform, p: ExchangeParams): Promi
   if (!json.refresh_token) {
     throw new OAuthError(
       'no_refresh_token',
-      'Google returned no refresh token. Remove Wren from your Google account permissions and try again.',
+      'Google returned no refresh token. Remove Maru from your Google account permissions and try again.',
       true,
     )
   }

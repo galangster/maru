@@ -108,7 +108,7 @@ const CONTROLS: Control[] = [
   },
 ]
 
-/** Same 32 px box and the same states as every other icon button in Wren. */
+/** Same 32 px box and the same states as every other icon button in Maru. */
 function toolClass(active: boolean): string {
   return active
     ? cn(iconButtonClass(), 'bg-fill-selected text-brand')

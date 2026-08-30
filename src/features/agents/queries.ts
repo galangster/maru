@@ -41,7 +41,7 @@ export function useSessions() {
 /**
  * Reading the queue is what sweeps expiry (approvals.ts), so this query is
  * also the app's expiry clock. `refetchOnWindowFocus` is react-query's default
- * and is exactly right here: coming back to Wren after a night away is the
+ * and is exactly right here: coming back to Maru after a night away is the
  * moment a 24-hour-old request has to stop being actionable.
  */
 export function usePendingApprovals() {

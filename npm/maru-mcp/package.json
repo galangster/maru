@@ -1,12 +1,12 @@
 {
-  "name": "wren-mcp",
+  "name": "maru-mcp",
   "version": "0.1.0",
-  "description": "The MCP stdio shim for Wren \u2014 the open-source agent gateway to your own email. Connects Claude Code, Claude Desktop, or any MCP client to a running Wren app over a local socket.",
+  "description": "The MCP stdio shim for Maru \u2014 the open-source agent gateway to your own email. Connects Claude Code, Claude Desktop, or any MCP client to a running Maru app over a local socket.",
   "bin": {
-    "wren-mcp": "./wren-mcp.mjs"
+    "maru-mcp": "./maru-mcp.mjs"
   },
   "files": [
-    "wren-mcp.mjs",
+    "maru-mcp.mjs",
     "README.md"
   ],
   "license": "AGPL-3.0-only",

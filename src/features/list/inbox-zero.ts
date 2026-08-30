@@ -13,11 +13,11 @@ export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
   if (view.kind === 'unified') {
     switch (view.folder) {
       case 'inbox':
-        return { title: 'Inbox zero', subtitle: 'Nothing waiting. Wren will say when that changes.' }
+        return { title: 'Inbox zero', subtitle: 'Nothing waiting. Maru will say when that changes.' }
       case 'starred':
         return { title: 'Nothing starred', subtitle: 'Star a thread and it will wait for you here.' }
       case 'sent':
-        return { title: 'Nothing sent yet', subtitle: 'Mail you send from Wren collects here.' }
+        return { title: 'Nothing sent yet', subtitle: 'Mail you send from Maru collects here.' }
       case 'trash':
         return { title: 'Trash is empty', subtitle: 'Deleted threads rest here before Gmail clears them.' }
     }

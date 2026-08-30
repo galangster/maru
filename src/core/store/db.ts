@@ -122,7 +122,7 @@ export const MIGRATIONS: string[] = [
 
   // 2 — the agent trust substrate (M1). Four tables, no change to migration 1.
   //
-  //  · agents      — an identity Wren ISSUED. `credential_hash` is a SHA-256
+  //  · agents      — an identity Maru ISSUED. `credential_hash` is a SHA-256
   //                  digest; the token itself is shown once and never stored.
   //                  A connecting client's self-reported name is never any of
   //                  this (docs/research/mcp-gateway-notes.md §2).

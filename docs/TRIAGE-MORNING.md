@@ -1,8 +1,8 @@
 # The triage morning
 
-The first thing Wren's gateway is *for*. An agent connects while you sleep,
+The first thing Maru's gateway is *for*. An agent connects while you sleep,
 reads the overnight mail, archives what needs nobody, stars what needs your
-eyes, and drafts real replies into the approval queue. You open Wren to a
+eyes, and drafts real replies into the approval queue. You open Maru to a
 tidy inbox and a short list of sends waiting on you. Nothing left the machine
 while you were away, and the audit log reads back as the whole morning in
 order.
@@ -11,7 +11,7 @@ This document is the playbook for running it — against the demo first, then
 against your own mail — and the runbook for filming it.
 
 Prerequisite: an agent connected per [CONNECT-AN-AGENT.md](CONNECT-AN-AGENT.md).
-Wren must be running.
+Maru must be running.
 
 ---
 
@@ -33,14 +33,14 @@ way — a capability the agent does not hold is a row saying it asked.
 
 ## 2. The prompt
 
-Paste this into Claude Code or Claude Desktop with the `wren` server
+Paste this into Claude Code or Claude Desktop with the `maru` server
 registered. Adjust the taste lines — what counts as noise, whose threads
 deserve replies — to your own mail.
 
 ```text
-Good morning. Triage my inbox in Wren.
+Good morning. Triage my inbox in Maru.
 
-1. Call wren_ping to see what you hold, then list_accounts.
+1. Call maru_ping to see what you hold, then list_accounts.
 2. Call search_mail with an empty query for the newest inbox threads.
 3. Archive the noise: newsletters, promotions, receipts, shipping and
    renewal notices — anything that needs no reply and no decision from
@@ -53,7 +53,7 @@ Good morning. Triage my inbox in Wren.
    thread and note it in your summary. Do not retry it.
 7. Finish with a summary: what you archived, what you starred, what is
    waiting in my approval queue, what you skipped. Then stop. I approve
-   sends in Wren, not here — do not poll list_pending.
+   sends in Maru, not here — do not poll list_pending.
 ```
 
 Two lines of that prompt are load-bearing rather than taste:
@@ -63,12 +63,12 @@ Two lines of that prompt are load-bearing rather than taste:
   blocked rows and changes nothing — the scope is yours to widen, in
   Settings, if the recipient belongs there.
 - **"Do not poll list_pending."** Every call writes an audit row, including
-  that one. Approvals resolve in Wren's UI on your schedule; an agent that
+  that one. Approvals resolve in Maru's UI on your schedule; an agent that
   polls for the verdict turns the timeline into a metronome. `list_pending`
   is for the *next* session's catch-up — "what happened to what I asked?" —
   not for waiting.
 
-## 3. What you see in Wren
+## 3. What you see in Maru
 
 - The sidebar footer badge counts the sends waiting. The OS notification
   fires as each request lands.
@@ -103,10 +103,10 @@ Three artifacts stand behind this document:
 
 ### Filming the full story
 
-The film is one screen, two halves: the agent's terminal on the left, Wren
+The film is one screen, two halves: the agent's terminal on the left, Maru
 on the right. Beats:
 
-1. Wren in demo mode, inbox untouched, badge at zero. Two seconds of calm.
+1. Maru in demo mode, inbox untouched, badge at zero. Two seconds of calm.
 2. Paste the prompt into Claude Code on the left. Let it run — the audit
    log open on the right turns the tool calls into readable rows as they
    land.

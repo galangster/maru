@@ -32,7 +32,7 @@ export function useNotifications(): void {
    * badge is already saying it on screen and a second announcement of a thing
    * you can see is noise.
    *
-   * No sound. `newMail` is the only cue Wren is willing to make while nobody
+   * No sound. `newMail` is the only cue Maru is willing to make while nobody
    * is looking (SOUNDS.md §3), and an approval is not more urgent than mail —
    * it is a request that will still be there in the morning.
    */
@@ -43,7 +43,7 @@ export function useNotifications(): void {
         // The one connection worth a ping: a fresh credential's first use is
         // when a copied one would show itself (M10). Deliberately NOT behind
         // the focus guard the other notifications honor — a security moment
-        // fires even while the person is looking at Wren, because the window
+        // fires even while the person is looking at Maru, because the window
         // being focused says nothing about who ran the agent.
         void notify(
           platform,
@@ -107,14 +107,14 @@ async function notify(platform: Platform | null, from: string, body: string): Pr
     await platform.notify(from, body)
     return
   }
-  // Browser: only if the user has already said yes somewhere else. Wren does
+  // Browser: only if the user has already said yes somewhere else. Maru does
   // not ask, because a permission prompt is not a first impression.
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
   const notification = new Notification(from, { body })
   notification.onclick = () => window.focus()
 }
 
-/** Tauri: clicking the toast brings Wren forward. */
+/** Tauri: clicking the toast brings Maru forward. */
 async function listenForClicks(): Promise<() => void> {
   // onAction is mobile-only: on desktop the register_listener command does
   // not exist and the call rejects. Fall back to the OS default click.

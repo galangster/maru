@@ -8,7 +8,7 @@
 
    shadcn's overlay blurs the backdrop as well, which spends the second of
    DIRECTION §7's two glass layers on the scrim, leaves the app behind reading
-   as fog rather than depth, and makes the palette's own blur invisible. Wren
+   as fog rather than depth, and makes the palette's own blur invisible. Maru
    dims and lets the surface do the blurring. */
 
 [data-slot='dialog-overlay'] {

@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/icon"
 import { useUi } from "@/features/mail/ui-store"
 import { resolveTheme } from "@/features/shell/use-theme"
 
-// Wren owns the theme (a class on <html>, persisted through MailService), so
+// Maru owns the theme (a class on <html>, persisted through MailService), so
 // the toaster reads it from there instead of from next-themes.
 const Toaster = ({ ...props }: ToasterProps) => {
   const theme = resolveTheme(useUi((s) => s.theme))

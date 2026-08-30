@@ -109,7 +109,7 @@ function TimelineBody({ filter }: { filter: string }) {
       </SurfaceHeader>
 
       {/* Per-agent filter chips. One row, left-aligned, the same soft-fill
-          selection every other selected thing in Wren takes.
+          selection every other selected thing in Maru takes.
 
           A group of pressed toggles, not a `role="tablist"`. The tablist role
           promises roving tabindex, arrow-key traversal, `aria-controls` and a

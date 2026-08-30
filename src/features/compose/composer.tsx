@@ -575,7 +575,7 @@ function CloseControl({
       open={confirming}
       onOpenChange={setConfirming}
       title="Discard this draft?"
-      description="Wren does not keep drafts yet. Closing loses what you wrote."
+      description="Maru does not keep drafts yet. Closing loses what you wrote."
       cancelLabel="Keep writing"
       confirmLabel="Discard"
       onConfirm={onClose}

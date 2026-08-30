@@ -151,7 +151,7 @@ const TRAIL: TrailRow[] = [
   },
   {
     hoursAgo: 25.6,
-    tool: 'wren_ping',
+    tool: 'maru_ping',
     summary: 'Checked its connection and capabilities.',
     outcome: 'ok',
   },

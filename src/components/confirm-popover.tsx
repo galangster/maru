@@ -1,6 +1,6 @@
 // "Are you sure?", anchored on the control that asked.
 //
-// Wren raises this twice — discarding a draft and removing an account — and
+// Maru raises this twice — discarding a draft and removing an account — and
 // both are the same shape: a title, a sentence saying what is actually lost, a
 // quiet way out on the left and the destructive one on the right. Written
 // twice it drifted in padding and in which button got the focus ring.

@@ -2,7 +2,7 @@
 
 ## Encryption design
 
-Wren encrypts mail-content fields with AES-256-GCM. Each Gmail account has one random 256-bit key. Each encryption operation uses a random 12-byte IV. The stored value contains the `wrenc1:` prefix, the IV, and the ciphertext. Sources: `src/core/crypto/keyring.ts:4-9` and `src/core/crypto/keyring.ts:91-103`.
+Maru encrypts mail-content fields with AES-256-GCM. Each Gmail account has one random 256-bit key. Each encryption operation uses a random 12-byte IV. The stored value contains the `wrenc1:` prefix, the IV, and the ciphertext. Sources: `src/core/crypto/keyring.ts:4-9` and `src/core/crypto/keyring.ts:91-103`.
 
 The account id is additional authenticated data. Ciphertext created for one account cannot decrypt under another account. The encryption tests prove that binding. Sources: `src/core/crypto/keyring.ts:54-63`, `src/core/crypto/keyring.ts:105-124`, and `tests/crypto.test.ts:43-56`.
 
@@ -26,17 +26,17 @@ SQLite keeps routing and query fields in plaintext. These include account and Gm
 
 ## Key lifecycle
 
-**Creation.** Wren generates a key from the operating-system random source when it first stores an account. `Store.upsertAccount` ensures that the account key exists. Sources: `src/core/crypto/keyring.ts:54-63`, `src/core/store/db.ts:625-639`, and `SECURITY.md:42-44`.
+**Creation.** Maru generates a key from the operating-system random source when it first stores an account. `Store.upsertAccount` ensures that the account key exists. Sources: `src/core/crypto/keyring.ts:54-63`, `src/core/store/db.ts:625-639`, and `SECURITY.md:42-44`.
 
-**Rotation.** Wren has no in-place key rotation. Removing an account deletes its cache and destroys its key. Adding the account again creates a fresh key. Gmail remains the durable mailbox copy. Source: `SECURITY.md:45-48`.
+**Rotation.** Maru has no in-place key rotation. Removing an account deletes its cache and destroys its key. Adding the account again creates a fresh key. Gmail remains the durable mailbox copy. Source: `SECURITY.md:45-48`.
 
-**Recovery.** Wren has no key recovery path. If the keychain entry is lost, the cache cannot decrypt. Wren must sync the mailbox again from Gmail. Content that only the lost key could decrypt remains unreadable. Source: `SECURITY.md:49-51`.
+**Recovery.** Maru has no key recovery path. If the keychain entry is lost, the cache cannot decrypt. Maru must sync the mailbox again from Gmail. Content that only the lost key could decrypt remains unreadable. Source: `SECURITY.md:49-51`.
 
 **Deletion.** Account removal first deletes cached rows and then destroys the per-account key. It also deletes the OAuth token entry and removes the account's search-index documents. Sources: `src/core/store/db.ts:658-669`, `src/core/service/real.ts:305-313`, and `SECURITY.md:52-56`.
 
 ## Account removal and full local deletion
 
-For one account, Wren performs these operations:
+For one account, Maru performs these operations:
 
 1. Stop that account's sync engine.
 2. Expire its pending approval rows.
@@ -49,7 +49,7 @@ Sources: `src/core/store/db.ts:658-669` and `src/core/service/real.ts:305-313`.
 
 Settings exposes **Delete local Google data**. The action calls the same account-removal path for every connected account. The confirmation states that cached mail, tokens, and encryption keys leave the device. Nothing at Google changes. Source: `src/features/settings/settings-dialog.tsx:309-324` and `src/features/settings/settings-dialog.tsx:365-405`.
 
-Google revocation is separate. The public guide directs the user to Google's account-permissions page, then instructs the user to remove the account in Wren to clear its local copy. Source: `site/support/google-data.html:29-49`.
+Google revocation is separate. The public guide directs the user to Google's account-permissions page, then instructs the user to remove the account in Maru to clear its local copy. Source: `site/support/google-data.html:29-49`.
 
 ## Audit erasure semantics
 

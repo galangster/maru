@@ -1,4 +1,4 @@
-// Inbox zero — the one milestone Wren celebrates, and the only place in the
+// Inbox zero — the one milestone Maru celebrates, and the only place in the
 // app that spends a particle. AMIE-STUDY §7(c).2.
 //
 // Everything here is bounded on purpose:
