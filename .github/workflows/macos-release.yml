@@ -1,0 +1,42 @@
+# Signed macOS release from CI — P2's second half. workflow_dispatch only:
+# a release is a decision, not a side effect of a push.
+#
+# Repository secrets it expects (Settings → Secrets → Actions):
+#   APPLE_CERTIFICATE             base64 of the Developer ID .p12 export
+#   APPLE_CERTIFICATE_PASSWORD    the .p12 password
+#   APPLE_SIGNING_IDENTITY        "Developer ID Application: … (TEAMID)"
+#   APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID   notarization credentials
+# Tauri imports the certificate into a temp keychain itself and notarizes.
+
+name: macos-release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run tauri build
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wren-macos
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg

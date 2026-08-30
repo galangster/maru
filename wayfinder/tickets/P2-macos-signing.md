@@ -1,6 +1,6 @@
 # P2 — macOS signing, notarization, DMG  `wayfinder:task`
 
-status: open · claimed: — · blocked by: Apple Developer enrollment (Nick)
+status: in progress · claimed: P2 lane, 2026-08-29 · blocked by: —
 
 ## Question → work
 

@@ -1,32 +1,60 @@
-// Rasterizes the Wren app mark to src-tauri/icons/source.png at 1024x1024.
-// Run with: node scripts/make-icon.mjs
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+// The macOS app icon, built from Nick's coral-bird art.
+//
+//   node scripts/make-icon.mjs
+//
+// Input:  src-tauri/icons/source.png — the full-square art (bird on coral).
+// Output: src-tauri/icons/icon.icns — the same art on Apple's icon grid:
+//         a 1024 canvas, transparent margins, the art masked into an
+//         824×824 rounded rect (radius 185, ~the Big Sur squircle). Without
+//         the grid, macOS 26 renders the square on a generated backing
+//         plate — the grey slab this script exists to kill.
+//
+// Windows (.ico), Linux and the store tiles stay full-square on purpose:
+// only macOS composes its shelf from the icon's own silhouette.
+
+import { execFileSync } from "node:child_process";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { resolve, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const outFile = resolve(root, "src-tauri/icons/source.png");
+const sourceFile = resolve(root, "src-tauri/icons/source.png");
+const icnsFile = resolve(root, "src-tauri/icons/icon.icns");
 
-const SIZE = 1024;
+const CANVAS = 1024;
+const ART = 824; // Apple's icon-grid artwork square
+const RADIUS = 185; // ≈ the Big Sur corner radius at this size
 
-// Rounded square with a vertical blue gradient, plus a white bird mark drawn
-// from two quadratic wing arcs. Generous margins keep it readable when small.
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 1024 1024">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#1E40AF"/>
-    </linearGradient>
-  </defs>
-  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
-  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-width="52">
-    <path d="M 288 596 Q 512 372 736 596"/>
-    <path d="M 376 460 Q 512 300 648 460"/>
-  </g>
-</svg>`;
+const mask = Buffer.from(
+  `<svg width="${ART}" height="${ART}"><rect width="${ART}" height="${ART}" rx="${RADIUS}" ry="${RADIUS}" fill="#fff"/></svg>`,
+);
 
-await mkdir(dirname(outFile), { recursive: true });
-const png = await sharp(Buffer.from(svg)).resize(SIZE, SIZE).png().toBuffer();
-await writeFile(outFile, png);
-console.log(`Wrote ${outFile} (${SIZE}x${SIZE}, ${png.length} bytes)`);
+const art = await sharp(sourceFile)
+  .resize(ART, ART)
+  .composite([{ input: mask, blend: "dest-in" }])
+  .png()
+  .toBuffer();
+
+const canvas = await sharp({
+  create: { width: CANVAS, height: CANVAS, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+})
+  .composite([{ input: art, left: (CANVAS - ART) / 2, top: (CANVAS - ART) / 2 }])
+  .png()
+  .toBuffer();
+
+// iconutil wants the named-size set; each entry is (points, scale).
+const iconset = resolve(tmpdir(), `wren-${Date.now()}.iconset`);
+await mkdir(iconset, { recursive: true });
+const entries = [
+  [16, 1], [16, 2], [32, 1], [32, 2], [128, 1], [128, 2], [256, 1], [256, 2], [512, 1], [512, 2],
+];
+for (const [points, scale] of entries) {
+  const px = points * scale;
+  const name = `icon_${points}x${points}${scale === 2 ? "@2x" : ""}.png`;
+  await writeFile(resolve(iconset, name), await sharp(canvas).resize(px, px).png().toBuffer());
+}
+execFileSync("iconutil", ["-c", "icns", iconset, "-o", icnsFile]);
+await rm(iconset, { recursive: true });
+console.log(`Wrote ${icnsFile}`);
