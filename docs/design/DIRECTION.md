@@ -245,10 +245,9 @@ Pane measures, decided once:
 | `--wren-sidebar-gutter` | 8px | the ground channel around the floating sidebar card |
 | `--wren-lights-gap` | 16px | mirrors `GAP` in `src-tauri/src/lib.rs`, both axes |
 | `--wren-lights-reserve` | 44px | the card's top band = toolbar 52 − gutter 8 |
-| `--wren-lights-drop` | 36px | collapsed: 44 − the card's own `pt-2` |
 | `--wren-sidebar-w` | 248px | CARD width; the panel is this + 2 × gutter |
 | `--wren-sidebar-w-min` / `-max` | 200px / 320px | resize clamp, card widths |
-| `--wren-sidebar-w-collapsed` | 56px | icon rail; panel 72, content box 40 |
+| `--wren-sidebar-w-collapsed` | 68px | icon rail seating the lights; panel 84, content box 52 |
 | `--wren-list-w` | 400px | default |
 | `--wren-list-w-min` / `-max` | 340px / 520px | resize clamp |
 | `--wren-row-h` | 68px | two-line message row |

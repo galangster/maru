@@ -514,11 +514,7 @@
        under the screenshot gate. Written as arithmetic, not as 44px: it is
        what makes the alignment survive a change to either input. */
     --wren-lights-reserve: calc(var(--wren-toolbar-h) - var(--wren-sidebar-gutter));
-    /* Collapsed, the card drops below the lights rather than widening to cover
-       them, by the card's own top padding — which is why band 1 spells that
-       padding as the gutter token too. card_top + card_pad = 52 in both
-       states, so collapsing never moves the compose control vertically. */
-    --wren-lights-drop: calc(var(--wren-lights-reserve) - var(--wren-sidebar-gutter));
+
 
     /* CARD widths, not panel widths. The sidebar ResizablePanel is the card
        PLUS 2 × --wren-sidebar-gutter, and app-shell.tsx adds that padding
@@ -527,11 +523,19 @@
     --wren-sidebar-w: 248px;
     --wren-sidebar-w-min: 200px;
     --wren-sidebar-w-max: 320px;
-    /* 56, not 64: the collapsed panel is 72 and the card's content box is
-       56 − 16 (`px-2`) = 40 px — byte-identical to the old 64 − 24 (`px-3`), so
-       the 32 px --wren-hit boxes keep their 4 px each side and the focus ring
-       is not clipped by the card's `overflow-hidden`. */
-    --wren-sidebar-w-collapsed: 56px;
+    /* Wide enough to SEAT the traffic lights, because the collapsed card runs
+       full height like the expanded one. The green circle's right edge is at
+       x=68 (gap 16 + 2 x pitch 20 + the 12 px circle), and the card starts at
+       x=8, so 68 + the same 8 px margin the red circle gets on the left puts
+       the card's right edge at 76 — a 68 px card.
+       It was 56 while the collapsed card dropped below the lights instead;
+       that left an L-shaped notch of ground at the top-left with hard edges
+       under the lights and against the list pane, which the owner read
+       immediately as "a hard cut off with the white part" (2026-08-31).
+       Content box is 68 − 16 (`px-2`) = 52 px, so the 32 px --wren-hit boxes
+       get 10 px each side and the focus ring still clears the card's
+       `overflow-hidden`. */
+    --wren-sidebar-w-collapsed: 68px;
     --wren-list-w: 400px;
     --wren-list-w-min: 340px;
     --wren-list-w-max: 520px;

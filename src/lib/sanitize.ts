@@ -42,36 +42,127 @@ const FORBID_TAGS = [
   'meta',
   'base',
   'noscript',
+  // Media, all of which fetch on their own and none of which mail needs. A
+  // <video poster> is a tracking pixel with a different tag name, and every
+  // one of these was reachable before (P16, 2026-08-31).
+  'video',
+  'audio',
+  'source',
+  'track',
+  'picture',
 ]
 
-const FORBID_ATTR = ['srcset', 'ping', 'formaction', 'background', 'usemap']
+const FORBID_ATTR = ['srcset', 'ping', 'formaction', 'background', 'usemap', 'poster']
+
+/** A 1x1 fully transparent GIF. The blocked image keeps its box in the DOM so
+ *  alt text and the placeholder chip have something to hang on, but fetches
+ *  nothing. */
+const BLANK =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+/**
+ * Is this URL going to hit the network?
+ *
+ * `/^https?:/` was the old test and it missed two forms that mail uses every
+ * day: a protocol-relative `//host/px.gif`, and a leading space before the
+ * scheme (attribute values are not trimmed for you). Both fetched, and both
+ * therefore told the sender the message had been opened — the exact thing the
+ * "Remote images blocked" pill promises they cannot do.
+ */
+function isRemote(raw: string): boolean {
+  const url = raw.trim()
+  return /^https?:/i.test(url) || url.startsWith('//')
+}
+
+/** Declared area, when the markup states one. Tracking pixels are ~1x1. */
+function declaredArea(node: Element): number | null {
+  const w = Number.parseFloat(node.getAttribute('width') ?? '')
+  const h = Number.parseFloat(node.getAttribute('height') ?? '')
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return null
+  return w * h
+}
+
+/** Below this, an image is a beacon and not a picture: no chip, just the count. */
+const TRACKER_AREA = 64
+
+/** Every CSS property that can fetch, not just `background`. */
+const CSS_FETCHING_PROPERTY =
+  /(?:[a-z-]*background[a-z-]*|list-style(?:-image)?|mask(?:-image)?|border-image(?:-source)?|content|cursor|src)\s*:[^;]*url\([^)]*\)[^;]*;?/gi
+
+/** Sizing left behind on a container whose only content was a blocked image. */
+const CSS_SIZING = /(?:min-)?height\s*:[^;]*;?/gi
 
 let state: SanitizeOptions & { blocked: number } = { allowRemoteImages: false, blocked: 0 }
 
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (!(node instanceof Element)) return
 
-  if (node.tagName === 'IMG') {
-    const src = node.getAttribute('src') ?? ''
-    if (src.startsWith('cid:')) {
-      const resolved = state.inlineImages?.get(src.slice(4).replace(/^<|>$/g, ''))
-      if (resolved) node.setAttribute('src', resolved)
-      else node.remove()
-      return
-    }
-    if (/^https?:/i.test(src) && !state.allowRemoteImages) {
+  // SVG's <image href> is allowlisted by DOMPurify and its tagName is `image`,
+  // not `IMG` — so it went straight past the old check and fetched.
+  const tag = node.tagName.toUpperCase()
+  if (tag === 'IMAGE' || (tag === 'IMG' && node.hasAttribute('href'))) {
+    const href = node.getAttribute('href') ?? node.getAttribute('xlink:href') ?? ''
+    if (isRemote(href) && !state.allowRemoteImages) {
       state.blocked++
       node.remove()
       return
     }
   }
 
-  // A CSS background can pull a remote image just as well as an <img> can.
+  if (tag === 'IMG') {
+    const src = node.getAttribute('src') ?? ''
+    if (src.trim().startsWith('cid:')) {
+      const resolved = state.inlineImages?.get(src.trim().slice(4).replace(/^<|>$/g, ''))
+      if (resolved) node.setAttribute('src', resolved)
+      else node.remove()
+      return
+    }
+    if (isRemote(src) && !state.allowRemoteImages) {
+      state.blocked++
+      // SUBSTITUTE, do not remove. Removing the <img> killed the pixels but
+      // never the box: every layout-bearing ancestor kept its `height` attr,
+      // so a hero built as <td height="350"> left a 350px hole in the middle
+      // of the message — which is what the owner was actually looking at
+      // (P16, 2026-08-31). Keeping a blanked node lets the placeholder chip
+      // and the alt text occupy the space instead, and lets the collapse pass
+      // below recognise the container as empty.
+      const area = declaredArea(node)
+      if (area !== null && area <= TRACKER_AREA) {
+        // A 1x1 beacon is not a picture. It feeds the count and nothing else;
+        // a chip for it would be noise where the sender wanted none.
+        node.remove()
+        return
+      }
+      node.setAttribute('data-wren-blocked-src', src)
+      node.setAttribute('src', BLANK)
+      node.setAttribute('class', 'wren-blocked')
+      for (const attr of ['width', 'height', 'hspace', 'vspace', 'align']) {
+        node.removeAttribute(attr)
+      }
+      return
+    }
+  }
+
+  // A CSS url() can pull a remote image just as well as an <img> can — and not
+  // only through `background`: list-style-image, mask-image, border-image,
+  // content and cursor all fetch too, and the old `background`-only regex
+  // never saw them.
   const style = node.getAttribute('style')
   if (style && /url\(/i.test(style)) {
-    const stripped = style.replace(/[a-z-]*background[a-z-]*\s*:[^;]*url\([^)]*\)[^;]*;?/gi, '')
-    if (/url\(\s*['"]?https?:/i.test(style) && !state.allowRemoteImages) state.blocked++
-    node.setAttribute('style', stripped)
+    const remote = /url\(\s*['"]?\s*(?:https?:)?\/\//i.test(style)
+    // Only strip what is actually withheld. The strip used to run
+    // unconditionally, so clicking "Show" dropped the pill to zero and
+    // revealed NOTHING for a mail whose imagery is CSS backgrounds — and it
+    // destroyed safe data: backgrounds permanently, in both states.
+    if (remote && !state.allowRemoteImages) {
+      state.blocked++
+      let stripped = style.replace(CSS_FETCHING_PROPERTY, '')
+      // The declaration that carried the image usually carried its height too
+      // (`background-image:url(...);height:350px`), and dropping only the
+      // former is exactly what leaves the hole.
+      if (stripped !== style) stripped = stripped.replace(CSS_SIZING, '')
+      node.setAttribute('style', stripped)
+    }
   }
 
   if (node.tagName === 'A') {

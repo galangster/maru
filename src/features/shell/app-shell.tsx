@@ -65,7 +65,7 @@ export function AppShell() {
       sidebar: pxToken('--wren-sidebar-w', 248),
       sidebarMin: pxToken('--wren-sidebar-w-min', 200),
       sidebarMax: pxToken('--wren-sidebar-w-max', 320),
-      sidebarCollapsed: pxToken('--wren-sidebar-w-collapsed', 56),
+      sidebarCollapsed: pxToken('--wren-sidebar-w-collapsed', 68),
       gutter: pxToken('--wren-sidebar-gutter', 8),
       list: pxToken('--wren-list-w', 400),
       listMin: pxToken('--wren-list-w-min', 340),

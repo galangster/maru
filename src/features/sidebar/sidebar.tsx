@@ -47,16 +47,6 @@ export function Sidebar() {
   const inboxUnread = useUnreadCount(INBOX_VIEW).data ?? 0
 
   return (
-    <>
-      {/* Collapsed, the card DROPS below the traffic lights rather than
-          widening to cover them — a 76 px icon rail for an 18 px glyph is the
-          worse trade. The ground runs y 8..44 and the lights sit on it. A
-          childless div carrying a bare drag attribute is always
-          `composedPath()[0]`, so it drags on mousedown and zooms on
-          double-click; in a browser the attribute is inert. */}
-      {collapsed && (
-        <div data-tauri-drag-region aria-hidden className="h-(--wren-lights-drop) shrink-0" />
-      )}
       <nav
         aria-label="Mailboxes"
         // The floating card (Apple Mail): bg-surface on the bg-canvas ground
@@ -67,25 +57,32 @@ export function Sidebar() {
         // with no waiver and no new token.
         className="bg-surface rounded-xl shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        {/* The card's top band, on EVERY platform. On macOS the three lights
-            land on it (x 16..68, y 16..28) with a symmetric 8 px of card above
-            and to the left of the red circle; everywhere else it is simply
-            empty card. Unconditional on purpose: it is what puts the compose
-            button at y=52 level with both pane headers' `border-b`, and what
-            keeps the committed browser captures showing the real production
-            geometry instead of a macOS-only variant nothing can prove. */}
-        {!collapsed && (
-          <div data-tauri-drag-region aria-hidden className="h-(--wren-lights-reserve) shrink-0" />
-        )}
-        {/* Collapsed, this padding is the same quantity --wren-lights-drop
-            subtracts, so the compose control lands at y=52 in both states.
-            Spelled as the token rather than `pt-2` so the two cannot drift. */}
-        <div
-          className={cn(
-            'shrink-0 px-2 pb-3',
-            collapsed && 'pt-(--wren-sidebar-gutter)',
-          )}
-        >
+        {/* The card's top band, on EVERY platform AND in both states. On macOS
+            the three lights land on it (x 16..68, y 16..28) with a symmetric
+            8 px of card above and to the left of the red circle; everywhere
+            else it is simply empty card. It puts the compose button at y=52,
+            level with both pane headers' `border-b`, and it keeps the browser
+            captures showing the real production geometry.
+
+            Collapsed used to DROP the card below the lights instead, leaving
+            an L-shaped notch of ground at the top-left with a hard edge under
+            the lights and another against the list pane — "a hard cut off with
+            the white part" (owner, 2026-08-31). The card now runs full height
+            in both states and the collapsed rail is simply wide enough to seat
+            the lights, so there is one geometry and no notch. A childless div
+            carrying a bare drag attribute is always `composedPath()[0]`, so it
+            drags on mousedown and zooms on double-click; in a browser the
+            attribute is inert. */}
+        <div data-tauri-drag-region aria-hidden className="h-(--wren-lights-reserve) shrink-0" />
+        {/* `justify-center` matters only when collapsed, and it is not
+            cosmetic: expanded, Compose is `w-full` and centring is a no-op;
+            collapsed it is a 36 px circle in a 52 px content box, and without
+            this it sits at the flex start while every NavRow below is `w-full`
+            with its glyph centred — the button lands 8 px left of the column
+            it heads (owner, 2026-08-31). The offset existed at the old 56 px
+            rail too, at 2 px, which is small enough to read as a rendering
+            artefact rather than a mistake. */}
+        <div className="flex shrink-0 justify-center px-2 pb-3">
           <ComposeButton collapsed={collapsed} />
         </div>
 
@@ -125,7 +122,6 @@ export function Sidebar() {
 
         <SidebarFooter collapsed={collapsed} accounts={accounts.data ?? []} />
       </nav>
-    </>
   )
 }
 
