@@ -83,3 +83,26 @@ the ratification item.
 
 All in wayfinder/NICK-QUEUE.md — nothing new since the queue update at
 commit time. No surface mid-mutation; working tree clean at push.
+
+## Addendum — the character arc (later that night)
+
+Nick delivered canonical Maru art mid-run (character sheet with bio,
+turnaround, palette #FF4F87 family, plus perched/flight/preen
+references). Everything traced and shipped — see P13 for the state:
+
+- `docs/design/wren-character/` — canonical sheet, references, traced
+  paths, the tracer.
+- Design canvas (link in P13) — canonical sheet as hero board, traced
+  working boards below.
+- **In-app rig v1** (`src/components/wren-figure.tsx` +
+  `src/assets/wren-poses.ts`): perched Maru breathes/blinks/gazes in
+  empty states; the real flight pose flies at inbox zero.
+
+P13 v2 wants: five-beat inbox-zero sequence with DialKit, perk +
+ruffle art, turnaround traces. The freeze-candidate rebuild now also
+carries the character — the demo video's empty states star Maru.
+
+Also this stretch: multi-device strategy brief (queue has the
+ratification item), narrow-pane rig + zoom-to-fit mail, the accounts
+group, motion pass, photo lightbox morph. All in the commit log
+between 79a2491 and fac5eb2.
