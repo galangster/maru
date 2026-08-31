@@ -42,7 +42,26 @@ asking in chat. Newest at the top of each section. Strike items done.
 4. ~~Inject the official client id~~ — done 2026-08-30: repo variable
    `WREN_OFFICIAL_GOOGLE_CLIENT_ID` on galangster/maru; release
    workflow fails without it.
-5. **Demo video captures** — the Remotion scaffold is built (`demo/`,
+5. **Freeze done — hand-smoke + recording prep before the sitting**
+   (2026-08-31): the freeze build (main @ 8e6beb6, coral brand + Maru
+   character + link fix) is signed, notarized Accepted, stapled, all
+   three Gatekeeper checks passed, and installed at /Applications/
+   Maru.app (verified again post-install; app launches and renders).
+   The agent stopped short of driving the UI — you were using the
+   machine and synthetic keystrokes were landing across windows. Your
+   ~2 minutes, in the app:
+   - Open any thread (body renders), click one link (opens in Arc),
+     open the weekend-photos thread and click a thumbnail (lightbox
+     morph), watch the empty state (Maru breathes).
+   - **Check the seed emails are still in the inbox** — the unified
+     inbox showed only 2 real threads at smoke time, none of the 5
+     seeds from SEED-EMAILS.md. If earlier testing archived them,
+     re-seed per demo/SEED-EMAILS.md before recording.
+   - Recording prep: star "Invoice #1042 from Acme Design", send one
+     short reply from galangsterr on the "Team lunch Thursday?" thread.
+   Then the ~20-minute sitting per demo/RECORDING-RUNBOOK.md.
+
+6. **Demo video captures** — the Remotion scaffold is built (`demo/`,
    2026-08-30) with the full 10-shot list, captions, and placeholder
    slots. Your part: record the clips of the final signed build —
    especially the three consent flows (account addition, Google
