@@ -109,6 +109,20 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Decisions to ratify
 
+- **Book a Wayfinder + grill for the AGENT GATEKEEPER** (your ask,
+  2026-08-31; ticket G3-agent-gatekeeper). The idea is good and the
+  ticket is written, but it needs you in a session rather than an agent
+  building it, because it collides with the one sentence the whole
+  verification dossier rests on: judging whether a message is
+  "interesting enough" is an LLM call, and that means either a weak
+  local model or mail CONTENT leaving the machine. G2 resolved the
+  server question for settings by making the server the business;
+  content is a much bigger step than settings.
+  Two more things to grill: a gatekeeper's mistakes are invisible by
+  construction (you cannot notice mail you were never shown), and
+  auto-unsubscribing is an outbound ACTION in an app whose pitch is that
+  you approve every send. Not before the Google submission.
+
 - **Menu-bar quick actions — sign off on the list** (your ask,
   2026-08-31; ticket P17-menu-bar-residency). Staying resident when the
   window closes is unambiguous and needs nothing from you. The menu
