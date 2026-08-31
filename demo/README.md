@@ -41,13 +41,12 @@ previews end to end before any recording happens.
 
 ## Adding a capture
 
-1. Record the clip (screen capture, 16:9, ideally 1920×1080).
-2. Drop it in `public/captures/` named after the shot id, e.g.
-   `public/captures/03-consent-screen.mp4`.
-3. In `src/shots.ts`, flip that shot's `hasCapture` to `true` and set
+1. Run `./capture.sh <shot-id>` — it records the screen, remuxes to
+   mp4 in `public/captures/`, and prints the duration. Ctrl-C stops a
+   take early. See `RECORDING-RUNBOOK.md` for the full session plan
+   and `SEED-EMAILS.md` for the demo mailbox setup.
+2. In `src/shots.ts`, flip that shot's `hasCapture` to `true` and set
    `durationInFrames` to the clip's real length (`sec(<seconds>)`).
-4. Before the final render, fill `APP_VERSION` in `src/shots.ts` with
-   the frozen release version.
 
 ## Delivery
 
