@@ -67,20 +67,6 @@ interface UiState {
   expandedAccounts: Record<string, boolean>
   /** The whole Accounts group, folded to one header row. */
   accountsGroupCollapsed: boolean
-  /**
-   * The list is showing the EARNED inbox-zero mark — a bird in flight.
-   *
-   * Exactly one Maru is on screen at a time. Without this the reading pane's
-   * own "Nothing open" bird sits perched beside it, so a cleared inbox shows
-   * two birds doing different things in one window — which empty-state.tsx
-   * already argues reads as a rendering fault, and which is why its `mark`
-   * gating exists at all.
-   *
-   * It lives here rather than in CSS because the tier is local state inside
-   * ThreadList, and the reading pane is its sibling. Session scoped: it
-   * describes what is on screen right now.
-   */
-  celebrating: boolean
   /** Thread keys the user has un-blocked images for. Session scoped, on purpose. */
   imagesAllowed: Set<string>
   /**
@@ -127,7 +113,6 @@ interface UiState {
   toggleAccount: (accountId: string) => void
   toggleAccountsGroup: () => void
   allowImages: (threadKey: string) => void
-  setCelebrating: (on: boolean) => void
   dismissSyncNotice: (accountIds: string[]) => void
   toggleChecked: (threadKey: string) => void
   /** Add a batch (a shift-click range, or select-all). Never removes. */
@@ -186,7 +171,6 @@ export const useUi = create<UiState>()((set, get) => ({
   expandedAccounts:
     INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
   accountsGroupCollapsed: false,
-  celebrating: false,
   imagesAllowed: new Set<string>(),
   syncNoticeDismissed: new Set<string>(),
   checked: new Set<string>(),
@@ -229,7 +213,6 @@ export const useUi = create<UiState>()((set, get) => ({
     })),
   allowImages: (threadKey) =>
     set((s) => ({ imagesAllowed: new Set(s.imagesAllowed).add(threadKey) })),
-  setCelebrating: (on) => set({ celebrating: on }),
   dismissSyncNotice: (accountIds) =>
     set((s) => {
       const next = new Set(s.syncNoticeDismissed)

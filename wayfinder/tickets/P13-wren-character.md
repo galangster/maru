@@ -147,12 +147,30 @@ Google's review clock.
 Confirmed on the installed 0.1.3 build. Nick: "the flight motion looks
 good. the traffic lights look good too!"
 
-**The colour reverted, deliberately.** `--wren-maru-field` is deleted.
-Painting the whole window with the character's field at rest was shipped
-in 0.1.2 and rejected on sight — "it looks weird altogether with the
-message thread being also pink." The pink is now bounded to one feathered
-circle per bird, mounted inside `.wren-figure`, so it belongs to the
-character and travels into onboarding rather than tinting a pane.
+**The colour landed in two passes, and the second is the one that stands.**
+0.1.2 painted the character's field across the whole window and was
+rejected on sight. 0.1.3 removed it entirely. 0.1.4 split it, on Nick's
+call — and the split is better than either extreme:
+
+> "i like how the nothing open pane turned full pink and had the bird, we
+> should bring that back. only the inbox zero bird should have that masked
+> bg, but the threads/messages bird should have the full color bg"
+
+So the character has TWO HOMES, and the background says which one you are
+looking at. A bird waiting for you to pick a thread stands in a whole
+FIELD — the reading pane at rest, and onboarding. A bird that has cleared
+the inbox is airborne, and its sky is a bounded feathered DISC on the
+white list card. The list card is white in both states, which was the
+actual complaint and does not change.
+
+`.wren-stage` (containment only) and `.wren-empty` (containment + field)
+are what encode it: `showMark && (earned ? 'wren-stage' : 'wren-empty')`.
+
+**A "one Maru on screen" rule was tried and overruled.** It stood the
+perched bird down while the list flew one. Nick's distinction is better:
+the two birds are not duplicates, they are one character in its two
+states, and the backgrounds now carry that. The `celebrating` flag and its
+store field are gone.
 
 DIRECTION's "no gradient as a surface" refusal now carries this as its one
 licensed exception, recorded in both places the rule appears — otherwise a
@@ -182,8 +200,22 @@ the ground.
 **Four air streaks** carry the travel, each with its own opacity envelope
 so the group is never masked. Vertical position is the depth cue.
 
-**One Maru on screen, always.** The list's flying bird stands the reading
-pane's perched one down via `celebrating` in the UI store.
+**The bob was re-cut as a sampled sine (0.1.4).** The first version was a
+three-point eased path and Nick caught what it did: "the bird kinda dips
+but then juts back up." Two faults, both measured off the shipped
+keyframes. It dropped the body 30% of its amplitude inside the first 12%
+of the cycle and then reversed — worst interior velocity jump 0.31 px/%.
+And its closing interval was five times longer than its opening one, so
+the body arrived at the loop seam slowly and left it fast: a velocity
+mismatch of 0.138 px/% at every wrap. Position was continuous; velocity
+was not, and velocity is what reads as smooth.
+
+It is now `y = -A·sin(2πt)` sampled every eighth with `linear` between
+samples. Seam mismatch **0.0000**, worst interior jump 0.099 (3.1×
+smoother), peak speed 32% lower. The pitch is the sine's derivative, so
+the bird tilts because it is climbing rather than because it is high. The
+wing keeps its 34/66 asymmetry but takes ease-in-out on both halves — the
+old `ease-out` recovery put a corner in the velocity at 34%.
 
 ### Still owed
 

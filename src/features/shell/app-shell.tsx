@@ -13,6 +13,7 @@ import { ThreadList } from '@/features/list/thread-list'
 import { useUi } from '@/features/mail/ui-store'
 import { ReadingPane } from '@/features/reading/reading-pane'
 import { Sidebar } from '@/features/sidebar/sidebar'
+import { cn } from '@/lib/utils'
 
 /**
  * The panel library wants numbers, and the measures are tokens — so they are
@@ -81,6 +82,10 @@ export const SHELL_CARD =
 
 export function AppShell() {
   const collapsed = useUi((s) => s.sidebarCollapsed)
+  // Nothing open ⇒ the ground IS the character's field, channels included,
+  // and the sidebar and list read as cards floating on it. The reading pane
+  // is transparent, so this is what shows through behind its bird.
+  const atRest = useUi((s) => s.selected === null)
   const setCollapsed = useUi((s) => s.setSidebarCollapsed)
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
   const listRef = useRef<PanelImperativeHandle | null>(null)
@@ -128,14 +133,13 @@ export function AppShell() {
     // what buys the list 52 px of body (11.0 rows at --wren-row-h instead of
     // 10.2 at 1280×800); every control that could have filled it already lives
     // in the list header or the sidebar footer.
-    // The ground stays the ground. Painting the whole window with the
-    // character's field at rest was tried and rejected once it shipped ("ah
-    // inbox should always be white, rather than have a pink background... it
-    // looks weird altogether with the message thread being also pink", owner,
-    // 2026-08-31). The pink now lives only in the feathered disc behind each
-    // bird, which is what makes it read as belonging to the character rather
-    // than as a mode the whole app has entered.
-    <div className="bg-canvas h-full">
+    // The field is back on the ground at rest — "i like how the nothing open
+    // pane turned full pink and had the bird, we should bring that back"
+    // (owner, 2026-08-31). What does NOT come back is the field on the list
+    // card: "inbox should always be white" was the actual complaint, and the
+    // earned mark now uses .wren-stage so the inbox-zero bird keeps its
+    // bounded disc on white.
+    <div className={cn('bg-canvas h-full', atRest && 'wren-empty')}>
       <ResizablePanelGroup className="h-full">
         <ResizablePanel
           panelRef={sidebarRef}

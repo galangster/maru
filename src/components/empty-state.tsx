@@ -138,7 +138,15 @@ export function EmptyState({
         // keeps the list column's two markless empty states — search, and a
         // filter with no hits — on bg-surface, so no second pink column
         // appears beside the reading pane.
-        showMark && 'wren-empty',
+        // The character's two homes, and the whole colour rule in one line.
+        // A perched bird stands in a FIELD — the reading pane at rest, and
+        // onboarding. An earned bird is airborne, so it gets containment only
+        // and its sky is the bounded disc on the white list card: "only the
+        // inbox zero bird should have that masked bg, but the threads/messages
+        // bird should have the full color bg" (owner, 2026-08-31).
+        // Markless empty states (search, a filter with no hits) take neither,
+        // so no pink column ever appears beside the reading pane.
+        showMark && (earned ? 'wren-stage' : 'wren-empty'),
         className,
       )}
     >

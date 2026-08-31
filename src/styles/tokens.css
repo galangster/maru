@@ -1081,6 +1081,17 @@
        that a pink shade would LIGHTEN the ground instead of deepening it. */
     --wren-maru-shade: 255 126 144;
 
+    /* The reading pane's field, at rest. Deleted for one build and brought
+       straight back: "i like how the nothing open pane turned full pink and
+       had the bird, we should bring that back. only the inbox zero bird should
+       have that masked bg, but the threads/messages bird should have the full
+       color bg" (owner, 2026-08-31).
+       The distinction is the character's two homes. The bird waiting for you to
+       pick a thread stands in a whole field; the bird that has cleared the
+       inbox is airborne in a bounded circle of sky. The list card is white in
+       both — that was the actual complaint, and it does not change. */
+    --wren-maru-field: color-mix(in oklab, var(--wren-maru-ground) 55%, var(--wren-surface-base));
+
     /* The earned bird's aperture. 288px = 2 × --wren-maru-size, on the 4px
        grid. Fixed rather than a container query: this disc mounts on exactly
        one surface (the 400px list column), so `cqi` buys nothing and imports a
@@ -1364,28 +1375,53 @@
    shell, so the ground and its channels carry it and the cards float on it.
    `.wren-empty` keeps the containment the pool and the burst host need without
    re-painting a colour the ancestor already has. */
-/* Containment only. The field is gone: "inbox should always be white, rather
-   than have a pink background... it looks weird altogether with the message
-   thread being also pink" (owner, 2026-08-31, reversing his own call from
-   earlier the same day to fill the window, having now seen it shipped).
-   `position` and `contain` stay — they are still the containing block and the
-   clip for the 400px burst host and for a 288px disc hanging out of a 144px
-   figure. The pink now belongs to the CHARACTER: a feathered circle inside
-   `.wren-figure`, which is why it travels into onboarding and never paints a
-   pane. */
-.wren-empty {
+/* Containment only, and the base both states build on. It is the containing
+   block and the clip for the 400px burst host and for a 288px disc hanging out
+   of a 144px figure. */
+.wren-stage {
     position: relative;
     contain: paint;
 }
 
-/* The pane-wide dither that used to live here is GONE, along with the field it
-   was hiding the banding of. A 3% grain across 610px of near-white is dirt on
-   the app's largest surface; the dither now sits on the two circles that
-   actually ramp (`.wren-pool::after` / `.wren-disc::after`). Its own
-   de-duplication guard went with it — two fields can no longer stack, because
-   there are no fields.
+/* The FIELD — containment plus the character's ground colour, flat and opaque,
+   so its edges ARE the pane's edges and the existing hairlines sit on top of
+   it unchanged.
+   Two surfaces wear it and one deliberately does not. The shell root wears it
+   at rest, so the reading region and the channels are the bird's field; the
+   ambient mark wears it. The EARNED mark does not — an inbox-zero bird is
+   airborne, and its sky is the bounded disc, on the white list card. "only the
+   inbox zero bird should have that masked bg, but the threads/messages bird
+   should have the full color bg" (owner, 2026-08-31). */
+.wren-empty {
+    position: relative;
+    contain: paint;
+    background-color: var(--wren-maru-field);
+}
 
-   ---------------------------------------------------------------------------
+/* The field's own dither. `--wren-noise` is a deterministic 140×140 tile, so
+   the capture gate stays byte-identical. The pool and the disc carry their own
+   masked grain for their ramps; this one is for the flat field, whose
+   color-mix against the base can band across a large area. */
+.wren-empty::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: var(--wren-noise);
+    opacity: 0.03;
+    pointer-events: none;
+}
+
+/* Once, not twice. The shell root carries the field at rest and the reading
+   pane's own mark carries it too, under the same condition — so the reading
+   region got two stacked dither layers against one in the channels, and the
+   1.97× step landed as a soft band along the exact seam the two are supposed
+   to be indistinguishable across. The nested one keeps its colour and drops
+   only its grain. */
+.wren-empty .wren-empty::after {
+    content: none;
+}
+
+/* ---------------------------------------------------------------------------
    THE AIR. Four streaks, each with its own fade, so the group is never masked.
 
    A mask on the wrapper with children translating inside it is the obvious
@@ -1678,7 +1714,15 @@
     }
     34% {
         transform: rotate(calc(var(--wren-flap) * 0.5));
-        animation-timing-function: var(--wren-ease-out);
+        /* ease-in-out on BOTH halves, not ease-out on the recovery. The wing
+           keeps its 34/66 asymmetry — that is what makes a rigid rotate read
+           as driving rather than waving — but the asymmetry is now purely in
+           TIME. ease-out left the recovery at full speed the instant the
+           downstroke ended, which put a corner in the velocity at 34% and a
+           second one at the loop seam, and the body's pumping made both
+           legible. Symmetric easing means the wing arrives at each end at
+           rest, so the whole cycle is smooth however long you watch it. */
+        animation-timing-function: var(--wren-ease-in-out);
     }
     100% {
         transform: rotate(calc(var(--wren-flap) * -0.5));
@@ -1705,21 +1749,62 @@
 
    0% and 100% are translateY(0), deliberately — that is what lets
    settleHeight() drop its float term and keeps the descent's start exact. */
+/* A SINE, SAMPLED — not an eased three-point path.
+ *
+ * The three-point version dropped the body 30% of its amplitude inside the
+ * first 12% of the cycle and then reversed: "the bird kinda dips but then juts
+ * back up" (owner, 2026-08-31). Two separate faults produced that. The dip
+ * itself was a fast downward flick at the top of every cycle; and because the
+ * closing interval was five times longer than the opening one, the body
+ * arrived at the loop seam slowly and left it fast, so each cycle began with a
+ * visible acceleration. Position was continuous across the seam; VELOCITY was
+ * not, and velocity is what the eye reads as smooth.
+ *
+ * y = -A·sin(2πt), sampled every eighth and interpolated LINEARLY. Linear
+ * between closely-spaced samples of a smooth function tracks that function;
+ * an easing curve on each segment would fight it and re-introduce the pumping.
+ * The derivative is continuous everywhere INCLUDING the wrap — the body passes
+ * through zero at full speed at 0% and 100% alike — so the loop has no seam to
+ * find.
+ *
+ * The pitch is the sine's own derivative, -B·cos(2πt): nose up through the
+ * climb, level at the extremes, nose down through the descent. Coupling the
+ * pitch to velocity rather than to height is what stops it reading as a rocking
+ * toy — the bird tilts because it is going up, not because it is high.
+ *
+ * 0% and 100% are both translateY(0), which settleHeight() depends on.
+ */
 @keyframes wren-cruise-bob {
     0% {
+        transform: translateY(0) rotate(calc(var(--wren-tilt) * -0.34));
+    }
+    12.5% {
+        transform: translateY(calc(var(--wren-float) * -0.212))
+            rotate(calc(var(--wren-tilt) * -0.24));
+    }
+    25% {
+        transform: translateY(calc(var(--wren-float) * -0.3)) rotate(0deg);
+    }
+    37.5% {
+        transform: translateY(calc(var(--wren-float) * -0.212))
+            rotate(calc(var(--wren-tilt) * 0.24));
+    }
+    50% {
         transform: translateY(0) rotate(calc(var(--wren-tilt) * 0.34));
-        animation-timing-function: var(--wren-ease-out);
     }
-    12% {
-        transform: translateY(calc(var(--wren-float) * 0.3)) rotate(calc(var(--wren-tilt) * 0.34));
-        animation-timing-function: var(--wren-ease-in-out);
+    62.5% {
+        transform: translateY(calc(var(--wren-float) * 0.212))
+            rotate(calc(var(--wren-tilt) * 0.24));
     }
-    43% {
-        transform: translateY(calc(var(--wren-float) * -0.3)) rotate(calc(var(--wren-tilt) * -0.34));
-        animation-timing-function: var(--wren-ease-in-out);
+    75% {
+        transform: translateY(calc(var(--wren-float) * 0.3)) rotate(0deg);
+    }
+    87.5% {
+        transform: translateY(calc(var(--wren-float) * 0.212))
+            rotate(calc(var(--wren-tilt) * -0.24));
     }
     100% {
-        transform: translateY(0) rotate(calc(var(--wren-tilt) * 0.34));
+        transform: translateY(0) rotate(calc(var(--wren-tilt) * -0.34));
     }
 }
 
