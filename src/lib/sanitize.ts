@@ -113,10 +113,13 @@ export function buildSrcdoc(bodyHtml: string): string {
   :root { color-scheme: light; }
   html, body { margin: 0; padding: 0; background: #ffffff; }
   body {
+    /* The paper's own margin: mail text must not touch the sheet's edge.
+       Padding, not margin, so it is part of the measured scrollHeight. */
+    padding: 14px 16px;
     font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-size: 15.5px;
     line-height: 24px;
-    color: #1A1E28;
+    color: #191716;
     overflow-wrap: break-word;
     /* Mail is arbitrary third-party markup and will ask for weights the frame
        does not have. DIRECTION §4: never fake a weight — fail visibly. */
@@ -124,6 +127,10 @@ export function buildSrcdoc(bodyHtml: string): string {
     -webkit-font-smoothing: antialiased;
   }
   * { max-width: 100%; }
+  /* A leading paragraph's own margin would stack on the body padding and
+     read as a hole; same at the tail. */
+  body > :first-child { margin-top: 0; }
+  body > :last-child { margin-bottom: 0; }
   img { height: auto; }
   /* Links in third-party mail stay a conventional blue — the app's own hue-blue
      ink, NOT the coral accent: mail content is not Maru chrome, and the old
@@ -133,8 +140,8 @@ export function buildSrcdoc(bodyHtml: string): string {
   blockquote {
     margin: 0 0 16px;
     padding: 0 0 0 16px;
-    border-left: 2px solid #DDE0E6;
-    color: #565B66;
+    border-left: 2px solid #E7E5E4;
+    color: #5D5A59;
   }
 </style></head><body>${bodyHtml}</body></html>`
 }
