@@ -24,11 +24,28 @@ The architecture statement and final sentence above are copied verbatim from `do
 
 **Name-collision and trademark review:**
 
-`«NICK: name-collision and trademark-review receipt — attach the dated approval for the final Maru Mail identity.»`
+Collision search run 2026-08-31 (web + Apple App Store + registered-mark
+lookup; a search record, not a legal opinion):
+
+- No existing product named "Maru Mail" in any store or search result.
+- "MARU/MATCHBOX" (reg. 2018) is a market-research services mark; its owner
+  rebranded to The Harris Poll UK in 2025. Different class, different field.
+- "Maru OS" (maruos.com) is a dormant open-source Android/Linux convergence
+  project — software, but not email, and no registered mark found.
+- "Maru" is a common Japanese word (丸) used by many coexisting products
+  across categories, which limits any single claim outside its own class.
+
+Conclusion: no email-adjacent collision; impersonation risk to a reviewer is
+low. The domain getmaru.app and consent-screen branding are consistent.
+
+`«NICK: dated approval of the final Maru Mail identity on this evidence.»`
 
 ### Frozen reviewer release
 
-The repository version is currently `0.1.0`. Source: `package.json:5`. The public Download action points to the repository's latest release page. Source: `site/index.html:34`.
+The frozen reviewer build is `0.1.1` (source: `package.json:5`) — built,
+signed, and notarized locally 2026-08-31 with the official client id baked
+in; not yet published as a GitHub release. The public Download action points
+to the repository's latest release page. Source: `site/index.html:34`.
 
 `«NICK: fill at submission from the frozen release»`
 
