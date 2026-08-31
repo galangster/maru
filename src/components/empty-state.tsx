@@ -13,32 +13,30 @@
 // repeat forty times a day and they get one pop each and nothing else, because
 // frequency is what kills delight.
 
-import { useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 
 import { DUR, EASE_OUT, staggerPreset, useMotionMode } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
-import { burst } from '@/lib/celebrate'
-
-import { WrenBlob, WrenFlyingArrival, WrenPerched } from './wren-figure'
+import { WrenCelebration } from './wren-celebration'
+import { WrenPerched } from './wren-figure'
 
 /**
- * The resting Maru — the canonical character (P13 sheet), perched on a soft
- * pale-pink blob so the white body has ground in both themes. Alive (breath,
- * blink, gaze) only in full motion mode; still under reduced motion and in
- * captures.
+ * The resting Maru — the canonical character (P13 sheet). The figure carries
+ * its own ground (a radial pool anchored under the feet, plus the traced cast
+ * shadow), so it grounds the white body wherever it is mounted, including
+ * onboarding where there is no field behind it. Alive (breath, blink, gaze and
+ * the behaviour clock) only in full motion mode; still under reduced motion
+ * and in captures.
  */
 export function WrenMark({ className }: { className?: string }) {
   const mode = useMotionMode()
 
   return (
     // Decoration must never eat a click or land in a text selection
-    // (`ui-polish` §12) — WrenBlob carries pointer-events-none/select-none.
+    // (`ui-polish` §12) — `.wren-figure` carries pointer-events/select none.
     <div aria-hidden className={className}>
-      <WrenBlob align="end">
-        <WrenPerched alive={mode === 'full'} className="h-24 w-24" />
-      </WrenBlob>
+      <WrenPerched alive={mode === 'full'} />
     </div>
   )
 }
@@ -57,29 +55,17 @@ const EARNED_COPY: EmptyCopy = {
 }
 
 /**
- * The earned mark: the wren in flight, arriving on `wren-celebrate-in` and
- * bobbing on `wren-float`, plus the burst. (It replaced the day-seeded emoji
- * deck in the 2026-08-31 brand pass — the celebration is the bird now.)
+ * The earned mark: the whole five-beat takeoff, hover, descent and landing —
+ * `wren-celebration.tsx` owns the choreography and `lib/wren-flight.ts` owns
+ * the timeline. It STARTS perched, which is the point: the bird the user has
+ * been looking at all week is the one that leaves the ground.
  *
  * The particle layer is *never mounted* under reduced motion or in the capture
  * path — `mode` gates the effect, not the CSS. Making it invisible would still
  * put nineteen animating nodes on a machine that asked for none.
  */
 function CelebrationMark({ mode }: { mode: 'full' | 'reduced' | 'off' }) {
-  const host = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (mode !== 'full' || !host.current) return
-    return burst(host.current)
-  }, [mode])
-
-  return (
-    <div ref={host} className="relative flex h-28 w-36 items-center justify-center select-none">
-      {/* Why the arrival looks reduced-motion safe with no branch here:
-          wren-figure's WrenFlyingArrival carries the token contract. */}
-      <WrenFlyingArrival />
-    </div>
-  )
+  return <WrenCelebration mode={mode} />
 }
 
 /**
@@ -136,7 +122,18 @@ export function EmptyState({
 
   return (
     <div
-      className={cn('flex h-full flex-col items-center justify-center gap-4 px-8 pb-16', className)}
+      className={cn(
+        'flex h-full flex-col items-center justify-center gap-4 px-8 pb-16',
+        // The FIELD, and only where there is a bird to ground. A flat opaque
+        // colour, so its edges ARE the pane's edges and the hairlines already
+        // there sit on top of it unchanged; `contain: paint` (tokens.css §7)
+        // clips the pool and the burst host to the pane. Gating on showMark
+        // keeps the list column's two markless empty states — search, and a
+        // filter with no hits — on bg-surface, so no second pink column
+        // appears beside the reading pane.
+        showMark && 'wren-empty',
+        className,
+      )}
     >
       <div className="flex max-w-80 flex-col items-center gap-1 text-center">
         {rows.map((row, index) => {

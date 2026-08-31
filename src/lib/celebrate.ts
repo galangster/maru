@@ -28,10 +28,48 @@ const HUE_FILLS = HUES.map(hueSolid)
 
 const PARTICLES = 18
 const GLYPH_PARTICLES = 3
-const BURST_MS = 560
 const STAGGER_MS = 60
 /** Gravity, px/s². Baked into the keyframe offsets, never integrated in JS. */
 const GRAVITY = 900
+
+/** Used only where the cascade cannot be read — tests, SSR. */
+const FALLBACK_MS = 520
+const FALLBACK_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+
+/**
+ * Milliseconds out of a CSS time, whatever unit it arrived in.
+ *
+ * A custom property comes back from getPropertyValue exactly as it was
+ * AUTHORED, and the production CSS minifier rewrites `520ms` as `.52s`. A bare
+ * parseFloat therefore reads 520 in dev and 0.52 in the shipped build — a
+ * whole celebration that happens only in development. It lives in this file,
+ * rather than beside the flight sequencer that also needs it, because this is
+ * the leaf: `wren-flight.ts` imports the burst, so the arrow has to run this
+ * way or the two form a cycle.
+ */
+export function toMs(raw: string, fallback: number): number {
+  const value = Number.parseFloat(raw)
+  if (!Number.isFinite(value)) return fallback
+  if (/ms\s*$/.test(raw)) return value
+  return /s\s*$/.test(raw) ? value * 1000 : value
+}
+
+/**
+ * The burst's duration and easing are --wren-dur-celebrate and
+ * --wren-ease-out, read out of the cascade rather than copied into this file.
+ * They used to be a `560` and a hand-typed cubic-bezier string, which had
+ * already drifted 40 ms from the token they were meant to be.
+ */
+function readBurstTiming(): { duration: number; easing: string } {
+  if (typeof window === 'undefined' || typeof getComputedStyle !== 'function') {
+    return { duration: FALLBACK_MS, easing: FALLBACK_EASE }
+  }
+  const style = getComputedStyle(document.documentElement)
+  return {
+    duration: toMs(style.getPropertyValue('--wren-dur-celebrate').trim(), FALLBACK_MS),
+    easing: style.getPropertyValue('--wren-ease-out').trim() || FALLBACK_EASE,
+  }
+}
 
 /** Day of the year, so the deck advances once a day rather than per render. */
 function dayOfYear(at: number): number {
@@ -81,15 +119,29 @@ export function claimCelebration(now: number = Date.now()): boolean {
 
 // -- the burst ----------------------------------------------------------------
 
+export interface BurstOptions {
+  /** Defaults to the day of the year, so two captures are identical. */
+  seed?: number
+  /**
+   * Milliseconds before the first particle leaves. The flight sequencer passes
+   * its APEX offset here rather than wrapping this call in a setTimeout: one
+   * delay on eighteen already-scheduled animations phase-locks the burst to the
+   * top of the arc, where a timer would only land near it.
+   */
+  delay?: number
+}
+
 /**
  * Fire the burst inside `host`, from its centre. Returns a canceller.
  *
  * The caller decides whether to call this at all: under reduced motion, and in
  * the capture path, it is never reached.
  */
-export function burst(host: HTMLElement, seed: number = dayOfYear(Date.now())): () => void {
+export function burst(host: HTMLElement, opts: BurstOptions = {}): () => void {
   if (typeof host.animate !== 'function') return () => {}
 
+  const { seed = dayOfYear(Date.now()), delay = 0 } = opts
+  const { duration: BURST_MS, easing } = readBurstTiming()
   const random = rng(seed + 1)
   const layer = document.createElement('div')
   layer.setAttribute('aria-hidden', 'true')
@@ -150,9 +202,14 @@ export function burst(host: HTMLElement, seed: number = dayOfYear(Date.now())): 
       ],
       {
         duration: BURST_MS,
-        delay: random() * STAGGER_MS,
-        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-        fill: 'forwards',
+        delay: delay + random() * STAGGER_MS,
+        easing,
+        // 'both', not 'forwards'. A particle inside its own 0–60 ms stagger is
+        // in the animation's BEFORE phase, and with a forwards-only fill no
+        // fill applies there — so eighteen dots rendered at full opacity,
+        // unmoved, for up to four frames before they launched. With a delay
+        // this large it would have been four frames at the apex.
+        fill: 'both',
       },
     )
     animation.addEventListener('finish', done)

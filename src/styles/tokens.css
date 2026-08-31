@@ -589,7 +589,13 @@
        UI-REVIEW-2026-08-28 S1 measured the 200 ms spring entrance as lag on
        that surface rather than as feedback; anything a keyboard user opens
        reflexively has to be there before they look. Opacity only at this
-       duration: 80 ms is too short to read a transform as motion. */
+       duration: 80 ms is too short to read a transform as motion.
+
+       Second licence: Maru's blink. The eye pill's lid transition is 80 ms in
+       and 80 ms out around a 60 ms closed hold — 220 ms end to end, which is
+       roughly what a human blink measures. It is the one place the rule about
+       opacity-only at this duration does not apply, because a scaleY on a
+       5x12 px pill is not read as travel. */
     --wren-dur-instant: 80ms;
     /* Exits run at 0.7x the entrance, so leaving never reads as an entrance
        played backwards. */
@@ -621,8 +627,58 @@
        for a user who asked for no motion. */
     --wren-scale-confirm: 0.7; /* the archive tick's disc arriving            */
     --wren-scale-celebrate: 0.4; /* the inbox-zero wren arriving             */
-    --wren-float: 4px; /* the inbox-zero wren's idle bob distance          */
+    /* 4px -> 7px: the bob used to BE the whole celebration. It is now one
+       oscillator among several (rise, squash, wing, shadow), so it can carry
+       a real amplitude without being the only thing moving. */
+    --wren-float: 7px; /* the inbox-zero wren's idle bob distance          */
     --wren-dur-float: 3200ms;
+
+    /* --- Maru the wren: the character's amplitudes --------------------------
+       Seven quantities, and every one of them is ADDITIVE. That is the whole
+       trick: a calc() built around unity on an additive token collapses to
+       neutral when the reduced-motion block at the bottom of this file zeroes
+       it, whereas a multiplicative token zeroes to its own multiplier and
+       leaves the animation running at a different size. None of these is 1.
+
+       No new *time* tokens. Every idle behaviour's duration is an inline calc
+       on --wren-dur-float at its call site (/4, x0.5, x0.75, x1, x1.5) and the
+       flight sequence is exactly 2 x --wren-dur-celebrate, so the arithmetic
+       stays readable where it is read and the app still owns four durations. */
+    --wren-breath: 0.025; /* idle breath, scaled from the feet               */
+    --wren-tilt: 3.5deg; /* the lean joint's rotation                        */
+    --wren-shift: 3px; /* the lean joint's translateX. CSS px, not viewBox
+                          units — the lean joint is an HTML span now.        */
+    --wren-shrug: 5deg; /* the idle wing                                    */
+    /* Deliberately NOT the same token as --wren-shrug. Coupling them would
+       mean tuning the celebration silently changes what the bird does beside
+       the triage column, which is the exact peripheral-vision risk the idle
+       design exists to contain. */
+    --wren-flap: 14deg; /* the celebration wing                             */
+    --wren-squash: 0.12; /* flight squash-and-stretch, and the shadow's press */
+    --wren-fly: 64px; /* takeoff height                                     */
+
+    /* --- Maru the wren: the rig's geometry ---------------------------------
+       Percentages, because the joints are HTML boxes and svg roots now rather
+       than <g> elements. Every one is recomputed from the traced paths in
+       src/assets/wren-poses.ts; the user-unit value each resolves to inside
+       the shared `viewBox 0 0 440 440` is in the comment. Re-derive them after
+       any re-trace — they are measurements, not preferences. */
+    --wren-maru-size: 144px;
+    --wren-maru-pool: calc(var(--wren-maru-size) * 2.25);
+    /* (220, 365.8) — the mean of the two foot bottoms (362.8, 368.7). The
+       contact point, so breath and lean both deform the bird ABOUT the
+       ground. The old `220px 380px` sat 14 units below the feet, which made
+       them grow. */
+    --wren-maru-feet: 50% 83.1%;
+    /* (247.4, 180.4) — the perched wing's shoulder, the top-right corner of
+       its traced bbox [118.1, 170.3, 253.5, 292.2] pulled just inside. */
+    --wren-maru-shoulder: 56.2% 41%;
+    /* (236.5, 220.6) — the flight wing's root, the rightmost point of its
+       bbox [76.5, 120.6, 236.5, 260.2], which is where it meets the body. */
+    --wren-maru-wing-root: 53.8% 50.1%;
+    /* (220, 344.5) — the centre of the traced cast shadow's own bbox
+       [132.5, 317.9, 311.4, 371]. The pool is anchored to the same y. */
+    --wren-maru-shadow-origin: 50% 78.3%;
 
     /* --- Noise: kills banding across large blurred areas ------------------- */
     --wren-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
@@ -951,21 +1007,311 @@
     }
 }
 
-/* Maru's idle breathing — the perched figure only, from the feet. */
+/* --------------------------------------------------------------------------
+   Maru the wren — the character rig.
+
+   The figure is a `.wren-figure` box sized --wren-maru-size with composited
+   layers stacked at inset-0, all sharing `viewBox 0 0 440 440` so every traced
+   coordinate is unchanged:
+
+     .wren-pool                      the ground the white body needs
+     svg.wren-l-shadow               the traced cast shadow, ON the ground
+     span.wren-hover                 the celebration's bob
+       span.wren-lean                lean, and the flight's rise and rotation
+         span.wren-breath            breath, and the flight's squash
+           span.wren-l-form-perched  ─┐  the two poses, crossfaded
+             svg.wren-l-form         │     pales, body, beak, eye
+             svg.wren-l-wing         │     the wing, on its own joint
+           span.wren-l-form-flight   ─┘
+     .wren-burst                     400x400, the celebration's particle host
+
+   Why HTML wrappers and svg roots rather than <g> joints: Blink refuses to
+   composite a transform animation whose target is an SVG child
+   (kTransformRelatedPropertyCannotBeAcceleratedOnTarget), so the old
+   wren-breathe on `g[data-wren-body]` re-rasterised the whole SVG on the main
+   thread for as long as an empty pane was open. Three DOM nodes buy the
+   compositor the entire idle.
+
+   The character's two ground colours live here rather than in §2/§3 because
+   they belong to the character, not to the app's surfaces: the pool travels
+   with Maru into onboarding, where there is no field behind it.
+   -------------------------------------------------------------------------- */
+
+:root {
+    /* Exactly the colour the old blob was, so the white body's LOCAL contrast
+       is unchanged and only the surround is new. */
+    --wren-maru-ground: #fee9ef;
+    --wren-maru-field: color-mix(in oklab, var(--wren-maru-ground) 55%, var(--wren-surface-base));
+}
+
+.dark {
+    --wren-maru-ground: color-mix(in oklab, #ff4f87 14%, var(--wren-surface-base));
+    --wren-maru-field: color-mix(in oklab, #ff4f87 6%, var(--wren-surface-base));
+}
+
+.wren-figure {
+    position: relative;
+    width: var(--wren-maru-size);
+    height: var(--wren-maru-size);
+    flex: none;
+    user-select: none;
+    pointer-events: none;
+}
+
+.wren-figure .wren-hover,
+.wren-figure .wren-lean,
+.wren-figure .wren-breath,
+.wren-figure .wren-l-shadow,
+.wren-figure .wren-l-form-perched,
+.wren-figure .wren-l-form-flight,
+.wren-figure .wren-l-form,
+.wren-figure .wren-l-wing {
+    position: absolute;
+    display: block;
+    inset: 0;
+}
+
+/* The pool, anchored to the feet BY CONSTRUCTION rather than by a margin: its
+   centre is the traced shadow's own centre, so it follows the bird and stays
+   correct if the copy block above it changes height. Never the `transparent`
+   keyword at the far stop — that interpolates through transparent black and
+   risks a grey halo; the last stop is the same colour at zero alpha. */
+.wren-figure .wren-pool {
+    position: absolute;
+    display: block;
+    left: 50%;
+    top: 78.3%;
+    width: var(--wren-maru-pool);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    background-image: radial-gradient(
+        closest-side,
+        var(--wren-maru-ground) 0%,
+        color-mix(in oklab, var(--wren-maru-ground) 92%, transparent) 24%,
+        color-mix(in oklab, var(--wren-maru-ground) 70%, transparent) 46%,
+        color-mix(in oklab, var(--wren-maru-ground) 38%, transparent) 66%,
+        color-mix(in oklab, var(--wren-maru-ground) 14%, transparent) 84%,
+        color-mix(in oklab, var(--wren-maru-ground) 0%, transparent) 100%
+    );
+}
+
+/* The particle host. 400x400 centred on the bird, on the 4 px grid at the
+   shipped 144 px size. The old host was the 112x144 blob, so most of the
+   eighteen particles died at the box edge inside ~250 ms while still
+   travelling 100–179 px. `.wren-empty`'s paint containment clips this to the
+   pane, so the burst can be generous without escaping the panel. */
+.wren-figure .wren-burst {
+    position: absolute;
+    display: block;
+    inset: calc((var(--wren-maru-size) - 400px) / 2);
+}
+
+/* The 0.28 lives on the LAYER, not on the path, because the flight sequencer
+   animates this layer's opacity — a 0.28 on both would compound to 0.078. */
+.wren-l-shadow {
+    opacity: 0.28;
+    transform-origin: var(--wren-maru-shadow-origin);
+}
+
+/* Both deform the bird about the point where it touches the ground. */
+.wren-lean,
+.wren-breath {
+    transform-origin: var(--wren-maru-feet);
+}
+
+/* Which pose is showing when no script animation is holding the crossfade.
+   The flight sequencer's opacity tracks outrank these while they run; the
+   attribute is what the DOM falls back to when those tracks are cancelled. */
+.wren-figure[data-wren-pose='perched'] .wren-l-form-flight,
+.wren-figure[data-wren-pose='flight'] .wren-l-form-perched {
+    opacity: 0;
+}
+
+/* The field: flat and opaque, so its edges ARE the pane's edges and the
+   existing hairlines sit on top of it unchanged. `contain: paint` clips the
+   pool and the 400 px burst host to the pane without producing scrollbars
+   inside the panel's own overflow:auto, makes this the containing block for
+   both, and bounds rasterisation. */
+.wren-empty {
+    position: relative;
+    contain: paint;
+    background-color: var(--wren-maru-field);
+}
+
+/* Banding is not optional here: the light pool runs #FEE9EF to the field over
+   ~162 px in five steps, which is a visible edge every ~36 px. The dither goes
+   on the ROOT rather than on the pool so it is uniform across both and never
+   shows a patch edge. --wren-noise is a deterministic 140x140 tile, so the
+   capture gate stays byte-identical. */
+.wren-empty::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: var(--wren-noise);
+    opacity: 0.03;
+    pointer-events: none;
+}
+
+/* --- Idle: breath, plus ONE discrete behaviour at a time -------------------
+   Breath is the only perpetual loop on this surface. Everything else is a
+   single-shot animation selected by `data-wren-do`, which a scheduler in
+   wren-figure.tsx writes and a bubbling `animationend` clears. One attribute,
+   one value: two behaviours structurally cannot run at once, and no JS ever
+   writes a transform or holds a duration — CSS owns every quantity, so the
+   reduced-motion block below reaches all of it.
+
+   Every behaviour uses --wren-ease-in-out, which has zero velocity at both
+   ends. --wren-ease-out is BANNED from the idle: its leading velocity is ~4x
+   its mean, it is an arrival curve engineered to be noticed, and motion onset
+   is exactly what peripheral retina detects. It stays correct everywhere else
+   in the app — this surface sits beside the column being triaged. */
+
 @keyframes wren-breathe {
     from {
         transform: scale(1);
     }
     to {
-        transform: scale(1.025);
+        transform: scale(calc(1 + var(--wren-breath)));
     }
 }
-[data-wren-alive] [data-wren-body] {
-    transform-origin: 220px 380px;
-    animation: wren-breathe 3.4s ease-in-out infinite alternate;
+
+[data-wren-alive] .wren-breath {
+    /* 3400 ms. Written as a calc so it cannot drift from the bob the way the
+       old `3.4s` literal did, and so the two keep beating against each other
+       rather than syncing. */
+    animation: wren-breathe calc(var(--wren-dur-float) + 200ms) var(--wren-ease-in-out) infinite
+        alternate;
 }
+
+/* The 22–70% hold is what makes a tilt read as attention rather than a wobble:
+   the bird arrives at the pose, stays there long enough to have meant it, and
+   returns. One `transform` rather than individual rotate/translate properties,
+   so composition order is explicit. */
+@keyframes wren-lean {
+    0% {
+        transform: none;
+    }
+    22%,
+    70% {
+        transform: translateX(var(--lean-x, 0px)) rotate(var(--lean-rot, 0deg));
+    }
+    100% {
+        transform: none;
+    }
+}
+
+/* Peak at 30% makes the fall 2.3x the rise — the wing settling under its own
+   weight rather than snapping back. */
+@keyframes wren-wing-pulse {
+    0% {
+        transform: rotate(0deg);
+    }
+    30% {
+        transform: rotate(var(--wing-amp, 0deg));
+    }
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+/* NEAR pool. Peak velocities at the shipped 144 px, all under the 34 px/s
+   budget for a figure the triager can see directly. */
+[data-wren-alive][data-wren-do='wing-shrug'] .wren-l-wing {
+    --wing-amp: var(--wren-shrug); /* 5deg, ~24 px/s */
+    animation: wren-wing-pulse calc(var(--wren-dur-float) / 4) var(--wren-ease-in-out);
+}
+[data-wren-alive][data-wren-do='head-tilt'] .wren-lean {
+    --lean-rot: var(--wren-tilt); /* 3.5deg, ~25 px/s */
+    animation: wren-lean calc(var(--wren-dur-float) * 0.5) var(--wren-ease-in-out);
+}
+/* The bird faces right, so a small rotation back with a shift the other way
+   reads as a glance over the shoulder. */
+[data-wren-alive][data-wren-do='look-back'] .wren-lean {
+    --lean-rot: calc(var(--wren-tilt) * -0.63); /* -2.2deg */
+    --lean-x: calc(var(--wren-shift) * -0.6); /* -1.8px */
+    animation: wren-lean calc(var(--wren-dur-float) * 0.75) var(--wren-ease-in-out);
+}
+
+/* Weight shift, both directions. Two attribute values rather than one, because
+   the scheduler is not allowed to write a value — alternating the side is what
+   separates a weight shift from a twitch. ~4.3 px/s, the slowest thing here
+   and the only behaviour in the AWAY pool that moves the whole body. */
+[data-wren-alive][data-wren-do='weight-shift'] .wren-lean,
+[data-wren-alive][data-wren-do='weight-shift-back'] .wren-lean {
+    animation: wren-lean calc(var(--wren-dur-float) * 1.5) var(--wren-ease-in-out);
+}
+[data-wren-alive][data-wren-do='weight-shift'] .wren-lean {
+    --lean-x: var(--wren-shift);
+}
+[data-wren-alive][data-wren-do='weight-shift-back'] .wren-lean {
+    --lean-x: calc(var(--wren-shift) * -1);
+}
+
+/* AWAY pool. Half the shrug over four times the duration: ~3 px/s, which is
+   below what peripheral vision resolves as motion at this size. */
+[data-wren-alive][data-wren-do='wing-settle'] .wren-l-wing {
+    --wing-amp: calc(var(--wren-shrug) * 0.5); /* 2.5deg, ~3 px/s */
+    animation: wren-wing-pulse var(--wren-dur-float) var(--wren-ease-in-out);
+}
+
+/* The blink is the exception and stays that way: event-driven, zero
+   displacement, and below peripheral form resolution at ~5x12 px. It is what
+   carries `alive` when every other behaviour has backed off. */
 [data-wren-eye] {
-    transition: transform 90ms ease-out;
+    transition: transform var(--wren-dur-instant) var(--wren-ease-out);
+}
+
+/* --- The celebration's hover, its wing, and its sparkles -------------------
+   `.wren-hover` sits OUTSIDE `.wren-lean` for a mechanical reason: the flight
+   sequencer's lean track holds its settle offset with fill 'both' forever, and
+   a script animation permanently outranks a CSS animation on the same node. A
+   bob written onto the lean joint would simply never appear.
+
+   The delay is the sequence length, so the handoff from the WAAPI timeline to
+   this loop is exact and needs no timer. The wing beats on the SAME period,
+   non-alternating, so it cannot drift from the bob and beats twice per 6400 ms
+   cycle — wings beat faster than the body rises. */
+[data-wren-flight] .wren-hover {
+    animation: wren-float var(--wren-dur-float) var(--wren-ease-in-out)
+        calc(var(--wren-dur-celebrate) * 2) infinite alternate;
+}
+
+@keyframes wren-flap {
+    0%,
+    100% {
+        transform: rotate(calc(var(--wren-flap) * -0.5));
+    }
+    50% {
+        transform: rotate(calc(var(--wren-flap) * 0.5));
+    }
+}
+
+[data-wren-flight] .wren-l-wing {
+    animation: wren-flap var(--wren-dur-float) var(--wren-ease-in-out)
+        calc(var(--wren-dur-celebrate) * 2) infinite;
+}
+
+/* Sparkles: opacity only, and bounded to two cycles. A scale component would
+   need a multiplicative token, and a looping opacity pulse is flicker, which
+   is a photosensitivity concern that zeroing an amplitude would not remove.
+   Two cycles end at ~5.4 s, just before touchdown, so the celebration decays
+   rather than holding a party. */
+@keyframes wren-twinkle {
+    0%,
+    100% {
+        opacity: 0;
+    }
+    45% {
+        opacity: 1;
+    }
+}
+
+[data-wren-alive][data-wren-flight] [data-wren-sparkle] {
+    animation: wren-twinkle calc(var(--wren-dur-float) * 0.75) var(--wren-ease-in-out) 645ms 2 both;
+}
+/* The second one is offset so the two never pulse together. */
+[data-wren-alive][data-wren-flight] [data-wren-sparkle='1'] {
+    animation-delay: 1088ms;
 }
 
 @keyframes wren-celebrate-in {
@@ -1006,11 +1352,34 @@
         --wren-dur-slow: 120ms;
         --wren-dur-exit: 120ms;
         --wren-dur-celebrate: 120ms;
+
+        /* Maru. Every amplitude the rig owns, zeroed in the same edit that
+           introduced it — each one is additive, so the calc() around it
+           collapses to neutral at every keyframe offset rather than to some
+           other size. There is no second, JS-side answer to this question:
+           the flight sequencer reads these same seven values back out through
+           getComputedStyle at call time, which resolves this media block, so
+           the WAAPI path collapses to identity too. */
+        --wren-breath: 0;
+        --wren-tilt: 0deg;
+        --wren-shift: 0px;
+        --wren-shrug: 0deg;
+        --wren-flap: 0deg;
+        --wren-squash: 0;
+        --wren-fly: 0px;
+        /* The one gap the audit found: --wren-float zeroed the DISTANCE but
+           left an infinite compositor animation ticking at translateY(0px) for
+           a user who asked for none. A zero-duration animation completes
+           instantly and holds identity instead. --wren-dur-celebrate is left
+           at 120 ms on purpose, so the arrival crossfade survives. */
+        --wren-dur-float: 0ms;
     }
     [data-wren-pop] {
         animation: none;
     }
-    [data-wren-alive] [data-wren-body] {
-        animation: none;
-    }
+    /* `[data-wren-alive] [data-wren-body] { animation: none }` used to live
+       here. It existed only because the breath keyframe held a literal
+       scale(1.025) that this block could not reach. --wren-breath reaches it,
+       so the override became a second answer to a question the token layer
+       settles — the exact antipattern this file's own comments name. */
 }
