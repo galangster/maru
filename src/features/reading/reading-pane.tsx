@@ -337,7 +337,11 @@ function ReplyBar() {
   ]
 
   return (
-    <div className="mt-4 grid grid-cols-3 gap-2">
+    // `@container`: the tiles ask how wide the READING PANE is, not the
+    // window — the pane is user-draggable. As it narrows the keycap hints
+    // yield first (they are reinforcement, not the only path — R/A/F work
+    // regardless); labels never wrap to two lines.
+    <div className="@container mt-4 grid grid-cols-3 gap-2">
       {tiles.map((tile) => (
         // The shortcut is printed, not hidden in a `title`. These three hints
         // were discoverable by hover alone and never on keyboard focus (S12);
@@ -353,8 +357,8 @@ function ReplyBar() {
           )}
         >
           <Icon name={tile.icon} size={16} />
-          {tile.label}
-          <Keycap>{tile.hint}</Keycap>
+          <span className="whitespace-nowrap">{tile.label}</span>
+          <Keycap className="hidden @[30rem]:inline-flex">{tile.hint}</Keycap>
         </button>
       ))}
     </div>

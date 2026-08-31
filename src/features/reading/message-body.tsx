@@ -158,10 +158,26 @@ export function MessageBody({
       const doc = frame.contentDocument
       if (!doc?.documentElement) return
       const measure = () => {
-        // A table layout's trailing padding does not always reach
-        // documentElement.scrollHeight, so take the tallest honest metric.
         const root = doc.documentElement
         const body = doc.body
+
+        // Fixed-width mail (a 600 px newsletter table) must shrink to the
+        // pane, not clip mid-word: scale the whole sheet with `zoom`, which
+        // reflows coherently (heights track it) in WebKit and Chromium.
+        // Guarded against observer feedback by only writing a real change.
+        if (body) {
+          body.style.zoom = ''
+          const natural = Math.max(root.scrollWidth, body.scrollWidth)
+          const available = frame.clientWidth
+          // Floor at 0.5: below half size mail is unreadable anyway, and a
+          // pathological 3000 px table should scroll rather than shrink to
+          // confetti. Heights measured below already read post-zoom.
+          const fit = natural > available + 1 ? Math.max(available / natural, 0.5) : 1
+          if (fit < 1) body.style.zoom = String(fit)
+        }
+
+        // A table layout's trailing padding does not always reach
+        // documentElement.scrollHeight, so take the tallest honest metric.
         const measured = Math.ceil(
           Math.max(
             root.scrollHeight,
