@@ -50,17 +50,14 @@ asking in chat. Newest at the top of each section. Strike items done.
    after the visual pass lands**, then the hand-smoke below, then the
    sitting. Everything else in this item still stands.
 
-   ONE AGENT ITEM IS STILL OPEN, and it is yours to release: the LIST
-   CARD (round the inbox pane to match the sidebar). You asked for the
-   inbox and thread panes both; a judged design pass says round the
-   inbox and leave the thread pane as the ground — the sliver reads as
-   a crack because #F6F4F3 is a 610px field on the right and a 9px
-   stripe on the left, and rounding the thread pane deletes the field
-   and orphans the stripe again. There is also a hard reason: the
-   reading pane draws every message as a white card with a white paper
-   iframe inside, so a white pane is white-on-white-on-white. Say go
-   and it lands (~20 mostly mechanical edits). Say no and the freeze
-   can go as-is — it is additive.
+   NO AGENT WORK IS OUTSTANDING. The list card landed (2026-08-31): the
+   inbox pane is now a card on the ground like the sidebar. The thread
+   pane is deliberately NOT one — it IS the ground the cards float on,
+   and rounding it would delete the ~610px field that stops the channel
+   reading as a crack, besides putting white paper inside a white
+   message card inside a white pane. If you see it and still want the
+   thread pane rounded, that is a separate decision with its own
+   review; the fallback is priced in the design pass.
 
    YOUR HAND-CHECKS, in order, before the sitting:
    - **Four native checks no capture can make**, now load-bearing
