@@ -61,6 +61,14 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Decisions to ratify
 
+- **Color anchor for the harmonization pass** (your ask, 2026-08-31;
+  ticket P14-color-harmony): interface coral, logo, and Maru's #FF4F87
+  are three different color stories. Pick the anchor — (a) coral/logo:
+  Maru gets recolored toward it; (b) Maru's pink: the interface accent
+  ramp is re-derived from #FF4F87; (c) a shared parent hue for both.
+  Also say whether it lands before the freeze or after submission —
+  it changes every capture.
+
 - **Multi-device sequence** (asked 2026-08-31, brief in
   docs/research/multi-device-strategy.md): map 4 = paid sync service
   (settings + audit doc, E2E, plus the Gmail-watch push relay), map 5 =
