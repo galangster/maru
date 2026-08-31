@@ -243,3 +243,22 @@ dev.wren.app, socket paths, CSS/design tokens.
 
 /simplify skipped with reason: a rename sweep is mechanical string and
 copy work with no new structure; the orchestrator exemption applies.
+
+## Progress — production Google project, 2026-08-30 (driven live with Nick)
+
+Console built end-to-end in Nick's Chrome with the agent driving and
+Nick supplying the two owner moments (project Create under the
+permission classifier, the User Data Policy agreement) and the
+production push confirm. Result: project `maru-mail-prod` (number
+537601059334), Gmail API enabled, consent screen "Maru Mail" External
+with getmaru.app branding and authorized domain, `gmail.modify` as the
+only scope, Desktop client "Maru Mail Desktop"
+(537601059334-su62jrimhnfg3lg5ql21uet30135mdll.apps.googleusercontent.com;
+secret never stored — public client), **publishing status In
+production**. Client id wired into macos-release.yml via the
+`WREN_OFFICIAL_GOOGLE_CLIENT_ID` repo variable with a fail-loud guard;
+dossier ids filled. Same sitting: getmaru.app went live on GitHub
+Pages with cert + enforced HTTPS after the GoDaddy DNS swap (also
+driven in his Chrome). Remaining console work moved to NICK-QUEUE
+item 3 (verification submission after the demo, second owner, quota
+alerts).

@@ -28,8 +28,17 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      # A release build must carry the official client id — a DMG without it
+      # boots strangers into the BYO console safari the shared client exists
+      # to spare them. Fail loud here, not quietly at first sign-in.
+      - name: require official client id
+        run: |
+          if [ -z "${{ vars.WREN_OFFICIAL_GOOGLE_CLIENT_ID }}" ]; then
+            echo "WREN_OFFICIAL_GOOGLE_CLIENT_ID repository variable is not set"; exit 1
+          fi
       - run: npm run tauri build
         env:
+          WREN_OFFICIAL_GOOGLE_CLIENT_ID: ${{ vars.WREN_OFFICIAL_GOOGLE_CLIENT_ID }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}

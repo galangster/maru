@@ -16,15 +16,11 @@ The architecture statement and final sentence above are copied verbatim from `do
 
 **Production Google Cloud project id:**
 
-`«NICK: production project id»`
-
-Enter the immutable project id from the production Google Cloud project.
+`maru-mail-prod` (project number 537601059334). Created 2026-08-30 with the agent driving; Gmail API enabled; separate from the Wren dev project.
 
 **Desktop OAuth client id:**
 
-`«NICK: desktop client id»`
-
-Enter the client id for the only production Desktop OAuth client.
+`537601059334-su62jrimhnfg3lg5ql21uet30135mdll.apps.googleusercontent.com` — the only client in the project, type Desktop app, name "Maru Mail Desktop". The client secret was never stored anywhere: Maru's desktop OAuth is a public client (PKCE) and omits it.
 
 **Name-collision and trademark review:**
 
