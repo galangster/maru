@@ -172,6 +172,7 @@ export function useShortcuts() {
       escape: () => {},
       scan: () => {},
       settings: () => {},
+      toggleSidebar: () => {},
     }
 
     /** A triage key with nothing selected is a no-op, not a crash. */
@@ -181,6 +182,19 @@ export function useShortcuts() {
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
+      // ⌥⌘S — Apple's own Show/Hide Sidebar chord, and the discoverability the
+      // toggle lost when it left the titlebar for the sidebar footer.
+      //
+      // It has to sit ABOVE the `altKey` bail below, which drops every Option
+      // chord before anything else runs. And it has to match on `event.code`:
+      // ⌥S emits 'ß' on the US layout, so `event.key` is never 's'.
+      if (event.altKey && (event.metaKey || event.ctrlKey) && event.code === 'KeyS') {
+        event.preventDefault()
+        const ui = useUi.getState()
+        ui.setSidebarCollapsed(!ui.sidebarCollapsed)
+        return
+      }
+
       if (event.altKey) return
 
       // The palette answers from anywhere, including a text field — but it

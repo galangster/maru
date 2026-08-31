@@ -2,6 +2,7 @@
 // MailService; anything that is "what is the user looking at" lives here.
 
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 import type { MailView } from '@/core/types'
 import { viewOverride } from '@/lib/env'
@@ -119,7 +120,19 @@ interface UiState {
   runUndo: (now?: number) => string | null
 }
 
-export const useUi = create<UiState>((set, get) => ({
+/**
+ * One key survives a relaunch: `sidebarCollapsed`.
+ *
+ * The sidebar toggle used to be the most visible control in the app, in the
+ * titlebar. It now lives in the sidebar footer, so a person who collapsed the
+ * sidebar and quit would have had to re-find that button every launch. Nothing
+ * else here is persisted on purpose — a view, a selection, a lens and a batch
+ * are all "what am I looking at right now", and two of them hold a Set that
+ * does not survive JSON at all.
+ */
+export const useUi = create<UiState>()(
+  persist(
+    (set, get) => ({
   view: INITIAL_VIEW,
   selected: null,
   selectionSource: 'pointer',
@@ -206,7 +219,13 @@ export const useUi = create<UiState>((set, get) => ({
     entry.run()
     return entry.label
   },
-}))
+    }),
+    {
+      name: 'wren-ui',
+      partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed }),
+    },
+  ),
+)
 
 /** The current view's lens. Stable references: a stored object or the default. */
 export function useListPrefs(): ListPrefs {

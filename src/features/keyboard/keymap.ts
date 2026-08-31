@@ -42,6 +42,7 @@ export type ShortcutId =
   | 'search'
   | 'settings'
   | 'approvals'
+  | 'toggleSidebar'
   | 'help'
   | 'escape'
 
@@ -96,6 +97,14 @@ export const SHORTCUTS: ShortcutSpec[] = [
   // palette and a printed shortcut sheet (UI-REVIEW-2026-08-29 S9). `w` for
   // "waiting on you", and it is free.
   { id: 'approvals', keys: ['W'], label: 'Waiting on you', group: 'Find', key: 'w' },
+  // Apple's Show/Hide Sidebar chord. Handled ahead of the table because it
+  // carries Option, which the table's own path drops on sight.
+  {
+    id: 'toggleSidebar',
+    keys: [`⌥${MOD}S`],
+    label: 'Show or hide the sidebar',
+    group: 'Find',
+  },
   { id: 'help', keys: ['?'], label: 'Show this list', group: 'Find', key: '?' },
   { id: 'escape', keys: ['esc'], label: 'Close the top surface', group: 'Find' },
 ]

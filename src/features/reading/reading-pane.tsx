@@ -97,12 +97,19 @@ export function ReadingPane() {
       <section
         aria-label="Reading"
         tabIndex={-1}
-        // `border-t` matches the list's, so the hairline under the titlebar
-        // runs unbroken across both panes whether or not a thread is open.
-        className="bg-canvas border-hairline flex h-full flex-col border-t outline-none"
+        // No `border-t`, matching the list's: the titlebar it closed off is
+        // gone, so the pane starts at the top of the window and the spacer's
+        // `border-b` at y=52 is the first rule drawn.
+        className="bg-canvas flex h-full flex-col outline-none"
       >
-        {/* Empty, but it keeps the toolbar hairline level across all three panes. */}
-        <div className="border-hairline h-(--wren-toolbar-h) shrink-0 border-b" />
+        {/* Empty, but it keeps the toolbar hairline level across all three
+            panes — and it is drag field, so the window still moves by its own
+            top edge with nothing open. A childless div with a bare attribute is
+            always a direct hit, so it drags and double-click-zooms. */}
+        <div
+          data-tauri-drag-region
+          className="border-hairline h-(--wren-toolbar-h) shrink-0 border-b"
+        />
         <div className="min-h-0 flex-1">
           <EmptyState
             mark
@@ -133,61 +140,74 @@ export function ReadingPane() {
     <section
       aria-label="Reading"
       tabIndex={-1}
-      className="bg-canvas border-hairline flex h-full min-w-0 flex-col border-t outline-none"
+      // No `border-t`: see the empty state above. The header's `border-b` is
+      // the window's first horizontal rule, level with the list's.
+      className="bg-canvas flex h-full min-w-0 flex-col outline-none"
     >
-      <header className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-1 border-b px-4">
-        {toolbar.map((id) => {
-          const spec = actions[id]
-          return (
-            <IconButton
-              key={spec.id}
-              name={spec.icon}
-              label={spec.label}
-              hint={spec.hint}
-              tone={spec.tone}
-              filled={spec.filled}
-              pop={spec.pop}
-              disabled={spec.disabled}
-              onClick={() => {
-                // Same advance rule as the keys: removing the open thread
-                // shows the next one, so triage stays one press per message.
-                if (spec.type === 'archive' || spec.type === 'trash') {
-                  useUi
-                    .getState()
-                    .setSelected(
-                      nextAfterRemoval(visibleThreadsSnapshot(queryClient), thread.key),
-                      'keyboard',
-                    )
-                }
-                const next = { type: spec.type, threadKey: thread.key }
-                action.mutate(next)
-                // A deliberate press, so it is worth a ⌘Z. The mark-read that
-                // fires on merely opening a thread is not, and does not
-                // register — see registerActionUndo.
-                registerActionUndo(action.mutate, next)
-              }}
-            />
-          )
-        })}
+      {/* Drag field, like the list's header. `="deep"` so the blank middle and
+          the header's own padding move the window; drag.js already blocks the
+          buttons, and the two wrappers below make that explicit. */}
+      <header
+        data-tauri-drag-region="deep"
+        className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-1 border-b px-4"
+      >
+        <div data-tauri-drag-region="false" className="flex items-center gap-1">
+          {toolbar.map((id) => {
+            const spec = actions[id]
+            return (
+              <IconButton
+                key={spec.id}
+                name={spec.icon}
+                label={spec.label}
+                hint={spec.hint}
+                tone={spec.tone}
+                filled={spec.filled}
+                pop={spec.pop}
+                disabled={spec.disabled}
+                onClick={() => {
+                  // Same advance rule as the keys: removing the open thread
+                  // shows the next one, so triage stays one press per message.
+                  if (spec.type === 'archive' || spec.type === 'trash') {
+                    useUi
+                      .getState()
+                      .setSelected(
+                        nextAfterRemoval(visibleThreadsSnapshot(queryClient), thread.key),
+                        'keyboard',
+                      )
+                  }
+                  const next = { type: spec.type, threadKey: thread.key }
+                  action.mutate(next)
+                  // A deliberate press, so it is worth a ⌘Z. The mark-read that
+                  // fires on merely opening a thread is not, and does not
+                  // register — see registerActionUndo.
+                  registerActionUndo(action.mutate, next)
+                }}
+              />
+            )
+          })}
+        </div>
+        {/* Plain on purpose: the middle of the toolbar is the drag handle. */}
         <span className="flex-1" />
-        {messages.length > 1 && (
+        <div data-tauri-drag-region="false" className="flex items-center gap-1">
+          {messages.length > 1 && (
+            <IconButton
+              name={allOpen ? 'minimize' : 'expand'}
+              label={allOpen ? 'Collapse all messages' : 'Expand all messages'}
+              hint="O"
+              onClick={() => setExpansion(allOpen ? 'none' : 'all')}
+            />
+          )}
           <IconButton
-            name={allOpen ? 'minimize' : 'expand'}
-            label={allOpen ? 'Collapse all messages' : 'Expand all messages'}
-            hint="O"
-            onClick={() => setExpansion(allOpen ? 'none' : 'all')}
+            name={order === 'newestFirst' ? 'chevronUp' : 'chevronDown'}
+            label={order === 'newestFirst' ? 'Newest at top' : 'Oldest at top'}
+            active={order === 'newestFirst'}
+            onClick={() =>
+              saveSettings.mutate({
+                conversationOrder: order === 'newestFirst' ? 'chronological' : 'newestFirst',
+              })
+            }
           />
-        )}
-        <IconButton
-          name={order === 'newestFirst' ? 'chevronUp' : 'chevronDown'}
-          label={order === 'newestFirst' ? 'Newest at top' : 'Oldest at top'}
-          active={order === 'newestFirst'}
-          onClick={() =>
-            saveSettings.mutate({
-              conversationOrder: order === 'newestFirst' ? 'chronological' : 'newestFirst',
-            })
-          }
-        />
+        </div>
       </header>
 
       {/* `scroll-fade`: the body runs to the window frame, so a line of mail
