@@ -99,9 +99,40 @@ No-art prep shipped:
   mail bundle. Spring defaults = lib/motion's SPRING; anything the
   tuning settles on is ratified at seal, never a silent second spring.
 
-Still owner-gated for v2 proper: the tuned numbers (Nick plays with
-`?tune=1`), perk/ruffle art, and swapping the tuned sequence in for
-CelebrationMark — the shipped choreography is untouched until then.
+## v2 — SHIPPED (2026-08-31, e9718a6)
+
+Nick's verdicts on the rig v1 screenshots drove the rest: bigger bird,
+background filling the pane, one shadow not two, warmer copy, and "a
+fluid animation that feels like a real motion designer made it. for
+both animations."
+
+- **The two shadows were a tracer bug**, not a rig bug. The cast shadow
+  in Nick's art is darker than the plate, so the flood left it
+  classified pink — and it is bigger than the beak, so the "first
+  remaining pink" rule labelled the shadow BEAK and dropped the real
+  beak. The rig painted it in full #FF4F87 under the feet and added its
+  own ellipse on top. `trace.mjs` now separates the shadow by the two
+  things only a cast shadow is (wide-and-flat, at the bottom); the
+  build script rejects any pose whose pink layer is not [wing, beak].
+- **Ground**: the blob is gone. A pane-filling field plus a radial pool
+  anchored at the traced shadow's own centre, so it follows the bird.
+  96 → 144px.
+- **Idle is a behaviour clock**, not a bigger loop: breath is the only
+  perpetual animation; one behaviour at a time (wing shrug, head tilt,
+  weight shift, look-back) on a Poisson clock with two arousal levels
+  gated on pointer proximity, so it goes quiet during triage. Plus a
+  greeting when you return after 20s.
+- **Inbox zero** is one 1040ms WAAPI timeline over six tracks —
+  anticipate, crouch below the line, launch with the pose crossfade
+  hidden under the climb, apex pop with the burst phase-locked, settle
+  — then hover, a descent starting at a bob's turning point, and a
+  landing that hands the bird to the same idle clock.
+- **`?tune=1`** now drives the SHIPPED sequence (the dials write the
+  real tokens), so there is no scaffold that can drift from what ships.
+
+Still open for v3: perk + ruffle poses (need art), turnaround views,
+preen for long syncs. And the tuned numbers are still Nick's to
+ratify — `?tune=1`, then the settled values go into tokens.css.
 
 ## Sequencing
 
