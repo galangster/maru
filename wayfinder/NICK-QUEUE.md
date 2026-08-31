@@ -109,22 +109,27 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Decisions to ratify
 
-- **Unified sign-in: does the SYNC SERVICE hold tokens?** (your ruling,
-  2026-08-31, reopening G2.) You said a single unified sign-in is what
-  you want and the no-servers line yields to it — recorded, and it is
-  map 4 after the Google submission. One question decides what gets
-  built: **(a)** the account list and settings sync, and each device
-  still does one Google consent per account — tokens stay in that
-  machine's keychain, the dossier's claims are untouched; or **(b)**
-  tokens sync too, so mail is simply there on a new device — which
-  makes Maru's server a credential custodian, a different liability,
-  and very likely a different conversation with Google, since token
-  handling is exactly what OAuth verification scrutinises.
-  My read: (a) gets nearly all of the "everything is just there"
-  feeling for almost none of the risk, because what actually hurts is
-  re-configuring accounts and settings, not clicking Allow once per
-  device. But it is your call and it decides whether the service is a
-  settings service or a custodian.
+- **Unified sign-in — one question, and it is about liability, not
+  security** (your ruling 2026-08-31; designed panel in G2). The design
+  is settled: settings + account-list sync, built on a sealed envelope
+  from day one so a credential vault is later a schema slot, not a
+  rewrite. Everything else was decided for you and is written down,
+  including a list of things ruled out permanently so they do not get
+  proposed again ("encrypted at rest" with a server-held key, a token
+  broker, HSM wrapping, any sixty-second variant).
+  **Your decision: are you willing to be the custodian of other
+  people's live mailbox credentials?** You buy 5 to 17 fewer gestures
+  per new device, forever. You accept that a compromise of the server
+  OR the build pipeline, ever, means telling every subscriber someone
+  may have read all their mail and sent as them. Gated on three things
+  regardless: Google's verdict, signed builds (P2), and a second
+  operator with real access.
+  FREE WIN, needs no server and no decision: `loginHint` is already
+  declared and wired into the auth URL in oauth.ts and simply never
+  passed at the call site (:427). Threading it through plus batching the
+  four consents into one browser trip removes most of the felt friction
+  today. Held back only because it touches OAuth and a submission is in
+  flight — say the word and it lands after the freeze.
 
 - **Book a Wayfinder + grill for the AGENT GATEKEEPER** (your ask,
   2026-08-31; ticket G3-agent-gatekeeper). The idea is good and the

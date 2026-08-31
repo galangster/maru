@@ -1,6 +1,6 @@
 # G2 — Cross-device settings sync  `wayfinder:grilling`
 
-status: REOPENED (owner ruling, 2026-08-31) · claimed: — · blocked by: one token decision
+status: DESIGNED (2026-08-31) · claimed: — · blocked by: one owner decision on liability appetite
 
 ## The ask
 
@@ -90,3 +90,91 @@ about.
 Owner gate: (a) or (b). Do not build until this is answered — it
 determines whether the sync service ever touches a credential, which is
 the difference between a settings service and a custodian.
+
+
+## Design verdict, 2026-08-31 (judged panel: conservative / novel / adversarial)
+
+**Recommendation: ship the settings-and-address-list sync, but build it on a
+sealed envelope from day one so the credential vault is later a schema slot
+rather than a rewrite.** The seam is exact: a multi-recipient sealed blob —
+one random 256-bit account key, N wrapped openers (device pairing first, a
+12-word recovery key second) — whose v1 payload carries settings and the
+account address list, and which reserves an opaque `credentials` slot that v1
+declares, never writes and never reads.
+
+### Buildable NOW, no server, no decision — this is the real finding
+
+`loginHint` is declared in `AuthUrlParams` (oauth.ts:123), written into the
+authorize URL (:150) and **never passed at the call site (:427)**. It is
+finished plumbing with no caller. Threading it through, adding an identity
+assertion (if the hint was given and `users.getProfile` returns a different
+address, discard the tokens and fail), batching the four flows into one
+continuous browser trip, and applying restored settings before first paint
+together remove most of the felt friction with no server involved at all.
+
+### Honest friction numbers, four accounts on a fresh machine
+
+| | browser sessions live | sessions cold (the real new-PC case) |
+|---|---|---|
+| settings + address list, directed consent | ~7-8 gestures | ~16-20 |
+| sealed credential vault | 2-3 | 2-3 |
+
+So the vault is worth 5 gestures in the good case and up to ~17 in the bad
+one. That is more than the conservative proposals conceded, and it is the
+case that matters, because a genuinely new machine is the whole reason
+multi-device exists.
+
+### Why it is still gated
+
+Not cryptography — **build integrity and operator asymmetry.** The same one
+person ships the client and runs the server, so end-to-end encryption of a
+credential vault rests entirely on a supply chain that does not exist yet
+(signed/reproducible builds are P2, unstarted). And an abandoned settings
+server is an outage; an abandoned token vault is an unattended vulnerability
+with a countdown.
+There is also a sourced landmine: deleting an OAuth client invalidates every
+token issued by it, and a replacement client does not repair them
+(shared-client-implementation-plan.md:249-251). A hosted vault therefore makes
+the entire free, local-only install base share fate with one server.
+And the repo contains **no Google sentence** on whether a refresh token counts
+as restricted data. The standing posture for exactly this is to request a
+determination rather than assume.
+
+Preconditions for the vault, all three: Google's verdict landed plus a written
+determination on ciphertext-only credential custody; signed or reproducible
+builds exist; a second durable operator has real access, not a pending invite.
+
+### Ruled out permanently — write these into the sync spec on day one
+
+- **(b) as written**: a server that holds refresh tokens it can read.
+- **Per-user encryption with a server-held key** ("encrypted at rest"). In a
+  breach it is indistinguishable from plaintext. This is the version that
+  gets built by accident and described as responsible.
+- **Server-side token broker** — strictly worse than (b): the server holds the
+  durable credential AND sits on the hot path, so its logs carry access tokens.
+- **HSM/KMS wrapping as the answer** — real only against a stolen disk; useless
+  against code execution, which simply asks the HSM to decrypt.
+- **Any "only for sixty seconds / only during enrolment" variant.** All of
+  these are (b) with a TTL.
+- **Domain-wide delegation** — does not exist for consumer accounts.
+- **`prompt=none`** — yields no refresh token, so it buys a mailbox that dies
+  in an hour.
+- **`id_token_hint` / adding `openid`** — a scope-set change is an off-cycle
+  re-review trigger (REVERIFICATION.md:77), for a benefit `login_hint` already
+  gives.
+- **Syncing the audit log in v1** — its content fields are mail-derived.
+  `docs/research/multi-device-strategy.md:37` proposes this and is wrong; fix
+  that line.
+- **A relay that calls `users.watch` itself** with a server-held token — the
+  back door that smuggles custody back in through a service nobody decided to
+  make a custodian. The client must call watch with its own token.
+
+### The one decision that is not a designer's
+
+**Are you willing to be the custodian of other people's live mailbox
+credentials?** It is a liability-appetite question, not a security question
+with a right answer. What you buy is 5-17 fewer gestures per new device,
+forever. What you accept is that a compromise of your server *or* your build
+pipeline, at any point for as long as the service exists, means writing to
+every subscriber a sentence you cannot soften: someone may have read every
+email in your accounts and may have sent mail as you.
