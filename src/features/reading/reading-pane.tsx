@@ -97,19 +97,17 @@ export function ReadingPane() {
       <section
         aria-label="Reading"
         tabIndex={-1}
-        // No `border-t`, matching the list's: the titlebar it closed off is
-        // gone, so the pane starts at the top of the window and the spacer's
-        // `border-b` at y=52 is the first rule drawn.
-        className="bg-canvas flex h-full flex-col outline-none"
+        // TRANSPARENT, so the shell's field runs behind this pane unbroken.
+        // At rest the ground itself is the character's field, and a pane
+        // painting its own bg-canvas here would have cut a grey band out of it.
+        className="flex h-full flex-col outline-none"
       >
-        {/* Empty, but it keeps the toolbar hairline level across all three
-            panes — and it is drag field, so the window still moves by its own
-            top edge with nothing open. A childless div with a bare attribute is
+        {/* Still the drag field, so the window moves by its own top edge with
+            nothing open — but no rule and no fill. There is no toolbar here to
+            head, and a hairline across an empty pane only chops the field in
+            two (owner, 2026-08-31). A childless div with a bare attribute is
             always a direct hit, so it drags and double-click-zooms. */}
-        <div
-          data-tauri-drag-region
-          className="border-hairline h-(--wren-toolbar-h) shrink-0 border-b"
-        />
+        <div data-tauri-drag-region className="h-(--wren-toolbar-h) shrink-0" />
         <div className="min-h-0 flex-1">
           <EmptyState
             mark

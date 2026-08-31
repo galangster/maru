@@ -1202,6 +1202,10 @@
    pool and the 400 px burst host to the pane without producing scrollbars
    inside the panel's own overflow:auto, makes this the containing block for
    both, and bounds rasterisation. */
+/* The field is painted by whoever OWNS the empty region — at rest that is the
+   shell, so the ground and its channels carry it and the cards float on it.
+   `.wren-empty` keeps the containment the pool and the burst host need without
+   re-painting a colour the ancestor already has. */
 .wren-empty {
     position: relative;
     contain: paint;

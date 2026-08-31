@@ -13,6 +13,7 @@ import { ThreadList } from '@/features/list/thread-list'
 import { useUi } from '@/features/mail/ui-store'
 import { ReadingPane } from '@/features/reading/reading-pane'
 import { Sidebar } from '@/features/sidebar/sidebar'
+import { cn } from '@/lib/utils'
 
 /**
  * The panel library wants numbers, and the measures are tokens — so they are
@@ -81,6 +82,10 @@ export const SHELL_CARD =
 
 export function AppShell() {
   const collapsed = useUi((s) => s.sidebarCollapsed)
+  // Nothing open ⇒ the whole ground is the character's field, channels
+  // included, and the sidebar and list read as cards floating on it. The
+  // reading pane goes transparent in that state so this shows through it.
+  const atRest = useUi((s) => s.selected === null)
   const setCollapsed = useUi((s) => s.setSidebarCollapsed)
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
   const listRef = useRef<PanelImperativeHandle | null>(null)
@@ -128,7 +133,7 @@ export function AppShell() {
     // what buys the list 52 px of body (11.0 rows at --wren-row-h instead of
     // 10.2 at 1280×800); every control that could have filled it already lives
     // in the list header or the sidebar footer.
-    <div className="bg-canvas h-full">
+    <div className={cn('bg-canvas h-full', atRest && 'wren-empty')}>
       <ResizablePanelGroup className="h-full">
         <ResizablePanel
           panelRef={sidebarRef}
