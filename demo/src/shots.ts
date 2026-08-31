@@ -14,7 +14,7 @@ export const WIDTH = 1920;
 export const HEIGHT = 1080;
 
 export const APP_NAME = "Maru Mail";
-export const APP_VERSION = "«FROZEN RELEASE VERSION»"; // fill when the release is cut
+export const APP_VERSION = "0.1.1"; // the frozen official-client build
 export const CLIENT_ID =
   "537601059334-su62jrimhnfg3lg5ql21uet30135mdll.apps.googleusercontent.com";
 

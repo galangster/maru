@@ -1,6 +1,6 @@
 # P11 — Bulk actions + search operators  `wayfinder:task`
 
-status: in progress · claimed: overnight run, 2026-08-30 · blocked by: —
+status: closed · claimed: overnight run, 2026-08-30 · blocked by: —
 
 ## Question → work
 

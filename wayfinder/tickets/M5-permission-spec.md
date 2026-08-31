@@ -1,6 +1,6 @@
 # M5 — The publishable permission-model spec  `wayfinder:task`
 
-status: in progress · claimed: M5 lane, 2026-08-29 · blocked by: —
+status: closed (draft v0.1 shipped; publication venue + license posture stay with G1 owner gates) · claimed: M5 lane, 2026-08-29 · blocked by: —
 
 ## Question → work
 
