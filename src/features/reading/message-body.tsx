@@ -16,18 +16,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { base64EncodeBytes } from '@/core/mime'
 import type { Message } from '@/core/types'
 import { useMailService } from '@/features/mail/service'
 import { escapeHtml } from '@/lib/compose'
 import { openExternalUrl } from '@/lib/env'
+import { toDataUrl } from '@/lib/format'
 import { buildSrcdoc, sanitizeBody } from '@/lib/sanitize'
-
-function toDataUrl(bytes: Uint8Array, mimeType: string): string {
-  // core/mime's encoder chunks the byte run: a spread over a megabyte-sized
-  // image blows the argument stack, which is exactly what an inline image is.
-  return `data:${mimeType};base64,${base64EncodeBytes(bytes)}`
-}
 
 /**
  * A cache that forgets its oldest entry once it is full.
@@ -109,6 +103,8 @@ function useInlineImages(threadKey: string, message: Message, needed: boolean) {
   const query = useQuery({
     queryKey: ['inline-images', message.id],
     enabled: needed && inline.length > 0,
+    // Attachment bytes are immutable; remounting a thread must not refetch.
+    staleTime: Infinity,
     queryFn: async () => {
       const map = new Map<string, string>()
       for (const attachment of inline) {

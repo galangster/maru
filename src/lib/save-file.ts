@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 // Saving bytes the person asked for — P10's answer to the "coming soon"
 // attachment toast. Two doors, one contract: in Tauri a native save dialog
 // then our own save_file command (one write behind one gesture — no
@@ -24,4 +25,19 @@ export async function saveBytes(filename: string, bytes: Uint8Array): Promise<bo
   anchor.click()
   URL.revokeObjectURL(url)
   return true
+}
+
+/**
+ * The one save flow both attachment surfaces speak: write the bytes, report
+ * the outcome in the same words. Shared by AttachmentChip and PhotoThumb so
+ * the user-facing strings cannot drift.
+ */
+export async function saveWithToasts(filename: string, bytes: Uint8Array): Promise<void> {
+  try {
+    if (await saveBytes(filename, bytes)) toast(`Saved ${filename}`)
+  } catch (cause) {
+    toast.error(`Could not save ${filename}`, {
+      description: cause instanceof Error ? cause.message : String(cause),
+    })
+  }
 }

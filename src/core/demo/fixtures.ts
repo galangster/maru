@@ -183,7 +183,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
         daysAgo: 6,
         hour: 19,
         html: plain('A few from Sunday. The one of you and your father came out well.', 'Call when you have a minute.'),
-        attachments: [{ filename: 'sunday-01.jpg', mimeType: 'image/jpeg', sizeBytes: 2_411_002 }],
+        attachments: [{ filename: 'sunday-01.png', mimeType: 'image/png', sizeBytes: 2_411_002 }],
       },
       reply(ME_PERSONAL, [MUM], 5, 21, 'These are lovely. Calling tomorrow evening.'),
     ],

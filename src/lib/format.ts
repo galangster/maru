@@ -1,6 +1,7 @@
 // Formatting the list and the reading pane share. Every function takes the
 // clock explicitly so a frozen `now` (captures) and a live one behave the same.
 
+import { base64EncodeBytes } from '@/core/mime'
 import type { EmailAddress } from '@/core/types'
 import type { IconName } from '@/components/ui/icon'
 
@@ -126,9 +127,27 @@ function firstName(addr: EmailAddress): string {
   return first
 }
 
+/**
+ * Image types every shipped webview actually decodes. HEIC (the default
+ * iPhone photo) and TIFF pass a bare `image/` check and then render as a
+ * broken-image glyph — those keep the filename chip instead.
+ */
+export function isPreviewableImage(mimeType: string): boolean {
+  return /^image\/(jpeg|png|gif|webp|avif|svg\+xml)$/.test(mimeType)
+}
+
 export function attachmentIcon(mimeType: string): IconName {
   if (mimeType.startsWith('image/')) return 'image'
   if (mimeType === 'text/calendar') return 'calendar'
   if (mimeType === 'application/pdf' || mimeType.startsWith('text/')) return 'fileText'
   return 'file'
+}
+
+/**
+ * Bytes to a data: URL, via core/mime's chunked encoder — a spread over a
+ * megabyte-sized image blows the argument stack, which is exactly what a
+ * photo attachment is. Shared by inline cid: images and photo thumbnails.
+ */
+export function toDataUrl(bytes: Uint8Array, mimeType: string): string {
+  return `data:${mimeType};base64,${base64EncodeBytes(bytes)}`
 }

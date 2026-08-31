@@ -11,6 +11,8 @@ import { hueFor } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
 import { AttachmentChip } from './attachment-chip'
+import { PhotoGrid } from './photo-grid'
+import { isPreviewableImage } from '@/lib/format'
 import { MessageBody } from './message-body'
 
 export interface MessageCardProps {
@@ -35,7 +37,10 @@ export function MessageCard({
 }: MessageCardProps) {
   const [blocked, setBlocked] = useState(0)
   const onBlockedImages = useCallback((count: number) => setBlocked(count), [])
-  const attachments = message.attachments.filter((a) => !a.inline)
+  const shown = message.attachments.filter((a) => !a.inline)
+  // A photo's content is its preview; everything else is named by its chip.
+  const photos = shown.filter((a) => isPreviewableImage(a.mimeType))
+  const attachments = shown.filter((a) => !isPreviewableImage(a.mimeType))
 
   if (!expanded) {
     return (
@@ -109,6 +114,12 @@ export function MessageCard({
           onBlockedImages={onBlockedImages}
         />
       </div>
+
+      {photos.length > 0 && (
+        <div className="mt-4">
+          <PhotoGrid threadKey={threadKey} photos={photos} />
+        </div>
+      )}
 
       {attachments.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">

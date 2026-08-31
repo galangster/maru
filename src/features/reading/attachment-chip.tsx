@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
 
 import { Icon } from '@/components/ui/icon'
 import { META_TEXT } from '@/components/wren-controls'
 import type { Attachment } from '@/core/types'
 import { useMailService } from '@/features/mail/service'
 import { attachmentIcon, formatBytes } from '@/lib/format'
-import { saveBytes } from '@/lib/save-file'
+import { saveWithToasts } from '@/lib/save-file'
 import { cn } from '@/lib/utils'
 
 export function AttachmentChip({
@@ -23,13 +22,7 @@ export function AttachmentChip({
     setBusy(true)
     try {
       const bytes = await service.getAttachment(threadKey, attachment.messageId, attachment.id)
-      if (await saveBytes(attachment.filename, bytes)) {
-        toast(`Saved ${attachment.filename}`)
-      }
-    } catch (cause) {
-      toast.error(`Could not save ${attachment.filename}`, {
-        description: cause instanceof Error ? cause.message : String(cause),
-      })
+      await saveWithToasts(attachment.filename, bytes)
     } finally {
       setBusy(false)
     }
