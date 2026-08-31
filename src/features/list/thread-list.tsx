@@ -12,6 +12,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Icon } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
+import { SEARCH_WINDOW_DAYS } from '@/core/sync/engine'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
   MIN_SEARCH_LENGTH,
@@ -391,7 +392,11 @@ export function ThreadList() {
             <EmptyState
               copy={{
                 title: 'No matches',
-                subtitle: `Nothing in your mail mentions “${debounced.trim()}”.`,
+                // Names the window rather than claiming "your mail": search
+                // runs against the local index, which sync builds from the
+                // last SEARCH_WINDOW_DAYS. Saying so turns a dead end into
+                // information, and quietly reveals that older mail exists.
+                subtitle: `Nothing from the last ${SEARCH_WINDOW_DAYS} days mentions “${debounced.trim()}”.`,
               }}
             />
           ) : (

@@ -60,12 +60,17 @@ export function applyListPrefs(threads: Thread[], prefs: ListPrefs): Thread[] {
  */
 export function filterEmptyCopy(filter: Exclude<ListFilter, 'all'>): EmptyCopy {
   switch (filter) {
+    // All three share the phrase "in this view", because the one job an empty
+    // FILTER has is to reassure you the mail is not gone, only out of frame.
+    // The titles stay distinct from the folder set in inbox-zero.ts: "No stars
+    // here" rather than "Nothing starred", which that file already owns and
+    // which is reachable in the same session.
     case 'unread':
-      return { title: 'Nothing unread', subtitle: 'Every thread here has been read.' }
+      return { title: 'Nothing unread', subtitle: "You've read everything in this view." }
     case 'starred':
-      return { title: 'Nothing starred', subtitle: 'No starred threads in this view.' }
+      return { title: 'No stars here', subtitle: 'Nothing in this view is starred yet.' }
     case 'attachments':
-      return { title: 'No attachments', subtitle: 'Nothing here carries a file.' }
+      return { title: 'No attachments', subtitle: 'Nothing in this view carries a file.' }
   }
 }
 

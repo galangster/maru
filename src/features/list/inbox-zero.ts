@@ -12,12 +12,27 @@ import { claimCelebration } from '@/lib/celebrate'
 export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
   if (view.kind === 'unified') {
     switch (view.folder) {
+      // "Inbox zero" belongs to the EARNED tier alone (empty-state.tsx). An
+      // inbox that was already quiet when you arrived is not an achievement,
+      // and congratulating someone for it is the same mistake as
+      // congratulating them for an empty Trash.
       case 'inbox':
-        return { title: 'Inbox zero', subtitle: 'Nothing waiting. Maru will say when that changes.' }
+        return {
+          title: 'The inbox is quiet',
+          subtitle: 'Maru will tell you the moment something lands.',
+        }
       case 'starred':
-        return { title: 'Nothing starred', subtitle: 'Star a thread and it will wait for you here.' }
+        return {
+          title: 'Nothing starred',
+          subtitle: 'Star a thread and it keeps its place here for you.',
+        }
+      // Not "sent from Maru" — Sent is Gmail's own mailbox, so it holds mail
+      // sent from any client.
       case 'sent':
-        return { title: 'Nothing sent yet', subtitle: 'Mail you send from Maru collects here.' }
+        return {
+          title: 'Nothing sent yet',
+          subtitle: 'The first thing you send will show up here.',
+        }
       case 'trash':
         return { title: 'Trash is empty', subtitle: 'Deleted threads rest here before Gmail clears them.' }
     }
@@ -25,8 +40,8 @@ export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
   return {
     title: 'Nothing here yet',
     subtitle: labelName
-      ? `Threads labelled ${labelName} will collect in this view.`
-      : 'Threads with this label will collect in this view.',
+      ? `Threads labelled ${labelName} will gather here.`
+      : 'Threads with this label will gather here.',
   }
 }
 

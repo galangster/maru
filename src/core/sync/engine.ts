@@ -35,7 +35,11 @@ import type {
 import type { Label, MailEvent, Message, SyncStatus, Thread } from '../types'
 import { threadKey } from '../types'
 
-export const WINDOW_QUERY = 'newer_than:90d'
+/** How far back sync — and therefore the local search index — reaches. The
+ *  search empty state names this number, so the copy cannot drift from the
+ *  behaviour it describes. */
+export const SEARCH_WINDOW_DAYS = 90
+export const WINDOW_QUERY = `newer_than:${SEARCH_WINDOW_DAYS}d`
 export const PREFETCH_LIMIT = 60
 export const HISTORY_TYPES: HistoryType[] = ['messageAdded', 'messageDeleted', 'labelAdded', 'labelRemoved']
 

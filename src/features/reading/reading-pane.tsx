@@ -115,7 +115,7 @@ export function ReadingPane() {
             mark
             copy={{
               title: 'Nothing open',
-              subtitle: 'Pick a thread on the left. J opens the first one.',
+              subtitle: 'Pick a thread on the left, or press J to open the first one.',
             }}
           />
         </div>

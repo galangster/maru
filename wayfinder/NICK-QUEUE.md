@@ -42,11 +42,17 @@ asking in chat. Newest at the top of each section. Strike items done.
 4. ~~Inject the official client id~~ — done 2026-08-30: repo variable
    `WREN_OFFICIAL_GOOGLE_CLIENT_ID` on galangster/maru; release
    workflow fails without it.
-5. **Freeze done — hand-smoke + recording prep before the sitting**
-   (2026-08-31): the freeze build (main @ 8e6beb6, coral brand + Maru
-   character + link fix) is signed, notarized Accepted, stapled, all
-   three Gatekeeper checks passed, and installed at /Applications/
-   Maru.app (verified again post-install; app launches and renders).
+5. **THE FREEZE IS SUPERSEDED — do not record against the installed
+   build.** The 0.1.1 you froze this morning (main @ 8e6beb6) is signed,
+   notarized and installed at /Applications/Maru.app, but you then asked
+   for the empty-state, character-motion and chrome changes, so the
+   installed binary no longer matches main. **Re-run the release command
+   after the visual pass lands**, then the hand-smoke below, then the
+   sitting. Everything else in this item still stands.
+
+   Freeze build facts, for the record (main @ 8e6beb6, coral brand +
+   Maru character + link fix): signed, notarized Accepted, stapled, all
+   three Gatekeeper checks passed, installed and launching.
    The agent stopped short of driving the UI — you were using the
    machine and synthetic keystrokes were landing across windows. Your
    ~2 minutes, in the app:
