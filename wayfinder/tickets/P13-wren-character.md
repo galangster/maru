@@ -139,3 +139,59 @@ ratify — `?tune=1`, then the settled values go into tokens.css.
 After the verification submission (map 3's one priority). A character
 rig is exactly the kind of joyful lane that fits while waiting out
 Google's review clock.
+
+---
+
+## v3 shipped 2026-08-31 — the cruise, and the pink came back off the panes
+
+Confirmed on the installed 0.1.3 build. Nick: "the flight motion looks
+good. the traffic lights look good too!"
+
+**The colour reverted, deliberately.** `--wren-maru-field` is deleted.
+Painting the whole window with the character's field at rest was shipped
+in 0.1.2 and rejected on sight — "it looks weird altogether with the
+message thread being also pink." The pink is now bounded to one feathered
+circle per bird, mounted inside `.wren-figure`, so it belongs to the
+character and travels into onboarding rather than tinting a pane.
+
+DIRECTION's "no gradient as a surface" refusal now carries this as its one
+licensed exception, recorded in both places the rule appears — otherwise a
+future reviewer deletes the disc as a violation and is technically right.
+
+**The pool was rebuilt, and this is the part to remember.** Its stops were
+tuned to sit ON the field, so it carried only ~45% of the ground-to-base
+delta. Removing the field doubled its contrast and its steepest step would
+have banded into visible rings on the app's most-seen surface. It is now a
+flat plate plus a twelve-stop feather mask with a single inflection, built
+as `::before`/`::after` so no figure gains a DOM node. **Any future change
+to the surface behind a bird has to re-check the pool's ramp.**
+
+**The bird no longer lands.** `data-wren-cruise` is a second attribute, not
+a mode of `data-wren-flight` — the takeoff timeline is byte-untouched. Wing
+amplitude stays at ±0.5 × `--wren-flap` because that is exactly the
+takeoff's `fill: backwards` terminal value; the shape changed instead
+(34% downstroke, 66% recovery, body apex trailing the power stroke). The
+period is `--wren-dur-float / 2`, an exact submultiple, so `descentAt`
+still lands on a cycle boundary and the landing hand-off stays position-
+and angle-identical.
+
+The descent is **disarmed, not deleted**: `land` defaults false, `?tune=1`
+passes it, and it remains the way home if the bird is ever wanted back on
+the ground.
+
+**Four air streaks** carry the travel, each with its own opacity envelope
+so the group is never masked. Vertical position is the depth cue.
+
+**One Maru on screen, always.** The list's flying bird stands the reading
+pane's perched one down via `celebrating` in the UI store.
+
+### Still owed
+
+- The wingbeat and streak density have only been judged by eye on one
+  build at one size. If either reads busy at a different window size, the
+  dials are the cruise period (must stay a submultiple of `floatDur`, or
+  move `descentAt` with it) and dropping `.wren-air-streak:nth-child(2)`.
+- Banding has not been checked on a colour-accurate display at 100% on all
+  four grounds (reading pane, list card, and both dark counterparts). It
+  will not show in a scaled screenshot.
+- `--wren-fill-selected` still carries the pre-13 accent hues — P20 §3.

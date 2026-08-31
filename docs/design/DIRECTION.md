@@ -29,7 +29,13 @@ component. Columns line up across every row of a list, always.
 **Wren refuses to:**
 - Tint or stripe a list row to signal state. Unread is a dot and a weight change.
 - Put glass behind text that must be read (the list, the message body).
-- Use more than one accent hue, or a gradient as a surface.
+- Use more than one accent hue, or a gradient as a surface. *(One licensed
+  exception, ruled by Nick 2026-08-31 and confirmed on the 0.1.3 build: the
+  feathered circle behind Maru — `.wren-pool` and `.wren-disc`. It is the
+  character's ground and air, bounded to the figure and never covering a pane.
+  It exists because the alternative was tried and rejected: a field painted
+  across the whole window, which read as "the app went pink". A gradient
+  belonging to a character is not a gradient surface.)*
 - Ship density presets. There is one density, tuned once, correctly.
 - Animate anything the user did not ask for.
 
@@ -499,5 +505,8 @@ makes.
 6. **Do** use `--primary` for the brand accent. `--accent` is shadcn's hover fill — different thing.
 7. **Do** give every list a fixed sender column so subjects align at the same x.
 8. **Do** set `tabular-nums` on every number that can change: times, counts, sizes.
-9. **Don't** introduce a second accent hue, a gradient surface, or a density toggle.
+9. **Don't** introduce a second accent hue, a gradient surface, or a density
+   toggle. (The character's feathered circle is the one licensed gradient — see
+   the refusals list at the top of this document. It is bounded to the figure;
+   a gradient that covers a pane is still banned, and was reverted once.)
 10. **Do** import icons only from `src/components/ui/icon.tsx`, so the Anron swap stays one file.
