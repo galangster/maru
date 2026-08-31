@@ -61,7 +61,12 @@ export type EmptyTier = 'ambient' | 'earned'
  */
 const EARNED_COPY: EmptyCopy = {
   title: 'Inbox zero',
-  subtitle: 'You cleared it. Maru will keep watch from here.',
+  // The picture changed, so the sentence had to. "Keep watch from here" was
+  // written for a bird that lands and settles; this one takes off and keeps
+  // flying. It still credits the act, still hands the time back, and still
+  // rhymes with the ambient line ("Maru will tell you the moment something
+  // lands") the way the original was built to.
+  subtitle: 'You cleared it. Maru has the sky until something lands.',
 }
 
 /**

@@ -504,6 +504,7 @@ export function WrenFigure({
   poses = 'perched',
   idle = false,
   flying = false,
+  cruising = false,
   showing = 'perched',
   opening,
   rootRef,
@@ -515,6 +516,14 @@ export function WrenFigure({
   idle?: boolean
   /** Sets data-wren-flight: the hover bob, the wing flap and the sparkles. */
   flying?: boolean
+  /**
+   * Sets data-wren-cruise: the perpetual wingbeat, the pitch, the feathered
+   * air disc and its four streaks — a bird that keeps flying instead of
+   * landing. Deliberately a SECOND attribute rather than a mode of `flying`:
+   * the shipped `[data-wren-flight]` rules and the whole takeoff timeline must
+   * stay byte-untouched, and one of them matches on attribute presence.
+   */
+  cruising?: boolean
   /** Which pose CSS falls back to when no script animation holds the fade. */
   showing?: PoseKind
   opening?: IdleOpening
@@ -526,8 +535,15 @@ export function WrenFigure({
   const own = useRef<HTMLDivElement>(null)
   const root = rootRef ?? own
   const attention = useRef<Attention>({ inside: false, lastNearAt: 0 })
-  const eye = useBlink(alive && idle)
-  useGaze(alive && idle, root, eye, POSES[showing], attention)
+  // Blink and gaze come off `idle` OR `cruise` — they are the character's
+  // life and a flying bird still looks at you. The behaviour SCHEDULER does
+  // not: its vocabulary (weight-shift, wing-shrug, look-back) is a PERCHED
+  // vocabulary, and structurally it writes `animation` onto `.wren-lean` and
+  // `.wren-l-wing` — the exact joints the cruise owns — so a shrug would
+  // silently drop the wingbeat for its duration. Keeping it on `idle` alone
+  // makes that exclusion structural rather than a rule someone remembers.
+  const eye = useBlink(alive && (idle || cruising))
+  useGaze(alive && (idle || cruising), root, eye, POSES[showing], attention)
   useIdleBehaviours(alive && idle, root, attention, opening)
 
   const both = poses === 'both'
@@ -539,8 +555,25 @@ export function WrenFigure({
       className={cn('wren-figure', className)}
       data-wren-alive={alive || undefined}
       data-wren-flight={flying || undefined}
+      data-wren-cruise={cruising || undefined}
       data-wren-pose={both ? showing : undefined}
     >
+      {/* The air the flying body needs, and the FIRST child so tree order alone
+          puts it under the pool, the shadow and the bird — every layer in this
+          rig is z-index:auto. Like the pool it belongs to the CHARACTER rather
+          than to a pane, which is what keeps the pink bounded: "a circular pink
+          masked/feathered bg behind the bird... would create a nice bg without
+          filling up the whole window" (owner, 2026-08-31).
+          The streaks sit above the plate (::before) and below the grain
+          (::after), so the dither covers them too, and below `.wren-hover`, so
+          the air passes BEHIND the bird. */}
+      {cruising && (
+        <span className="wren-disc">
+          {[0, 1, 2, 3].map((i) => (
+            <span key={i} className="wren-air-streak" />
+          ))}
+        </span>
+      )}
       {/* The ground the white body needs. It travels WITH the character —
           grounding is part of how Maru is presented, not a decision the
           consumer makes — which is why onboarding gets a pool and no field.

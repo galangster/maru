@@ -1080,13 +1080,88 @@
        dirt. Near-black in the dark theme, where the field is already so low
        that a pink shade would LIGHTEN the ground instead of deepening it. */
     --wren-maru-shade: 255 126 144;
-    --wren-maru-field: color-mix(in oklab, var(--wren-maru-ground) 55%, var(--wren-surface-base));
+
+    /* The earned bird's aperture. 288px = 2 × --wren-maru-size, on the 4px
+       grid. Fixed rather than a container query: this disc mounts on exactly
+       one surface (the 400px list column), so `cqi` buys nothing and imports a
+       real trap — a container-query length declared ON the container resolves
+       against that element's ANCESTOR container, which would read correct in
+       the reading pane and clip flat in the list column.
+       The min() is the short-window guard: `.wren-empty`'s paint containment
+       would otherwise cut a dead-straight chord across the top of the circle.
+       It binds only below a ~686px window. */
+    --wren-maru-disc: min(calc(var(--wren-maru-size) * 2), 42vh);
+
+    /* Where the takeoff's first track parks the bird and holds it forever.
+       MUST equal `rise[5]` in lib/wren-flight.ts (−0.86). The disc reads it so
+       it centres on the BIRD rather than on the figure box — a box-centred
+       disc would sit 55px below a flying bird. Reduced motion zeroes
+       --wren-fly, so this self-cancels for a bird that never rose. */
+    --wren-maru-settle: calc(var(--wren-fly) * -0.86);
+
+    /* Air gain. The plate is only ~27 levels off white, so a streak has no
+       headroom ABOVE the ground and 141 levels below it toward the pink — the
+       streaks are the character's own pink in both themes. */
+    --wren-air-peak: 1;
+
+    /* ONE feather profile, two amplitudes.
+       Peak |dα/dr| is 0.0136 per %R across the 52–63% band and decreases
+       monotonically outward — a single inflection, no shoulder, therefore no
+       Mach band and no visible ring. Terminal α 0.018 at 97% is half of one
+       8-bit level against white, so the outer 3% of the radius is below the
+       panel's own quantum.
+       Written as the alpha of ONE colour and never as a ramp toward a pane
+       colour: these circles land on four grounds (#F6F4F3 reading pane,
+       #FFFFFF list card, and both dark counterparts) and a gradient aimed at
+       any one of them is a visible ring on the other three. */
+    --wren-pool-feather: radial-gradient(
+        circle closest-side,
+        rgb(0 0 0 / 1) 0%,
+        rgb(0 0 0 / 0.95) 15%,
+        rgb(0 0 0 / 0.86) 28%,
+        rgb(0 0 0 / 0.73) 40%,
+        rgb(0 0 0 / 0.57) 52%,
+        rgb(0 0 0 / 0.42) 63%,
+        rgb(0 0 0 / 0.29) 73%,
+        rgb(0 0 0 / 0.195) 81%,
+        rgb(0 0 0 / 0.115) 88%,
+        rgb(0 0 0 / 0.055) 93%,
+        rgb(0 0 0 / 0.018) 97%,
+        rgb(0 0 0 / 0) 100%
+    );
+    /* The same offsets at ×0.92. The pool is GROUND and its core is opaque
+       contact; the disc is AIR and starts a little back from full. */
+    --wren-disc-feather: radial-gradient(
+        circle closest-side,
+        rgb(0 0 0 / 0.92) 0%,
+        rgb(0 0 0 / 0.87) 15%,
+        rgb(0 0 0 / 0.79) 28%,
+        rgb(0 0 0 / 0.67) 40%,
+        rgb(0 0 0 / 0.52) 52%,
+        rgb(0 0 0 / 0.39) 63%,
+        rgb(0 0 0 / 0.27) 73%,
+        rgb(0 0 0 / 0.18) 81%,
+        rgb(0 0 0 / 0.106) 88%,
+        rgb(0 0 0 / 0.05) 93%,
+        rgb(0 0 0 / 0.017) 97%,
+        rgb(0 0 0 / 0) 100%
+    );
+    /* The dither's own mask: full strength across the whole visible ramp,
+       dying only over the outer 14% where the plate is already under one
+       level. This is why the grain is a sibling pseudo and not a child of the
+       plate — inside the plate's mask its amplitude would be multiplied by α,
+       i.e. strongest at the flat core where there is no banding and weakest on
+       the ramp where there is. That is backwards. */
+    --wren-haze-mask: radial-gradient(circle closest-side, #000 0%, #000 86%, transparent 100%);
 }
 
 .dark {
     --wren-maru-ground: color-mix(in oklab, oklch(0.687 0.2 13) 14%, var(--wren-surface-base));
     --wren-maru-shade: 0 0 0;
-    --wren-maru-field: color-mix(in oklab, oklch(0.687 0.2 13) 6%, var(--wren-surface-base));
+    /* The plate is dark and the pink is bright, so a small alpha is a large
+       relative jump: at 0.085 over the dark plate a streak's luminance is ~3×
+       the plate's. Dark needs LESS of the pink, not more. */
+    --wren-air-peak: 0.55;
 }
 
 .wren-figure {
@@ -1135,15 +1210,85 @@
     width: var(--wren-maru-pool);
     aspect-ratio: 1;
     transform: translate(-50%, -50%);
-    background-image: radial-gradient(
-        closest-side,
-        var(--wren-maru-ground) 0%,
-        color-mix(in oklab, var(--wren-maru-ground) 92%, transparent) 24%,
-        color-mix(in oklab, var(--wren-maru-ground) 70%, transparent) 46%,
-        color-mix(in oklab, var(--wren-maru-ground) 38%, transparent) 66%,
-        color-mix(in oklab, var(--wren-maru-ground) 14%, transparent) 84%,
-        color-mix(in oklab, var(--wren-maru-ground) 0%, transparent) 100%
-    );
+    pointer-events: none;
+}
+
+/* THE POOL WAS REBUILT WHEN THE FIELD WENT AWAY, and this is not cosmetic.
+   Its six original stops were tuned to sit ON --wren-maru-field, so the pool
+   carried only 45% of the ground-versus-base delta. With the field deleted it
+   carries all of it, and its steepest old step — 0.70 → 0.38 across 20% of a
+   162px radius — becomes ~5 levels of green over 32px on the reading pane and
+   ~9 on onboarding's white card. That is a visible ring every few pixels, on a
+   surface a person looks at all day.
+   The twelve-stop profile in --wren-pool-feather has a single inflection and a
+   monotone slope after it, which is what removes the ring. */
+.wren-figure .wren-disc {
+    position: absolute;
+    display: block;
+    left: 50%;
+    /* Centred on the BIRD, not on the figure box. The takeoff parks the figure
+       55px above its box origin and holds it there, so a box-centred disc
+       would sit 55px below a flying bird. `margin-top` is static — applied
+       from mount, so there is no jump at the hand-off, and the capture path's
+       `animation: none` cannot touch it.
+       This is also what keeps the copy legible: with the disc on the bird, the
+       title lands at r/R ≈ 0.965 where α ≈ 0.02, half of one level over white.
+       Centring it lower to "hold the copy" would put a wash back under the
+       text and buy nothing. */
+    top: 50%;
+    margin-top: var(--wren-maru-settle);
+    width: var(--wren-maru-disc);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+/* THE PLATE — flat colour plus a mask, in ::before; the dither in ::after.
+   Two pseudos, so every perched figure in the app gains ZERO new DOM nodes.
+   Painting order inside an element is ::before, then children, then ::after,
+   which is why the grain is ::after: it must dither what is under it, streaks
+   included. */
+.wren-figure .wren-pool::before,
+.wren-figure .wren-disc::before {
+    content: '';
+    position: absolute;
+    display: block;
+    inset: 0;
+    background-color: var(--wren-maru-ground);
+    /* The unprefixed property is not enough in the WKWebView this ships in;
+       without the prefix the plate renders as a solid pink SQUARE. And
+       `no-repeat` is not optional — the default tiles the radial feather into
+       ghost discs across the box. */
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+.wren-figure .wren-pool::before {
+    -webkit-mask-image: var(--wren-pool-feather);
+    mask-image: var(--wren-pool-feather);
+}
+.wren-figure .wren-disc::before {
+    -webkit-mask-image: var(--wren-disc-feather);
+    mask-image: var(--wren-disc-feather);
+}
+
+/* THE DITHER, which moved here off `.wren-empty`. --wren-noise is a
+   deterministic 140×140 tile, so the capture gate stays byte-identical. This
+   is LESS total grain than the pane-wide layer it replaces, because it covers
+   a 324px circle instead of a 610px pane — and it is on the ramp that
+   actually needs it rather than smeared across the app's largest surface. */
+.wren-figure .wren-pool::after,
+.wren-figure .wren-disc::after {
+    content: '';
+    position: absolute;
+    display: block;
+    inset: 0;
+    background-image: var(--wren-noise);
+    opacity: 0.035;
+    -webkit-mask-image: var(--wren-haze-mask);
+    mask-image: var(--wren-haze-mask);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    pointer-events: none;
 }
 
 /* The other half of the pool rule above: anything that must read ON the ground
@@ -1219,35 +1364,133 @@
    shell, so the ground and its channels carry it and the cards float on it.
    `.wren-empty` keeps the containment the pool and the burst host need without
    re-painting a colour the ancestor already has. */
+/* Containment only. The field is gone: "inbox should always be white, rather
+   than have a pink background... it looks weird altogether with the message
+   thread being also pink" (owner, 2026-08-31, reversing his own call from
+   earlier the same day to fill the window, having now seen it shipped).
+   `position` and `contain` stay — they are still the containing block and the
+   clip for the 400px burst host and for a 288px disc hanging out of a 144px
+   figure. The pink now belongs to the CHARACTER: a feathered circle inside
+   `.wren-figure`, which is why it travels into onboarding and never paints a
+   pane. */
 .wren-empty {
     position: relative;
     contain: paint;
-    background-color: var(--wren-maru-field);
 }
 
-/* Banding is not optional here: the light pool runs #FEE9EF to the field over
-   ~162 px in five steps, which is a visible edge every ~36 px. The dither goes
-   on the ROOT rather than on the pool so it is uniform across both and never
-   shows a patch edge. --wren-noise is a deterministic 140x140 tile, so the
-   capture gate stays byte-identical. */
-.wren-empty::after {
-    content: '';
+/* The pane-wide dither that used to live here is GONE, along with the field it
+   was hiding the banding of. A 3% grain across 610px of near-white is dirt on
+   the app's largest surface; the dither now sits on the two circles that
+   actually ramp (`.wren-pool::after` / `.wren-disc::after`). Its own
+   de-duplication guard went with it — two fields can no longer stack, because
+   there are no fields.
+
+   ---------------------------------------------------------------------------
+   THE AIR. Four streaks, each with its own fade, so the group is never masked.
+
+   A mask on the wrapper with children translating inside it is the obvious
+   construction and is wrong twice: a mask over composited descendants forces a
+   render surface that is re-composited every frame, and a mask on the element
+   that MOVES travels with it, so the aperture slides. Giving each streak its
+   own envelope means it materialises out of nothing inside the plate and
+   dissolves before the rim — no entry edge, no exit edge, nothing to clip.
+   Pure transform and opacity: fully composited, no mask, no filter. */
+.wren-figure .wren-air-streak {
     position: absolute;
-    inset: 0;
-    background-image: var(--wren-noise);
-    opacity: 0.03;
-    pointer-events: none;
+    left: 50%;
+    top: var(--air-top);
+    width: var(--air-len);
+    height: var(--air-h);
+    margin-left: calc(var(--air-len) / -2);
+    border-radius: var(--wren-radius-full);
+    /* THE ONE LINE THE CAPTURE GATE HANGS ON. `.screenshot *` drops
+       `animation` outright, so a streak whose opacity lived only in the
+       keyframes would freeze VISIBLE at its declared value. Easy to omit,
+       expensive to notice. */
+    opacity: 0;
+    background-image: linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--wren-maru-pink) 0%, transparent) 0%,
+        var(--wren-maru-pink) 22%,
+        var(--wren-maru-pink) 74%,
+        color-mix(in oklab, var(--wren-maru-pink) 0%, transparent) 100%
+    );
+    /* `linear`, and this is the one place where an easing curve is not merely
+       banned by the idle rules but physically wrong: air passing at constant
+       airspeed must not accelerate. An eased streak reads as a gust, and a
+       gust means the bird changed speed, which means it moved. */
+    animation: wren-air-drift var(--air-dur) linear var(--air-delay) infinite both;
 }
 
-/* Once, not twice. The shell root carries .wren-empty whenever nothing is
-   selected, and the reading pane's own EmptyState carries it under exactly the
-   same condition — so the reading region got two stacked dither layers
-   (effective 0.059) against one (0.030) in the channels between the cards. A
-   1.97x step lands as a soft tonal band along the seam the two are supposed to
-   be indistinguishable across. The nested one keeps its field colour and drops
-   only its dither. */
-.wren-empty .wren-empty::after {
-    content: none;
+/* Peak alpha is held only across the middle 48% of the travel, which puts the
+   brightest air in the disc's core and nothing at the rim. Holding it wider
+   would light the streaks where the plate has already faded, which is
+   backwards. At the fastest streak the ramp is ~1.1s, so nothing pops. */
+@keyframes wren-air-drift {
+    0% {
+        transform: translate3d(calc(var(--wren-maru-disc) * 0.52), 0, 0);
+        opacity: 0;
+    }
+    26% {
+        opacity: calc(var(--air-a) * var(--wren-air-peak));
+    }
+    74% {
+        opacity: calc(var(--air-a) * var(--wren-air-peak));
+    }
+    100% {
+        transform: translate3d(calc(var(--wren-maru-disc) * -0.52), 0, 0);
+        opacity: 0;
+    }
+}
+
+/* Vertical position IS the depth cue: nearer the rim means further away, so
+   slower, shorter and fainter; nearer air blurs more over the same exposure,
+   so the fast ones are also the longest. Speeds run ~82 / 60 / 43 / 33 px/s
+   against the bird's zero, and that RATIO is the whole effect — not the
+   absolute speed. Four, not twenty: onset is what peripheral vision detects,
+   so the cost of the air is events per minute, and twenty streaks is a flicker
+   field rather than a texture.
+
+   The bird spans roughly 33–67% of the disc's height, so 27% and 74% put the
+   two fast streaks clear of the silhouette while still passing at the bird's
+   own altitude. Nothing is placed behind the body.
+
+   Delays are NEGATIVE on purpose: a positive delay opens the pane empty and
+   fills it in over nine seconds, which reads as a loading state. They are
+   fixed constants and never Math.random — the behaviour scheduler's RNG must
+   stay unreachable from the capture path. No two periods share a small factor,
+   so the field never visibly repeats. */
+.wren-air-streak:nth-child(1) {
+    --air-top: 27%;
+    --air-len: calc(var(--wren-maru-disc) * 0.34);
+    --air-h: 3px;
+    --air-a: 0.085;
+    --air-dur: calc(var(--wren-dur-float) * 1.15);
+    --air-delay: calc(var(--wren-dur-float) * -0.4);
+}
+.wren-air-streak:nth-child(2) {
+    --air-top: 74%;
+    --air-len: calc(var(--wren-maru-disc) * 0.29);
+    --air-h: 3px;
+    --air-a: 0.07;
+    --air-dur: calc(var(--wren-dur-float) * 1.55);
+    --air-delay: calc(var(--wren-dur-float) * -1.35);
+}
+.wren-air-streak:nth-child(3) {
+    --air-top: 16%;
+    --air-len: calc(var(--wren-maru-disc) * 0.21);
+    --air-h: 2px;
+    --air-a: 0.055;
+    --air-dur: calc(var(--wren-dur-float) * 2.2);
+    --air-delay: calc(var(--wren-dur-float) * -0.7);
+}
+.wren-air-streak:nth-child(4) {
+    --air-top: 85%;
+    --air-len: calc(var(--wren-maru-disc) * 0.17);
+    --air-h: 2px;
+    --air-a: 0.045;
+    --air-dur: calc(var(--wren-dur-float) * 2.85);
+    --air-delay: calc(var(--wren-dur-float) * -2.25);
 }
 
 /* --- Idle: breath, plus ONE discrete behaviour at a time -------------------
@@ -1387,6 +1630,129 @@
 [data-wren-flight] .wren-l-wing {
     animation: wren-flap var(--wren-dur-float) var(--wren-ease-in-out)
         calc(var(--wren-dur-celebrate) * 2) infinite;
+}
+
+/* --- CRUISE: the bird that never lands ------------------------------------
+   "the bird should just be flying continuously for the inbox zero animation...
+   some sort of wind animation so it looks like the bird is flying somewhere,
+   but obviously never moves" (owner, 2026-08-31).
+
+   `data-wren-cruise` is a SEPARATE attribute from `data-wren-flight`, and that
+   is load-bearing. The two rules above carry a hand-off delay whose only job
+   is to take over from the WAAPI takeoff, and the sparkle rule matches on
+   attribute PRESENCE. Nothing about `data-wren-flight` changes.
+
+   THE PERIOD IS --wren-dur-float / 2 AND THAT NUMBER IS NOT FREE. It is an
+   exact submultiple of floatDur, which is what keeps the LANDING hand-off
+   intact: descentAt fires two whole cruise cycles after the CSS takes over, so
+   the bob is at translateY(0) and the wing is at −0.5 × --wren-flap, which is
+   precisely where descent()'s first wing keyframe starts. Position-identical
+   AND angle-identical, for free. Retune the beat to a non-submultiple and
+   descentAt must move with it or the descent begins mid-cycle.
+
+   Both selectors are qualified with `.wren-figure` — (0,3,0) against the
+   shipped rules' (0,2,0) — so they win on specificity rather than on source
+   order. */
+
+/* AMPLITUDE DOES NOT CHANGE. ±0.5 × --wren-flap is exactly the takeoff's
+   `fill: 'backwards'` terminal value, which is why that hand-off is called
+   load-bearing and why its failure mode is SILENT — anything else puts a
+   14–25° step into a single frame at the hand-off and nothing throws.
+   What changes is the DURATION and the SHAPE.
+
+   The shape is the whole idea: downstroke 0→34%, recovery 34→100%. A ratio
+   near 2, like the wing-settle curve already uses for a wing dropping under
+   its own weight. Per-keyframe timing functions do it. Asymmetry in TIME, not
+   in amplitude, is what makes a rigid rotate read as DRIVING rather than
+   waving.
+
+   `--wren-ease-out` appears once, on the recoil off the bottom of the stroke,
+   where its steep leading velocity is the point. The idle section bans that
+   curve by name — this is a recorded, scoped exception: that ban is a
+   peripheral-vision rule for a bird beside a column being triaged, and this
+   bird only exists when that column has zero rows. */
+@keyframes wren-cruise-flap {
+    0% {
+        transform: rotate(calc(var(--wren-flap) * -0.5));
+        animation-timing-function: var(--wren-ease-in-out);
+    }
+    34% {
+        transform: rotate(calc(var(--wren-flap) * 0.5));
+        animation-timing-function: var(--wren-ease-out);
+    }
+    100% {
+        transform: rotate(calc(var(--wren-flap) * -0.5));
+    }
+}
+
+/* ONE TRACK CARRIES BOTH THE BOB AND THE PITCH, which is what costs zero new
+   DOM nodes. The pitch cannot live on `.wren-lean`: the takeoff's first track
+   holds that joint with `fill: 'both'` forever, and a script animation
+   permanently outranks a CSS animation on the same node, so a CSS pitch there
+   would simply never appear — the same trap this file already documents for
+   the hover. `.wren-hover` is free, and one transform carries translateY and
+   rotate together.
+
+   Lift is generated on the downstroke, so the body's apex TRAILS the wing's
+   power stroke: the wing bottoms out at 34%, the body peaks at 43%. That lag
+   is the difference between a bird driving the air and a puppet whose parts
+   move together. Rise 12→43%, fall 43→100% — rising faster than it falls is
+   what says the wing did it.
+
+   Nose UP on the climb, and the bird faces right, so nose-up is a NEGATIVE
+   rotate. Sub-pixel at the tip, and the single highest-value beat here: it is
+   what turns a vertical bob into flight.
+
+   0% and 100% are translateY(0), deliberately — that is what lets
+   settleHeight() drop its float term and keeps the descent's start exact. */
+@keyframes wren-cruise-bob {
+    0% {
+        transform: translateY(0) rotate(calc(var(--wren-tilt) * 0.34));
+        animation-timing-function: var(--wren-ease-out);
+    }
+    12% {
+        transform: translateY(calc(var(--wren-float) * 0.3)) rotate(calc(var(--wren-tilt) * 0.34));
+        animation-timing-function: var(--wren-ease-in-out);
+    }
+    43% {
+        transform: translateY(calc(var(--wren-float) * -0.3)) rotate(calc(var(--wren-tilt) * -0.34));
+        animation-timing-function: var(--wren-ease-in-out);
+    }
+    100% {
+        transform: translateY(0) rotate(calc(var(--wren-tilt) * 0.34));
+    }
+}
+
+@keyframes wren-ground-out {
+    to {
+        opacity: 0;
+    }
+}
+
+.wren-figure[data-wren-cruise] .wren-hover {
+    /* The figure pitches about its centre of lift, not its feet. */
+    transform-origin: var(--wren-maru-wing-root);
+    animation: wren-cruise-bob calc(var(--wren-dur-float) * 0.5) linear
+        calc(var(--wren-dur-celebrate) * 2) infinite;
+}
+
+.wren-figure[data-wren-cruise] .wren-l-wing {
+    animation: wren-cruise-flap calc(var(--wren-dur-float) * 0.5) linear
+        calc(var(--wren-dur-celebrate) * 2) infinite;
+}
+
+/* No fill keyword on either, matching the shipped rules: before the delay
+   elapses the elements are untransformed, so the takeoff runs exactly as it
+   ships and the capture path lands on the same value.
+
+   The ground leaves when the bird does, on the same hand-off rather than
+   cutting at t=0 — the bird is still crouching on it through the first half
+   second. `forwards` holds it gone; descent() restores it. `.wren-l-shadow` is
+   left alone: the takeoff already parks it small and faint, which is exactly a
+   distant ground shadow and a free altitude cue. */
+.wren-figure[data-wren-cruise] .wren-pool {
+    animation: wren-ground-out var(--wren-dur-slow) var(--wren-ease-out)
+        calc(var(--wren-dur-celebrate) * 2) forwards;
 }
 
 /* Sparkles: opacity only, and bounded to two cycles. A scale component would

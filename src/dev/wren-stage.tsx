@@ -80,7 +80,11 @@ export default function WrenStage() {
         onClick={replay}
       />
       <div className="wren-empty pointer-events-none flex h-dvh w-full items-center justify-center">
-        <WrenCelebration mode={mode} replayTrigger={replayCount} />
+        {/* `land` is the stage's, and only the stage's. The app leaves the bird
+            flying, so this is the one surface where the descent and the landing
+            still run — which is why descent(), settleHeight(), FALL_TIMES and
+            the 'descent'/'landed' phases are disarmed rather than deleted. */}
+        <WrenCelebration mode={mode} land replayTrigger={replayCount} />
       </div>
     </div>
   )

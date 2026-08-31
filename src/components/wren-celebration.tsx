@@ -65,9 +65,22 @@ const fallFrom = (drop: number) => [drop, drop * 0.553, 0, REBOUND, 0]
  */
 export function WrenCelebration({
   mode,
+  land = false,
   replayTrigger = 0,
 }: {
   mode: MotionMode
+  /**
+   * Fire the descent. The app leaves this false — "the bird should just be
+   * flying continuously for the inbox zero animation" (owner, 2026-08-31) —
+   * so Maru takes off and then cruises until the surface unmounts.
+   *
+   * The descent is DISARMED, never deleted: `?tune=1` passes this so the full
+   * arc stays replayable and tunable, and it is the exit if the bird is ever
+   * wanted home again. Deleting descent(), settleHeight(), FALL_TIMES and the
+   * 'descent'/'landed' phases would have been the smaller diff and would have
+   * thrown all of that away.
+   */
+  land?: boolean
   replayTrigger?: number
 }) {
   const figure = useRef<HTMLDivElement>(null)
@@ -86,28 +99,34 @@ export function WrenCelebration({
     let stopSequence = flight({ root, host: host.current })
     const timers: ReturnType<typeof setTimeout>[] = []
 
-    timers.push(
-      setTimeout(() => {
-        // Hand the settle offset AND the top of the bob to the fall in the same
-        // commit that cancels the tracks holding them, so the swap has no step:
-        // the lean's -0.86 x --wren-fly and the bob's --wren-float leave the
-        // figure exactly where this wrapper picks it up.
-        setDrop(settleHeight())
-        setFallSec(timing.descent / 1000)
-        setPhase('descent')
-        stopSequence()
-        stopSequence = descent({ root })
-      }, timing.descentAt),
-    )
-    timers.push(
-      setTimeout(() => setPhase('landed'), timing.descentAt + timing.descent),
-    )
+    // Only these two timers are conditional. The 0 → hand-off takeoff above is
+    // byte-unchanged, which is why the bird still LAUNCHES rather than simply
+    // appearing airborne — the arc a person sees is earned, and only its
+    // ending changed.
+    if (land) {
+      timers.push(
+        setTimeout(() => {
+          // Hand the settle offset AND the top of the bob to the fall in the
+          // same commit that cancels the tracks holding them, so the swap has
+          // no step: the lean's -0.86 x --wren-fly and the bob's --wren-float
+          // leave the figure exactly where this wrapper picks it up.
+          setDrop(settleHeight())
+          setFallSec(timing.descent / 1000)
+          setPhase('descent')
+          stopSequence()
+          stopSequence = descent({ root })
+        }, timing.descentAt),
+      )
+      timers.push(
+        setTimeout(() => setPhase('landed'), timing.descentAt + timing.descent),
+      )
+    }
 
     return () => {
       for (const id of timers) clearTimeout(id)
       stopSequence()
     }
-  }, [mode, replayTrigger])
+  }, [mode, land, replayTrigger])
 
   // Reduced motion and captures: a still PERCHED bird. The branch lives here
   // rather than inside the figure because this is the component that already
@@ -152,6 +171,7 @@ export function WrenCelebration({
           alive
           poses="both"
           flying={phase === 'flight'}
+          cruising={phase === 'flight'}
           showing={falling ? 'flight' : 'perched'}
           rootRef={figure}
           hostRef={host}

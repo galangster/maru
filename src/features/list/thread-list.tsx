@@ -272,6 +272,16 @@ export function ThreadList() {
   // count decides: an inbox a filter merely hides is not inbox zero.
   const emptyTier = useInboxZeroTier(view, threads.isSuccess ? (threads.data?.length ?? 0) : -1)
 
+  // Tell the reading pane to stand down its own bird while this one flies, so
+  // there is exactly one Maru on screen. Cleared on unmount, because a list
+  // that is gone is not celebrating.
+  const setCelebrating = useUi((s) => s.setCelebrating)
+  const flying = emptyTier === 'earned' && threads.isSuccess && (threads.data?.length ?? 0) === 0
+  useEffect(() => {
+    setCelebrating(flying)
+    return () => setCelebrating(false)
+  }, [flying, setCelebrating])
+
   return (
     <section
       aria-label="Threads"

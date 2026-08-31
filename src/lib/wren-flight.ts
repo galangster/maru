@@ -121,9 +121,19 @@ export function flightTiming(m: Motion = readMotion()) {
   }
 }
 
-/** Where TRACK 1 leaves the bird, plus the bob's top. The descent starts here. */
+/**
+ * Where TRACK 1 leaves the bird. The descent starts here.
+ *
+ * The `+ m.float` term is gone, and its removal is required rather than
+ * cosmetic. The old alternating hover was mid-bob at `descentAt`, so the fall
+ * had to start one bob-amplitude high. The cruise bob's 0% and 100% frames are
+ * both `translateY(0)`, and its period is an exact submultiple of `floatDur`,
+ * so `descentAt` now lands on a cycle boundary by construction and the bird is
+ * exactly at its settle height. Keeping the term would start the fall 7px
+ * below where the bird actually is — a visible jump at the top of the descent.
+ */
 export function settleHeight(m: Motion = readMotion()): number {
-  return -(0.86 * m.fly + m.float)
+  return -(0.86 * m.fly)
 }
 
 /**
@@ -308,6 +318,19 @@ export function descent({ root }: { root: HTMLElement }): () => void {
     ],
     { duration, fill: 'both' },
     true,
+  )
+
+  // The ground comes back as the bird does. The cruise fades the pool out with
+  // `forwards`, which holds it at zero, and a script animation outranks a CSS
+  // one — so without this track a landing bird would touch down on nothing.
+  add(
+    '.wren-pool',
+    [
+      { opacity: 0, offset: 0, easing: m.easeOut },
+      { opacity: 1, offset: 0.55 },
+      { opacity: 1, offset: 1 },
+    ],
+    { duration, fill: 'both' },
   )
 
   // The shadow runs TRACK 6 backwards over the last 45%, and its 1.06

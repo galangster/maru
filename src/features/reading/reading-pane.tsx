@@ -41,6 +41,7 @@ export function ReadingPane() {
   const selectionSource = useUi((s) => s.selectionSource)
   const imagesAllowed = useUi((s) => s.imagesAllowed)
   const allowImages = useUi((s) => s.allowImages)
+  const celebrating = useUi((s) => s.celebrating)
   const now = useNow()
 
   const detail = useThread(selectedKey)
@@ -97,9 +98,11 @@ export function ReadingPane() {
       <section
         aria-label="Reading"
         tabIndex={-1}
-        // TRANSPARENT, so the shell's field runs behind this pane unbroken.
-        // At rest the ground itself is the character's field, and a pane
-        // painting its own bg-canvas here would have cut a grey band out of it.
+        // Transparent, so the shell's ground runs behind this pane unbroken —
+        // the reading region IS the ground, which is what the sidebar and list
+        // cards float on. It used to be the character's pink FIELD at rest;
+        // that was reverted 2026-08-31 and the pink is now bounded to the disc
+        // behind the bird, so what shows through here is plain bg-canvas.
         className="flex h-full flex-col outline-none"
       >
         {/* Still the drag field, so the window moves by its own top edge with
@@ -109,8 +112,13 @@ export function ReadingPane() {
             always a direct hit, so it drags and double-click-zooms. */}
         <div data-tauri-drag-region className="h-(--wren-toolbar-h) shrink-0" />
         <div className="min-h-0 flex-1">
+          {/* No bird while the list is flying one. Exactly one Maru on screen:
+              a perched bird here beside a flying bird there is two characters
+              doing different things in one window, which is the same failure
+              the `mark` gate was added for in the first place. The copy stays
+              — it is still the useful half. */}
           <EmptyState
-            mark
+            mark={!celebrating}
             copy={{
               title: 'Nothing open',
               subtitle: 'Pick a thread on the left, or press J to open the first one.',
