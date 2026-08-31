@@ -493,19 +493,14 @@
        --wren-titlebar-lights-w are deleted rather than retuned; the second was
        hand-derived from a 20 px inset and a `trafficLightPosition` key
        tauri.conf.json does not contain. */
-    /* UNWIRED, kept for one future case: if `decorations: false` ever lands on
-       Windows, the webview draws its own caption controls on the trailing edge
-       and the READING PANE's header has to reserve this much for them. Today
-       `decorations` is unset, so Windows draws a real system caption bar above
-       the webview and there is nothing in-webview to reserve space for. */
-    --wren-titlebar-overlay-w: 140px;
     --wren-toolbar-h: 52px;
 
     /* The macOS traffic lights, mirrored from Rust: `place_traffic_lights` in
        src-tauri/src/lib.rs sets `GAP = 16.0` as the distance from the window's
        top-left corner to the red circle on BOTH axes. The measures below are
-       arithmetic on that number — if one file moves it, edit the other in the
-       same commit; nothing checks them against each other. */
+       arithmetic on that number. tests/traffic-lights.test.ts asserts the two
+       files agree, because the previous version of this pair drifted silently
+       and the browser captures cannot catch it (they draw no lights). */
     --wren-lights-gap: 16px;
     /* The ground channel around the floating sidebar card. On the 4 px grid,
        and small enough that --wren-shadow-xs (~3 px extent) is never clipped by
@@ -513,15 +508,17 @@
        lands on x=8, so all three lights sit ON the card with a symmetric 8 px
        of card above and to the left of the red circle. */
     --wren-sidebar-gutter: 8px;
-    /* The card's top band: --wren-toolbar-h 52 − the gutter 8, so the first
-       sidebar control lands at y=52, level with both pane headers' `border-b`.
-       Unconditional on every platform — off macOS it is simply empty card, and
-       that is what keeps one geometry under the screenshot gate. */
-    --wren-lights-reserve: 44px;
+    /* The card's top band, so the first sidebar control lands at y=52, level
+       with both pane headers' `border-b`. Unconditional on every platform —
+       off macOS it is simply empty card, and that is what keeps one geometry
+       under the screenshot gate. Written as arithmetic, not as 44px: it is
+       what makes the alignment survive a change to either input. */
+    --wren-lights-reserve: calc(var(--wren-toolbar-h) - var(--wren-sidebar-gutter));
     /* Collapsed, the card drops below the lights rather than widening to cover
-       them: 44 − the card's own `pt-2`, so card_top + card_pad = 52 in both
-       states and collapsing never moves the compose control vertically. */
-    --wren-lights-drop: 36px;
+       them, by the card's own top padding — which is why band 1 spells that
+       padding as the gutter token too. card_top + card_pad = 52 in both
+       states, so collapsing never moves the compose control vertically. */
+    --wren-lights-drop: calc(var(--wren-lights-reserve) - var(--wren-sidebar-gutter));
 
     /* CARD widths, not panel widths. The sidebar ResizablePanel is the card
        PLUS 2 × --wren-sidebar-gutter, and app-shell.tsx adds that padding
@@ -1079,6 +1076,18 @@
 .wren-figure .wren-pool {
     position: absolute;
     display: block;
+    /* No z-index here, deliberately — `.wren-copy` below is the other half of
+       this rule and the two must be read together. The pool is 2.25x the
+       figure, so it reaches past the bird and over any copy beneath it; and
+       because `.wren-figure` is positioned without a z-index it is NOT a
+       stacking context, so the pool resolves against whatever ancestor is, and
+       CSS paints positioned descendants above static ones whatever the DOM
+       order. That washed the title and subtitle out.
+       A negative index looks like the obvious fix and is wrong: in onboarding
+       the nearest stacking context is the card, so `z-index: -1` puts the pool
+       behind the card's own white background and the white bird loses its
+       ground entirely — verified, the body disappeared. Lifting the copy is
+       what works on a surface with a field behind it AND on one without. */
     left: 50%;
     top: 78.3%;
     width: var(--wren-maru-pool);
@@ -1093,6 +1102,16 @@
         color-mix(in oklab, var(--wren-maru-ground) 14%, transparent) 84%,
         color-mix(in oklab, var(--wren-maru-ground) 0%, transparent) 100%
     );
+}
+
+/* The other half of the pool rule above: anything that must read ON the ground
+   rather than under it. One step, not the chrome ladder's — `z-40` is the
+   composer and `z-50` dialogs; this only has to beat a sibling. Every surface
+   that puts copy beneath the character wears this (empty-state, onboarding),
+   so the rule and the hazard it answers sit three lines apart. */
+.wren-copy {
+    position: relative;
+    z-index: 1;
 }
 
 /* The particle host. 400x400 centred on the bird, on the 4 px grid at the
@@ -1307,11 +1326,15 @@
 }
 
 [data-wren-alive][data-wren-flight] [data-wren-sparkle] {
-    animation: wren-twinkle calc(var(--wren-dur-float) * 0.75) var(--wren-ease-in-out) 645ms 2 both;
+    /* The delay IS the apex: BEAT.apex 0.62 x the 2x--wren-dur-celebrate
+       sequence. Written as arithmetic so retuning the celebration cannot
+       leave the twinkle firing at a beat the burst no longer lands on. */
+    animation: wren-twinkle calc(var(--wren-dur-float) * 0.75) var(--wren-ease-in-out)
+        calc(var(--wren-dur-celebrate) * 1.24) 2 both;
 }
 /* The second one is offset so the two never pulse together. */
 [data-wren-alive][data-wren-flight] [data-wren-sparkle='1'] {
-    animation-delay: 1088ms;
+    animation-delay: calc(var(--wren-dur-celebrate) * 2.09);
 }
 
 @keyframes wren-celebrate-in {

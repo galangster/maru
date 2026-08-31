@@ -2,7 +2,7 @@
 // MailService; anything that is "what is the user looking at" lives here.
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+
 
 import type { MailView } from '@/core/types'
 import { viewOverride } from '@/lib/env'
@@ -98,6 +98,7 @@ interface UiState {
   setSelected: (key: string | null, source?: SelectionSource) => void
   setTheme: (theme: ThemeChoice) => void
   setSidebarCollapsed: (collapsed: boolean) => void
+  toggleSidebar: () => void
   toggleAccount: (accountId: string) => void
   toggleAccountsGroup: () => void
   allowImages: (threadKey: string) => void
@@ -129,15 +130,32 @@ interface UiState {
  * else here is persisted on purpose — a view, a selection, a lens and a batch
  * are all "what am I looking at right now", and two of them hold a Set that
  * does not survive JSON at all.
+ *
+ * It is one boolean, read once at startup and written only when it changes,
+ * and it is deliberately NOT zustand's `persist`. That middleware wraps
+ * `setState` and calls `setItem` on EVERY mutation — `partialize` only shrinks
+ * the payload, it does not gate the write — so this one preference would have
+ * cost a JSON.stringify plus a synchronous localStorage write on every `j`,
+ * every `k`, every `x` and every archive: the app's hottest path paying for
+ * its least volatile fact.
  */
-export const useUi = create<UiState>()(
-  persist(
-    (set, get) => ({
+const SIDEBAR_KEY = 'wren-sidebar-collapsed-v1'
+
+function storedSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_KEY) === '1'
+  } catch {
+    // Private windows and blocked site data throw on access, not on read.
+    return false
+  }
+}
+
+export const useUi = create<UiState>()((set, get) => ({
   view: INITIAL_VIEW,
   selected: null,
   selectionSource: 'pointer',
   theme: 'system',
-  sidebarCollapsed: false,
+  sidebarCollapsed: storedSidebarCollapsed(),
   expandedAccounts:
     INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
   accountsGroupCollapsed: false,
@@ -170,7 +188,12 @@ export const useUi = create<UiState>()(
   setSelected: (selected, selectionSource = 'pointer') =>
     set({ selected, selectionSource, readingExpansion: 'default' }),
   setTheme: (theme) => set({ theme }),
-  setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+  // Guarded: the resize handle calls this on every layout tick of a drag, and
+  // an unguarded `set` would notify every subscriber sixty times a second for
+  // a value that did not move.
+  setSidebarCollapsed: (sidebarCollapsed) =>
+    set((s) => (s.sidebarCollapsed === sidebarCollapsed ? s : { sidebarCollapsed })),
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   toggleAccount: (accountId) =>
     set((s) => ({
       expandedAccounts: { ...s.expandedAccounts, [accountId]: !s.expandedAccounts[accountId] },
@@ -219,13 +242,18 @@ export const useUi = create<UiState>()(
     entry.run()
     return entry.label
   },
-    }),
-    {
-      name: 'wren-ui',
-      partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed }),
-    },
-  ),
-)
+}))
+
+// Fires only when the boolean actually changes, so the write happens on a
+// deliberate toggle and never during triage or a resize drag.
+useUi.subscribe((state, previous) => {
+  if (state.sidebarCollapsed === previous.sidebarCollapsed) return
+  try {
+    localStorage.setItem(SIDEBAR_KEY, state.sidebarCollapsed ? '1' : '0')
+  } catch {
+    // Not being able to remember the sidebar is not worth an error.
+  }
+})
 
 /** The current view's lens. Stable references: a stored object or the default. */
 export function useListPrefs(): ListPrefs {

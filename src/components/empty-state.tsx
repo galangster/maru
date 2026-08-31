@@ -1,6 +1,6 @@
 // Calm empty states. One line, one explanatory subtitle (Family 2), and Maru
 // the wren (wren-figure) — inline SVG, nothing to load. The character keeps
-// its own palette; only its blob ground adapts to the theme.
+// its own palette; the field and pool it stands on adapt to the theme.
 //
 // Two tiers, per MAGIC §3.6 and Family's Delight-Impact Curve. Every empty
 // folder gets the *ambient* tier: the blocks arrive one after another at
@@ -48,24 +48,20 @@ export interface EmptyCopy {
 
 export type EmptyTier = 'ambient' | 'earned'
 
-/** What the earned tier says instead. It reports an event, not an absence. */
+/**
+ * What the earned tier says instead. It reports an event, not an absence —
+ * and it is the ONLY place "Inbox zero" appears. An inbox that was already
+ * quiet when you arrived gets `inbox-zero.ts`'s ambient line instead, because
+ * congratulating someone for a mailbox they did not clear is the same mistake
+ * as congratulating them for an empty Trash.
+ *
+ * Two sentences, the only subtitle in the app licensed to have them: it does
+ * two jobs — credit the act, then hand the time back. The second clause rhymes
+ * with the ambient promise on purpose, so Maru's job reads the same in both.
+ */
 const EARNED_COPY: EmptyCopy = {
   title: 'Inbox zero',
-  subtitle: 'You cleared it. Nothing else is waiting.',
-}
-
-/**
- * The earned mark: the whole five-beat takeoff, hover, descent and landing —
- * `wren-celebration.tsx` owns the choreography and `lib/wren-flight.ts` owns
- * the timeline. It STARTS perched, which is the point: the bird the user has
- * been looking at all week is the one that leaves the ground.
- *
- * The particle layer is *never mounted* under reduced motion or in the capture
- * path — `mode` gates the effect, not the CSS. Making it invisible would still
- * put nineteen animating nodes on a machine that asked for none.
- */
-function CelebrationMark({ mode }: { mode: 'full' | 'reduced' | 'off' }) {
-  return <WrenCelebration mode={mode} />
+  subtitle: 'You cleared it. Maru will keep watch from here.',
 }
 
 /**
@@ -106,8 +102,14 @@ export function EmptyState({
       : { initial: item.initial, animate: item.animate, transition: item.transition }
 
   const rows = [
+    // The earned mark is the whole takeoff, hover, descent and landing —
+    // `wren-celebration.tsx` owns the choreography, `lib/wren-flight.ts` the
+    // timeline. It STARTS perched, which is the point: the bird the user has
+    // been looking at all week is the one that leaves the ground. The particle
+    // layer is never MOUNTED under reduced motion or in the capture path, so
+    // `mode` goes through rather than being read again down there.
     showMark ? (
-      earned ? <CelebrationMark key="mark" mode={mode} /> : <WrenMark key="mark" />
+      earned ? <WrenCelebration key="mark" mode={mode} /> : <WrenMark key="mark" />
     ) : null,
     <p
       key="title"
@@ -145,8 +147,10 @@ export function EmptyState({
               initial={preset.initial}
               animate={preset.animate}
               transition={{ ...preset.transition, delay: index * step }}
-              // The mark keeps the 16 px it used to get from the parent's gap.
-              className={cn(isMark && 'mb-3')}
+              // The mark keeps the 16 px it used to get from the parent's gap;
+              // every other row reads ON the character's ground pool rather
+              // than under it (`.wren-copy`, tokens.css §7).
+              className={cn(isMark ? 'mb-3' : 'wren-copy')}
             >
               {row}
             </motion.div>

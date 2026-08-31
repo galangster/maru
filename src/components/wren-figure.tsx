@@ -571,10 +571,6 @@ export function WrenPerched({
 }
 
 /** The flying Maru, on its own — sparkles included. */
-export function WrenFlying({ alive = false, className }: { alive?: boolean; className?: string }) {
-  return <WrenFigure alive={alive} poses="flight" showing="flight" flying={alive} className={className} />
-}
-
 /**
  * The celebration's STILL figure — reduced motion and the capture path.
  *

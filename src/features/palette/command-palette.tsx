@@ -196,10 +196,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
             label="Toggle sidebar"
             hint={`⌥${MOD}S`}
             onSelect={() =>
-              run(() => {
-                const ui = useUi.getState()
-                ui.setSidebarCollapsed(!ui.sidebarCollapsed)
-              })
+              run(() => useUi.getState().toggleSidebar())
             }
           />
           <Row icon="settings" label="Settings" onSelect={() => run(() => openSettings())} />

@@ -19,6 +19,10 @@
 // this path has never had before.
 
 import { burst, toMs } from '@/lib/celebrate'
+import { DUR, EASE_IN, EASE_OUT } from '@/lib/motion'
+
+/** A named curve from lib/motion, in the string form WAAPI wants. */
+const bezier = (curve: readonly number[]) => `cubic-bezier(${curve.join(', ')})`
 
 /** The five beats, as fractions of the sequence. */
 const BEAT = {
@@ -55,11 +59,15 @@ const FALLBACK: Motion = {
   popLg: 1.12,
   float: 7,
   celebrate: 520,
-  fast: 120,
-  slow: 320,
+  // Durations and curves come from lib/motion, which is the one place they are
+  // written in JS. Spelling them again here would put the same four numbers in
+  // a third file — and only on the path nobody looks at, since this object is
+  // reached only when the cascade cannot be read (tests, SSR).
+  fast: DUR.fast * 1000,
+  slow: DUR.slow * 1000,
   floatDur: 3200,
-  easeOut: 'cubic-bezier(0.22, 1, 0.36, 1)',
-  easeIn: 'cubic-bezier(0.64, 0, 0.78, 0)',
+  easeOut: bezier(EASE_OUT),
+  easeIn: bezier(EASE_IN),
   easeInOut: 'cubic-bezier(0.65, 0, 0.35, 1)',
   easeSpring: 'cubic-bezier(0.34, 1.4, 0.64, 1)',
 }

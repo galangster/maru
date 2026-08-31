@@ -190,8 +190,7 @@ export function useShortcuts() {
       // ⌥S emits 'ß' on the US layout, so `event.key` is never 's'.
       if (event.altKey && (event.metaKey || event.ctrlKey) && event.code === 'KeyS') {
         event.preventDefault()
-        const ui = useUi.getState()
-        ui.setSidebarCollapsed(!ui.sidebarCollapsed)
+        useUi.getState().toggleSidebar()
         return
       }
 

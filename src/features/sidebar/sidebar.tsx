@@ -77,7 +77,15 @@ export function Sidebar() {
         {!collapsed && (
           <div data-tauri-drag-region aria-hidden className="h-(--wren-lights-reserve) shrink-0" />
         )}
-        <div className={cn('shrink-0 px-2 pb-3', collapsed && 'pt-2')}>
+        {/* Collapsed, this padding is the same quantity --wren-lights-drop
+            subtracts, so the compose control lands at y=52 in both states.
+            Spelled as the token rather than `pt-2` so the two cannot drift. */}
+        <div
+          className={cn(
+            'shrink-0 px-2 pb-3',
+            collapsed && 'pt-(--wren-sidebar-gutter)',
+          )}
+        >
           <ComposeButton collapsed={collapsed} />
         </div>
 
@@ -395,7 +403,7 @@ function AccountSection({ account }: { account: Account }) {
 }
 
 function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: Account[] }) {
-  const setCollapsed = useUi((s) => s.setSidebarCollapsed)
+  const toggleSidebar = useUi((s) => s.toggleSidebar)
   const { theme, toggle } = useThemeToggle()
   const statuses = Object.values(useSyncStatus())
   const themeIcon: IconName =
@@ -475,20 +483,21 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
           <span className="sr-only">{detail}</span>
         </span>
       )}
-      {/* Toolbar chrome: 18, like every other toolbar (DIRECTION §8, S8). The
-          sync glyph above stays at 16 because it sits inline with text, which
-          is the size the same rule gives it. */}
-      {/* The sidebar toggle, moved out of the deleted titlebar and parked to
-          the LEFT of settings (owner ask, 2026-08-31). One glyph, label swapped
-          — Finder's arrangement. NOT `active`: IconButton tints `text-brand`
-          when active and a window-layout state is not what the one accent is
-          spent on (DIRECTION §10.2b). ⌥⌘S and the palette carry the
-          discoverability the titlebar slot used to. */}
+      {/* These three are toolbar chrome: 18, like every other toolbar
+          (DIRECTION §8, S8). The sync glyph above stays at 16 because it sits
+          inline with text, which is the size the same rule gives it.
+
+          The first of them is the sidebar toggle, moved out of the deleted
+          titlebar and parked to the LEFT of settings (owner ask, 2026-08-31).
+          One glyph, label swapped — Finder's arrangement. NOT `active`:
+          IconButton tints `text-brand` when active and a window-layout state
+          is not what the one accent is spent on (DIRECTION §10.2b). ⌥⌘S and
+          the palette carry the discoverability the titlebar slot used to. */}
       <IconButton
         name="panelLeft"
         label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!collapsed}
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={toggleSidebar}
       />
       <IconButton name="settings" label="Settings" onClick={() => openSettings()} />
       <IconButton name={themeIcon} label={themeLabel} onClick={toggle} />

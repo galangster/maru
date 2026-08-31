@@ -212,8 +212,11 @@ export function burst(host: HTMLElement, opts: BurstOptions = {}): () => void {
         fill: 'both',
       },
     )
-    animation.addEventListener('finish', done)
-    animation.addEventListener('cancel', done)
+    // `once`, and both events: cancelling a FINISHED animation still fires
+    // `cancel` (its play state is `finished`, not `idle`), so the teardown
+    // would otherwise decrement `live` twice for the same particle.
+    animation.addEventListener('finish', done, { once: true })
+    animation.addEventListener('cancel', done, { once: true })
     running.push(animation)
     layer.appendChild(node)
   }

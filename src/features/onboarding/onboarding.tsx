@@ -6,7 +6,7 @@
 // worth blurring anyway — it sits on an empty canvas over an app with no mail
 // in it yet.
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { isValidElement, useEffect, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
@@ -126,7 +126,14 @@ export function Onboarding() {
             initial={item.initial}
             animate={item.animate}
             transition={{ ...item.transition, delay: index * gap }}
-            className="flex w-full flex-col items-center"
+            // Everything but the mark reads ON the character's ground pool
+            // rather than under it (`.wren-copy`, tokens.css §7). Keyed off
+            // the row's identity, not its index, so moving the mark cannot
+            // silently drop the lift.
+            className={cn(
+              'flex w-full flex-col items-center',
+              !(isValidElement(row) && row.key === 'mark') && 'wren-copy',
+            )}
           >
             {row}
           </motion.div>
