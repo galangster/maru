@@ -80,6 +80,17 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Decisions to ratify
 
+- **Menu-bar quick actions — sign off on the list** (your ask,
+  2026-08-31; ticket P17-menu-bar-residency). Staying resident when the
+  window closes is unambiguous and needs nothing from you. The menu
+  contents do: proposed, in value order — the icon carries the unread
+  count, quick compose (with a global hotkey, the highest-value one),
+  approve/reject a waiting agent send inline, pause mail for an hour,
+  and a 3-5 item unread peek with inline archive. Explicitly rejected
+  as redundant: search (the palette owns it), folder navigation,
+  settings, and any full thread list or body reading. Tell me if the
+  peek list is one step too far, or if something is missing.
+
 - **Remembering "Show images" per sender** (from the P16 investigation,
   2026-08-31). Today allow-images is scoped to a thread AND to the
   session, so a newsletter you read daily is blocked again every time

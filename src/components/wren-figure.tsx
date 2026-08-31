@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 
 const WREN_PINK = '#FF4F87'
 const PALE = '#FFD6E1'
+/** The contact shadow's tone — the sheet's mid pink, laid on softly. */
 const SHADOW = '#FF7BA1'
 
 /**
@@ -51,30 +52,54 @@ export function WrenBlob({
 function Pose({
   pose,
   eyeRef,
+  wingRef,
   eyeScale = 1,
-  shadow = true,
+  wingOrigin,
+  sparkleFrom,
 }: {
   pose: WrenPose
   eyeRef?: React.Ref<SVGGElement>
+  wingRef?: React.Ref<SVGGElement>
   eyeScale?: number
-  shadow?: boolean
+  /** The wing's rotation joint, as fill-box percentages of the wing path. */
+  wingOrigin?: string
+  /** Pale paths from this index on are sparkles, each its own twinkle joint. */
+  sparkleFrom?: number
 }) {
   const [x0, y0, x1, y1] = pose.eye
   const w = (x1 - x0) * eyeScale
   const h = (y1 - y0) * eyeScale
   const cx = (x0 + x1) / 2
   const cy = (y0 + y1) / 2
+  const pales = sparkleFrom === undefined ? pose.pale : pose.pale.slice(0, sparkleFrom)
+  const sparkles = sparkleFrom === undefined ? [] : pose.pale.slice(sparkleFrom)
 
+  // ONE shadow, and it is the one Nick drew. The rig used to add a generic
+  // ellipse on top of a shadow the tracer had misfiled into the pink layer, so
+  // the bird stood over two of them — a soft ellipse and a hard pink smear
+  // (owner, 2026-08-31). The trace now separates `shadow`; the rig draws it
+  // softly, beneath everything, and draws nothing else under the feet.
   return (
     <>
-      {shadow && <ellipse cx="230" cy="404" rx="95" ry="11" fill={SHADOW} opacity="0.35" />}
-      {pose.pale.map((d) => (
+      {pose.shadow && (
+        <path data-wren-shadow d={pose.shadow} fill={SHADOW} opacity="0.28" />
+      )}
+      {pales.map((d) => (
         <path key={d.slice(0, 24)} d={d} fill={PALE} />
       ))}
       {/* data-wren-body is the breathing joint. */}
       <g data-wren-body>
         <path d={pose.body} fill="#FFFFFF" />
-        {pose.pink.map((d) => (
+        {/* The wing is its own joint: the flight pose flaps it (CSS, alive
+            only), the perched pose shrugs it on the idle clock (WAAPI). */}
+        <g
+          ref={wingRef}
+          data-wren-wing
+          style={{ transformBox: 'fill-box', transformOrigin: wingOrigin }}
+        >
+          <path d={pose.pink[0]} fill={WREN_PINK} />
+        </g>
+        {pose.pink.slice(1).map((d) => (
           <path key={d.slice(0, 24)} d={d} fill={WREN_PINK} />
         ))}
         {/* The eye: a hot-pink pill with the sheet's top highlight. The group
@@ -88,6 +113,18 @@ function Pose({
           <circle cx={cx} cy={cy - h / 2 + w / 2} r={w / 3} fill="#FFFFFF" />
         </g>
       </g>
+      {/* Sparkles ride above the body and twinkle on their own clock, each
+          about its own centre — they are the only pale paths that are not
+          anatomy. */}
+      {sparkles.map((d, index) => (
+        <path
+          key={d.slice(0, 24)}
+          d={d}
+          fill={PALE}
+          data-wren-sparkle={index}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+        />
+      ))}
     </>
   )
 }
@@ -196,7 +233,7 @@ export function WrenFlying({ className }: { className?: string }) {
       aria-hidden
       className={cn('pointer-events-none select-none', className)}
     >
-      <Pose pose={WREN_FLIGHT} shadow={false} />
+      <Pose pose={WREN_FLIGHT} />
     </svg>
   )
 }

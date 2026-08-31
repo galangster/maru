@@ -100,11 +100,21 @@ const white = comps(1, 400);
 const body = white[0];
 const pinks = comps(5, 80);
 const pales = comps(3, 60);
-// identify: wing = largest pink; eye = tall small pink inside head; beak = pink at far right
+// Identify the pink components. The ground shadow in Nick's art is a darker
+// pink than the plate background, so the border flood leaves it classified as
+// pink alongside the wing, beak and eye — and it is BIGGER than the beak, so a
+// naive "first remaining component" rule labelled the shadow as the beak and
+// dropped the real beak entirely (perched, found 2026-08-31). It is separated
+// first, by the two things that only a cast shadow is: wide and flat, and
+// lying at the bottom of the figure.
 const wing = pinks[0];
 const rest = pinks.slice(1);
-const eye = rest.find(c => (c.bbox[3]-c.bbox[1]) > (c.bbox[2]-c.bbox[0]));
-const beak = rest.find(c => c !== eye);
+const w_ = c => c.bbox[2] - c.bbox[0];
+const h_ = c => c.bbox[3] - c.bbox[1];
+const shadow = rest.find(c => w_(c) > 2.5 * h_(c) && (c.bbox[1] + c.bbox[3]) / 2 > body.bbox[3] - h_(body) * 0.12);
+const rest2 = rest.filter(c => c !== shadow);
+const eye = rest2.find(c => h_(c) > w_(c));
+const beak = rest2.find(c => c !== eye);
 // highlight: small white comp inside eye bbox
 const hi = white.slice(1).find(c => eye && c.bbox[0] >= eye.bbox[0]-4 && c.bbox[2] <= eye.bbox[2]+4 && c.bbox[1] >= eye.bbox[1]-4 && c.bbox[3] <= eye.bbox[3]+4);
 const P = (c, tol) => smooth(simplify(boundary(c), tol));
@@ -112,6 +122,7 @@ const lines = [];
 lines.push(`BODY ${P(body, 2.2)}`);
 if (wing) lines.push(`WING ${P(wing, 2)}`);
 if (beak) lines.push(`BEAK ${P(beak, 1.5)}`);
+if (shadow) lines.push(`SHADOW ${P(shadow, 2)}`);
 if (eye) lines.push(`EYE bbox ${eye.bbox.join(',')}`);
 if (hi) lines.push(`HI bbox ${hi.bbox.join(',')}`);
 for (const [i, c] of pales.slice(0, 4).entries()) lines.push(`PALE${i} n=${c.n} ${P(c, 1.6)}`);
