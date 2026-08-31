@@ -1,6 +1,6 @@
 # G2 — Cross-device settings sync  `wayfinder:grilling`
 
-status: closed (grill 3) · claimed: — · blocked by: —
+status: REOPENED (owner ruling, 2026-08-31) · claimed: — · blocked by: one token decision
 
 ## The ask
 
@@ -48,3 +48,45 @@ is the ratified subscription spine and map 4's product build. The hard
 constraints stand verbatim: tokens and credentials never leave the
 keychain, grants never sync, mail never syncs. Option 2 (user-owned
 transport) dies — it is the worst of both without the business.
+
+
+## Reopened — owner ruling, 2026-08-31
+
+Nick: "yeah whatever we need to do to change what we have already,
+that's what i want. a single unified sign in basically where i can
+universally access my accounts on any device."
+
+That settles the question grill 3 left open: option 3 (a hosted Maru
+account) is the destination, and the no-servers line yields to it. It
+is map 4's build and it stays sequenced after the Google submission.
+
+### The one thing this ruling does NOT yet settle
+
+Grill 3's hard constraints were: **tokens never leave the keychain,
+mail never syncs, grants never sync.** "Universally access my accounts"
+can mean either of two things, and they are very different products:
+
+**(a) The account LIST syncs; each device still authorises.** You sign
+into Maru on Windows, it already knows you have four Gmail accounts and
+all your settings, and it walks you through one Google consent per
+account. Friction: four clicks, once per device. Tokens stay in each
+machine's keychain, the dossier's claims stand unchanged, and nothing
+about the Google review posture moves.
+
+**(b) The TOKENS sync too.** Sign in once, mail is simply there. This
+means Maru's server holds — or brokers — credentials that grant
+mailbox access. That is a different security posture, a different
+liability, and it is very likely a different conversation with Google:
+token handling and storage is exactly what OAuth verification scrutinises.
+It also breaks the sentence the dossier currently makes.
+
+**(a) gets most of the "magically, everything is there" feeling for
+almost none of the risk** — the part that actually hurts today is
+re-configuring settings, accounts and prefs, not clicking Allow once.
+Recommend (a) for map 4, with (b) as an explicit later decision if the
+one-consent-per-device step proves to be the thing people complain
+about.
+
+Owner gate: (a) or (b). Do not build until this is answered — it
+determines whether the sync service ever touches a credential, which is
+the difference between a settings service and a custodian.
