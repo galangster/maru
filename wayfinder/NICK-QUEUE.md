@@ -142,13 +142,14 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
   decision constrains map 4's relay payload, so it is worth settling
   before that relay is built.
 
-- **Color anchor for the harmonization pass** (your ask, 2026-08-31;
-  ticket P14-color-harmony): interface coral, logo, and Maru's #FF4F87
-  are three different color stories. Pick the anchor — (a) coral/logo:
-  Maru gets recolored toward it; (b) Maru's pink: the interface accent
-  ramp is re-derived from #FF4F87; (c) a shared parent hue for both.
-  Also say whether it lands before the freeze or after submission —
-  it changes every capture.
+- ~~**Color anchor**~~ — decided 2026-08-31: option C, a shared parent
+  hue of 13. The interface accent (both themes), the character and the
+  contact shadow all now derive from it; contrast held at 4.73 white-on-
+  accent. Shipped, ticket P14 closed. NOTE: the app ICON in
+  src-tauri/icons/ was not regenerated — it is still the old salmon, so
+  the dock icon and the in-app accent no longer match. That is the one
+  loose end from this pass and it needs your call on whether to redraw
+  the mark.
 
 - **Multi-device sequence** (asked 2026-08-31, brief in
   docs/research/multi-device-strategy.md): map 4 = paid sync service
