@@ -11,7 +11,9 @@ asking in chat. Newest at the top of each section. Strike items done.
    - ~~DNS + site~~ — done 2026-08-30: https://getmaru.app live on
      GitHub Pages, cert issued, HTTPS enforced. Old Vercel site off the
      domain.
-   - Mail routing so **support@getmaru.app** and security@ deliver.
+   - ~~Mail routing~~ — done 2026-08-30: ImprovMX active on getmaru.app
+     (MX + SPF at GoDaddy verified), catch-all forwards to your Gmail, so
+     support@ and security@ both deliver.
    - ~~Rename the GitHub repo~~ — done 2026-08-30 (galangster/maru;
      old maru project moved to maru-legacy).
    - ~~Publish `maru-mcp`~~ — done 2026-08-30, verified cold from the
@@ -23,8 +25,16 @@ asking in chat. Newest at the top of each section. Strike items done.
    `maru-mail-prod`, Gmail API on, External, one Desktop client,
    `gmail.modify` only. Still open from this item, needs you in the
    console (agent won't change account config unattended):
-   - **Second durable owner** in IAM (your other durable account).
-   - **Quota dashboards + alerts** (plan §4).
+   - **Second durable owner** in IAM — you named galangsterr@gmail.com
+     (2026-08-30) but the grant was skipped when the permission classifier
+     blocked the form fill. IAM → Grant access → principal
+     `galangsterr@gmail.com` → role Basic/Owner → Save, then accept the
+     invite from that account. Verify the double-r spelling first.
+   - ~~Quota dashboards + alerts~~ — done 2026-08-30 via
+     `ops/google-oauth/monitoring/apply.sh`: dashboard + 7 policies →
+     support@getmaru.app. Recorded in ops/google-oauth/QUOTA.md. Still
+     open there: log-based project-state-change alerts, dashboard
+     screenshot + first alert-fire record at submission time.
    - **Billing decision** (moved to Non-blocking below).
 3. ~~Consent screen~~ — done 2026-08-30: "Maru Mail", In production,
    getmaru.app branding + authorized domain. **Brand verification

@@ -1,0 +1,27 @@
+{
+  "displayName": "Maru Gmail API 4xx spike",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Gmail API 4xx responses above 1 per second over 5 minutes",
+      "conditionThreshold": {
+        "filter": "metric.type=\"serviceruntime.googleapis.com/api/request_count\" resource.type=\"consumed_api\" resource.label.service=\"gmail.googleapis.com\" metric.label.response_code_class=\"4xx\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 1,
+        "duration": "0s",
+        "trigger": { "count": 1 }
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Sustained Gmail API 4xx responses in maru-mail-prod. Covers Gmail 403 and 429 spikes. A project-wide 403 spike can signal client suspension or a consent-screen problem. Check the OAuth client state and the consent screen first. Runbook: ops/google-oauth/INCIDENT.md.",
+    "mimeType": "text/markdown"
+  }
+}

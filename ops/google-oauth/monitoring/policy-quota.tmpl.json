@@ -1,0 +1,27 @@
+{
+  "displayName": "__NAME__",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "__NAME__",
+      "conditionThreshold": {
+        "filter": "metric.type=\"serviceruntime.googleapis.com/quota/rate/net_usage\" resource.type=\"consumer_quota\" metric.label.quota_metric=\"gmail.googleapis.com/total_query_cost\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "__PERIOD__",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": __THRESHOLD__,
+        "duration": "0s",
+        "trigger": { "count": 1 }
+      }
+    }
+  ],
+  "documentation": {
+    "content": "Gmail API quota alert for maru-mail-prod. Limits: 1,200,000 units per minute, 80,000,000 units per day. Runbook: ops/google-oauth/QUOTA.md. When a threshold fires: reduce prefetch and polling, stage cohorts, consider a minute-quota adjustment request.",
+    "mimeType": "text/markdown"
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "displayName": "Maru Gmail API quota",
+  "mosaicLayout": {
+    "columns": 24,
+    "tiles": [
+      {
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Gmail units per minute (limit 1,200,000)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "metric.type=\"serviceruntime.googleapis.com/quota/rate/net_usage\" resource.type=\"consumer_quota\" metric.label.quota_metric=\"gmail.googleapis.com/total_query_cost\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_SUM",
+                      "crossSeriesReducer": "REDUCE_SUM"
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ],
+            "thresholds": [
+              { "value": 600000, "label": "50%" },
+              { "value": 840000, "label": "70%" },
+              { "value": 1080000, "label": "90%" }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 12,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Gmail units per day (threshold 80,000,000)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "metric.type=\"serviceruntime.googleapis.com/quota/rate/net_usage\" resource.type=\"consumer_quota\" metric.label.quota_metric=\"gmail.googleapis.com/total_query_cost\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_SUM",
+                      "crossSeriesReducer": "REDUCE_SUM"
+                    }
+                  }
+                },
+                "plotType": "STACKED_BAR"
+              }
+            ],
+            "thresholds": [
+              { "value": 40000000, "label": "50%" },
+              { "value": 56000000, "label": "70%" },
+              { "value": 72000000, "label": "90%" }
+            ]
+          }
+        }
+      },
+      {
+        "yPos": 8,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Gmail API responses by code class",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "metric.type=\"serviceruntime.googleapis.com/api/request_count\" resource.type=\"consumed_api\" resource.label.service=\"gmail.googleapis.com\"",
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "perSeriesAligner": "ALIGN_RATE",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": ["metric.label.response_code_class"]
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 12,
+        "yPos": 8,
+        "width": 12,
+        "height": 8,
+        "widget": {
+          "title": "Per-user minute quota exceeded (429s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "metric.type=\"serviceruntime.googleapis.com/quota/exceeded\" resource.type=\"consumer_quota\" metric.label.quota_metric=\"gmail.googleapis.com/total_query_cost\"",
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "perSeriesAligner": "ALIGN_COUNT_TRUE",
+                      "crossSeriesReducer": "REDUCE_SUM"
+                    }
+                  }
+                },
+                "plotType": "STACKED_BAR"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

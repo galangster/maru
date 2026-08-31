@@ -27,21 +27,47 @@ The code sets the per-account budget to 4,500 units per minute. It meters each G
 
 ## Production dashboards and alerts
 
-`«NICK: minute-quota dashboard — configure the production Gmail API project dashboard and attach a current screenshot.»`
+Configured 2026-08-30 via `ops/google-oauth/monitoring/apply.sh` (idempotent,
+re-runnable). Definitions live in that directory; this section records the
+deployed state.
 
-The screenshot must show project identity, time range, usage units per minute, and the applicable project limit.
+**Dashboard** — "Maru Gmail API quota", id
+`93c11e61-4b20-4ea4-961a-71d8de974571`, project `maru-mail-prod`.
+Four widgets: units per minute with the 1,200,000 limit and 50/70/90%
+threshold lines; units per day with the 80,000,000 threshold and 50/70/90%
+lines; responses by code class; per-user quota-exceeded events.
+`«NICK: attach a current dashboard screenshot at submission time — pre-launch
+charts show no data, so capture after first real traffic or note the zero
+state.»`
 
-`«NICK: daily-units dashboard — configure the production Gmail API daily-usage dashboard and attach a current screenshot.»`
+**Quota alerts** — seven enabled policies, all notifying the email channel
+"Maru ops email" → support@getmaru.app (forwards via ImprovMX, verified
+2026-08-30):
 
-The screenshot must show project identity, date range, daily units, and the applicable daily threshold.
+| Policy | Threshold | Window |
+| --- | --- | --- |
+| Maru Gmail minute quota 50% (600k units-min) | 600,000 | 60s ALIGN_SUM |
+| Maru Gmail minute quota 70% (840k units-min) | 840,000 | 60s ALIGN_SUM |
+| Maru Gmail minute quota 90% (1.08M units-min) | 1,080,000 | 60s ALIGN_SUM |
+| Maru Gmail daily units 50% (40M units-day) | 40,000,000 | 86400s ALIGN_SUM |
+| Maru Gmail daily units 70% (56M units-day) | 56,000,000 | 86400s ALIGN_SUM |
+| Maru Gmail daily units 90% (72M units-day) | 72,000,000 | 86400s ALIGN_SUM |
+| Maru Gmail API 4xx spike | >1/s over 300s | 300s ALIGN_RATE |
 
-`«NICK: quota alerts — configure and record alerts at 50%, 70%, and 90% of the minute and daily limits.»`
+Metric: `serviceruntime.googleapis.com/quota/rate/net_usage` filtered to
+`gmail.googleapis.com/total_query_cost`; the 4xx policy uses
+`serviceruntime.googleapis.com/api/request_count` with
+`response_code_class="4xx"`.
 
-Record alert names, recipients, thresholds, evaluation windows, and one test result.
+`«NICK: alert test result — record the first real or synthetic alert fire.
+Pre-launch traffic is zero, so no test has fired yet.»`
 
-`«NICK: OAuth and project-state alerts — configure alerts for project-wide invalid_client, unauthorized_client, deleted_client, OAuth 403, Gmail 403, and project-state changes.»`
-
-Record the alert destination and escalation owner. These owner and dashboard tasks match `wayfinder/NICK-QUEUE.md:12-17`.
+**OAuth and project-state alerts** — the 4xx spike policy covers OAuth 403,
+Gmail 403, and 429 spikes at the project level (invalid_client,
+unauthorized_client, and deleted_client all surface as 4xx responses).
+Dedicated log-based alerts for project-state changes (project deletion,
+consent-screen edits) are NOT yet configured — open follow-up in
+`wayfinder/NICK-QUEUE.md`. Escalation owner: Nick (nicholasgalang@gmail.com).
 
 `«NICK: billing gate — record the decision after Google publishes the price schedule and before any billing account is attached.»`
 
