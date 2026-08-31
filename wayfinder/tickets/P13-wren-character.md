@@ -12,6 +12,14 @@ Reference: https://x.com/kolbeyang/status/2094156852011450626
 (kolbeyang's bunny — GSAP + DialKit; X blocks agent fetch, view it
 logged in before starting).
 
+## Design canvas
+
+The character sheet lives on a Claude Design canvas Nick can edit
+directly (construction + rig joints, five poses, five expressions, the
+inbox-zero storyboard; body colour is a tweak):
+https://claude.ai/code/artifact/1b29708d-84f6-4ea3-b2c3-b08553228a87
+The code rig implements whatever the sheet settles.
+
 ## Where we are
 
 The current marks (`src/components/empty-state.tsx`) are the logo's
