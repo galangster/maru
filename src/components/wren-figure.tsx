@@ -29,8 +29,10 @@ import { useEffect, useRef } from 'react'
 import { WREN_FLIGHT, WREN_PERCHED, type WrenPose } from '@/assets/wren-poses'
 import { cn } from '@/lib/utils'
 
-const WREN_PINK = '#FF4F87'
-const PALE = '#FFD6E1'
+// The sheet's palette, read from tokens.css so the character can be
+// harmonized against the interface accent without touching this file.
+const WREN_PINK = 'var(--wren-maru-pink)'
+const PALE = 'var(--wren-maru-pale)'
 
 /** pale[2] and pale[3] of the flight pose are sparkles, not anatomy. */
 const FLIGHT_SPARKLE_FROM = 2

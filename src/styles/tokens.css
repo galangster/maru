@@ -1053,6 +1053,14 @@
 :root {
     /* Exactly the colour the old blob was, so the white body's LOCAL contrast
        is unchanged and only the surround is new. */
+    /* THE CHARACTER'S PALETTE, as tokens rather than literals in the rig.
+       Maru's colours were hard-coded in wren-figure.tsx, which meant
+       harmonizing the character against the interface accent was a code
+       change. They are the sheet's values unchanged; making them tokens is
+       what lets P14 be a token edit and lets the anchor options be rendered
+       and compared rather than argued. */
+    --wren-maru-pink: #ff4f87;
+    --wren-maru-pale: #ffd6e1;
     --wren-maru-ground: #fee9ef;
     /* The contact shadow's tone, as channels so the stops can set their own
        alpha. Pink on paper — a grey shadow under a pink character reads as
