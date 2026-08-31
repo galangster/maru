@@ -85,11 +85,15 @@
 
     /* --- Accent: logo coral -----------------------------------------------
        Owner ruling 2026-08-31, superseding the held indigo 268: the accent is
-       the logo's coral (source.png measures hue ~35). Terracotta in light for
-       white-text contrast; the dark accent lands on the logo colour itself. */
-    --wren-accent: oklch(0.545 0.15 35); /* #B6482C terracotta, logo hue      */
-    --wren-accent-hover: oklch(0.495 0.15 35); /* #A5381C                     */
-    --wren-accent-fg: oklch(1 0 0); /* white on accent = 5.31                 */
+       the logo's coral (source.png measures hue ~35). The dark accent lands
+       on the logo colour itself at hue 35; the light accent matches Nick's
+       reference light-coral #F08080 = oklch(0.725 0.138 21): same hue 21,
+       darkened only as far as white text needs (4.72:1). The logo hue at
+       this depth read burnt orange (owner, 2026-08-31). Distinguished from
+       --wren-destructive (hue 25, C 0.21) by lightness and chroma. */
+    --wren-accent: oklch(0.575 0.15 21); /* #C14D51 coral-rose (ref #F08080)  */
+    --wren-accent-hover: oklch(0.525 0.15 21); /* #AF3F44                     */
+    --wren-accent-fg: oklch(1 0 0); /* white on accent = 4.72                 */
 
     /* --- Semantic ---------------------------------------------------------
        Star nudged golden (58 → 68) for the 2026-08-31 icon-colour pass; L
@@ -185,7 +189,7 @@
     --wren-hairline-strong: oklch(0.872 0.004 50); /* #D6D6DA               */
     --wren-fill-hover: oklch(0.205 0.004 50 / 0.045);
     --wren-fill-active: oklch(0.205 0.004 50 / 0.075);
-    --wren-fill-selected: oklch(0.545 0.15 35 / 0.08);
+    --wren-fill-selected: oklch(0.575 0.15 21 / 0.08);
     --wren-scrim: oklch(0.205 0.004 50 / 0.28);
 
     /* --- Glass -------------------------------------------------------------
