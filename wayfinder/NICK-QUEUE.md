@@ -8,8 +8,9 @@ asking in chat. Newest at the top of each section. Strike items done.
 
 1. **getmaru.app is the domain** (renamed Wren → Maru, 2026-08-30;
    you already own it — no purchase). Your buttons now:
-   - DNS records for getmaru.app once I stand up hosting (I deploy on
-     one approval; then a CNAME/A from you or a signed-in session).
+   - ~~DNS + site~~ — done 2026-08-30: https://getmaru.app live on
+     GitHub Pages, cert issued, HTTPS enforced. Old Vercel site off the
+     domain.
    - Mail routing so **support@getmaru.app** and security@ deliver.
    - ~~Rename the GitHub repo~~ — done 2026-08-30 (galangster/maru;
      old maru project moved to maru-legacy).
