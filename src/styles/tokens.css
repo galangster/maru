@@ -920,6 +920,23 @@
     }
 }
 
+/* Maru's idle breathing — the perched figure only, from the feet. */
+@keyframes wren-breathe {
+    from {
+        transform: scale(1);
+    }
+    to {
+        transform: scale(1.025);
+    }
+}
+[data-wren-alive] [data-wren-body] {
+    transform-origin: 220px 380px;
+    animation: wren-breathe 3.4s ease-in-out infinite alternate;
+}
+[data-wren-eye] {
+    transition: transform 90ms ease-out;
+}
+
 @keyframes wren-celebrate-in {
     0% {
         opacity: 0;
@@ -960,6 +977,9 @@
         --wren-dur-celebrate: 120ms;
     }
     [data-wren-pop] {
+        animation: none;
+    }
+    [data-wren-alive] [data-wren-body] {
         animation: none;
     }
 }

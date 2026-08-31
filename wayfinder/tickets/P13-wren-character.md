@@ -1,6 +1,6 @@
 # P13 — The wren becomes a character  `wayfinder:task`
 
-status: open · claimed: — · blocked by: nothing; do after the map-3 submission
+status: in progress (rig v1 shipped 2026-08-31) · claimed: autonomous run 5 · blocked by: —
 
 ## The ask
 
@@ -57,6 +57,22 @@ A rigged SVG wren with a small behavior system, not more poses:
 Empty states (both tiers), onboarding, and the sync footer at most.
 The character is a companion in the quiet moments, not a mascot in the
 chrome.
+
+## Rig v1 — shipped (2026-08-31)
+
+Nick delivered canonical art (a full character sheet: bio, turnaround,
+palette #FF4F87/#FF7BA1/#FFD6E1/#FEE9EF/ink #1A1A1A) plus perched,
+flight and two preen references. All pixel-traced
+(docs/design/wren-character/), the canvas rebuilt around them, and the
+character landed in-app: `src/components/wren-figure.tsx` renders the
+traced poses with idle life — breathing (3.4s, from the feet), blinks
+on a 3–7s clock, pointer gaze — on a WrenBlob ground; inbox zero flies
+the real flight pose. Reduced motion and captures get a still bird.
+
+Remaining for v2: the full five-beat inbox-zero sequence (notice/
+crouch/leap/apex/settle) with DialKit tuning; perk + ruffle poses
+(need art or sketches); turnaround views into the trace set; preen for
+long syncs.
 
 ## Sequencing
 

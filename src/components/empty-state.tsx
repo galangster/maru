@@ -1,6 +1,6 @@
-// Calm empty states. One line, one explanatory subtitle (Family 2), and a soft
-// illustration built from CSS shapes — no images, nothing to load, and it
-// re-tints itself with the theme.
+// Calm empty states. One line, one explanatory subtitle (Family 2), and Maru
+// the wren (wren-figure) — inline SVG, nothing to load. The character keeps
+// its own palette; only its blob ground adapts to the theme.
 //
 // Two tiers, per MAGIC §3.6 and Family's Delight-Impact Curve. Every empty
 // folder gets the *ambient* tier: the blocks arrive one after another at
@@ -21,110 +21,24 @@ import { cn } from '@/lib/utils'
 
 import { burst } from '@/lib/celebrate'
 
-/**
- * The pupil that watches the pointer. One rAF-throttled mousemove listener,
- * a clamped 2 px offset, and a direct transform write — no React state, so a
- * cursor sweep costs zero renders. Gated to `mode === 'full'`: reduced motion
- * and the capture path get a still, centered eye.
- */
-function useWatchingEye(enabled: boolean) {
-  const pupil = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    if (!enabled) return
-    let frame = 0
-    const onMove = (event: MouseEvent) => {
-      if (frame) return
-      frame = requestAnimationFrame(() => {
-        frame = 0
-        const el = pupil.current
-        if (!el) return
-        // Measure the static eye well (the previous sibling), not the pupil:
-        // the pupil's rect includes its own current offset, which would feed
-        // the last answer back into the next one.
-        const box = (el.previousElementSibling ?? el).getBoundingClientRect()
-        const dx = event.clientX - (box.left + box.width / 2)
-        const dy = event.clientY - (box.top + box.height / 2)
-        const distance = Math.hypot(dx, dy) || 1
-        const reach = Math.min(distance / 40, 1) * 2
-        el.style.transform = `translate(${((dx / distance) * reach).toFixed(1)}px, ${((dy / distance) * reach).toFixed(1)}px)`
-      })
-    }
-    window.addEventListener('mousemove', onMove, { passive: true })
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      if (frame) cancelAnimationFrame(frame)
-    }
-  }, [enabled])
-
-  return pupil
-}
+import { WrenBlob, WrenFlying, WrenPerched } from './wren-figure'
 
 /**
- * The resting wren — the logo's geometry (a body disc, a head disc, a beak
- * triangle) rebuilt from CSS shapes at the cloud's old opacity, perched on a
- * thin bar. Ambient tier: it should register as "Maru is here, nothing is",
- * not as an illustration demanding attention. The beak carries the one
- * whisper of brand colour, and the eye quietly follows the pointer.
+ * The resting Maru — the canonical character (P13 sheet), perched on a soft
+ * pale-pink blob so the white body has ground in both themes. Alive (breath,
+ * blink, gaze) only in full motion mode; still under reduced motion and in
+ * captures.
  */
 export function WrenMark({ className }: { className?: string }) {
   const mode = useMotionMode()
-  const pupil = useWatchingEye(mode === 'full')
 
   return (
-    <div
-      aria-hidden
-      // Decoration must never eat a click or land in a text selection
-      // (`ui-polish` §12).
-      className={cn('relative h-16 w-28 select-none pointer-events-none', className)}
-    >
-      {/* perch */}
-      <span className="bg-ink-3/25 absolute bottom-0 left-4 h-[3px] w-20 rounded-full" />
-      {/* tail */}
-      <span className="bg-ink-3/12 absolute bottom-[10px] left-[22px] h-2 w-5 -rotate-[24deg] rounded-full" />
-      {/* body */}
-      <span className="bg-ink-3/12 absolute bottom-[3px] left-[34px] size-11 rounded-full" />
-      {/* head */}
-      <span className="bg-ink-3/12 absolute bottom-[32px] left-[60px] size-7 rounded-full" />
-      {/* eye well + watching pupil */}
-      <span className="bg-canvas absolute bottom-[42px] left-[70px] size-[9px] rounded-full" />
-      <span
-        ref={pupil}
-        className="bg-ink-3/60 absolute bottom-[44px] left-[72px] size-[5px] rounded-full will-change-transform"
-      />
-      {/* beak — the whisper of coral */}
-      <span
-        className="absolute bottom-[42px] left-[86px] size-0 border-y-[4px] border-l-[8px] border-y-transparent"
-        style={{ borderLeftColor: 'color-mix(in oklch, var(--wren-accent) 45%, transparent)' }}
-      />
-    </div>
-  )
-}
-
-/**
- * The inbox-zero wren — the same geometry in full brand colour, one wing up,
- * bobbing on `wren-float` once `wren-celebrate-in` has landed it. The float
- * distance is a token the reduced-motion block zeroes, so a machine that
- * asked for stillness gets the arrival crossfade and a still bird.
- */
-function WrenFlightMark() {
-  return (
-    <div aria-hidden className="relative h-16 w-28 select-none pointer-events-none">
-      {/* tail */}
-      <span className="bg-brand-hover absolute bottom-[14px] left-[20px] h-[9px] w-[22px] -rotate-[28deg] rounded-full" />
-      {/* body */}
-      <span className="bg-brand absolute bottom-[6px] left-[34px] size-11 rounded-full" />
-      {/* wing, lifted */}
-      <span className="bg-brand-hover absolute bottom-[30px] left-[38px] h-[16px] w-[28px] -rotate-[32deg] rounded-full" />
-      {/* head */}
-      <span className="bg-brand absolute bottom-[34px] left-[62px] size-7 rounded-full" />
-      {/* eye — the logo's slit */}
-      <span className="bg-canvas absolute bottom-[44px] left-[74px] h-[7px] w-[3px] rounded-full" />
-      {/* beak */}
-      <span
-        className="absolute bottom-[44px] left-[88px] size-0 border-y-[4px] border-l-[9px] border-y-transparent"
-        style={{ borderLeftColor: 'var(--wren-star)' }}
-      />
+    // Decoration must never eat a click or land in a text selection
+    // (`ui-polish` §12) — WrenBlob carries pointer-events-none/select-none.
+    <div aria-hidden className={className}>
+      <WrenBlob align="end">
+        <WrenPerched alive={mode === 'full'} className="h-24 w-24" />
+      </WrenBlob>
     </div>
   )
 }
@@ -160,7 +74,7 @@ function CelebrationMark({ mode }: { mode: 'full' | 'reduced' | 'off' }) {
   }, [mode])
 
   return (
-    <div ref={host} className="relative flex h-16 w-28 items-center justify-center select-none">
+    <div ref={host} className="relative flex h-28 w-36 items-center justify-center select-none">
       {/* The keyframe is unconditional. Every quantity in it — the start
           scale, the overshoot, the spin, the duration — is a token the
           reduced-motion block zeroes, so what plays there is the 120 ms
@@ -176,7 +90,9 @@ function CelebrationMark({ mode }: { mode: 'full' | 'reduced' | 'off' }) {
             'wren-float var(--wren-dur-float) ease-in-out var(--wren-dur-celebrate) infinite alternate',
         }}
       >
-        <WrenFlightMark />
+        <WrenBlob>
+          <WrenFlying className="h-24 w-24" />
+        </WrenBlob>
       </span>
     </div>
   )
