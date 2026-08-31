@@ -52,8 +52,11 @@ import {
   type SettingsSection,
 } from '@/features/shell/surface-store'
 import { useUi, type ThemeChoice } from '@/features/mail/ui-store'
+import { syncKind } from '@/core/sync/failure'
+import { elapsedTime } from '@/lib/format'
 import { hueFor, type Hue } from '@/lib/hue'
 import { setSoundsEnabled } from '@/lib/sound'
+import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 import { copyText } from '@/lib/clipboard'
@@ -417,6 +420,41 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
   )
 }
 
+/**
+ * What one account's row says, in every state — not just on failure. A healthy
+ * account saying when it last synced is what makes a silent one legible by
+ * contrast, which is the whole complaint this answers.
+ *
+ * A switch and not a ternary chain: the flat version had the "are we even
+ * failing" test at nesting level four, after three arms that only made sense
+ * if we were.
+ */
+function accountStatusLine(status: SyncStatus | undefined, now: number): string {
+  switch (syncKind(status)) {
+    case 'noClient':
+      return 'No Google client is configured on this Mac — add a client ID to connect it.'
+    case 'rejected':
+      return 'Google rejected the OAuth client — the account is fine. Set up your own client to reconnect.'
+    case 'noCredentials':
+      // NOT "signed out by Google" — Google did nothing. Says the reassuring
+      // part explicitly, because the false version implies the account is in
+      // trouble when only this machine is.
+      return 'Not signed in on this Mac — sign in to connect it. Nothing at Google changed.'
+    case 'signedOut':
+      return 'Signed out by Google — sign in again to reconnect.'
+    case 'stalled':
+      return status?.error ?? 'Sync failed'
+    case 'syncing':
+      return status?.progress !== undefined
+        ? `Syncing… ${Math.round(status.progress * 100)}%`
+        : 'Syncing…'
+    default:
+      return status?.lastSyncAt !== undefined
+        ? `Last synced ${elapsedTime(status.lastSyncAt, now)}`
+        : 'Not synced yet'
+  }
+}
+
 function AccountRow({
   account,
   status,
@@ -431,13 +469,20 @@ function AccountRow({
   reauthBusy: boolean
 }) {
   const service = useMailService()
+  const now = useNow()
   const [confirming, setConfirming] = useState(false)
+  // `refresh()` refreshes every account, not this row's — a per-account
+  // refresh is contract churn the seam has already declined once. The busy
+  // flag is local so only the clicked row shows it.
+  const [retrying, setRetrying] = useState(false)
+  // One discriminant, shared with the sidebar and the list notice. Deriving
+  // the booleans here independently is what let this row's `signedOut` be
+  // true for a rejected client — wrong, and invisible only because a ternary
+  // happened to test the other case first.
+  const kind = syncKind(status)
   const failed = status?.state === 'error'
-  // Typed by the sync engine from OAuthError.needsReauth — never guessed
-  // from the message's wording. Anything else keeps the raw error; a wrong
-  // friendly message is worse.
-  const signedOut = failed && status.needsReauth === true
-  const clientRejected = failed && status.clientFailure === true
+  const clientProblem = kind === 'rejected' || kind === 'noClient'
+  const needsSignIn = kind === 'signedOut' || kind === 'noCredentials'
 
   const remove = async () => {
     setConfirming(false)
@@ -452,7 +497,10 @@ function AccountRow({
   }
 
   return (
-    <li className={cn('flex items-center gap-3', failed ? 'min-h-14 py-2' : 'h-14')}>
+    // Unconditional, because a status line now renders in every state rather
+    // than only on failure. Two height branches for one row was the kind of
+    // thing that drifts.
+    <li className="flex min-h-14 items-center gap-3 py-2">
       <AccountAvatar
         address={{ name: account.displayName, email: account.email }}
         hue={hueFor(account.email)}
@@ -462,21 +510,30 @@ function AccountRow({
           {account.displayName}
         </span>
         <span className="text-ink-3 truncate text-sm">{account.email}</span>
-        {failed && (
-          <span className={cn('text-destructive text-sm', clientRejected ? 'text-pretty' : 'truncate')}>
-            {clientRejected
-              ? 'Google rejected the OAuth client — the account is fine. Set up your own client to reconnect.'
-              : signedOut
-                ? 'Signed out by Google — sign in again to reconnect.'
-                : (status.error ?? 'Sync failed')}
-          </span>
-        )}
+        {/* This is the row that answers "which ones aren't syncing", so it
+            answers it in every state — a healthy account saying when it last
+            synced is what makes a silent one legible by contrast. */}
+        <span
+          className={cn(
+            'text-sm',
+            // Every failure wraps; only the healthy one-liner truncates. The
+            // row is min-h-14 and grows, and a message that explains what
+            // broke is the last thing that should be cut — "Signed out by
+            // Google — sign in aga…" spends its width on the half the button
+            // beside it already says.
+            failed ? 'text-destructive text-pretty' : 'text-ink-3 truncate',
+          )}
+        >
+          {accountStatusLine(status, now)}
+        </span>
       </div>
-      {/* Two recoveries, two buttons: a rejected client is fixed in Settings →
-          Google, a dead grant by signing in again. One button doing both had
-          three coordinated ternaries. */}
+      {/* Three recoveries, three buttons. A rejected client is fixed in
+          Settings → Google and a dead grant by signing in again — but an
+          untyped error used to land on "Sign in again" too, which offers a
+          browser round trip for a rate limit or a dropped connection it cannot
+          touch. Those get "Try again" instead. */}
       {failed &&
-        (clientRejected ? (
+        (clientProblem ? (
           <button
             type="button"
             onClick={onNeedsClient}
@@ -484,7 +541,7 @@ function AccountRow({
           >
             Use your own client
           </button>
-        ) : (
+        ) : needsSignIn ? (
           <button
             type="button"
             onClick={onReauth}
@@ -492,6 +549,21 @@ function AccountRow({
             className={textButtonClass('default', 'shrink-0 rounded-md')}
           >
             Sign in again
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setRetrying(true)
+              void service
+                .refresh()
+                .catch(() => {})
+                .finally(() => setRetrying(false))
+            }}
+            disabled={retrying}
+            className={textButtonClass('default', 'shrink-0 rounded-md')}
+          >
+            Try again
           </button>
         ))}
       <ConfirmPopover

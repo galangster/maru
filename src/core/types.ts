@@ -136,6 +136,25 @@ export interface SyncStatus {
   /** Google rejected the OAuth client, not the account. A custom client is
    *  the recovery path, so keep that distinct from a dead grant. */
   clientFailure?: boolean
+  /** There is no OAuth client configured on this machine at all, so Google
+   *  has never seen this account and cannot have rejected anything. Shares
+   *  `clientFailure`'s remedy — Settings → Google — and must not share its
+   *  sentence: "Google rejected Maru's OAuth client" is false here for the
+   *  same reason "signed out by Google" is false for `noCredentials`. */
+  noClientConfigured?: boolean
+  /** No token record exists on THIS machine for this account — the app was
+   *  never signed in here, or the keychain item is gone. Distinct from a
+   *  grant Google killed: nothing at Google changed, so "signed out by
+   *  Google" is a false sentence. `needsReauth` stays true alongside it
+   *  because the remedy is the same sign-in flow; only the wording differs.
+   *
+   *  A real case, not a theoretical one: dev and release builds use
+   *  different keychain services on purpose (src-tauri/src/lib.rs), and
+   *  share one database. A dev build therefore reads four real accounts out
+   *  of a keychain holding none of their tokens, and every account fails
+   *  this way at once. A restored backup, a new Mac, or a deleted keychain
+   *  item does the same thing in production. */
+  noCredentials?: boolean
   lastSyncAt?: number
 }
 

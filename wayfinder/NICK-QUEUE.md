@@ -109,6 +109,30 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Decisions to ratify
 
+- **Should a dev build share your real mail database?** (surfaced
+  2026-08-31 by "none of the emails are syncing"; ticket P18 shipped the
+  UI half.) What happened: dev and release builds use different keychain
+  services on purpose — a differently-signed dev build is a stranger to
+  the last one's keychain items, which is what caused the old
+  password-prompt storms — but they share ONE bundle identifier and
+  therefore ONE database. So a dev window reads your four real accounts
+  out of a keychain holding none of their tokens, and mail silently stops
+  until you notice. Yours had stopped at 11:01 and you found it at 13:52.
+  The app now says so plainly instead of "Sync failed", and that may be
+  enough. The three options:
+  **(a) leave it** — the dev build reads your real mail, cannot sync or
+  send, and now says exactly that. Best for design work, which is what we
+  have been doing all week: real threads, real names, real density.
+  **(b) give the dev build its own database** — full isolation, no way to
+  confuse the two, and you lose real data in the dev window (demo mode
+  substitutes, but it is 20 synthetic threads, not 3,607).
+  **(c) let the dev build refuse to start** against a database whose
+  accounts it has no credentials for. Safest, and it removes the one
+  workflow — reading real mail while iterating on the UI — that made (a)
+  worth having.
+  Recommend **(a)**, now that the app is honest about it. Only worth
+  revisiting if you get caught by this a second time.
+
 - **Unified sign-in — one question, and it is about liability, not
   security** (your ruling 2026-08-31; designed panel in G2). The design
   is settled: settings + account-list sync, built on a sealed envelope

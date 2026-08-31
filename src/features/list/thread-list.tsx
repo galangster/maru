@@ -41,6 +41,7 @@ import { bulkAction, type BulkActionType } from './bulk'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
 import { ListControls } from './list-controls'
 import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
+import { SyncNotice } from './sync-notice'
 import { ThreadRow, threadRowId } from './thread-row'
 
 const GROUP_H = 40
@@ -328,6 +329,8 @@ export function ThreadList() {
           </>
         )}
       </header>
+
+      <SyncNotice />
 
       {searching && (
         <div className="border-hairline text-ink-3 flex h-8 shrink-0 items-center gap-1 border-b px-4 text-xs">

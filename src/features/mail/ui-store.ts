@@ -70,6 +70,17 @@ interface UiState {
   /** Thread keys the user has un-blocked images for. Session scoped, on purpose. */
   imagesAllowed: Set<string>
   /**
+   * Accounts whose "mail has stopped arriving" notice has been dismissed.
+   *
+   * Session scoped, and never persisted — deliberately. A dead grant lasts
+   * until a person acts on it, so a permanently dismissed notice would
+   * recreate exactly the silence this notice exists to end. Dismissing lets
+   * you read the mail you have; the next launch tells you again. The footer
+   * line and the Settings row stay put either way, so this never removes the
+   * last trace.
+   */
+  syncNoticeDismissed: Set<string>
+  /**
    * Bulk selection: the threads marked (`x`, shift-click, select-all) for one
    * batch action. Distinct from `selected`, which is the thread being *read*.
    * Session scoped and dropped on view change — a batch is an intent about
@@ -102,6 +113,7 @@ interface UiState {
   toggleAccount: (accountId: string) => void
   toggleAccountsGroup: () => void
   allowImages: (threadKey: string) => void
+  dismissSyncNotice: (accountIds: string[]) => void
   toggleChecked: (threadKey: string) => void
   /** Add a batch (a shift-click range, or select-all). Never removes. */
   checkMany: (threadKeys: string[]) => void
@@ -160,6 +172,7 @@ export const useUi = create<UiState>()((set, get) => ({
     INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
   accountsGroupCollapsed: false,
   imagesAllowed: new Set<string>(),
+  syncNoticeDismissed: new Set<string>(),
   checked: new Set<string>(),
   checkAnchor: null,
   listPrefs: {},
@@ -200,6 +213,12 @@ export const useUi = create<UiState>()((set, get) => ({
     })),
   allowImages: (threadKey) =>
     set((s) => ({ imagesAllowed: new Set(s.imagesAllowed).add(threadKey) })),
+  dismissSyncNotice: (accountIds) =>
+    set((s) => {
+      const next = new Set(s.syncNoticeDismissed)
+      for (const id of accountIds) next.add(id)
+      return { syncNoticeDismissed: next }
+    }),
   toggleChecked: (threadKey) =>
     set((s) => {
       const checked = new Set(s.checked)

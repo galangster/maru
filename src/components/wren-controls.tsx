@@ -20,6 +20,7 @@ export type Tone =
   | 'brand'
   | 'success'
   | 'info'
+  | 'alert'
 
 /**
  * Resting icons stay in the ink tiers; hover reveals the action's own colour
@@ -34,6 +35,12 @@ const TONES: Record<Tone, string> = {
   danger: 'text-ink-3 hover:text-destructive',
   success: 'text-ink-3 hover:text-success',
   info: 'text-ink-3 hover:text-hue-blue',
+  // The one tone that rests coloured, and the exception the ruling above needs:
+  // `danger` rests at ink-3 because a trash button is an action you might take.
+  // This is a standing alert you must take — the collapsed sidebar's only sign
+  // that mail has stopped arriving — so resting grey would hide exactly what it
+  // exists to show.
+  alert: 'text-destructive hover:text-destructive',
 }
 
 /**

@@ -16,7 +16,7 @@
 // A 404 from history.list is routine, not exceptional: Google only promises
 // "typically a week" of historyId validity and warns it can be hours.
 
-import { OAuthError, isClientFailure } from '../auth/oauth'
+import { syncFailure } from './failure'
 import type { Store } from '../store/db'
 import { mapGmailMessage, mapGmailThread } from '../gmail/mapping'
 import { HttpError } from '../gmail/limiter'
@@ -117,11 +117,7 @@ export class SyncEngine {
   }
 
   private failed(err: unknown): void {
-    this.status('error', {
-      error: err instanceof Error ? err.message : String(err),
-      needsReauth: err instanceof OAuthError && err.needsReauth,
-      clientFailure: isClientFailure(err),
-    })
+    this.emit({ type: 'syncStatus', status: syncFailure(this.accountId, err) })
   }
 
   // -- storage helpers ------------------------------------------------------

@@ -23,9 +23,12 @@ import { useAccounts, useLabels, useSyncStatus, useUnreadCount } from '@/feature
 import { useMailMode } from '@/features/mail/service'
 import { useUi, viewKey } from '@/features/mail/ui-store'
 import { SHELL_CARD } from '@/features/shell/app-shell'
-import { useSurfaces } from '@/features/shell/surface-store'
+import { useSurfaces, type SettingsSection } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
+import { describeSync, isUrgent, type SyncSummary } from '@/features/sidebar/sync-summary'
+import { syncPreview } from '@/lib/env'
 import { hueFor, hueSolid, type Hue } from '@/lib/hue'
+import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 /** The row chrome both sidebar disclosure headers share; typography differs
@@ -393,7 +396,8 @@ function AccountSection({ account }: { account: Account }) {
 function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: Account[] }) {
   const toggleSidebar = useUi((s) => s.toggleSidebar)
   const { theme, toggle } = useThemeToggle()
-  const statuses = Object.values(useSyncStatus())
+  const statuses = useSyncStatus()
+  const now = useNow()
   const themeIcon: IconName =
     theme === 'light' ? 'themeLight' : theme === 'dark' ? 'themeDark' : 'themeSystem'
   const themeLabel = `Switch theme, currently ${theme}`
@@ -403,28 +407,17 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
   // Cached, and already read by the badge below — this asks the same query for
   // the same answer, not the gateway for a second one.
   const waiting = usePendingApprovals().data?.length ?? 0
-  const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
-  const syncing = statuses.some((s) => s.state === 'syncing')
-  const failed = statuses.some((s) => s.state === 'error')
 
-  // Two strings, not one. The long form used to be the only form and it
-  // truncated in the middle of a word — "Demo data · 2 accou…" — which made the
-  // one line that says what the app is doing the one line you cannot read. The
-  // state gets the pixels; the detail gets the tooltip.
-  const state = demo
-    ? 'Demo data'
-    : failed
-      ? 'Sync failed'
-      : syncing
-        ? 'Syncing…'
-        : 'Up to date'
-  const detail = demo
-    ? `Demo data · ${plural}`
-    : failed
-      ? 'Sync failed · Maru is retrying'
-      : syncing
-        ? `Syncing ${plural}`
-        : `${plural} · up to date`
+  // Three strings, not one. The long form used to be the only form and it
+  // truncated mid-word — "Demo data · 2 accou…" — which made the one line that
+  // says what the app is doing the one line you cannot read. The state gets
+  // the pixels; the sentence gets the tooltip. Derived in sync-summary.ts so
+  // the copy can be tested as data.
+  // `demo && !syncPreview`: demo outranks every other state, which is right —
+  // "Demo data" is the truest thing to say about a demo window. But the demo
+  // service is the only way to reach these states in a browser, so ?sync= has
+  // to be allowed past it or the flag could never show anything.
+  const sync = describeSync(accounts, statuses, demo && !syncPreview, now)
 
   return (
     <div
@@ -447,29 +440,20 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
       )}
     >
       <ApprovalsBadge />
-      {!collapsed && (
-        <span
-          title={detail}
-          className="text-ink-3 flex min-w-0 flex-1 items-center gap-2 text-xs"
-        >
-          <Icon
-            name={failed ? 'error' : 'sync'}
-            size={16}
-            className={cn(
-              'shrink-0',
-              syncing && 'motion-safe:animate-spin',
-              failed && 'text-destructive',
-            )}
-          />
-          {/* Dropped whole, never sliced. The badge is what takes the room —
-              with it up, "Demo data" had about 64 px and rendered "Demo da…",
-              and at the sidebar's 200 px floor it rendered "D" (N7). The glyph
-              still carries the state, the tooltip and the screen-reader line
-              still carry the sentence, and none of the three is a fragment of
-              a word. */}
-          {waiting === 0 && <span className="hidden truncate @[13rem]:inline">{state}</span>}
-          <span className="sr-only">{detail}</span>
-        </span>
+      {!collapsed && <SyncLine sync={sync} waiting={waiting} openSettings={openSettings} />}
+      {/* Collapsed, the status line is gone — so without this a dead grant is
+          invisible at 68 px and mail silently stops. Exactly one addition, and
+          only for the two states a person can act on: the rail is a column of
+          jump targets, so a still glyph meaning "wait" is decoration there and
+          a red glyph meaning "act" is information. The account rows keep their
+          identity hue untouched; nothing gains a badge or a ring. */}
+      {collapsed && isUrgent(sync) && sync.action !== null && (
+        <IconButton
+          name="error"
+          tone="alert"
+          label={sync.detail}
+          onClick={() => openSettings(sync.action ?? undefined)}
+        />
       )}
       {/* These three are toolbar chrome: 18, like every other toolbar
           (DIRECTION §8, S8). The sync glyph above stays at 16 because it sits
@@ -490,6 +474,135 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
       <IconButton name="settings" label="Settings" onClick={() => openSettings()} />
       <IconButton name={themeIcon} label={themeLabel} onClick={toggle} />
     </div>
+  )
+}
+
+/**
+ * The status line. A control when there is somewhere to go, a plain span
+ * otherwise — the same doctrine ApprovalsBadge argues below: a permanent
+ * control that does nothing six days a week teaches people to stop looking at
+ * it. A clickable "Up to date" is a focus stop that buys nothing.
+ */
+function SyncLine({
+  sync,
+  waiting,
+  openSettings,
+}: {
+  sync: SyncSummary
+  waiting: number
+  openSettings: (section?: SettingsSection) => void
+}) {
+  // Asked of the kind, never inferred from `action`: a transient blip routes to
+  // Settings too, so `action !== null` would have let a dropped connection take
+  // the destructive glyph and displace the approvals pill.
+  const urgent = isUrgent(sync)
+  const body = (
+    <>
+      <Icon
+        name={urgent ? 'error' : 'sync'}
+        size={16}
+        className={cn(
+          'shrink-0',
+          sync.kind === 'syncing' && 'motion-safe:animate-spin',
+          urgent && 'text-destructive',
+        )}
+      />
+      {/* Dropped whole, never sliced. The badge is what takes the room — with
+          it up, "Demo data" had about 64 px and rendered "Demo da…", and at the
+          sidebar's 200 px floor it rendered "D" (N7). The gate stays where it
+          was; the strings were budgeted to it instead of moving it.
+
+          The one exception is an actionable state: when an approval is waiting
+          AND an account is dead, suppressing the words left a pill, a red glyph
+          and nothing to read. The approvals pill can lose its neighbour; a dead
+          grant cannot — but a Wi-Fi blip can, which is why this asks `urgent`
+          and not `action`. */}
+      {(waiting === 0 || urgent) && (
+        <>
+          {/* The gates move when the approvals pill is up, because the pill is
+              ~55 px of the same row. Measured on the real footer: three 18 px
+              buttons plus gaps take ~128 px, so a 13rem (208 px) container
+              leaves ~80 px for the line — enough. Add the pill and the same
+              container leaves ~57 px, which sliced "Sign in" to "Si…" — the
+              exact N7 failure the gate exists to prevent. Both class strings
+              are written out in full so Tailwind can see them. */}
+          <span
+            className={cn(
+              'hidden truncate',
+              waiting > 0
+                ? '@[16rem]:inline @[20rem]:hidden'
+                : '@[13rem]:inline @[17rem]:hidden',
+            )}
+          >
+            {sync.short}
+          </span>
+          <span
+            className={cn(
+              'hidden min-w-0 items-baseline gap-1',
+              waiting > 0 ? '@[20rem]:flex' : '@[17rem]:flex',
+            )}
+          >
+            {/* Only the address truncates. The verb phrase never does, so the
+                worst case is "Sign in again — nick@metad…" — the instruction
+                survives whole, which is what separates this from the N7 failure
+                where the sliced word carried all the meaning. The separator
+                lives here rather than inside `full`, so `full` is never a
+                string with a dangling dash when there is no address. */}
+            <span className="shrink-0">{sync.full}</span>
+            {sync.address && (
+              <>
+                <span aria-hidden className="shrink-0">
+                  —
+                </span>
+                <span className="truncate">{sync.address}</span>
+              </>
+            )}
+          </span>
+        </>
+      )}
+      <span className="sr-only">{sync.detail}</span>
+    </>
+  )
+
+  // Hoisted so the JSX below closes over a narrowed value. The `?? 'accounts'`
+  // this replaces was TypeScript appeasement that also encoded a wrong default:
+  // if a future urgent state routed to 'google' and the narrowing lapsed, it
+  // would have quietly opened the wrong pane instead of failing loudly.
+  const action = sync.action
+  if (action === null) {
+    return (
+      <span
+        title={sync.detail}
+        className="text-ink-3 flex min-w-0 flex-1 items-center gap-2 text-xs"
+      >
+        {body}
+      </span>
+    )
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={sync.detail}
+            onClick={() => openSettings(action)}
+            className={cn(
+              // NavRow's own radius and focus ring, so the hit target reads as
+              // the same kind of object as a mailbox row. -mx-1 px-1 = 4 px, on
+              // grid.
+              'rounded-row focus-ring text-ink-2 -mx-1 flex min-w-0 flex-1 items-center gap-2 px-1 text-xs',
+              'duration-(--wren-dur-fast) ease-(--wren-ease-out) transition-colors',
+              'hover:bg-fill-hover hover:text-ink',
+            )}
+          />
+        }
+      >
+        {body}
+      </TooltipTrigger>
+      <TooltipContent side="top">{sync.detail}</TooltipContent>
+    </Tooltip>
   )
 }
 

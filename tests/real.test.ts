@@ -230,9 +230,12 @@ describe('optimistic actions', () => {
     expect(thread?.labelIds.sort()).toEqual(['INBOX', 'UNREAD'])
     expect(thread?.unread).toBe(true)
     expect(events.filter((e) => e.type === 'threadsChanged')).toHaveLength(2)
-    expect(events.filter((e) => e.type === 'syncStatus').at(-1)).toMatchObject({
-      status: { state: 'error', accountId: 'acct-1' },
-    })
+    // And NOT a syncStatus. A refused archive is not a verdict on the
+    // account's sync: the rollback above is the recovery, and this rethrows so
+    // the caller can say so. Emitting `error` here — untyped, so every reader
+    // took it for a network problem — painted the whole account failed until
+    // the next poll tick, and put "Sign in again" under a healthy account.
+    expect(events.filter((e) => e.type === 'syncStatus')).toHaveLength(0)
   })
 
   it('reverts the messages as well as the thread', async () => {
@@ -280,9 +283,8 @@ describe('optimistic actions', () => {
     ).rejects.toBeInstanceOf(HttpError)
     const thread = await store.getThread('acct-1/t-1')
     expect(thread?.labelIds.sort()).toEqual(['INBOX', 'UNREAD'])
-    expect(events.filter((e) => e.type === 'syncStatus').at(-1)).toMatchObject({
-      status: { state: 'error', accountId: 'acct-1' },
-    })
+    // See performAction above: the rollback is the recovery, not a sync verdict.
+    expect(events.filter((e) => e.type === 'syncStatus')).toHaveLength(0)
   })
 })
 
@@ -403,5 +405,78 @@ describe('settings', () => {
     const { svc } = await harness()
     await svc.setSettings({ theme: 'dark', pollIntervalSec: 30 })
     expect(await svc.getSettings()).toMatchObject({ theme: 'dark', pollIntervalSec: 30, googleClientId: 'cid' })
+  })
+})
+
+describe('sync status', () => {
+  it('keeps lastSyncAt across a failure so the UI can say how stale mail is', async () => {
+    // The engine writes lastSyncAt only on success. Merging it at the emitter
+    // rather than in each subscriber is what lets a component that mounts
+    // AFTER the failure — and gets a replay — see the same value the sidebar
+    // has held since boot. "Stopped a minute ago" and "stopped six days ago"
+    // are the whole difference between waiting and acting.
+    const { svc, events } = await harness()
+    const emit = (svc as unknown as { emit: (e: MailEvent) => void }).emit.bind(svc)
+
+    emit({ type: 'syncStatus', status: { accountId: 'acct-1', state: 'idle', lastSyncAt: 1000 } })
+    emit({ type: 'syncStatus', status: { accountId: 'acct-1', state: 'error', error: 'timeout' } })
+
+    const last = events.filter((e) => e.type === 'syncStatus').at(-1)
+    expect(last).toMatchObject({ status: { state: 'error', lastSyncAt: 1000 } })
+
+    // And a late subscriber agrees, rather than seeing lastSyncAt undefined.
+    const replayed: MailEvent[] = []
+    svc.onEvent((e) => replayed.push(e))
+    expect(replayed.filter((e) => e.type === 'syncStatus').at(-1)).toMatchObject({
+      status: { state: 'error', lastSyncAt: 1000 },
+    })
+  })
+
+  it('an explicit lastSyncAt still wins over the carried one', async () => {
+    const { svc, events } = await harness()
+    const emit = (svc as unknown as { emit: (e: MailEvent) => void }).emit.bind(svc)
+    emit({ type: 'syncStatus', status: { accountId: 'acct-1', state: 'idle', lastSyncAt: 1000 } })
+    emit({ type: 'syncStatus', status: { accountId: 'acct-1', state: 'idle', lastSyncAt: 2000 } })
+    expect(events.filter((e) => e.type === 'syncStatus').at(-1)).toMatchObject({
+      status: { lastSyncAt: 2000 },
+    })
+  })
+
+  it('refresh brings up an account that has no runtime', async () => {
+    // `runtimes` is populated only by attach(), so an account the service
+    // never attached was skipped by refresh() entirely — which made the
+    // "Try again" button beside its own error row a control that did nothing:
+    // it disabled, it re-enabled, and no request was made.
+    const { store, svc, events } = await harness()
+    const runtimes = (svc as unknown as { runtimes: Map<string, unknown> }).runtimes
+    await store.upsertAccount(makeAccount({ id: 'acct-2', email: 'second@gmail.com' }))
+    expect(runtimes.has('acct-2'), 'precondition: not attached yet').toBe(false)
+
+    await svc.refresh()
+
+    expect(runtimes.has('acct-2'), 'refresh must attach it, not skip it').toBe(true)
+    expect(
+      events.filter((e) => e.type === 'syncStatus').some((e) => e.status.accountId === 'acct-2'),
+      'and it must report a status, so the row stops saying nothing',
+    ).toBe(true)
+  })
+
+  it('reports the account it cannot bring up, rather than failing silently', async () => {
+    // With no Google client configured, attach() throws before any network
+    // call. That has to surface as this account's own status — and as the
+    // `noClient` kind, so the copy does not blame Google for a local gap.
+    const { store, svc, events } = await harness()
+    await store.setSettings({ googleClientId: '', googleClientSecret: '' })
+    await store.upsertAccount(makeAccount({ id: 'acct-3', email: 'third@gmail.com' }))
+
+    await svc.refresh()
+
+    const status = events
+      .filter((e) => e.type === 'syncStatus')
+      .filter((e) => e.status.accountId === 'acct-3')
+      .at(-1)
+    expect(status).toMatchObject({
+      status: { state: 'error', accountId: 'acct-3', noClientConfigured: true },
+    })
   })
 })

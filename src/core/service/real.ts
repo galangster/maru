@@ -11,6 +11,7 @@ import type { Store } from '../store/db'
 import { GmailApi } from '../gmail/api'
 import { GMAIL_BUDGET_PER_MINUTE, TokenBucket } from '../gmail/limiter'
 import { SyncEngine, type SyncGmailClient } from '../sync/engine'
+import { syncFailure } from '../sync/failure'
 import { ThreadSearchIndex } from '../search/index'
 import { TokenManager, TokenStore, runAuthFlow as defaultRunAuthFlow, type AuthFlowResult } from '../auth/oauth'
 import { resolveOAuthClient } from '../auth/client-config'
@@ -48,6 +49,12 @@ export interface MailGmailClient extends SyncGmailClient {
 
 export class MissingOAuthClientError extends Error {
   readonly code = 'missing_oauth_client'
+  // Read by isClientFailure(), which tests the property rather than the
+  // constructor. Without it this lands as an untyped error and the footer
+  // classes "no OAuth client is configured" as a network blip it is retrying
+  // — forever, for a state no retry can reach. The remedy is Settings →
+  // Google, which is exactly where clientFailure already sends people.
+  readonly clientFailure = true
   constructor() {
     // Thrown from addAccount AND from attach on an existing account, so the
     // wording assumes neither. A build with an official client never throws it.
@@ -137,25 +144,26 @@ export class RealMailService implements MailService {
       this.store.getSettings(),
       this.store.listAccounts(),
     ])
-    for (const account of accounts) {
-      // One account with an unreadable token record or no resolvable client
-      // must not take the whole service down at startup — it surfaces as that
-      // account's own error state, and every other account still syncs.
-      try {
-        const runtime = await this.attach(account, settings)
-        if (this.autoStart) this.beginSync(runtime, settings)
-      } catch (err) {
-        this.emit({
-          type: 'syncStatus',
-          status: {
-            accountId: account.id,
-            state: 'error',
-            error: err instanceof Error ? err.message : String(err),
-          },
-        })
-      }
-    }
+    for (const account of accounts) await this.bringUp(account, settings)
     this.indexReady = this.buildIndex(threads)
+  }
+
+  /**
+   * Attach one account and start its sync, reporting failure as that
+   * account's own status.
+   *
+   * One account with an unreadable token record or no resolvable client must
+   * not take the whole service down — it surfaces alone, and every other
+   * account still syncs. Shared with `refresh()`, which retries exactly the
+   * accounts this failed on.
+   */
+  private async bringUp(account: Account, settings: Settings): Promise<void> {
+    try {
+      const runtime = await this.attach(account, settings)
+      if (this.autoStart) this.beginSync(runtime, settings)
+    } catch (err) {
+      this.emit({ type: 'syncStatus', status: syncFailure(account.id, err) })
+    }
   }
 
   /**
@@ -245,7 +253,20 @@ export class RealMailService implements MailService {
   }
 
   private emit(e: MailEvent): void {
-    if (e.type === 'syncStatus') this.lastSyncStatus.set(e.status.accountId, e.status)
+    if (e.type === 'syncStatus') {
+      // Carry lastSyncAt across a state change, HERE rather than in each
+      // subscriber. The engine writes it only on success, so an error would
+      // otherwise erase the last-success time — and "mail stopped a minute
+      // ago" versus "six days ago" is the whole difference between waiting
+      // and acting. Doing it at the emitter also keeps every subscriber
+      // agreeing: replayed status and live status are now the same object,
+      // so a component that mounts after a failure sees what the sidebar has
+      // seen since boot. An explicit lastSyncAt in the event still wins.
+      const prev = this.lastSyncStatus.get(e.status.accountId)
+      const merged: SyncStatus = { lastSyncAt: prev?.lastSyncAt, ...e.status }
+      this.lastSyncStatus.set(merged.accountId, merged)
+      e = { ...e, status: merged }
+    }
     for (const cb of [...this.listeners]) cb(e)
   }
 
@@ -363,6 +384,23 @@ export class RealMailService implements MailService {
   }
 
   async refresh(): Promise<void> {
+    // Retry the accounts that never attached, first. `runtimes` is only
+    // populated after attach() succeeds, so an account that failed at startup
+    // — an unreadable keychain, a client that would not resolve — was absent
+    // from this map and silently skipped. That made the "Try again" button
+    // beside its own error row a control that did nothing: it disabled, it
+    // re-enabled, and no request was made. Retrying is precisely what the
+    // person asked for, and attach is where it has to happen.
+    const [accounts, settings] = await Promise.all([
+      this.store.listAccounts(),
+      this.store.getSettings(),
+    ])
+    await Promise.all(
+      accounts
+        .filter((account) => !this.runtimes.has(account.id))
+        .map((account) => this.bringUp(account, settings)),
+    )
+
     await Promise.all(
       [...this.runtimes.values()].map(async (runtime) => {
         try {
@@ -406,14 +444,11 @@ export class RealMailService implements MailService {
       await this.store.restoreMessageFlags(beforeFlags)
       this.index.upsert(before)
       this.emit({ type: 'threadsChanged', accountId, threadKeys: [action.threadKey] })
-      this.emit({
-        type: 'syncStatus',
-        status: {
-          accountId,
-          state: 'error',
-          error: err instanceof Error ? err.message : String(err),
-        },
-      })
+      // No syncStatus here. A failed archive is not a verdict on the account's
+      // sync: the optimistic write is already rolled back above, the mutation
+      // plays the error sound, and this rethrows. Emitting `error` made one
+      // refused label change paint the account failed — untyped, so it read as
+      // a network problem — and hold it until the next poll tick.
       throw err
     }
   }
@@ -441,14 +476,7 @@ export class RealMailService implements MailService {
       await this.store.upsertThreads([before])
       this.index.upsert(before)
       this.emit({ type: 'threadsChanged', accountId, threadKeys: [threadKey] })
-      this.emit({
-        type: 'syncStatus',
-        status: {
-          accountId,
-          state: 'error',
-          error: err instanceof Error ? err.message : String(err),
-        },
-      })
+      // No syncStatus — see performAction above.
       throw err
     }
   }

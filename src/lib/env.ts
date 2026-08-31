@@ -30,6 +30,21 @@ export const isTune = params.get('tune') === '1'
 export const onboardingPreview = params.get('onboarding') === '1'
 
 /**
+ * `?sync=<kind>` forces the demo service to report a sync failure, so the
+ * states that say "mail has stopped arriving" can be reviewed and captured.
+ *
+ * Same reason as `onboarding` above: these are the states a person is most
+ * likely to meet on a bad day and the least likely to see on purpose, and the
+ * only other way to reach one is to break a real account. Demo-only — it is
+ * read by the demo service and nothing else, so it can never colour real mail.
+ *
+ * `signedout` · `nocreds` · `client` · `noclient` · `transient` · `partial`
+ * (`partial` signs out ONE account of several, which is the case the old
+ * footer could not express at all — it could not say which.)
+ */
+export const syncPreview = params.get('sync')
+
+/**
  * The frozen clock for captures. Demo fixtures are generated relative to
  * `now`, so a real Date.now() would re-date every row on every run and no two
  * captures would compare. Chosen as a late local evening so the fixture set

@@ -185,13 +185,27 @@ export function useMailEvents() {
   }, [service, client])
 }
 
-/** Per-account sync state for the sidebar footer. */
+/**
+ * Per-account sync state for the sidebar footer.
+ *
+ * This is a PARTIAL record, filled only by events: an account that has not
+ * emitted yet is absent, not idle. Callers must judge against the real account
+ * list in both directions — a missing key means "not heard from", and a key
+ * with no account behind it is a status left over from a removed account.
+ * Reading it with `.some()` alone is what let four accounts with one status
+ * render "Up to date", a positive claim about three accounts the app had heard
+ * nothing about.
+ */
 export function useSyncStatus() {
   const service = useMailService()
   const [statuses, setStatuses] = useState<Record<string, SyncStatus>>({})
   useEffect(() => {
     return service.onEvent((event) => {
       if (event.type !== 'syncStatus') return
+      // Straight assignment: the service merges lastSyncAt across a state
+      // change before it emits, so every subscriber — including one that
+      // mounts after a failure and gets a replay — holds the same object.
+      // Doing that merge here instead let two components disagree.
       setStatuses((prev) => ({ ...prev, [event.status.accountId]: event.status }))
     })
   }, [service])

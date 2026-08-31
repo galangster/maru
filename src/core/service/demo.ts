@@ -4,6 +4,7 @@
 // reviewer sees before they have set up a Google OAuth client. It implements
 // the same MailService contract as the real one, including events.
 
+import { now, syncPreview } from '@/lib/env'
 import { decodeBase64Url } from '../mime'
 import { searchWithOperators } from '../search/operators'
 import { ThreadSearchIndex } from '../search/index'
@@ -22,6 +23,7 @@ import type {
   MailView,
   Message,
   Settings,
+  SyncStatus,
   Thread,
   ListThreadsOptions,
 } from '../types'
@@ -54,7 +56,71 @@ export class DemoMailService implements MailService {
 
   onEvent(cb: (e: MailEvent) => void): () => void {
     this.listeners.add(cb)
+    // A new subscriber gets the current per-account state immediately, the way
+    // a real subscriber does after the engine's first pass. Without this the
+    // sidebar would sit on an empty record — which now honestly renders as
+    // "Starting…" rather than the old false "Up to date".
+    for (const status of this.syncStatuses()) cb({ type: 'syncStatus', status })
     return () => this.listeners.delete(cb)
+  }
+
+  /**
+   * What demo mode reports per account. Idle unless `?sync=` asks for a
+   * failure — see syncPreview in lib/env, and note this is the ONLY reader of
+   * it, so the flag can never colour real mail.
+   */
+  private syncStatuses(): SyncStatus[] {
+    const failure = (accountId: string): SyncStatus => {
+      switch (syncPreview) {
+        case 'signedout':
+          return { accountId, state: 'error', error: 'invalid_grant', needsReauth: true }
+        case 'nocreds':
+          return {
+            accountId,
+            state: 'error',
+            error: 'This account is not signed in',
+            needsReauth: true,
+            noCredentials: true,
+          }
+        case 'client':
+          return {
+            accountId,
+            state: 'error',
+            error: 'unauthorized_client',
+            needsReauth: true,
+            clientFailure: true,
+          }
+        case 'noclient':
+          return {
+            accountId,
+            state: 'error',
+            error: 'No Google OAuth client is configured.',
+            clientFailure: true,
+            noClientConfigured: true,
+          }
+        default:
+          return { accountId, state: 'error', error: 'network timeout', lastSyncAt: now() - 7_200_000 }
+      }
+    }
+
+    const healthy = (id: string): SyncStatus => ({
+      accountId: id,
+      state: 'idle',
+      lastSyncAt: now() - 90_000,
+    })
+
+    return this.accounts.map((account, i) => {
+      if (!syncPreview) return healthy(account.id)
+      // `partial` signs out the FIRST account and leaves the rest healthy —
+      // the case the old footer could not express at all, because it collapsed
+      // every account into one word and could not say which.
+      if (syncPreview === 'partial') {
+        return i === 0
+          ? { accountId: account.id, state: 'error', error: 'invalid_grant', needsReauth: true }
+          : healthy(account.id)
+      }
+      return failure(account.id)
+    })
   }
 
   private emit(e: MailEvent): void {
@@ -166,9 +232,7 @@ export class DemoMailService implements MailService {
   }
 
   async refresh(): Promise<void> {
-    for (const account of this.accounts) {
-      this.emit({ type: 'syncStatus', status: { accountId: account.id, state: 'idle', lastSyncAt: Date.now() } })
-    }
+    for (const status of this.syncStatuses()) this.emit({ type: 'syncStatus', status })
   }
 
   // -- writes ---------------------------------------------------------------
