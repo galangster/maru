@@ -22,6 +22,7 @@ import { useComposeActions } from '@/features/compose/use-compose-actions'
 import { useAccounts, useLabels, useSyncStatus, useUnreadCount } from '@/features/mail/queries'
 import { useMailMode } from '@/features/mail/service'
 import { useUi, viewKey } from '@/features/mail/ui-store'
+import { SHELL_CARD } from '@/features/shell/app-shell'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { hueFor, hueSolid, type Hue } from '@/lib/hue'
@@ -47,16 +48,7 @@ export function Sidebar() {
   const inboxUnread = useUnreadCount(INBOX_VIEW).data ?? 0
 
   return (
-      <nav
-        aria-label="Mailboxes"
-        // The floating card (Apple Mail): bg-surface on the bg-canvas ground
-        // the panel's own padding exposes. NO `ring-1` — every --wren-shadow-*
-        // already carries `0 0 0 1px` as its first layer, so `shadow-xs` IS the
-        // border (DIRECTION §6). 18 − the 8 px inset below = 10, which is
-        // `--wren-radius-row`, the radius the rows already carry: concentric
-        // with no waiver and no new token.
-        className="bg-surface rounded-xl shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden"
-      >
+      <nav aria-label="Mailboxes" className={SHELL_CARD}>
         {/* The card's top band, on EVERY platform AND in both states. On macOS
             the three lights land on it (x 16..68, y 16..28) with a symmetric
             8 px of card above and to the left of the red circle; everywhere
@@ -73,7 +65,7 @@ export function Sidebar() {
             carrying a bare drag attribute is always `composedPath()[0]`, so it
             drags on mousedown and zooms on double-click; in a browser the
             attribute is inert. */}
-        <div data-tauri-drag-region aria-hidden className="h-(--wren-lights-reserve) shrink-0" />
+        <div data-tauri-drag-region aria-hidden className="h-(--wren-card-band) shrink-0" />
         {/* `justify-center` matters only when collapsed, and it is not
             cosmetic: expanded, Compose is `w-full` and centring is a no-op;
             collapsed it is a 36 px circle in a 52 px content box, and without

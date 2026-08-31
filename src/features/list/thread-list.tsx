@@ -27,6 +27,7 @@ import {
 import { useMailService } from '@/features/mail/service'
 import { DEFAULT_LIST_PREFS, isDefaultPrefs, useListPrefs, useUi } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/components/thread-result'
+import { SHELL_CARD } from '@/features/shell/app-shell'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { HeldMutations } from '@/lib/deferred'
 import { dateGroup, type DateGroup } from '@/lib/format'
@@ -281,7 +282,7 @@ export function ThreadList() {
       // hairline across the very top of the window. The header's `border-b` at
       // y=52 is now the window's first horizontal rule, and it is level with
       // the reading pane's and with the sidebar card's first control.
-      className="bg-surface @container flex h-full min-w-0 flex-col outline-none"
+      className={cn(SHELL_CARD, '@container min-w-0 outline-none')}
     >
       {/* The pane header is now the window's drag field. `="deep"` lets the
           blank areas and the title drag; Tauri's drag.js already blocks
@@ -289,7 +290,10 @@ export function ThreadList() {
           self-protect and only the two wrappers below need saying out loud. */}
       <header
         data-tauri-drag-region="deep"
-        className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-2 border-b px-4"
+        // --wren-card-band, not --wren-toolbar-h: the card starts 8px down,
+        // so a 44px band puts this rule on the window's one horizon at y=52,
+        // level with the reading region's and with the sidebar's first control.
+        className="border-hairline flex h-(--wren-card-band) shrink-0 items-center gap-2 border-b px-4"
       >
         {searchOpen ? (
           // Drag-blocked on its own root — see SearchField. drag.js exempts the
@@ -384,9 +388,9 @@ export function ThreadList() {
         </div>
       )}
 
-      {/* `scroll-fade`: the pane runs to the window frame, so the row that
-          happens to straddle the bottom edge was being sliced mid-line and read
-          as a stray fragment stuck to the bottom of the app. */}
+      {/* `scroll-fade`: a row that straddles the card's bottom edge would be
+          sliced mid-line and read as a stray fragment, so the last 16px
+          dissolves into the card's own corner instead. */}
       <div
         ref={scrollRef}
         className={cn(

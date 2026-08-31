@@ -242,14 +242,15 @@ Pane measures, decided once:
 | Token | Value | Note |
 |---|---|---|
 | `--wren-toolbar-h` | 52px | per-pane header — the window's ONE horizontal band |
-| `--wren-sidebar-gutter` | 8px | the ground channel around the floating sidebar card |
+| `--wren-sidebar-gutter` | 8px | the shell's ground inset where the ground ENDS at the window frame (the sidebar is only its first user) |
+| `--wren-shell-seam` | 4px | a card's margin where the ground CONTINUES past it |
+| `--wren-card-band` | 44px | any card's top band = `--wren-toolbar-h` − the gutter, so its header rule lands on the one horizon at y=52 |
 | `--wren-lights-gap` | 16px | mirrors `GAP` in `src-tauri/src/lib.rs`, both axes |
-| `--wren-lights-reserve` | 44px | the card's top band = toolbar 52 − gutter 8 |
 | `--wren-sidebar-w` | 248px | CARD width; the panel is this + 2 × gutter |
 | `--wren-sidebar-w-min` / `-max` | 200px / 320px | resize clamp, card widths |
 | `--wren-sidebar-w-collapsed` | 68px | icon rail seating the lights; panel 84, content box 52 |
-| `--wren-list-w` | 400px | default |
-| `--wren-list-w-min` / `-max` | 340px / 520px | resize clamp |
+| `--wren-list-w` | 400px | CARD width; the panel is this + 2 × seam |
+| `--wren-list-w-min` / `-max` | 340px / 520px | resize clamp, card widths |
 | `--wren-row-h` | 68px | two-line message row |
 | `--wren-row-h-compact` | 52px | single-line row (search results, palette) |
 | `--wren-list-sender-w` | 152px | fixed sender column — the Superhuman lesson |
@@ -293,6 +294,22 @@ densities. Keycaps are the exception and stay at `-xs`: a keycap has to read as 
 its own `-row` rect, inset `--wren-row-inset-x` with `--wren-row-gap` between neighbours, and
 hover and selection fill *that rect*. The gap does the grouping, so the in-list hairline is
 gone — which is what Family 1 asked for in the first place.
+
+**The shell has ONE ground, and cards float on it.** The sidebar and the list are cards:
+`--wren-surface` + `--wren-radius-xl` + `--wren-shadow-xs`. The reading region *is* the ground
+and runs full-bleed to the window's top, right and bottom edges — which is what stops the
+channels between cards reading as cracks, because the same value exists as a large field and
+not only as a stripe. Rounding the reading region would delete that field, and would also put
+white paper inside a white message card inside a white pane.
+
+So: **white + a radius + `shadow-xs` means an object on the ground, and it means nothing else** —
+the sidebar card, the list card, every message card, every popover. No exceptions.
+
+**A channel between cards is ground, and ground is never stroked.** Both shell resize handles are
+transparent at rest and show the accent only on hover. This is the one place the "pane separators
+use a real border" rule below does *not* apply: there is no longer a pane edge there to separate,
+only ground showing through, and a 1 px line drawn down the middle of it re-creates exactly the
+crack the card edges exist to remove.
 
 **Elevation** — a 1 px ring composed **with** a soft ambient shadow. The ring is what separates
 a floating surface from the canvas; the blur only softens (`AMIE-STUDY.md` §4.2). Every tier

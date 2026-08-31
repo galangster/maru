@@ -51,15 +51,43 @@ function snapToWholePixels(panel: PanelImperativeHandle | null, inPixels: number
   panel.resize(`${rounded}px`)
 }
 
+/**
+ * Both channels, from one string.
+ *
+ * Invisible at rest, so a channel reads as ground rather than as a seam; the
+ * line appears only when it is reached for. `after:w-2` widens the grab strip
+ * from 4 to 8 px, which stays inside the empty channel and steals no click.
+ *
+ * Neither channel is stroked at rest. A channel is ground showing between two
+ * cards, and ground is not a separator — DIRECTION §6.
+ */
+const CHANNEL_HANDLE =
+  'bg-transparent hover:bg-brand/40 transition-colors duration-(--wren-dur-fast) after:w-2'
+
+/** Collapse snaps once a drag comes within this of the collapsed width. */
+const SNAP_SLACK = 8
+
+/**
+ * A shell card: the sidebar and the list, which are the two things that float
+ * on the ground. (The reading region is the ground, so it is not one.)
+ *
+ * No `ring-1` — every --wren-shadow-* carries `0 0 0 1px` as its first layer,
+ * so `shadow-xs` IS the border (DIRECTION §6). The radius is 18 because a
+ * card's 8px inset then leaves 10 inside, which is --wren-radius-row: the
+ * thread rows have been drawing the inside of this card since they shipped.
+ */
+export const SHELL_CARD =
+  'bg-surface rounded-xl shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden'
+
 export function AppShell() {
   const collapsed = useUi((s) => s.sidebarCollapsed)
   const setCollapsed = useUi((s) => s.setSidebarCollapsed)
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
   const listRef = useRef<PanelImperativeHandle | null>(null)
 
-  // The four sidebar measures are CARD widths (tokens.css says so at the
-  // group). The panel is the card plus a gutter each side, and that padding is
-  // the visible ground channel the card floats on.
+  // Sidebar and list measures are CARD widths (tokens.css says so at each
+  // group). A panel is its card plus the padding below, and that padding is
+  // the ground channel the card floats on.
   const measures = useMemo(
     () => ({
       sidebar: pxToken('--wren-sidebar-w', 248),
@@ -67,14 +95,21 @@ export function AppShell() {
       sidebarMax: pxToken('--wren-sidebar-w-max', 320),
       sidebarCollapsed: pxToken('--wren-sidebar-w-collapsed', 68),
       gutter: pxToken('--wren-sidebar-gutter', 8),
+      seam: pxToken('--wren-shell-seam', 4),
       list: pxToken('--wren-list-w', 400),
       listMin: pxToken('--wren-list-w-min', 340),
       listMax: pxToken('--wren-list-w-max', 520),
     }),
     [],
   )
-  /** Card → panel. Every size handed to the library carries it. */
-  const pad = measures.gutter * 2
+  // Card → panel. Two quantities, and the difference is the idea: the gutter
+  // is ground that ENDS at the window frame, the seam is ground that CONTINUES
+  // past a card. So the sidebar pays a gutter on its left and a seam on its
+  // right; the list pays a seam on both. The resulting channels are NOT equal —
+  // sidebar-to-list is seam + handle + seam (9px), list-to-reading is seam +
+  // handle (5px), because the reading region contributes no padding of its own.
+  const SIDEBAR_PAD = measures.gutter + measures.seam
+  const LIST_PAD = measures.seam * 2
 
   // The footer button drives the panel; dragging the handle past the min
   // drives the store. Both end up at the same place.
@@ -97,37 +132,42 @@ export function AppShell() {
       <ResizablePanelGroup className="h-full">
         <ResizablePanel
           panelRef={sidebarRef}
-          // Card + gutter each side. The library's inner div takes the padding,
-          // so the ground channel is the panel's own margin around the card.
-          defaultSize={measures.sidebar + pad}
-          minSize={measures.sidebarMin + pad}
-          maxSize={measures.sidebarMax + pad}
+          // The library's inner div takes the padding, which is why the card
+          // itself must never carry a margin — one layer owns the channel.
+          defaultSize={measures.sidebar + SIDEBAR_PAD}
+          minSize={measures.sidebarMin + SIDEBAR_PAD}
+          maxSize={measures.sidebarMax + SIDEBAR_PAD}
           collapsible
-          collapsedSize={measures.sidebarCollapsed + pad}
+          collapsedSize={measures.sidebarCollapsed + SIDEBAR_PAD}
           onResize={(size) => {
-            setCollapsed(size.inPixels <= measures.sidebarCollapsed + pad + 8)
+            setCollapsed(size.inPixels <= measures.sidebarCollapsed + SIDEBAR_PAD + SNAP_SLACK)
             snapToWholePixels(sidebarRef.current, size.inPixels)
           }}
-          className="flex min-h-0 flex-col p-(--wren-sidebar-gutter)"
+          // The card's LEFT edge must stay at x=8: place_traffic_lights in the
+          // Rust puts the lights there, and tests/traffic-lights.test.ts holds
+          // the pair together.
+          className="flex min-h-0 flex-col py-(--wren-sidebar-gutter) pl-(--wren-sidebar-gutter) pr-(--wren-shell-seam)"
         >
           <Sidebar />
         </ResizablePanel>
-        {/* Invisible at rest, so the 8 px channel reads as ground rather than
-            as a seam; the line appears only when it is reached for. `after:w-2`
-            widens the grab strip from 4 to 8 px — entirely inside the empty
-            gutter and the list's own `px-4`, so it steals no click from the
-            card or from a row. */}
-        <ResizableHandle className="bg-transparent hover:bg-brand/40 transition-colors duration-(--wren-dur-fast) after:w-2" />
+        <ResizableHandle className={CHANNEL_HANDLE} />
         <ResizablePanel
           panelRef={listRef}
-          defaultSize={measures.list}
-          minSize={measures.listMin}
-          maxSize={measures.listMax}
+          defaultSize={measures.list + LIST_PAD}
+          minSize={measures.listMin + LIST_PAD}
+          maxSize={measures.listMax + LIST_PAD}
           onResize={(size) => snapToWholePixels(listRef.current, size.inPixels)}
+          className="flex min-h-0 flex-col py-(--wren-sidebar-gutter) px-(--wren-shell-seam)"
         >
           <ThreadList />
         </ResizablePanel>
-        <ResizableHandle className="bg-hairline hover:bg-brand/40 transition-colors duration-(--wren-dur-fast)" />
+        <ResizableHandle className={CHANNEL_HANDLE} />
+        {/* No padding, no card. The reading region IS the ground — it runs
+            full-bleed to the window's top, right and bottom edges, and it is
+            what the other two float on. Rounding it would delete the ~610 px
+            field that makes the channels read as ground rather than as
+            cracks, and it would put white paper on a white card on a white
+            pane with a 4%-alpha ring as the only separator. */}
         <ResizablePanel minSize={360}>
           <ReadingPane />
         </ResizablePanel>

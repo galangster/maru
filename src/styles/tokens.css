@@ -69,9 +69,14 @@
        coral rebrand; it now sits at hue 50 with the same 0.002–0.005 chroma,
        so it reads warm paper beside the logo's coral rather than cool slate.
        Lightness untouched — every verified contrast pair carries over. */
-    --wren-surface-base: oklch(0.968 0.002 50); /* #F6F4F3 canvas, sidebar   */
+    /* THE ONE GROUND: the window, the channels between cards, and the reading
+       region — which is the ground rather than a thing standing on it. */
+    --wren-surface-base: oklch(0.968 0.002 50); /* #F6F4F3 the ground         */
     --wren-surface-sunken: oklch(0.949 0.003 50); /* #F0EDEC wells, inputs   */
-    --wren-surface: oklch(1 0 0); /* #FFFFFF list + reading pane              */
+    /* AN OBJECT ON THE GROUND, and nothing else: white + a radius +
+       shadow-xs is the sidebar card, the list card, a message card, a
+       popover. No exceptions — that is what makes them read as one system. */
+    --wren-surface: oklch(1 0 0); /* #FFFFFF cards                            */
     --wren-surface-raised: oklch(1 0 0); /* #FFFFFF cards, popovers           */
 
     /* --- Text tiers (AA verified, see DIRECTION.md §3) --------------------
@@ -503,17 +508,22 @@
        and the browser captures cannot catch it (they draw no lights). */
     --wren-lights-gap: 16px;
     /* The ground channel around the floating sidebar card. On the 4 px grid,
-       and small enough that --wren-shadow-xs (~3 px extent) is never clipped by
-       the panel's own `overflow: auto` inner div. At 8 the card's left edge
+       and clear of --wren-shadow-xs, whose true extent is 1px sideways (the
+       ring's spread), 2px down and 1px up at zero x-offset — so the ring is
+       never clipped by the panel's own `overflow: auto` inner div. At 8 the
+       card's left edge
        lands on x=8, so all three lights sit ON the card with a symmetric 8 px
        of card above and to the left of the red circle. */
     --wren-sidebar-gutter: 8px;
-    /* The card's top band, so the first sidebar control lands at y=52, level
-       with both pane headers' `border-b`. Unconditional on every platform —
-       off macOS it is simply empty card, and that is what keeps one geometry
-       under the screenshot gate. Written as arithmetic, not as 44px: it is
-       what makes the alignment survive a change to either input. */
-    --wren-lights-reserve: calc(var(--wren-toolbar-h) - var(--wren-sidebar-gutter));
+    /* A card's own margin where the ground CONTINUES past it, rather than
+       ending at the window edge. 4 > the 1px sideways extent of
+       --wren-shadow-xs, so no ring is clipped by a panel's inline
+       `overflow: auto`; on the 4px grid; and half the shell inset, so the
+       channel between two cards reads as one gap rather than two margins. */
+    --wren-shell-seam: 4px;
+    /* The top band of ANY card, so its header rule lands on the window's one
+       horizon at y=52. Named for the job the sidebar and the list now share. */
+    --wren-card-band: calc(var(--wren-toolbar-h) - var(--wren-sidebar-gutter));
 
 
     /* CARD widths, not panel widths. The sidebar ResizablePanel is the card
@@ -536,6 +546,8 @@
        get 10 px each side and the focus ring still clears the card's
        `overflow-hidden`. */
     --wren-sidebar-w-collapsed: 68px;
+    /* CARD widths, like the sidebar's above: the list ResizablePanel is the
+       card PLUS 2 × --wren-shell-seam, and app-shell.tsx adds that itself. */
     --wren-list-w: 400px;
     --wren-list-w-min: 340px;
     --wren-list-w-max: 520px;

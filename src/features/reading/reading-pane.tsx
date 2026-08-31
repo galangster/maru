@@ -149,7 +149,13 @@ export function ReadingPane() {
           buttons, and the two wrappers below make that explicit. */}
       <header
         data-tauri-drag-region="deep"
-        className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-1 border-b px-4"
+        // The box stays --wren-toolbar-h so the rule lands on the horizon at
+        // y=52, but the CONTENT band is padded down to --wren-card-band to
+        // match the list card's. Written as the difference rather than as the
+        // gutter that currently equals it: without this the two control rows
+        // sit 4px apart across 5px of ground, the same class of near-miss
+        // UI-REVIEW-2026-08-28 S8 already caught at this exact seam.
+        className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-1 border-b px-4 pt-[calc(var(--wren-toolbar-h)-var(--wren-card-band))]"
       >
         <div data-tauri-drag-region="false" className="flex items-center gap-1">
           {toolbar.map((id) => {
