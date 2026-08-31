@@ -59,6 +59,15 @@ Concentrations: verification-answers (project id, client id, trademark
 receipt, frozen release, demo package), QUOTA (dashboards + alerts),
 CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
+## Decisions to ratify
+
+- **Multi-device sequence** (asked 2026-08-31, brief in
+  docs/research/multi-device-strategy.md): map 4 = paid sync service
+  (settings + audit doc, E2E, plus the Gmail-watch push relay), map 5 =
+  iOS via Tauri riding that relay. Ratify the order, or reorder; and
+  decide whether the map-4 grill waits for Google's review verdict.
+  Until then, P5's settings export/import is the zero-server stopgap.
+
 ## Non-blocking
 
 - **Re-test the 7-day re-auth path** against the production consent
