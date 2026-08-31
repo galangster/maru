@@ -2,8 +2,8 @@
 
 Preconditions (all must hold before the first take):
 
-- [ ] The **0.1.1 signed build** is installed from the macos-release CI
-  artifact (not a dev build). Verify About shows 0.1.1.
+- [ ] The **0.1.2 signed build** is installed from the macos-release CI
+  artifact (not a dev build). Verify About shows 0.1.2.
 - [ ] The **demo Google account** is signed into the default browser
   (recommended: galangsterr@gmail.com), seeded per `SEED-EMAILS.md`,
   with a few messages, one attachment, and one starred thread.
@@ -18,7 +18,7 @@ Nick's hands are needed ONLY at the marked moments.
 
 | Shot | Content | Nick's part |
 | --- | --- | --- |
-| 01-build-and-version | Open the app, open About: name + 0.1.1 visible | — |
+| 01-build-and-version | Open the app, open About: name + 0.1.2 visible | — |
 | 02-account-addition | Click Add account → system browser opens, address bar + client id in URL | Pick the demo account in the chooser |
 | 03-consent-screen | The full English consent screen, scroll it all, gmail.modify only | Click **Allow** |
 | 04-read-mail | Thread list, open a thread, read body, open the attachment | — |

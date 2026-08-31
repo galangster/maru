@@ -72,7 +72,7 @@ cat > src-tauri/target/release/bundle/latest.json <<MANIFEST
   "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/galangster/wren/releases/download/v${VERSION}/$(basename "$TARBALL")",
+      "url": "https://github.com/galangster/maru/releases/download/v${VERSION}/$(basename "$TARBALL")",
       "signature": "${SIG}"
     }
   }

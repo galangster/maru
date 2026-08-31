@@ -68,7 +68,13 @@ function rest(idle: number): string {
  *  Oldest, not newest: "last synced 2m ago" has to be true of all of them. */
 function oldestSync(known: SyncStatus[], total: number): number | undefined {
   const ages = known.map((s) => s.lastSyncAt).filter((t): t is number => t !== undefined)
-  return ages.length === total ? Math.min(...ages) : undefined
+  // `ages.length === total` alone was true for the zero-account case (0 === 0),
+  // and `Math.min()` of nothing is Infinity — which elapsedTime clamps to
+  // "just now". So an app with no accounts at all reported "0 accounts · last
+  // synced just now": the same confident lie about accounts it knows nothing
+  // about that this whole file exists to delete.
+  if (ages.length === 0 || ages.length !== total) return undefined
+  return Math.min(...ages)
 }
 
 export function describeSync(
@@ -86,6 +92,20 @@ export function describeSync(
       full: 'Demo data',
       detail: `Demo data · ${plural}`,
       action: null,
+    }
+  }
+
+  if (accounts.length === 0) {
+    // Reachable behind the onboarding overlay on first run, and after removing
+    // the last account in Settings. Every branch below is a claim about
+    // accounts, and with none there is no true one to make — "0 accounts · up
+    // to date" is a status line congratulating you on syncing nothing.
+    return {
+      kind: 'unheard',
+      short: 'No account',
+      full: 'No account',
+      detail: 'No account is connected yet. Open Settings to add one.',
+      action: 'accounts',
     }
   }
 

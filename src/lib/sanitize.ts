@@ -32,6 +32,15 @@ export interface SanitizeResult {
   html: string
   /** How many remote images were withheld. 0 means nothing was blocked. */
   blockedImages: number
+  /**
+   * How many remote images the body REFERENCES, whether or not they were
+   * withheld. This is the one the CSP must be keyed on, and the distinction is
+   * not academic: `blockedImages` is counted inside the `!allowRemoteImages`
+   * guards, so the moment a person clicks Show it drops to zero. Deciding
+   * whether to widen the CSP from that number meant the widening never
+   * happened and Show did nothing at all.
+   */
+  remoteImages: number
 }
 
 const FORBID_TAGS = [
@@ -106,12 +115,21 @@ const CSS_FETCHING_PROPERTY =
  * `line-height:` and `max-height:` — mail carries `line-height` on nearly
  * every `<td>` — and the replace turns `line-height:20px;color:red` into
  * `line-color:red`, which is not CSS at all.
+ *
+ * And it must be PUT BACK: every `.replace` with this pattern uses `'$1'`, not
+ * `''`. The group consumes the separator that ended the previous declaration,
+ * so dropping it welded the neighbours together —
+ * `width:600px;height:350px;border:0` became `width:600pxborder:0`, killing
+ * both `width` and `border` in every minified newsletter. The original tests
+ * missed it because none of them put a declaration on BOTH sides of the
+ * height.
  */
 const CSS_SIZING = /(^|[;\s])(?:min-)?height\s*:[^;]*;?/gi
 
-let state: SanitizeOptions & { blocked: number; needsPostPass: boolean } = {
+let state: SanitizeOptions & { blocked: number; remote: number; needsPostPass: boolean } = {
   allowRemoteImages: false,
   blocked: 0,
+  remote: 0,
   needsPostPass: false,
 }
 
@@ -125,6 +143,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   // counting it would inflate the pill for a non-event.
   if (tag === 'IMAGE') {
     const href = node.getAttribute('href') ?? node.getAttribute('xlink:href') ?? ''
+    if (isRemote(href)) state.remote++
     if (isRemote(href) && !state.allowRemoteImages) {
       state.blocked++
       node.remove()
@@ -140,6 +159,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       else node.remove()
       return
     }
+    if (isRemote(src)) state.remote++
     if (isRemote(src) && !state.allowRemoteImages) {
       state.blocked++
       // SUBSTITUTE, do not remove. Removing the <img> killed the pixels but
@@ -177,6 +197,9 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   const style = node.getAttribute('style')
   if (style && /url\(/i.test(style)) {
     const remote = /url\(\s*['"]?\s*(?:https?:)?\/\//i.test(style)
+    // Counted outside the withheld guard, because this is what the CSP is
+    // keyed on and it has to stay true after Show is clicked.
+    if (remote) state.remote++
     // Only strip what is actually withheld. The strip used to run
     // unconditionally, so clicking "Show" dropped the pill to zero and
     // revealed NOTHING for a mail whose imagery is CSS backgrounds — and it
@@ -191,13 +214,34 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       // The declaration that carried the image usually carried its height too
       // (`background-image:url(...);height:350px`), and dropping only the
       // former is exactly what leaves the hole.
-      if (stripped !== style) stripped = stripped.replace(CSS_SIZING, '')
+      if (stripped !== style) stripped = stripped.replace(CSS_SIZING, '$1')
       node.setAttribute('style', stripped)
       state.needsPostPass = true
     }
   }
 
   if (tag === 'A') {
+    const href = (node.getAttribute('href') ?? '').trim()
+    // A RELATIVE href must never become a top navigation.
+    //
+    // Mail has no base URL, so a relative link is already meaningless as mail
+    // — but a srcdoc iframe resolves it against the PARENT, which is the app's
+    // own origin. Combined with `target="_top"` below, `<a href="?screenshot=1">`
+    // in a received message was a same-origin top-level navigation that the
+    // Rust guard allows because the host matches. Clicking an ordinary-looking
+    // link in a stranger's email could reload the reader's real mail client
+    // into a different mode.
+    //
+    // Absolute http(s)/mailto/tel links are untouched and still open
+    // externally. This only removes a target for links that never had a
+    // legitimate destination.
+    const absolute = /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//')
+    if (!absolute && !href.startsWith('#')) {
+      node.removeAttribute('href')
+      node.removeAttribute('target')
+      node.setAttribute('rel', 'noopener noreferrer')
+      return
+    }
     // `_top`, not `_blank`: the message iframe blocks popups, and WebKit
     // never fires parent-attached click listeners inside a no-scripts
     // sandbox. A top navigation is the one path that works everywhere —
@@ -261,7 +305,7 @@ function collapseEmptyBoxes(root: ParentNode): void {
 
     el.removeAttribute('height')
     if (style) {
-      const stripped = style.replace(CSS_SIZING, '')
+      const stripped = style.replace(CSS_SIZING, '$1')
       if (stripped.trim()) el.setAttribute('style', stripped)
       else el.removeAttribute('style')
     }
@@ -269,7 +313,7 @@ function collapseEmptyBoxes(root: ParentNode): void {
 }
 
 export function sanitizeBody(html: string, opts: SanitizeOptions): SanitizeResult {
-  state = { ...opts, blocked: 0, needsPostPass: false }
+  state = { ...opts, blocked: 0, remote: 0, needsPostPass: false }
   // RETURN_DOM so the post-pass gets the tree DOMPurify already built, rather
   // than serializing and re-parsing it. "Does this box still contain anything"
   // needs a tree and cannot be asked of a string — but it does not need a
@@ -287,6 +331,7 @@ export function sanitizeBody(html: string, opts: SanitizeOptions): SanitizeResul
   // Read the count out NOW. `state` is module scope shared with the hook, and
   // the post-pass below is a dozen lines away from where the value was made.
   const blocked = state.blocked
+  const remote = state.remote
 
   // Gated on there being WORK, not merely on something having been blocked: a
   // 1x1 beacon, an SVG <image> and an unresolved cid: all bump the count while
@@ -299,7 +344,7 @@ export function sanitizeBody(html: string, opts: SanitizeOptions): SanitizeResul
     chipBlockedImages(root)
   }
 
-  return { html: root.innerHTML, blockedImages: blocked }
+  return { html: root.innerHTML, blockedImages: blocked, remoteImages: remote }
 }
 
 /**

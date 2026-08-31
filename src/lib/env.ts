@@ -6,12 +6,40 @@
 import { isUnifiedFolder } from '@/core/defaults'
 import type { MailView } from '@/core/types'
 
-const params = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
+const rawParams = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
 
 /** True inside a Tauri window. In a plain browser this is always false. */
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
+
+/**
+ * Whether the mode flags below may be honoured at all.
+ *
+ * They must not be, in a shipped app. A message body's anchors all carry
+ * `target="_top"`, DOMPurify keeps RELATIVE hrefs, and a srcdoc iframe
+ * resolves those against the parent — so `<a href="?screenshot=1">Read
+ * online</a>` in a received email is a same-origin top-level navigation, which
+ * the Rust `on_navigation` guard allows because the host matches. Clicking an
+ * ordinary-looking link in a stranger's mail could therefore reload a person's
+ * real mail client with a frozen clock and notifications silently off
+ * (`screenshot`), with fabricated threads (`demo`), or with Maru's own Google
+ * sign-in prompt over a live session (`onboarding`) — a ready-made phishing
+ * pretext. It survived until it did not, and nothing on screen would explain
+ * it.
+ *
+ * The capture harness drives Chromium against the vite dev server
+ * (scripts/screenshot.mjs), never a packaged build, so gating on "not a
+ * shipped Tauri app" costs it nothing. The website demo is outside Tauri and
+ * is likewise unaffected.
+ *
+ * Defence in depth, not the only defence: the navigation guard should reject
+ * these too, and the sanitizer should not be handing out `target="_top"` on
+ * relative links. This is the layer that is safe to change on a release day.
+ */
+const modeFlagsAllowed = !isTauri() || import.meta.env.DEV
+
+const params = modeFlagsAllowed ? rawParams : new URLSearchParams('')
 
 /** `?demo=1` forces demo mode; outside Tauri there is nothing else to run. */
 export const isDemo = params.get('demo') === '1' || !isTauri()

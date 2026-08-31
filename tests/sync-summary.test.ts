@@ -176,6 +176,18 @@ describe('describeSync', () => {
     expect(sync.detail).toContain('The other 2 accounts are up to date.')
   })
 
+  it('does not congratulate you on syncing zero accounts', () => {
+    // `ages.length === total` was true for 0 === 0, and Math.min() of nothing
+    // is Infinity, which elapsedTime clamps to "just now" — so an app with no
+    // accounts reported "0 accounts · last synced just now". Reachable on
+    // first run and after removing the last account.
+    const sync = describeSync([], {}, false, NOW)
+    expect(sync.detail).not.toContain('just now')
+    expect(sync.detail).not.toContain('up to date')
+    expect(sync.short).toBe('No account')
+    expect(sync.action).toBe('accounts')
+  })
+
   it('reports the OLDEST last-sync, not the luckiest account', () => {
     const all = statuses(
       ok('a', NOW - 60_000),

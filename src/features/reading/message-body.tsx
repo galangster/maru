@@ -135,7 +135,7 @@ export function MessageBody({
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(() => estimateHeight(message))
 
-  const { html, blockedImages } = useMemo(
+  const { html, blockedImages, remoteImages } = useMemo(
     () =>
       sanitizeCached(`${message.id}:${allowRemoteImages}:${inlineImages?.size ?? 0}`, raw, {
         allowRemoteImages,
@@ -143,14 +143,20 @@ export function MessageBody({
       }),
     [message.id, raw, allowRemoteImages, inlineImages],
   )
-  // The CSP widens only for a body that actually had something withheld.
+  // The CSP widens only for a body that actually REFERENCES a remote image.
   // Keying it on `allowRemoteImages` alone would rewrite the srcdoc of every
   // image-free message in the thread when Show is clicked — `html` is
   // byte-identical for those, but a changed CSP string still replaces the
   // document, tearing down the ResizeObserver and re-measuring. On a
   // twenty-message thread with fifteen plain replies that is fifteen
   // gratuitous reloads per click.
-  const wantsRemote = allowRemoteImages && blockedImages > 0
+  //
+  // `remoteImages`, NOT `blockedImages`. Every increment of the blocked count
+  // lives inside a `!allowRemoteImages` guard in the sanitizer, so the instant
+  // Show was clicked the count fell to zero, this went false, the CSP stayed
+  // at `img-src data:` — and Show revealed nothing at all. The sanitizer was
+  // un-blocking the images and the CSP was re-blocking them in the same pass.
+  const wantsRemote = allowRemoteImages && remoteImages > 0
   const srcDoc = useMemo(() => buildSrcdoc(html, { allowRemoteImages: wantsRemote }), [html, wantsRemote])
 
   useEffect(() => onBlockedImages(blockedImages), [blockedImages, onBlockedImages])

@@ -172,12 +172,23 @@ function useGaze(
     const fx = (x0 + x1) / 2 / 440
     const fy = (y0 + y1) / 2 / 440
     let frame = 0
+    let cachedBox: DOMRect | null = null
+    const invalidate = () => {
+      cachedBox = null
+    }
     const onMove = (event: MouseEvent) => {
       if (frame) return
       frame = requestAnimationFrame(() => {
         frame = 0
         const el = eye.current
-        const box = root.current?.getBoundingClientRect()
+        // Cached, and invalidated by resize/scroll rather than re-read every
+        // frame. The eye's `translate` write in frame N invalidates layout, so
+        // reading the rect in frame N+1 forced a full style recalc plus a
+        // document layout — once per mousemove frame, for the entire time the
+        // resting screen is up, which is the demo's opening shot. It was the
+        // one main-thread cost in an otherwise fully composited rig.
+        if (!cachedBox) cachedBox = root.current?.getBoundingClientRect() ?? null
+        const box = cachedBox
         if (!box) return
 
         // Arousal, from the figure's centre.
@@ -203,8 +214,14 @@ function useGaze(
       })
     }
     window.addEventListener('mousemove', onMove, { passive: true })
+    window.addEventListener('resize', invalidate, { passive: true })
+    // Capture phase: the figure sits inside scrollable panes, and a scroll on
+    // any of them moves it without bubbling to window.
+    window.addEventListener('scroll', invalidate, { passive: true, capture: true })
     return () => {
       window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('resize', invalidate)
+      window.removeEventListener('scroll', invalidate, { capture: true })
       if (frame) cancelAnimationFrame(frame)
       if (eye.current) eye.current.style.translate = ''
     }

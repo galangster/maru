@@ -180,8 +180,132 @@ describe('the srcdoc CSP backstop', () => {
 
 })
 
+describe('stripping a height leaves its neighbours intact', () => {
+  // `CSS_SIZING` captures the separator that ended the PREVIOUS declaration.
+  // Replacing with '' instead of '$1' welded the neighbours together:
+  // `width:600px;height:350px;border:0` -> `width:600pxborder:0`, which kills
+  // width AND border. Every minified-inline-CSS newsletter with a blocked
+  // image hit it. The original tests missed it because none of them put a
+  // declaration on both sides of the height.
+  const styled = (style: string) =>
+    blocked(
+      `<div style="${style};background-image:url(https://cdn.example/a.png)">x</div>`,
+    ).html
+
+  it('keeps the declaration before the height', () => {
+    expect(styled('width:600px;height:350px;border:0')).toContain('width:600px')
+  })
+
+  it('keeps the declaration after the height', () => {
+    expect(styled('width:600px;height:350px;border:0')).toContain('border:0')
+  })
+
+  it('never welds two declarations into one', () => {
+    const out = styled('text-align:center;height:350px;font-size:0')
+    expect(out).not.toContain('text-align:centerfont-size')
+    expect(out).toContain('text-align:center')
+    expect(out).toContain('font-size:0')
+  })
+
+  it('still does not eat line-height', () => {
+    const out = styled('line-height:20px;height:350px;color:red')
+    expect(out).toContain('line-height:20px')
+    expect(out).toContain('color:red')
+    expect(out).not.toContain('line-color')
+  })
+})
+
+describe('Show actually shows — the two layers must agree', () => {
+  // The defect this pins: every increment of `blockedImages` lives inside a
+  // `!allowRemoteImages` guard, so the count is 0 in exactly the pass where
+  // Show has been clicked. The reading pane keyed the CSP on that count, so
+  // clicking Show un-blocked the images in the sanitizer and re-blocked them
+  // in the CSP, in the same render. Show was dead for every message.
+  //
+  // Testing one pass in isolation could never catch it. These assert the
+  // ROUND TRIP: block, then allow, and check the second pass still knows the
+  // body has remote imagery.
+  const cases: [string, string][] = [
+    ['an <img>', '<img src="https://cdn.example/hero.png" width="600" height="300">'],
+    ['an SVG <image>', '<svg><image href="https://cdn.example/a.png" /></svg>'],
+    ['a CSS background', '<div style="background-image:url(https://cdn.example/a.png)">x</div>'],
+    ['a protocol-relative src', '<img src="//cdn.example/hero.png" width="600" height="300">'],
+  ]
+
+  for (const [what, body] of cases) {
+    it(`counts ${what} as remote in BOTH passes`, () => {
+      const off = sanitizeBody(body, { allowRemoteImages: false })
+      const on = sanitizeBody(body, { allowRemoteImages: true })
+
+      // Withheld only while blocking...
+      expect(off.blockedImages).toBeGreaterThan(0)
+      expect(on.blockedImages).toBe(0)
+
+      // ...but PRESENT in both, which is what the CSP is keyed on.
+      expect(off.remoteImages).toBeGreaterThan(0)
+      expect(
+        on.remoteImages,
+        'if this is 0, the CSP stays at `img-src data:` and Show reveals nothing',
+      ).toBeGreaterThan(0)
+    })
+  }
+
+  it('does not claim remote images for a body that has none', () => {
+    // The other half of the contract: a plain reply must NOT widen its CSP,
+    // or every message in a thread reloads on every Show click.
+    const plain = sanitizeBody('<p>Just text, and a <a href="https://x.test">link</a>.</p>', {
+      allowRemoteImages: true,
+    })
+    expect(plain.remoteImages).toBe(0)
+  })
+
+  it('does not count a cid: attachment as remote', () => {
+    const inline = new Map([['logo', 'data:image/png;base64,AAA']])
+    const out = sanitizeBody('<img src="cid:logo">', {
+      allowRemoteImages: false,
+      inlineImages: inline,
+    })
+    expect(out.remoteImages).toBe(0)
+    expect(out.blockedImages).toBe(0)
+  })
+})
+
 describe('link handling', () => {
   it('keeps the link target contract', () => {
     expect(blocked('<a href="https://example.com">x</a>').html).toContain('target="_top"')
+  })
+
+  // A srcdoc iframe resolves relative URLs against the PARENT — the app's own
+  // origin — and `target="_top"` made that a real top-level navigation the
+  // Rust guard allows, because the host matches. So a link in a stranger's
+  // email could reload the reader's mail client into another mode.
+  const relative = [
+    '?screenshot=1',
+    '/index.html?demo=1',
+    'index.html?onboarding=1',
+    './?sync=partial',
+    '../?tune=1',
+  ]
+  for (const href of relative) {
+    it(`defuses the relative href ${href}`, () => {
+      const out = blocked(`<a href="${href}">Read online</a>`).html
+      expect(out).not.toContain('target="_top"')
+      expect(out).not.toContain('href=')
+      // The text survives — the link is inert, not deleted.
+      expect(out).toContain('Read online')
+    })
+  }
+
+  it('leaves absolute and mailto links alone', () => {
+    for (const href of ['https://example.com/x', 'http://example.com', 'mailto:a@b.test']) {
+      const out = blocked(`<a href="${href}">x</a>`).html
+      expect(out, href).toContain('target="_top"')
+      expect(out, href).toContain(href)
+    }
+  })
+
+  it('keeps in-document anchors usable', () => {
+    // A #fragment cannot leave the srcdoc, so it is not a navigation vector.
+    expect(blocked('<a href="#footnote">jump</a>').html).toContain('href="#footnote"')
   })
 })

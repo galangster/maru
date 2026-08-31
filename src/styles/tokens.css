@@ -1239,6 +1239,17 @@
     pointer-events: none;
 }
 
+/* Once, not twice. The shell root carries .wren-empty whenever nothing is
+   selected, and the reading pane's own EmptyState carries it under exactly the
+   same condition — so the reading region got two stacked dither layers
+   (effective 0.059) against one (0.030) in the channels between the cards. A
+   1.97x step lands as a soft tonal band along the seam the two are supposed to
+   be indistinguishable across. The nested one keeps its field colour and drops
+   only its dither. */
+.wren-empty .wren-empty::after {
+    content: none;
+}
+
 /* --- Idle: breath, plus ONE discrete behaviour at a time -------------------
    Breath is the only perpetual loop on this surface. Everything else is a
    single-shot animation selected by `data-wren-do`, which a scheduler in
