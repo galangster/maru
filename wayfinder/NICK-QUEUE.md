@@ -50,15 +50,30 @@ asking in chat. Newest at the top of each section. Strike items done.
    after the visual pass lands**, then the hand-smoke below, then the
    sitting. Everything else in this item still stands.
 
-   Freeze build facts, for the record (main @ 8e6beb6, coral brand +
-   Maru character + link fix): signed, notarized Accepted, stapled, all
-   three Gatekeeper checks passed, installed and launching.
-   The agent stopped short of driving the UI — you were using the
-   machine and synthetic keystrokes were landing across windows. Your
-   ~2 minutes, in the app:
+   ONE AGENT ITEM IS STILL OPEN, and it is yours to release: the LIST
+   CARD (round the inbox pane to match the sidebar). You asked for the
+   inbox and thread panes both; a judged design pass says round the
+   inbox and leave the thread pane as the ground — the sliver reads as
+   a crack because #F6F4F3 is a 610px field on the right and a 9px
+   stripe on the left, and rounding the thread pane deletes the field
+   and orphans the stripe again. There is also a hard reason: the
+   reading pane draws every message as a white card with a white paper
+   iframe inside, so a white pane is white-on-white-on-white. Say go
+   and it lands (~20 mostly mechanical edits). Say no and the freeze
+   can go as-is — it is additive.
+
+   YOUR HAND-CHECKS, in order, before the sitting:
+   - **Four native checks no capture can make**, now load-bearing
+     because the titlebar row was deleted: drag the window by the list
+     header's blank area, by the reading header's blank area, and by
+     the sidebar's traffic-light band; double-click each to zoom; then
+     enter and exit fullscreen and confirm the lights carry over. If
+     any fail, the drag regions are wrong — better known before a
+     20-minute sitting than during one.
    - Open any thread (body renders), click one link (opens in Arc),
      open the weekend-photos thread and click a thumbnail (lightbox
-     morph), watch the empty state (Maru breathes).
+     morph), watch the empty state (Maru breathes, blinks, and now
+     shrugs a wing / shifts weight on a slow clock).
    - **Check the seed emails are still in the inbox** — the unified
      inbox showed only 2 real threads at smoke time, none of the 5
      seeds from SEED-EMAILS.md. If earlier testing archived them,
@@ -66,6 +81,17 @@ asking in chat. Newest at the top of each section. Strike items done.
    - Recording prep: star "Invoice #1042 from Acme Design", send one
      short reply from galangsterr on the "Team lunch Thursday?" thread.
    Then the ~20-minute sitting per demo/RECORDING-RUNBOOK.md.
+
+   THE ONE DECISION THE RECORDING BAKES IN is the colour anchor (P14,
+   below). Whatever is on screen when you record ships in the demo
+   video, and you have already said the three colour systems do not
+   agree. Every other queued decision can wait; that one cannot be
+   undone cheaply.
+
+   Freeze build facts, for the record (main @ 8e6beb6, coral brand +
+   Maru character + link fix): signed, notarized Accepted, stapled, all
+   three Gatekeeper checks passed, installed and launching. Rebuild
+   command is in the handoff's Environment facts.
 
 6. **Demo video captures** — the Remotion scaffold is built (`demo/`,
    2026-08-30) with the full 10-shot list, captions, and placeholder
