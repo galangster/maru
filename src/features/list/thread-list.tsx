@@ -261,6 +261,10 @@ export function ThreadList() {
 
   const showAccount = view.kind === 'unified' && accounts.length > 1
   const hits = searching ? (results.data ?? []) : []
+
+  // Whether the scroller is actually showing rows, which is the only state the
+  // bottom-fade mask has a job in. Mirrors the branch tree below exactly.
+  const showsRows = searching ? hits.length > 0 : !threads.isPending && rows.length > 0
   // Empty because the user cleared it in this session, or empty because it
   // always was? Only the first earns a moment (MAGIC §3.6). The *unfiltered*
   // count decides: an inbox a filter merely hides is not inbox zero.
@@ -385,7 +389,15 @@ export function ThreadList() {
           as a stray fragment stuck to the bottom of the app. */}
       <div
         ref={scrollRef}
-        className="scroll-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+        className={cn(
+          'min-h-0 flex-1 overflow-x-hidden overflow-y-auto',
+          // Only when there are ROWS. The mask exists to soften a row that
+          // straddles the bottom edge; with an empty state there is no such
+          // row, and the mask instead dissolves the bottom 16px of the
+          // earned tier's pane-filling field into the pane behind it — a
+          // gradient nobody asked for, on the one celebration in the app.
+          showsRows && 'scroll-fade',
+        )}
       >
         {searching ? (
           hits.length === 0 ? (
