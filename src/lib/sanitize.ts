@@ -75,7 +75,12 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   }
 
   if (node.tagName === 'A') {
-    node.setAttribute('target', '_blank')
+    // `_top`, not `_blank`: the message iframe blocks popups, and WebKit
+    // never fires parent-attached click listeners inside a no-scripts
+    // sandbox. A top navigation is the one path that works everywhere —
+    // the browser build's click handler intercepts it, and in Tauri the
+    // Rust on_navigation guard routes it to the system browser.
+    node.setAttribute('target', '_top')
     node.setAttribute('rel', 'noopener noreferrer')
   }
 })

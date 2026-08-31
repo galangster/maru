@@ -310,6 +310,50 @@ pub fn run() {
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_opener::init())
+    // Message bodies render in a sandboxed iframe with no scripts. WebKit
+    // never fires parent-attached listeners inside such a frame, so link
+    // clicks surface here as `_top` navigations instead: anything that is
+    // not the app's own origin opens in the system browser and the webview
+    // stays where it is.
+    .plugin(
+      tauri::plugin::Builder::<tauri::Wry>::new("external-links")
+        .on_navigation(|webview, url| {
+          use tauri::Manager;
+          use tauri_plugin_opener::OpenerExt;
+          let open_externally = |url: &tauri::Url| {
+            if let Err(e) = webview
+              .app_handle()
+              .opener()
+              .open_url(url.as_str(), None::<&str>)
+            {
+              log::warn!("failed to open external url {url}: {e}");
+            }
+            false
+          };
+          match url.scheme() {
+            "tauri" => true,
+            "http" | "https" => {
+              // Own origins only, exactly: a mail link to some other
+              // localhost port must not navigate the app or poke a
+              // local service with a user-activated request.
+              let own = url.host_str() == Some("tauri.localhost")
+                || (cfg!(debug_assertions)
+                  && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
+                  && url.port() == Some(1420));
+              if own {
+                return true;
+              }
+              open_externally(url)
+            }
+            "mailto" | "tel" => open_externally(url),
+            other => {
+              log::warn!("blocked navigation to unhandled scheme {other}:");
+              false
+            }
+          }
+        })
+        .build(),
+    )
     .manage(gateway::GatewayState::default())
     .invoke_handler(tauri::generate_handler![
       secret_set,

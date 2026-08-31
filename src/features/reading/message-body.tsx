@@ -1,10 +1,17 @@
 // A message body, rendered in a sandboxed iframe.
 //
-// The frame is `sandbox="allow-same-origin"` and nothing else: no scripts, no
-// forms, no top navigation, no popups. Because it stays same-origin, the
-// *parent* can measure it and intercept its links — so the frame never needs
-// `allow-scripts`, which is the flag that would let sanitized-but-hostile mail
-// climb back out.
+// The frame is `sandbox="allow-same-origin allow-top-navigation-by-user-
+// activation"` and nothing else: no scripts, no forms, no popups. Because it
+// stays same-origin, the *parent* can measure it — never `allow-scripts`,
+// which is the flag that would let sanitized-but-hostile mail climb back out.
+//
+// Links are `target="_top"` (set by the sanitizer) because WebKit never fires
+// parent-attached listeners inside a no-scripts sandbox: in the browser build
+// the click handler below intercepts them; in Tauri the click falls through
+// to a real user-activated top navigation, which the Rust on_navigation guard
+// (lib.rs "external-links" plugin) routes to the system browser and cancels.
+// Top navigation needs the user-activation flag, so mail can't redirect on
+// its own — only a real click can.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -184,7 +191,7 @@ export function MessageBody({
       if (!anchor) return
       event.preventDefault()
       const href = anchor.getAttribute('href') ?? ''
-      if (/^(https?|mailto):/i.test(href)) void openExternalUrl(href)
+      if (/^(https?|mailto|tel):/i.test(href)) void openExternalUrl(href)
     }
 
     frame.addEventListener('load', attach)
@@ -202,7 +209,7 @@ export function MessageBody({
     <iframe
       ref={frameRef}
       title={message.subject || 'Message body'}
-      sandbox="allow-same-origin"
+      sandbox="allow-same-origin allow-top-navigation-by-user-activation"
       referrerPolicy="no-referrer"
       srcDoc={srcDoc}
       // An iframe is focusable by default, and this one had no focus indicator

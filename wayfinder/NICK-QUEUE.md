@@ -66,6 +66,16 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 - **Billing exposure decision** for quota beyond the free tier (plan
   §7 launch math).
 
+- **CI signing secrets decision** (found 2026-08-31: macos-release run
+  33353074623 failed at codesign — the repo only has
+  TAURI_SIGNING_PRIVATE_KEY; all Apple secrets are missing). Either
+  export the Developer ID .p12 and set APPLE_CERTIFICATE,
+  APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY + notarization
+  creds via `gh secret set`, or keep signing local-only via
+  scripts/release-macos.sh (worked for v0.1.0 and v0.1.1) and demote
+  the workflow. Local-only is fine until releases need to happen off
+  your machine.
+
 ## Hand-checks (need a human at the machine)
 
 - **Windows hand-smoke** of the v0.1.0 NSIS installer — after it,
