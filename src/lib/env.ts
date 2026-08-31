@@ -19,6 +19,9 @@ export const isDemo = params.get('demo') === '1' || !isTauri()
 /** `?screenshot=1` freezes the clock and removes motion. */
 export const isScreenshot = params.get('screenshot') === '1'
 
+/** `?tune=1` mounts the character tuning stage (src/dev) instead of the app. */
+export const isTune = params.get('tune') === '1'
+
 /**
  * `?onboarding=1` forces the welcome sequence. It is normally shown only in
  * real mode with no accounts, which a demo build can never reach — so captures

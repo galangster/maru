@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
 
 import { burst } from '@/lib/celebrate'
 
-import { WrenBlob, WrenFlying, WrenPerched } from './wren-figure'
+import { WrenBlob, WrenFlyingArrival, WrenPerched } from './wren-figure'
 
 /**
  * The resting Maru — the canonical character (P13 sheet), perched on a soft
@@ -75,25 +75,9 @@ function CelebrationMark({ mode }: { mode: 'full' | 'reduced' | 'off' }) {
 
   return (
     <div ref={host} className="relative flex h-28 w-36 items-center justify-center select-none">
-      {/* The keyframe is unconditional. Every quantity in it — the start
-          scale, the overshoot, the spin, the duration — is a token the
-          reduced-motion block zeroes, so what plays there is the 120 ms
-          opacity crossfade DIRECTION §9 asks for, and `.screenshot` removes
-          it outright in the capture path. A JS copy of that rule was a second
-          answer to a question tokens.css had already settled. */}
-      <span
-        aria-hidden
-        className="inline-flex leading-none"
-        style={{
-          animation:
-            'wren-celebrate-in var(--wren-dur-celebrate) var(--wren-ease-spring) both, ' +
-            'wren-float var(--wren-dur-float) ease-in-out var(--wren-dur-celebrate) infinite alternate',
-        }}
-      >
-        <WrenBlob>
-          <WrenFlying className="h-24 w-24" />
-        </WrenBlob>
-      </span>
+      {/* Why the arrival looks reduced-motion safe with no branch here:
+          wren-figure's WrenFlyingArrival carries the token contract. */}
+      <WrenFlyingArrival />
     </div>
   )
 }

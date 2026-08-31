@@ -74,6 +74,35 @@ crouch/leap/apex/settle) with DialKit tuning; perk + ruffle poses
 (need art or sketches); turnaround views into the trace set; preen for
 long syncs.
 
+## v2 prep — scaffolded (2026-08-31, later run)
+
+Canvas diff first (resume-note protocol): all 26 traced path lines and
+the full palette verified byte-identical between the design canvas
+artifact and docs/design/wren-character/ — no owner edits, no re-trace
+needed.
+
+No-art prep shipped:
+
+- **Assembly scripted** — `scripts/build-wren-poses.mjs` now owns step 3
+  of the regeneration chain (traces → wren-poses.ts). Reproduces the
+  hand-assembled module byte-identically; `--check` flags staleness. The
+  preens are traced but stay out of its manifest until their
+  choreography exists.
+- **Five-beat sequence** — `src/components/wren-celebration.tsx`, the
+  storyboard-pattern scaffold (TIMING + per-beat configs + stage
+  machine): notice 0ms / crouch 180 / leap 330 (perched→flight
+  crossfade) / apex 560 (pop + the existing burst) / settle 900 (hands
+  off to wren-float). Reduced motion/captures get the still bird.
+- **Tuning stage** — `?tune=1` lazy-mounts `src/dev/wren-stage.tsx`
+  instead of the app: DialKit panel (dialkit@1.4.3) with every beat
+  value + spring on sliders, click-to-replay. dialkit never enters the
+  mail bundle. Spring defaults = lib/motion's SPRING; anything the
+  tuning settles on is ratified at seal, never a silent second spring.
+
+Still owner-gated for v2 proper: the tuned numbers (Nick plays with
+`?tune=1`), perk/ruffle art, and swapping the tuned sequence in for
+CelebrationMark — the shipped choreography is untouched until then.
+
 ## Sequencing
 
 After the verification submission (map 3's one priority). A character

@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "poses:check": "node scripts/build-wren-poses.mjs --check"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -52,6 +53,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",
     "better-sqlite3": "^11.10.0",
+    "dialkit": "^1.4.3",
     "playwright": "^1.62.1",
     "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",

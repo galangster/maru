@@ -200,3 +200,34 @@ export function WrenFlying({ className }: { className?: string }) {
     </svg>
   )
 }
+
+/**
+ * The flight bird arriving on `wren-celebrate-in` and bobbing on `wren-float`.
+ * One markup for every celebration surface — the shipped CelebrationMark and
+ * the five-beat scaffold's reduced-motion path both render this, so the
+ * reduced/capture contract cannot fork across files.
+ *
+ * The keyframes are unconditional. Every quantity in them — the start scale,
+ * the overshoot, the spin, the duration, the float distance — is a token the
+ * reduced-motion block in tokens.css zeroes, so what plays there is the 120 ms
+ * opacity crossfade DIRECTION §9 asks for, and `.screenshot` removes it
+ * outright in the capture path. A JS copy of that rule would be a second
+ * answer to a question tokens.css has already settled.
+ */
+export function WrenFlyingArrival() {
+  return (
+    <span
+      aria-hidden
+      className="inline-flex leading-none"
+      style={{
+        animation:
+          'wren-celebrate-in var(--wren-dur-celebrate) var(--wren-ease-spring) both, ' +
+          'wren-float var(--wren-dur-float) ease-in-out var(--wren-dur-celebrate) infinite alternate',
+      }}
+    >
+      <WrenBlob>
+        <WrenFlying className="h-24 w-24" />
+      </WrenBlob>
+    </span>
+  )
+}

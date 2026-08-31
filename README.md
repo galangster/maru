@@ -51,6 +51,9 @@ npm run tauri dev        # native app
 npm run dev              # browser demo at http://localhost:1420/?demo=1
 ```
 
+Dev-only: `?tune=1` opens the character tuning stage (DialKit sliders for
+Maru's inbox-zero sequence) instead of the app.
+
 First run opens onboarding: explore the demo instantly, or connect Gmail —
 that requires a free Google Cloud OAuth client (one 5-minute setup):
 **[docs/SETUP-GOOGLE-OAUTH.md](docs/SETUP-GOOGLE-OAUTH.md)**.
