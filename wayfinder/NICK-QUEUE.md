@@ -237,6 +237,27 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Hand-checks (need a human at the machine)
 
+- **`git push` needs your credential back** (2026-08-31). Commit
+  `a1391ee` (P18) is committed locally and **not pushed**. Earlier
+  commits this session pushed fine, so the credential went away
+  mid-session. What I found: the macOS keychain now holds exactly one
+  github.com internet-password, for account **NickMetaDAO**, and that
+  account gets `403 Permission to galangster/maru.git denied`. The
+  remote is `https://galangster@github.com/galangster/maru.git`, so git
+  asks for `galangster` and the helper has nothing to give — hence the
+  "could not read Password … Device not configured" in a non-interactive
+  shell. I stopped after two attempts rather than guessing at your
+  accounts. Fix it whichever way you prefer:
+  ```bash
+  gh auth login --hostname github.com --git-protocol https --web
+  ```
+  and sign in as **galangster**, then `git push`. Or switch the remote
+  to SSH if you have a key on this Mac:
+  ```bash
+  git remote set-url origin git@github.com:galangster/maru.git
+  ```
+  Nothing is lost either way — the work is committed.
+
 - **Windows hand-smoke** of the v0.1.0 NSIS installer — after it,
   add windows-x86_64 to latest.json so auto-update covers Windows.
 - **Fullscreen traffic lights** (P2's carried check) — verify the
