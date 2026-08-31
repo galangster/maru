@@ -42,7 +42,7 @@ low. The domain getmaru.app and consent-screen branding are consistent.
 
 ### Frozen reviewer release
 
-The frozen reviewer build is `0.1.2` (source: `package.json:5`) — built,
+The frozen reviewer build is `0.1.3` (source: `package.json:5`) — built,
 signed, and notarized locally 2026-08-31 with the official client id baked
 in; not yet published as a GitHub release. The public Download action points
 to the repository's latest release page. Source: `site/index.html:34`.
