@@ -248,10 +248,25 @@ fn place_traffic_lights(window: &tauri::Window) {
   use objc2_app_kit::{NSAutoresizingMaskOptions, NSView, NSWindow, NSWindowButton};
   use objc2_foundation::{NSPoint, NSRect, NSSize};
 
-  // The visual gap from the window's top-left corner to the red button's
-  // circle, both axes — "equidistant" is the ruling. The circle sits ~2 pt
-  // inside its frame horizontally; vertically the frame hugs the circle.
-  const GAP: f64 = 16.0;
+  // The lights sit inside the SIDEBAR CARD, not the window, so their inset is
+  // measured from the card's edge — "make them equidistant now inside of the
+  // pane" (owner, 2026-08-31). At 16 they were only 8 inside the card and
+  // crowded its corner curve.
+  //
+  // The lights land on the sidebar's own CONTENT COLUMN — the same x as the
+  // Compose button and every nav row — because anything else reads as a near
+  // miss ("the dots need to move a bit to the left to left align with the
+  // other elements", owner, 2026-08-31).
+  //
+  // That column is the card's offset from the window plus the card's own
+  // horizontal padding. Both axes take the same number, so the lights are also
+  // equidistant from the card's top-left corner.
+  // CARD_INSET mirrors --wren-sidebar-gutter; CARD_PAD mirrors the `px-2` the
+  // sidebar's bands carry. tests/traffic-lights.test.ts holds these and
+  // --wren-lights-gap together.
+  const CARD_INSET: f64 = 8.0;
+  const CARD_PAD: f64 = 8.0;
+  const GAP: f64 = CARD_INSET + CARD_PAD;
   const CIRCLE_PAD_X: f64 = -2.0; // measured: red reads 2pt left of frame origin
 
   let Ok(handle) = window.ns_window() else { return };

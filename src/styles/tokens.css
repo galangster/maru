@@ -529,8 +529,13 @@
        `overflow: auto`; on the 4px grid; and half the shell inset, so the
        channel between two cards reads as one gap rather than two margins. */
     --wren-shell-seam: 4px;
-    /* The top band of ANY card, so its header rule lands on the window's one
-       horizon at y=52. Named for the job the sidebar and the list now share. */
+    /* The top band of ANY card. The cards sit flush to the window's top edge
+       — the ground shows only in the CHANNELS between them, never as a rim
+       around the window, because a card's 18px corner nested inside the
+       window's ~10px one is not concentric and pools ground at the diagonal
+       (owner, 2026-08-31: "this looks bad visually"). Flush means a card's
+       band is simply the toolbar height, and the whole horizon is one number
+       again. */
     --wren-card-band: calc(var(--wren-toolbar-h) - var(--wren-sidebar-gutter));
 
 

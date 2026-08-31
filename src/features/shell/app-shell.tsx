@@ -78,7 +78,7 @@ const SNAP_SLACK = 8
  * thread rows have been drawing the inside of this card since they shipped.
  */
 export const SHELL_CARD =
-  'bg-surface rounded-xl shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden'
+  'bg-surface rounded-md shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden'
 
 export function AppShell() {
   const collapsed = useUi((s) => s.sidebarCollapsed)

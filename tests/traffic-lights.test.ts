@@ -23,18 +23,33 @@ const LIGHT = 12
 
 describe('traffic-light geometry', () => {
   it('CSS reserves the gap the Rust actually applies', () => {
-    // `const GAP: f64 = 16.0;` in place_traffic_lights
-    const rust = RUST.match(/GAP\s*:\s*f64\s*=\s*([\d.]+)/)
-    expect(rust, 'GAP not found in src-tauri/src/lib.rs — did place_traffic_lights move?').toBeTruthy()
+    // GAP is CARD_INSET + LIGHT_INSET in place_traffic_lights — the card's own
+    // offset plus the margin the lights get inside it.
+    const cardInset = RUST.match(/CARD_INSET\s*:\s*f64\s*=\s*([\d.]+)/)
+    const lightInset = RUST.match(/CARD_PAD\s*:\s*f64\s*=\s*([\d.]+)/)
+    expect(
+      cardInset && lightInset,
+      'CARD_INSET / CARD_PAD not found in src-tauri/src/lib.rs — did place_traffic_lights move?',
+    ).toBeTruthy()
+    const rustGap = Number(cardInset![1]) + Number(lightInset![1])
 
     const css = TOKENS.match(/--wren-lights-gap:\s*(\d+)px/)
     expect(css, '--wren-lights-gap not found in tokens.css').toBeTruthy()
 
     expect(
       Number(css![1]),
-      'tokens.css --wren-lights-gap and lib.rs GAP disagree; the sidebar card ' +
-        'geometry is derived from this number, so edit both in one commit',
-    ).toBe(Number(rust![1]))
+      'tokens.css --wren-lights-gap and lib.rs CARD_INSET+CARD_PAD disagree; ' +
+        'the sidebar card geometry is derived from this number, so edit both together',
+    ).toBe(rustGap)
+
+    // And the Rust's idea of where the card starts must match the CSS token
+    // that actually puts it there.
+    const gutter = Number(TOKENS.match(/--wren-sidebar-gutter:\s*(\d+)px/)![1])
+    expect(
+      Number(cardInset![1]),
+      'lib.rs CARD_INSET must mirror --wren-sidebar-gutter, or the lights are ' +
+        'inset from a card edge that is not where the card actually is',
+    ).toBe(gutter)
   })
 
   it('the card band clears the lights vertically', () => {
@@ -69,10 +84,14 @@ describe('traffic-light geometry', () => {
     // The card spans gutter .. gutter + rail.
     const cardRight = gutter + rail
 
+    // The lights are inset `gap - gutter` from the card's LEFT edge; they
+    // should get at least as much on the right, or the collapsed rail reads
+    // lopsided.
+    const insetInCard = gap - gutter
     expect(
       cardRight,
-      `the collapsed rail (${rail}) leaves the lights (reaching ${lightsRight}) ` +
-        `hanging off the card at ${cardRight}`,
-    ).toBeGreaterThanOrEqual(lightsRight + gutter)
+      `the collapsed rail (${rail}) gives the lights (reaching ${lightsRight}) ` +
+        `only ${cardRight - lightsRight}px on the right against ${insetInCard}px on the left`,
+    ).toBeGreaterThanOrEqual(lightsRight + insetInCard)
   })
 })
