@@ -9,7 +9,8 @@
 //   node scripts/build-wren-poses.mjs --check   # exit 1 if the module is stale
 //
 // Trace line format (one component per line):
-//   BODY <path d>            the white silhouette
+//   SILHOUETTE <path d>      the whole figure as one closed outline
+//   BODY <path d>            the white region alone (kept for reference)
 //   WING <path d>            brand pink
 //   BEAK <path d>            brand pink
 //   SHADOW <path d>          the cast ground shadow, if the pose stands on one
@@ -33,12 +34,13 @@ const MANIFEST = ['perched', 'flight']
 const exportName = (file) => `WREN_${file.toUpperCase().replaceAll('-', '_')}`
 
 function parseTrace(file) {
-  const pose = { body: null, pink: [], pale: [], eye: null, shadow: null }
+  const pose = { silhouette: null, body: null, pink: [], pale: [], eye: null, shadow: null }
   for (const line of readFileSync(join(TRACES, `${file}.paths.txt`), 'utf8').split('\n')) {
     if (!line.trim()) continue
     const label = line.slice(0, line.indexOf(' '))
     const rest = line.slice(label.length + 1)
-    if (label === 'BODY') pose.body = rest
+    if (label === 'SILHOUETTE') pose.silhouette = rest
+    else if (label === 'BODY') pose.body = rest
     else if (label === 'WING' || label === 'BEAK') pose.pink.push(rest)
     else if (label === 'SHADOW') pose.shadow = rest
     else if (label === 'EYE') pose.eye = rest.replace('bbox ', '').split(',').map(Number)
@@ -46,7 +48,7 @@ function parseTrace(file) {
     else throw new Error(`${file}.paths.txt: unknown label ${label}`)
   }
   // `shadow` is genuinely optional — a pose in flight casts none.
-  for (const key of ['body', 'pink', 'pale', 'eye']) {
+  for (const key of ['silhouette', 'body', 'pink', 'pale', 'eye']) {
     const value = pose[key]
     if (value === null || (Array.isArray(value) && value.length === 0))
       throw new Error(`${file}.paths.txt: no ${key.toUpperCase()} component`)
@@ -66,7 +68,7 @@ const quoted = (s) => JSON.stringify(s)
 function emitPose(name, pose) {
   return [
     `export const ${name}: WrenPose = {`,
-    `  body: ${quoted(pose.body)},`,
+    `  silhouette: ${quoted(pose.silhouette)},`,
     `  pink: [${pose.pink.map(quoted).join(', ')}],`,
     `  pale: [${pose.pale.map(quoted).join(', ')}],`,
     `  shadow: ${pose.shadow === null ? 'null' : quoted(pose.shadow)},`,
@@ -82,8 +84,14 @@ const module_ = [
   `// manifest and re-run. ViewBox 0 0 440 440.`,
   ``,
   `export interface WrenPose {`,
-  `  /** The white silhouette. */`,
-  `  body: string`,
+  `  /**`,
+  `   * The whole figure as ONE closed outline, drawn in white beneath every`,
+  `   * part. Tracing the white region alone made the body and the wing share`,
+  `   * an edge, and two independently simplified polylines never agree along`,
+  `   * one — so the background bled through the seam (invisible on the pale`,
+  `   * field, a black outline on the dark one).`,
+  `   */`,
+  `  silhouette: string`,
   `  /** Wing + beak, the brand pink. */`,
   `  pink: string[]`,
   `  /** Legs, underfeathers, sparkles — the pale details. */`,

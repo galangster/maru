@@ -33,11 +33,14 @@ while (st.length) {
   cls[i] = 0;
   st.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
 }
+// `target` is a class value, or a predicate for a union of classes (the
+// silhouette). One walker either way.
 function comps(target, minN) {
+  const ok = typeof target === 'function' ? target : (v) => v === target;
   const seen = new Uint8Array(W * W); const out = [];
   for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
-    if (cls[i] !== target || seen[i]) continue;
+    if (!ok(cls[i]) || seen[i]) continue;
     const q = [[x, y]]; seen[i] = 1; const pts = [];
     let minX = W, maxX = 0, minY = W, maxY = 0;
     while (q.length) {
@@ -48,7 +51,7 @@ function comps(target, minN) {
         const nx = cx+dx, ny = cy+dy;
         if (nx<0||ny<0||nx>=W||ny>=W) continue;
         const j = ny*W+nx;
-        if (cls[j] === target && !seen[j]) { seen[j] = 1; q.push([nx, ny]); }
+        if (ok(cls[j]) && !seen[j]) { seen[j] = 1; q.push([nx, ny]); }
       }
     }
     if (pts.length >= minN) out.push({ pts, bbox: [minX, minY, maxX, maxY], n: pts.length });
@@ -70,6 +73,23 @@ function boundary(c) {
       if (isIn(nx, ny)) { cur = [nx, ny]; d = nd; out.push(cur); ok = true; break; }
     }
     if (!ok || (cur[0]===start[0] && cur[1]===start[1] && out.length > 3)) break;
+  }
+  return out;
+}
+// A traced boundary is a staircase: the source is an antialiased raster, so a
+// threshold turns every soft edge into single-pixel steps. Simplifying that
+// directly forces a bad trade — a loose tolerance facets the curves, a tight
+// one faithfully reproduces the jaggies. Averaging each point against its
+// neighbours around the closed loop removes the pixel noise and leaves the
+// shape, so the tolerance below can then be tight without being noisy.
+function denoise(pts, k) {
+  const n = pts.length;
+  if (n < 2 * k + 1) return pts;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    let sx = 0, sy = 0;
+    for (let j = -k; j <= k; j++) { const p = pts[(i + j + n) % n]; sx += p[0]; sy += p[1]; }
+    out.push([sx / (2 * k + 1), sy / (2 * k + 1)]);
   }
   return out;
 }
@@ -113,17 +133,32 @@ const w_ = c => c.bbox[2] - c.bbox[0];
 const h_ = c => c.bbox[3] - c.bbox[1];
 const shadow = rest.find(c => w_(c) > 2.5 * h_(c) && (c.bbox[1] + c.bbox[3]) / 2 > body.bbox[3] - h_(body) * 0.12);
 const rest2 = rest.filter(c => c !== shadow);
+// The cast shadow is on the GROUND, so it must not join the figure's
+// silhouette — erase it before the union below, or the bird grows a lump.
+if (shadow) for (const [x, y] of shadow.pts) cls[y * W + x] = 0;
 const eye = rest2.find(c => h_(c) > w_(c));
 const beak = rest2.find(c => c !== eye);
 // highlight: small white comp inside eye bbox
 const hi = white.slice(1).find(c => eye && c.bbox[0] >= eye.bbox[0]-4 && c.bbox[2] <= eye.bbox[2]+4 && c.bbox[1] >= eye.bbox[1]-4 && c.bbox[3] <= eye.bbox[3]+4);
-const P = (c, tol) => smooth(simplify(boundary(c), tol));
+// THE SILHOUETTE: the union of every non-background class, as one closed
+// outline. It is what the white body is actually drawn from, and the wing,
+// beak and eye are then painted ON it.
+//
+// Tracing the white region alone (the old BODY) made the body and the wing
+// share an edge. Two independently simplified polylines never agree along a
+// shared edge, so a sub-pixel seam opened between them and the BACKGROUND
+// showed through — invisible on the pale field, a black outline on the dark
+// one, which is how the owner found it (2026-08-31). A silhouette underneath
+// has no internal edges to disagree about.
+const figure = comps((v) => v !== 0, 400)[0];
+const P = (c, tol, k = 3) => smooth(simplify(denoise(boundary(c), k), tol));
 const lines = [];
-lines.push(`BODY ${P(body, 2.2)}`);
-if (wing) lines.push(`WING ${P(wing, 2)}`);
-if (beak) lines.push(`BEAK ${P(beak, 1.5)}`);
+lines.push(`SILHOUETTE ${P(figure, 1.1)}`);
+lines.push(`BODY ${P(body, 1.1)}`);
+if (wing) lines.push(`WING ${P(wing, 1.1)}`);
+if (beak) lines.push(`BEAK ${P(beak, 1, 1)}`);
 if (shadow) lines.push(`SHADOW ${P(shadow, 2)}`);
 if (eye) lines.push(`EYE bbox ${eye.bbox.join(',')}`);
 if (hi) lines.push(`HI bbox ${hi.bbox.join(',')}`);
-for (const [i, c] of pales.slice(0, 4).entries()) lines.push(`PALE${i} n=${c.n} ${P(c, 1.6)}`);
+for (const [i, c] of pales.slice(0, 4).entries()) lines.push(`PALE${i} n=${c.n} ${P(c, 1.1, 1)}`);
 console.log(lines.join('\n'));

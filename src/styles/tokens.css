@@ -1016,7 +1016,7 @@
    coordinate is unchanged:
 
      .wren-pool                      the ground the white body needs
-     svg.wren-l-shadow               the traced cast shadow, ON the ground
+     span.wren-l-shadow              the feathered contact shadow, ON the ground
      span.wren-hover                 the celebration's bob
        span.wren-lean                lean, and the flight's rise and rotation
          span.wren-breath            breath, and the flight's squash
@@ -1042,11 +1042,17 @@
     /* Exactly the colour the old blob was, so the white body's LOCAL contrast
        is unchanged and only the surround is new. */
     --wren-maru-ground: #fee9ef;
+    /* The contact shadow's tone, as channels so the stops can set their own
+       alpha. Pink on paper — a grey shadow under a pink character reads as
+       dirt. Near-black in the dark theme, where the field is already so low
+       that a pink shade would LIGHTEN the ground instead of deepening it. */
+    --wren-maru-shade: 226 106 144;
     --wren-maru-field: color-mix(in oklab, var(--wren-maru-ground) 55%, var(--wren-surface-base));
 }
 
 .dark {
     --wren-maru-ground: color-mix(in oklab, #ff4f87 14%, var(--wren-surface-base));
+    --wren-maru-shade: 0 0 0;
     --wren-maru-field: color-mix(in oklab, #ff4f87 6%, var(--wren-surface-base));
 }
 
@@ -1062,7 +1068,6 @@
 .wren-figure .wren-hover,
 .wren-figure .wren-lean,
 .wren-figure .wren-breath,
-.wren-figure .wren-l-shadow,
 .wren-figure .wren-l-form-perched,
 .wren-figure .wren-l-form-flight,
 .wren-figure .wren-l-form,
@@ -1129,11 +1134,33 @@
     inset: calc((var(--wren-maru-size) - 400px) / 2);
 }
 
-/* The 0.28 lives on the LAYER, not on the path, because the flight sequencer
-   animates this layer's opacity — a 0.28 on both would compound to 0.078. */
-.wren-l-shadow {
-    opacity: 0.28;
-    transform-origin: var(--wren-maru-shadow-origin);
+/* THE CONTACT SHADOW: a feathered oval where the bird meets the floor.
+   Drawn rather than traced. The tracer fuses the drawn shadow with the leg and
+   thigh block above it, so the traced path climbed 30 units up under the body
+   and read as a smear rather than as ground (owner, 2026-08-31).
+   Flat — 5% of the figure's height against 34% of its width — because a cast
+   shadow is a shape seen edge-on, and the feathering is the whole point: a
+   hard ellipse under a soft character is worse than no shadow at all.
+   Centred on the FEET (53.6% across, 83.2% down in the 440 viewBox), not on
+   the figure's box, which is why it sits under the bird's stance rather than
+   under its middle. The opacity lives in the stops, not on the element,
+   because the flight sequencer animates this layer's own opacity. */
+.wren-figure .wren-l-shadow {
+    position: absolute;
+    display: block;
+    left: 53.6%;
+    top: 83.2%;
+    width: calc(var(--wren-maru-size) * 0.345);
+    height: calc(var(--wren-maru-size) * 0.05);
+    transform: translate(-50%, -50%);
+    transform-origin: center;
+    background: radial-gradient(
+        closest-side,
+        rgb(var(--wren-maru-shade) / 0.34) 0%,
+        rgb(var(--wren-maru-shade) / 0.26) 45%,
+        rgb(var(--wren-maru-shade) / 0.1) 74%,
+        rgb(var(--wren-maru-shade) / 0) 100%
+    );
 }
 
 /* Both deform the bird about the point where it touches the ground. */

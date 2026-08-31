@@ -31,8 +31,6 @@ import { cn } from '@/lib/utils'
 
 const WREN_PINK = '#FF4F87'
 const PALE = '#FFD6E1'
-/** The contact shadow's tone — the sheet's mid pink, laid on softly. */
-const SHADOW = '#FF7BA1'
 
 /** pale[2] and pale[3] of the flight pose are sparkles, not anatomy. */
 const FLIGHT_SPARKLE_FROM = 2
@@ -79,10 +77,17 @@ function PoseStack({
   return (
     <span className={`wren-l-form-${kind}`}>
       <svg className="wren-l-form" viewBox="0 0 440 440" aria-hidden>
+        {/* The silhouette FIRST, in white, under everything. Every other part
+            is painted on top of it, so no two paths ever share an edge.
+            Painting the white region alone (the old `body`) meant the body and
+            the wing abutted, and two independently simplified outlines never
+            agree along a shared edge — the background bled through the seam as
+            a hairline. Invisible against the pale field; a black outline on
+            the dark one, which is where the owner spotted it (2026-08-31). */}
+        <path d={pose.silhouette} fill="#FFFFFF" />
         {pales.map((d) => (
           <path key={d.slice(0, 24)} d={d} fill={PALE} />
         ))}
-        <path d={pose.body} fill="#FFFFFF" />
         {/* pink[0] is the wing and lives in its own layer below; everything
             after it is the beak. The build script guarantees that order. */}
         {pose.pink.slice(1).map((d) => (
@@ -525,13 +530,15 @@ export function WrenFigure({
           that breath and lean both pivot at --wren-maru-feet, so the bird
           deforms ABOUT the ground rather than beside it.) */}
       <span className="wren-pool" />
-      {/* The cast shadow is on the GROUND, not on the bird, so it sits outside
-          every joint the bird moves on. WREN_FLIGHT.shadow is null — the bird
-          in the air does not carry its own shadow — so the perched trace is
-          the one that is drawn for the whole sequence. */}
-      <svg className="wren-l-shadow" viewBox="0 0 440 440" aria-hidden>
-        <path data-wren-shadow d={WREN_PERCHED.shadow ?? ''} fill={SHADOW} />
-      </svg>
+      {/* The contact shadow: a feathered oval on the ground, and NOT the
+          traced one any more. The tracer fuses the drawn shadow with the
+          leg-and-thigh block above it, so the traced path reached 30 units up
+          UNDER the body — "the shadow extends beneath the body, which looks
+          weird" (owner, 2026-08-31). A shadow is where the bird meets the
+          floor, so it is drawn as what it is rather than recovered from art
+          that was never separable. It is on the ground, outside every joint
+          the bird moves on, which is also why the flight pose can borrow it. */}
+      <span className="wren-l-shadow" />
       <span className="wren-hover">
         <span className="wren-lean">
           <span className="wren-breath">
