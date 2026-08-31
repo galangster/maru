@@ -5,11 +5,20 @@
 // dangerouslySetInnerHTML.
 //
 // Policy:
-//   - scripts, forms, <style>, framing and metadata elements are removed
+//   - scripts, forms, <style>, framing, metadata and media elements are removed
 //   - inline `style` attributes survive, because that is how mail is designed
-//   - remote (http/https) images are removed by default and counted, so the
-//     reading pane can offer "Remote images blocked · Show"
+//   - remote images are withheld by default and counted, so the reading pane
+//     can offer "Remote images blocked · Show". A withheld image becomes a
+//     text CHIP rather than being deleted, and any container it left empty has
+//     its declared height collapsed — deleting the pixels but not the box is
+//     what used to leave a hole in the middle of a message.
+//   - a remote CSS url() is stripped the same way, and ONLY while images are
+//     withheld, so Show actually reveals background imagery
 //   - cid: images resolve against the message's inline attachments
+//   - `buildSrcdoc` adds a CSP that forbids everything by default. It is the
+//     BACKSTOP: the rules above work by enumerating tags and properties, and
+//     enumeration is what leaked last time. It must be handed the same
+//     allowRemoteImages the sanitize call got, or the two layers disagree.
 
 import DOMPurify from 'dompurify'
 
@@ -54,9 +63,10 @@ const FORBID_TAGS = [
 
 const FORBID_ATTR = ['srcset', 'ping', 'formaction', 'background', 'usemap', 'poster']
 
-/** A 1x1 fully transparent GIF. The blocked image keeps its box in the DOM so
- *  alt text and the placeholder chip have something to hang on, but fetches
- *  nothing. */
+/** A 1x1 fully transparent GIF. It never reaches the output — `chipBlockedImages`
+ *  swaps the node for a span — but it is what guarantees the remote URL is gone
+ *  from the intermediate tree the collapse pass walks, rather than merely
+ *  overwritten later. */
 const BLANK =
   'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
@@ -74,7 +84,7 @@ function isRemote(raw: string): boolean {
   return /^https?:/i.test(url) || url.startsWith('//')
 }
 
-/** Declared area, when the markup states one. Tracking pixels are ~1x1. */
+/** Declared area in px², when the markup states one. Beacons are 1x1 to 8x8. */
 function declaredArea(node: Element): number | null {
   const w = Number.parseFloat(node.getAttribute('width') ?? '')
   const h = Number.parseFloat(node.getAttribute('height') ?? '')
@@ -82,15 +92,22 @@ function declaredArea(node: Element): number | null {
   return w * h
 }
 
-/** Below this, an image is a beacon and not a picture: no chip, just the count. */
-const TRACKER_AREA = 64
+/** At or below 8x8 an image is a beacon, not a picture: no chip, just the count. */
+const TRACKER_MAX_AREA_PX = 8 * 8
 
 /** Every CSS property that can fetch, not just `background`. */
 const CSS_FETCHING_PROPERTY =
   /(?:[a-z-]*background[a-z-]*|list-style(?:-image)?|mask(?:-image)?|border-image(?:-source)?|content|cursor|src)\s*:[^;]*url\([^)]*\)[^;]*;?/gi
 
-/** Sizing left behind on a container whose only content was a blocked image. */
-const CSS_SIZING = /(?:min-)?height\s*:[^;]*;?/gi
+/**
+ * Sizing left behind on a container whose only content was a blocked image.
+ *
+ * The leading boundary is load-bearing. Without it this matches INSIDE
+ * `line-height:` and `max-height:` — mail carries `line-height` on nearly
+ * every `<td>` — and the replace turns `line-height:20px;color:red` into
+ * `line-color:red`, which is not CSS at all.
+ */
+const CSS_SIZING = /(^|[;\s])(?:min-)?height\s*:[^;]*;?/gi
 
 let state: SanitizeOptions & { blocked: number } = { allowRemoteImages: false, blocked: 0 }
 
@@ -100,7 +117,9 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   // SVG's <image href> is allowlisted by DOMPurify and its tagName is `image`,
   // not `IMG` — so it went straight past the old check and fetched.
   const tag = node.tagName.toUpperCase()
-  if (tag === 'IMAGE' || (tag === 'IMG' && node.hasAttribute('href'))) {
+  // SVG's <image href> only. An `href` on an HTML <img> fetches nothing, so
+  // counting it would inflate the pill for a non-event.
+  if (tag === 'IMAGE') {
     const href = node.getAttribute('href') ?? node.getAttribute('xlink:href') ?? ''
     if (isRemote(href) && !state.allowRemoteImages) {
       state.blocked++
@@ -127,13 +146,16 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       // and the alt text occupy the space instead, and lets the collapse pass
       // below recognise the container as empty.
       const area = declaredArea(node)
-      if (area !== null && area <= TRACKER_AREA) {
+      if (area !== null && area <= TRACKER_MAX_AREA_PX) {
         // A 1x1 beacon is not a picture. It feeds the count and nothing else;
         // a chip for it would be noise where the sender wanted none.
         node.remove()
         return
       }
-      node.setAttribute('data-wren-blocked-src', src)
+      // The original URL is deliberately NOT kept anywhere in the output.
+      // "Show" re-sanitizes from the raw message, so nothing downstream ever
+      // reads it back — parking a tracker URL in the rendered DOM would be
+      // storing the thing this function exists to withhold.
       node.setAttribute('src', BLANK)
       node.setAttribute('class', 'wren-blocked')
       for (const attr of ['width', 'height', 'hspace', 'vspace', 'align']) {
@@ -155,7 +177,11 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     // revealed NOTHING for a mail whose imagery is CSS backgrounds — and it
     // destroyed safe data: backgrounds permanently, in both states.
     if (remote && !state.allowRemoteImages) {
-      state.blocked++
+      // Only a BACKGROUND counts toward the pill. cursor/mask/border-image are
+      // stripped too, but the pill's sentence is about images the sender can
+      // use to see that you opened the mail — counting a `cursor:url()` makes
+      // the one number the privacy promise rests on say something untrue.
+      if (/[a-z-]*background[a-z-]*\s*:[^;]*url\(/i.test(style)) state.blocked++
       let stripped = style.replace(CSS_FETCHING_PROPERTY, '')
       // The declaration that carried the image usually carried its height too
       // (`background-image:url(...);height:350px`), and dropping only the
@@ -165,7 +191,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     }
   }
 
-  if (node.tagName === 'A') {
+  if (tag === 'A') {
     // `_top`, not `_blank`: the message iframe blocks popups, and WebKit
     // never fires parent-attached click listeners inside a no-scripts
     // sandbox. A top navigation is the one path that works everywhere —
@@ -176,6 +202,66 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   }
 })
 
+/**
+ * Turn each blanked <img> into the chip the reader actually sees.
+ *
+ * A span rather than a styled <img>: `content: attr(alt)` on a replaced
+ * element is the kind of trick that works in one engine and not the next, and
+ * the alt text goes in as `textContent`, so a sender cannot smuggle markup
+ * through their own alt attribute.
+ *
+ * It runs after sanitizing rather than inside the hook because replacing nodes
+ * mid-traversal is how you get DOMPurify to walk a tree that no longer exists.
+ */
+function chipBlockedImages(root: ParentNode): void {
+  for (const img of Array.from(root.querySelectorAll('img.wren-blocked'))) {
+    const chip = img.ownerDocument.createElement('span')
+    chip.className = 'wren-blocked'
+    const alt = (img.getAttribute('alt') ?? '').trim()
+    chip.textContent = alt || 'Image'
+    img.replaceWith(chip)
+  }
+}
+
+/**
+ * Collapse containers that a blocked image left empty.
+ *
+ * Removing the pixels was never enough: mail lays heroes out as
+ * `<td height="350">` or `<div style="height:350px">`, and those boxes keep
+ * their height whether or not anything is inside them. That is the hole in the
+ * middle of the message the owner reported (P16). A box that now has no text,
+ * no surviving image and no explicit background is not a layout any more — it
+ * is a gap — so its declared height comes off.
+ *
+ * Deliberately conservative: anything with visible text or a real image keeps
+ * its sizing, because a wrong collapse here silently reflows a legitimate
+ * newsletter, which is worse than the hole it is fixing.
+ */
+function collapseEmptyBoxes(root: ParentNode): void {
+  for (const el of Array.from(root.querySelectorAll('[height], [style]'))) {
+    const style = el.getAttribute('style') ?? ''
+    // Same anchored test as CSS_SIZING, so what is detected is exactly what
+    // gets stripped. `line-height` is not a height.
+    const hasHeight = el.hasAttribute('height') || /(^|[;\s])(?:min-)?height\s*:/i.test(style)
+    if (!hasHeight) continue
+
+    if ((el.textContent ?? '').trim() !== '') continue
+    // A blanked placeholder does not count as content — it is what is left of
+    // the thing that was withheld — but a real image does.
+    const images = el.querySelectorAll('img, svg, image')
+    if (Array.from(images).some((img) => !img.classList.contains('wren-blocked'))) continue
+    // A box painting its own colour was doing more than holding an image.
+    if (/background(-color)?\s*:\s*(?!none|transparent)/i.test(style)) continue
+
+    el.removeAttribute('height')
+    if (style) {
+      const stripped = style.replace(CSS_SIZING, '')
+      if (stripped.trim()) el.setAttribute('style', stripped)
+      else el.removeAttribute('style')
+    }
+  }
+}
+
 export function sanitizeBody(html: string, opts: SanitizeOptions): SanitizeResult {
   state = { ...opts, blocked: 0 }
   const clean = DOMPurify.sanitize(html, {
@@ -185,7 +271,25 @@ export function sanitizeBody(html: string, opts: SanitizeOptions): SanitizeResul
     ALLOW_DATA_ATTR: false,
     WHOLE_DOCUMENT: false,
   })
-  return { html: clean, blockedImages: state.blocked }
+
+  if (state.blocked === 0) return { html: clean, blockedImages: 0 }
+
+  // The post-pass needs a TREE — "does this box still contain anything" is not
+  // a question a regex over the serialized string can answer. Parsing the
+  // already-sanitized string into a detached document is the reliable way to
+  // get one: DOMPurify's own RETURN_DOM hands back a node whose children do
+  // not survive serialization under every DOM implementation, and this path is
+  // the one its string output is tested against anyway. The document is never
+  // attached and nothing in it is executed.
+  const doc = new DOMParser().parseFromString(clean, 'text/html')
+
+  // Order matters: collapse while the blanked <img>s are still recognisable as
+  // withheld, THEN swap them for chips. Reversed, a chip's own text would make
+  // every container look occupied and nothing would collapse.
+  collapseEmptyBoxes(doc.body)
+  chipBlockedImages(doc.body)
+
+  return { html: doc.body.innerHTML, blockedImages: state.blocked }
 }
 
 /**
@@ -197,8 +301,25 @@ export function sanitizeBody(html: string, opts: SanitizeOptions): SanitizeResul
  * dark-on-dark text. A sheet of paper inside the message card is the honest
  * option, and it is what every desktop client that does not rewrite mail does.
  */
-export function buildSrcdoc(bodyHtml: string): string {
+export function buildSrcdoc(bodyHtml: string, opts?: { allowRemoteImages?: boolean }): string {
+  // The CSP is a BACKSTOP, not the policy. The hook above is still what
+  // decides what is blocked and what gets counted — but the hook works by
+  // enumerating tags and properties, and enumeration is exactly what leaked
+  // (protocol-relative srcs, SVG <image href>, <video poster>, and every CSS
+  // url() that is not `background`). A default-src of 'none' does not care
+  // what the markup is called, so anything the enumeration misses next time
+  // still cannot reach the network.
+  //
+  // `img-src data:` covers the blocked-image placeholder and cid: attachments
+  // resolved to data URLs. When the reader has clicked Show, https: joins it —
+  // and only then.
+  // http: as well as https:. `isRemote` treats both as remote-and-allowable,
+  // so a CSP that permits only https: would let the sanitizer hand through an
+  // http-only newsletter and then block it one layer down — which is defect 2's
+  // exact symptom ("Show reveals nothing") wearing a different hat.
+  const imgSrc = opts?.allowRemoteImages ? 'data: https: http:' : 'data:'
   return `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${imgSrc}; style-src 'unsafe-inline'">
 <meta name="referrer" content="no-referrer">
 <style>
   :root { color-scheme: light; }
@@ -223,6 +344,24 @@ export function buildSrcdoc(bodyHtml: string): string {
   body > :first-child { margin-top: 0; }
   body > :last-child { margin-bottom: 0; }
   img { height: auto; }
+  /* A withheld image, in place of the hole one used to leave. Hard-coded hex
+     because the iframe cannot see the app's custom properties — which is why
+     the link colour below is a literal too. These mirror --wren-radius-xs 6,
+     --wren-surface-sunken and --wren-text-3 at their LIGHT values; the paper
+     is always light, so there is no dark variant to keep in step.
+     A flat inline chip, not a framed box: DIRECTION §10.2 bans decorative
+     bars, and the point is to occupy a line, not to draw a picture frame. */
+  .wren-blocked {
+    display: inline-block;
+    max-width: 100%;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #F0EDEC;
+    color: #6F6D6B;
+    font-size: 13px;
+    line-height: 16px;
+    vertical-align: baseline;
+  }
   /* Links in third-party mail stay a conventional blue — the app's own hue-blue
      ink, NOT the coral accent: mail content is not Maru chrome, and the old
      value here was the retired indigo accent, not a link colour. */

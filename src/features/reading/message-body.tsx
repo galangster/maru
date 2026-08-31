@@ -143,7 +143,15 @@ export function MessageBody({
       }),
     [message.id, raw, allowRemoteImages, inlineImages],
   )
-  const srcDoc = useMemo(() => buildSrcdoc(html), [html])
+  // The CSP widens only for a body that actually had something withheld.
+  // Keying it on `allowRemoteImages` alone would rewrite the srcdoc of every
+  // image-free message in the thread when Show is clicked — `html` is
+  // byte-identical for those, but a changed CSP string still replaces the
+  // document, tearing down the ResizeObserver and re-measuring. On a
+  // twenty-message thread with fifteen plain replies that is fifteen
+  // gratuitous reloads per click.
+  const wantsRemote = allowRemoteImages && blockedImages > 0
+  const srcDoc = useMemo(() => buildSrcdoc(html, { allowRemoteImages: wantsRemote }), [html, wantsRemote])
 
   useEffect(() => onBlockedImages(blockedImages), [blockedImages, onBlockedImages])
 
