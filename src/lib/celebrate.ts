@@ -18,10 +18,6 @@
 
 import { HUES, hueSolid } from '@/lib/hue'
 
-/** The deck. Small, fixed, and chosen from the day so it varies without being
- *  random noise — the same day always gets the same glyph. */
-const DECK = ['🎉', '🌤️', '🥳', '🧘', '🍃'] as const
-
 /** Three of the eighteen particles are glyphs rather than discs. */
 const CONFETTI = ['🎉', '✨', '🍃'] as const
 
@@ -44,12 +40,8 @@ function dayOfYear(at: number): number {
   return Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - start) / 86_400_000)
 }
 
-export function celebrationEmoji(at: number = Date.now()): string {
-  return DECK[dayOfYear(at) % DECK.length]
-}
-
 /**
- * Mulberry32. The burst is seeded from the same day the emoji is, so two
+ * Mulberry32. The burst is seeded from the day, so two
  * captures of the same frame are identical — `Math.random` would make the
  * screenshot gate impossible to compare, and there is nothing here that needs
  * to be unpredictable.

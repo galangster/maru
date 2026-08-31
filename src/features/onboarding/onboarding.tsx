@@ -11,7 +11,7 @@ import { motion } from 'motion/react'
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { ICON_SLOT, PrimaryButton } from '@/components/wren-controls'
-import { CloudMark } from '@/components/empty-state'
+import { WrenMark } from '@/components/empty-state'
 import { useAccounts, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import { useSurfaces } from '@/features/shell/surface-store'
@@ -65,7 +65,7 @@ export function Onboarding() {
   const rows: ReactNode[] =
     step === 'welcome'
       ? [
-          <CloudMark key="mark" />,
+          <WrenMark key="mark" />,
           <div key="copy" className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-ui text-ink text-xl font-semibold">Maru</h1>
             <p className="text-ink-2 max-w-72 text-sm text-pretty">
@@ -78,7 +78,7 @@ export function Onboarding() {
           </PrimaryButton>,
         ]
       : [
-          <CloudMark key="mark" />,
+          <WrenMark key="mark" />,
           <div key="copy" className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-ui text-ink text-xl font-semibold">
               Where would you like to start?

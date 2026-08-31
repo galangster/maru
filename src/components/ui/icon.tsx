@@ -63,10 +63,13 @@ const ICON_FILL: Partial<Record<IconName, string>> = {
   // Destructive, because that is what a filled trash glyph reports: this thread
   // is in the bin. Red-leaning and contrast-verified in both themes.
   trash: 'var(--wren-destructive)',
-  // The mailbox glyphs. A filled inbox or sent is "you are here", and "here" is
-  // the one accent (DIRECTION §3: current mailbox = accent + Filled).
+  // The mailbox glyphs. A filled inbox is "you are here", and here is home —
+  // the accent (owner ruling 2026-08-31: the accent is the logo's coral, and
+  // each filled glyph keeps its own semantic colour in the sidebar too).
   inbox: 'var(--wren-accent)',
-  sent: 'var(--wren-accent)',
+  // Sent is outward motion: the sky the plane flies through. Blue also keeps
+  // the old identity hue alive in one deliberate place.
+  sent: 'var(--wren-hue-blue)',
 }
 
 /** The three permitted sizes. 24 is the icon *box*, never the glyph. */

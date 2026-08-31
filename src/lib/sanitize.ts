@@ -125,7 +125,10 @@ export function buildSrcdoc(bodyHtml: string): string {
   }
   * { max-width: 100%; }
   img { height: auto; }
-  a { color: #4364DA; }
+  /* Links in third-party mail stay a conventional blue — the app's own hue-blue
+     ink, NOT the coral accent: mail content is not Maru chrome, and the old
+     value here was the retired indigo accent, not a link colour. */
+  a { color: #145EC1; }
   table { border-collapse: collapse; }
   blockquote {
     margin: 0 0 16px;

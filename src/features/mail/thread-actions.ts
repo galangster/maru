@@ -10,6 +10,7 @@
 // The descriptor answers all of that from the thread. Surfaces still choose
 // their own order, because the reading toolbar's is not the row's.
 
+import type { Tone } from '@/components/wren-controls'
 import type { IconName } from '@/components/ui/icon'
 import type { MailActionType, Thread } from '@/core/types'
 
@@ -21,7 +22,7 @@ export interface ThreadActionSpec {
   type: MailActionType
   label: string
   icon: IconName
-  tone: 'default' | 'danger' | 'star'
+  tone: Exclude<Tone, 'brand'>
   /** Draw the glyph filled — the star, when it is on. */
   filled: boolean
   /** Give the glyph its 200 ms press pop. Reserved for the star. */
@@ -45,7 +46,7 @@ export function threadActions(thread: ThreadActionSource): Record<ThreadActionId
       type: 'archive',
       label: 'Archive',
       icon: 'archive',
-      tone: 'default',
+      tone: 'success',
       filled: false,
       pop: false,
       hint: 'E',
@@ -68,7 +69,7 @@ export function threadActions(thread: ThreadActionSource): Record<ThreadActionId
       type: thread.unread ? 'markRead' : 'markUnread',
       label: thread.unread ? 'Mark as read' : 'Mark as unread',
       icon: thread.unread ? 'read' : 'unread',
-      tone: 'default',
+      tone: 'info',
       filled: false,
       pop: false,
       hint: 'U',
@@ -79,7 +80,7 @@ export function threadActions(thread: ThreadActionSource): Record<ThreadActionId
       type: thread.starred ? 'unstar' : 'star',
       label: thread.starred ? 'Unstar' : 'Star',
       icon: 'star',
-      tone: thread.starred ? 'star' : 'default',
+      tone: thread.starred ? 'star' : 'starHover',
       filled: thread.starred,
       pop: true,
       hint: 'S',

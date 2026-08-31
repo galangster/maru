@@ -167,14 +167,11 @@ function NavRow({
             name={icon}
             size={20}
             filled={active}
-            // The current mailbox is the accent, whatever the glyph means
-            // anywhere else. The icon seam gives a filled glyph its own
-            // semantic colour — a filled trash is destructive red, a filled
-            // star is the star hue — and neither is what a nav row is saying.
-            // It is saying "you are here", which DIRECTION §3 maps to the one
-            // accent. An explicit `style` is how a call site overrides the
-            // seam's default, and this is one of the two that do.
-            style={active ? { color: 'var(--wren-accent)' } : undefined}
+            // The seam's semantic colour rules here (owner ruling 2026-08-31,
+            // superseding the flatten-to-accent override): the active inbox
+            // fills coral, the star gold, the trash red, sent sky-blue. Each
+            // folder announces itself in its own colour; the selected-row wash
+            // still carries the "you are here".
             className={active ? undefined : 'text-ink-3 group-hover:text-ink-2'}
           />
         ) : hue ? (

@@ -65,12 +65,12 @@
     color-scheme: light;
 
     /* --- Maru surfaces ----------------------------------------------------
-       De-tinted. Amie's neutral ramp is achromatic and the periwinkle tint at
-       hue 268 read as a cast once the category hues arrived beside it; hue 286
-       at chroma 0.002–0.005 is a true neutral that still avoids a dead grey.
-       AMIE-STUDY §2.1. */
-    --wren-surface-base: oklch(0.968 0.002 286); /* #F4F4F5 canvas, sidebar   */
-    --wren-surface-sunken: oklch(0.949 0.003 286); /* #EDEDEF wells, inputs   */
+       Near-neutral, warmed. The ramp sat at cool hue 286 until the 2026-08-31
+       coral rebrand; it now sits at hue 50 with the same 0.002–0.005 chroma,
+       so it reads warm paper beside the logo's coral rather than cool slate.
+       Lightness untouched — every verified contrast pair carries over. */
+    --wren-surface-base: oklch(0.968 0.002 50); /* #F6F4F3 canvas, sidebar   */
+    --wren-surface-sunken: oklch(0.949 0.003 50); /* #F0EDEC wells, inputs   */
     --wren-surface: oklch(1 0 0); /* #FFFFFF list + reading pane              */
     --wren-surface-raised: oklch(1 0 0); /* #FFFFFF cards, popovers           */
 
@@ -79,22 +79,24 @@
        text-2 and text-3 HOLD their lightness exactly and move only chroma and
        hue, so the verified AA table carries over unchanged. Amie's own meta
        tier measures ~2.8:1 and Maru declines it (AMIE-STUDY §7d.2). */
-    --wren-text-1: oklch(0.205 0.004 286); /* #171719  17.92 on surface       */
-    --wren-text-2: oklch(0.47 0.004 286); /* #5A5A5D   6.83 on surface        */
-    --wren-text-3: oklch(0.535 0.004 286); /* #6D6D6F  5.17 on surface        */
+    --wren-text-1: oklch(0.205 0.004 50); /* #191716  17.92 on surface       */
+    --wren-text-2: oklch(0.47 0.004 50); /* #5D5A59   6.83 on surface        */
+    --wren-text-3: oklch(0.535 0.004 50); /* #6F6D6B  5.17 on surface        */
 
-    /* --- Accent: periwinkle indigo ---------------------------------------
-       HELD at hue 268 by owner ruling. AMIE-STUDY §7(e) question 1 offered a
-       nudge to 258; the accent is Maru's identity anchor and does not move.  */
-    --wren-accent: oklch(0.545 0.185 268); /* #4364DA                         */
-    --wren-accent-hover: oklch(0.495 0.185 268); /* #3654C9                   */
-    --wren-accent-fg: oklch(1 0 0); /* white on accent = 5.17                 */
+    /* --- Accent: logo coral -----------------------------------------------
+       Owner ruling 2026-08-31, superseding the held indigo 268: the accent is
+       the logo's coral (source.png measures hue ~35). Terracotta in light for
+       white-text contrast; the dark accent lands on the logo colour itself. */
+    --wren-accent: oklch(0.545 0.15 35); /* #B6482C terracotta, logo hue      */
+    --wren-accent-hover: oklch(0.495 0.15 35); /* #A5381C                     */
+    --wren-accent-fg: oklch(1 0 0); /* white on accent = 5.31                 */
 
     /* --- Semantic ---------------------------------------------------------
-       Star HOLDS. The proposal warmed it to oklch(0.72 0.155 80) to track the
-       new -orange; that value is outside sRGB and measures 2.52:1 on white,
-       under the 3.0 a non-text mark needs. Verified value stays.            */
-    --wren-star: oklch(0.63 0.15 58); /* #CA6E03  3.66 non-text on surface    */
+       Star nudged golden (58 → 68) for the 2026-08-31 icon-colour pass; L
+       held and C clamped to the sRGB ceiling at the new hue, so it still
+       clears 3.0 non-text (3.61 measured). Warmer than 68 goes out of gamut
+       or under contrast — the old 0.72/0.155/80 proposal failed both.      */
+    --wren-star: oklch(0.63 0.135 68); /* #BE770D  3.61 non-text on surface   */
     --wren-destructive: oklch(0.56 0.21 25); /* #D4212D                       */
     --wren-success: oklch(0.515 0.125 155); /* #087C46                        */
 
@@ -179,12 +181,12 @@
     --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.88 fails · ink 9.53  */
 
     /* --- Lines and fills --------------------------------------------------- */
-    --wren-hairline: oklch(0.923 0.003 286); /* #E6E6E9                       */
-    --wren-hairline-strong: oklch(0.872 0.004 286); /* #D6D6DA               */
-    --wren-fill-hover: oklch(0.205 0.004 286 / 0.045);
-    --wren-fill-active: oklch(0.205 0.004 286 / 0.075);
-    --wren-fill-selected: oklch(0.545 0.185 268 / 0.08);
-    --wren-scrim: oklch(0.205 0.004 286 / 0.28);
+    --wren-hairline: oklch(0.923 0.003 50); /* #E7E5E4                       */
+    --wren-hairline-strong: oklch(0.872 0.004 50); /* #D6D6DA               */
+    --wren-fill-hover: oklch(0.205 0.004 50 / 0.045);
+    --wren-fill-active: oklch(0.205 0.004 50 / 0.075);
+    --wren-fill-selected: oklch(0.545 0.15 35 / 0.08);
+    --wren-scrim: oklch(0.205 0.004 50 / 0.28);
 
     /* --- Glass -------------------------------------------------------------
        Glass now dresses TWO surfaces only — the command palette and the
@@ -209,24 +211,24 @@
        also what Maru's non-glass fallback path had been missing, and it is
        what lets the palette and the composer be the only glass in the app. */
     --wren-shadow-xs:
-        0 0 0 1px oklch(0.205 0.004 286 / 0.04),
-        0 1px 2px oklch(0.205 0.004 286 / 0.04);
+        0 0 0 1px oklch(0.205 0.004 50 / 0.04),
+        0 1px 2px oklch(0.205 0.004 50 / 0.04);
     --wren-shadow-sm:
-        0 0 0 1px oklch(0.205 0.004 286 / 0.05),
-        0 1px 2px oklch(0.205 0.004 286 / 0.035),
-        0 2px 6px oklch(0.205 0.004 286 / 0.04);
+        0 0 0 1px oklch(0.205 0.004 50 / 0.05),
+        0 1px 2px oklch(0.205 0.004 50 / 0.035),
+        0 2px 6px oklch(0.205 0.004 50 / 0.04);
     --wren-shadow-md:
-        0 0 0 1px oklch(0.205 0.004 286 / 0.05),
-        0 1px 2px oklch(0.205 0.004 286 / 0.03),
-        0 8px 20px oklch(0.205 0.004 286 / 0.06);
+        0 0 0 1px oklch(0.205 0.004 50 / 0.05),
+        0 1px 2px oklch(0.205 0.004 50 / 0.03),
+        0 8px 20px oklch(0.205 0.004 50 / 0.06);
     --wren-shadow-lg:
-        0 0 0 1px oklch(0.205 0.004 286 / 0.05),
-        0 2px 4px oklch(0.205 0.004 286 / 0.03),
-        0 14px 36px oklch(0.205 0.004 286 / 0.08);
+        0 0 0 1px oklch(0.205 0.004 50 / 0.05),
+        0 2px 4px oklch(0.205 0.004 50 / 0.03),
+        0 14px 36px oklch(0.205 0.004 50 / 0.08);
     --wren-shadow-xl:
-        0 0 0 1px oklch(0.205 0.004 286 / 0.06),
-        0 4px 10px oklch(0.205 0.004 286 / 0.04),
-        0 28px 64px oklch(0.205 0.004 286 / 0.11);
+        0 0 0 1px oklch(0.205 0.004 50 / 0.06),
+        0 4px 10px oklch(0.205 0.004 50 / 0.04),
+        0 28px 64px oklch(0.205 0.004 50 / 0.11);
 
     /* ======================================================================
        shadcn overrides — names mirror src/index.css exactly.
@@ -282,20 +284,20 @@
     /* True-black based, and more contrasty than before — AMIE-STUDY §2.3.
        `raised` lifts 0.262 -> 0.285 so the fill step still reads against the
        darker base. */
-    --wren-surface-base: oklch(0.16 0.003 286); /* #0C0C0E                    */
-    --wren-surface-sunken: oklch(0.11 0.002 286); /* #050506                  */
-    --wren-surface: oklch(0.225 0.004 286); /* #1C1C1F                        */
-    --wren-surface-raised: oklch(0.285 0.005 286); /* #28282C                 */
+    --wren-surface-base: oklch(0.16 0.003 50); /* #0E0D0C                    */
+    --wren-surface-sunken: oklch(0.11 0.002 50); /* #050404                  */
+    --wren-surface: oklch(0.225 0.004 50); /* #1D1B1A                        */
+    --wren-surface-raised: oklch(0.285 0.005 50); /* #2C2928                 */
 
     /* Same discipline as light: text-2 and text-3 hold lightness exactly. */
-    --wren-text-1: oklch(0.968 0.002 286); /* #F4F4F6  15.59 on surface       */
-    --wren-text-2: oklch(0.742 0.004 286); /* #ABABAE   7.47 on surface       */
-    --wren-text-3: oklch(0.66 0.004 286); /* #929294    5.50 on surface       */
+    --wren-text-1: oklch(0.968 0.002 50); /* #F6F4F3  15.59 on surface       */
+    --wren-text-2: oklch(0.742 0.004 50); /* #AEABA9   7.47 on surface       */
+    --wren-text-3: oklch(0.66 0.004 50); /* #949190    5.50 on surface       */
 
-    /* Hue 268 held, per the same owner ruling as light. */
-    --wren-accent: oklch(0.745 0.12 268); /* #8CA9F9                          */
-    --wren-accent-hover: oklch(0.815 0.09 268); /* #A9C1FE                    */
-    --wren-accent-fg: oklch(0.16 0.003 286); /* tracks the new base           */
+    /* Same hue-35 ruling as light; L/C carried over from the old values. */
+    --wren-accent: oklch(0.745 0.12 35); /* #EE9078 salmon, the logo itself   */
+    --wren-accent-hover: oklch(0.815 0.09 35); /* #F7AE9B                     */
+    --wren-accent-fg: oklch(0.16 0.003 50); /* tracks the new base           */
 
     --wren-star: oklch(0.8 0.135 80); /* #EBB34B  9.04 on surface             */
     --wren-destructive: oklch(0.705 0.175 22); /* #FA6B6D                     */
@@ -357,11 +359,11 @@
     --wren-hairline-strong: oklch(1 0 0 / 0.16);
     --wren-fill-hover: oklch(1 0 0 / 0.05);
     --wren-fill-active: oklch(1 0 0 / 0.09);
-    --wren-fill-selected: oklch(0.745 0.12 268 / 0.14);
-    --wren-scrim: oklch(0.08 0.002 286 / 0.6);
+    --wren-fill-selected: oklch(0.745 0.12 35 / 0.14);
+    --wren-scrim: oklch(0.08 0.002 50 / 0.6);
 
-    --wren-glass-tint: oklch(0.285 0.005 286 / 0.68); /* tracks new raised    */
-    --wren-glass-tint-strong: oklch(0.285 0.005 286 / 0.78);
+    --wren-glass-tint: oklch(0.285 0.005 50 / 0.68); /* tracks new raised    */
+    --wren-glass-tint-strong: oklch(0.285 0.005 50 / 0.78);
     --wren-glass-edge: oklch(1 0 0 / 0.1);
     /* Raised from 0.08: against a dark canvas a shadow stack does nothing, so
        the ring *is* the depth (MAGIC §3.10, `surfaces` §3 dark-mode rings). */
@@ -448,7 +450,7 @@
        the per-hue answer resolves to this same ink anyway. Everything that
        takes its hue at runtime goes through `hueVars`, which hands over the
        per-hue token instead. */
-    --wren-hue-fg: oklch(0.205 0.004 286);
+    --wren-hue-fg: oklch(0.205 0.004 50);
 
     --text-xs: 0.71875rem; /* 11.5px */
     --text-xs--line-height: 1rem; /* 16px  */
@@ -583,7 +585,9 @@
        cannot reach. A literal start is how an animation stays visibly bouncy
        for a user who asked for no motion. */
     --wren-scale-confirm: 0.7; /* the archive tick's disc arriving            */
-    --wren-scale-celebrate: 0.4; /* the inbox-zero glyph arriving             */
+    --wren-scale-celebrate: 0.4; /* the inbox-zero wren arriving             */
+    --wren-float: 4px; /* the inbox-zero wren's idle bob distance          */
+    --wren-dur-float: 3200ms;
 
     /* --- Noise: kills banding across large blurred areas ------------------- */
     --wren-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
@@ -900,6 +904,18 @@
    never on the first mount of an already-empty inbox. The guard is the part
    that decides whether this is charming or infuriating; it lives in
    lib/celebrate.ts. */
+/* The inbox-zero wren's idle bob: one gentle rise, mirrored by `alternate`.
+   Written in terms of --wren-float so the reduced-motion block below stills
+   it by zeroing the distance, keeping the arrival crossfade untouched. */
+@keyframes wren-float {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(calc(-1 * var(--wren-float)));
+    }
+}
+
 @keyframes wren-celebrate-in {
     0% {
         opacity: 0;
@@ -933,6 +949,7 @@
         --wren-spin: 0deg;
         --wren-scale-confirm: 1;
         --wren-scale-celebrate: 1;
+        --wren-float: 0px;
         --wren-dur-base: 120ms;
         --wren-dur-slow: 120ms;
         --wren-dur-exit: 120ms;

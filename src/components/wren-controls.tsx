@@ -12,13 +12,28 @@ import { initials } from '@/lib/format'
 import { hueSolid, hueVars, type Hue } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
-export type Tone = 'default' | 'star' | 'danger' | 'brand'
+export type Tone =
+  | 'default'
+  | 'star'
+  | 'starHover'
+  | 'danger'
+  | 'brand'
+  | 'success'
+  | 'info'
 
+/**
+ * Resting icons stay in the ink tiers; hover reveals the action's own colour
+ * (owner ruling 2026-08-31 — trash was the only action that coloured, "which
+ * feels weird"). `star` is the already-on state; `starHover` is the invitation.
+ */
 const TONES: Record<Tone, string> = {
   default: 'text-ink-3 hover:text-ink',
   brand: 'text-brand hover:text-brand',
   star: 'text-star hover:text-star',
+  starHover: 'text-ink-3 hover:text-star',
   danger: 'text-ink-3 hover:text-destructive',
+  success: 'text-ink-3 hover:text-success',
+  info: 'text-ink-3 hover:text-hue-blue',
 }
 
 /**

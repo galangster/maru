@@ -64,7 +64,7 @@ describe('Icon semantic fill', () => {
     expect(styleOf('star', true)?.color).toBe('var(--wren-star)')
     expect(styleOf('trash', true)?.color).toBe('var(--wren-destructive)')
     expect(styleOf('inbox', true)?.color).toBe('var(--wren-accent)')
-    expect(styleOf('sent', true)?.color).toBe('var(--wren-accent)')
+    expect(styleOf('sent', true)?.color).toBe('var(--wren-hue-blue)')
   })
 
   it('leaves a resting Line glyph inheriting its text tier', () => {

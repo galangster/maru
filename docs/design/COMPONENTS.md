@@ -23,7 +23,7 @@ class recipes across features.
      `SurfaceHeader`, `SurfaceEmpty`; the recipes `PRESS`, `AVATAR_CHIP`,
      `SURFACE_TITLE`, `META_TEXT`, `DATE_COLUMN`, `SECTION_LABEL`,
      `ICON_SLOT`, `SEND_BUTTON` + `SEND_CONFIRM`; the `Tone` scale.
-   - `empty-state.tsx` — `EmptyState` and `CloudMark`, the presentational
+   - `empty-state.tsx` — `EmptyState` and `WrenMark`, the presentational
      halves (list, reading pane, and onboarding all draw on them). Which copy
      a mail view earns and the inbox-zero tier state are list domain and live
      in `features/list/inbox-zero.ts` — the kit never switches on `MailView`.
