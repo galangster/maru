@@ -1,197 +1,162 @@
-// The five-beat inbox-zero flight — P13 v2 SCAFFOLDING.
+// The inbox-zero celebration — the one milestone Maru celebrates.
 //
-// Only the ?tune=1 stage (src/dev/wren-stage.tsx) mounts this today. The
-// shipped celebration is still CelebrationMark in empty-state.tsx; this
-// sequence replaces it only after DialKit tuning settles the numbers and the
-// owner ratifies them. Until then nothing in the app tree imports this file.
-//
-// Doctrine carried over from the shipped choreography: the burst mounts only
-// in full motion mode; reduced motion and captures get the still bird with at
-// most a 120 ms crossfade; lib/celebrate's frequency guard stays with the
-// caller (EmptyState), not here.
-//
-// The transitions lean on lib/motion's SPRING — the one spring in the app.
-// The tuning stage may bend stiffness/damping while exploring; whatever it
-// settles on either becomes SPRING or arrives as a ratified exception at
-// seal, never as a silent second spring.
+// This is the SHIPPED sequence. `CelebrationMark` in empty-state.tsx renders
+// it, and the `?tune=1` stage (src/dev/wren-stage.tsx) mounts the same
+// component against the same amplitude tokens, so there is no scaffold that
+// can drift from what ships.
 //
 /* ─────────────────────────────────────────────────────────
- * ANIMATION STORYBOARD — inbox zero, five beats
+ * ANIMATION STORYBOARD — inbox zero
  *
- * Read top-to-bottom. Each value is ms after trigger.
+ * Read top-to-bottom. Each value is ms after the trigger. The airborne half is
+ * one WAAPI timeline (lib/wren-flight.ts); the fall is motion/react.
  *
- *    0ms   NOTICE  perched Maru perks: tilts back 3°, lifts 2px
- *  180ms   CROUCH  anticipation squash from the feet (scaleY → 0.9)
- *  330ms   LEAP    springs off: rises 18px, perched → flight crossfade
- *  560ms   APEX    overshoot pop (scale → 1.12) + the particle burst
- *  900ms   SETTLE  eases to rest and hands off to the wren-float bob
+ *      0ms   PERCHED      the bird is ALREADY on the ground, at rest
+ *    150ms   ANTICIPATE   wing cocks back, body counter-rotates
+ *    281ms   CROUCH       drops BELOW the resting line, squashes from the
+ *                         feet, and the shadow presses and darkens
+ *    489ms   LAUNCH       64px up in 208ms; the perched→flight crossfade is
+ *                         hidden here, where it reads as wings opening
+ *    645ms   APEX         overshoot pop, and the 18-particle burst, phase-
+ *                         locked to this frame by a keyframe delay
+ *   1040ms   SETTLE       springs onto the hover line, wing lagging behind
+ *   1040ms   HOVER        CSS takes over: a 3200ms bob, the wing beating
+ *                         twice per cycle, two sparkle twinkles and no more
+ *   4240ms   DESCENT      one full bob period later, so the fall begins at a
+ *                         turning point with the loop's own zero velocity
+ *   5840ms   LANDED       the ordinary perched bird, handed to the same idle
+ *                         clock every other quiet surface runs, with its
+ *                         first behaviour forced to wing-settle at +600ms
  * ───────────────────────────────────────────────────────── */
 
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 
-import { WrenBlob, WrenFlying, WrenFlyingArrival, WrenPerched } from '@/components/wren-figure'
-import { burst } from '@/lib/celebrate'
-import { DUR, EASE_OUT, SPRING, type MotionMode } from '@/lib/motion'
+import { WrenCelebrationStill, WrenFigure, WrenPerched } from '@/components/wren-figure'
+import { EASE_IN, EASE_OUT, type MotionMode } from '@/lib/motion'
+import { descent, flightTiming, flight, readMotion, settleHeight } from '@/lib/wren-flight'
 
-const TIMING = {
-  notice: 0, //   Maru perks up
-  crouch: 180, // anticipation squash
-  leap: 330, //   leaves the ground, pose swaps
-  apex: 560, //   top of the arc, burst fires
-  settle: 900, // rests into the float loop
-}
+type Phase = 'flight' | 'descent' | 'landed'
 
-/* Beat 1 — the perk. */
-const NOTICE = {
-  tilt: -3, // deg, back on the heels
-  lift: 2, //  px up
-}
-
-/* Beat 2 — the anticipation squash, planted on the feet. */
-const CROUCH = {
-  squashY: 0.9, //  scaleY at the bottom of the crouch
-  stretchX: 1.05, // scaleX, mass goes sideways
-  sink: 3, //       px down
-}
-
-/* Beat 3 — the launch. */
-const LEAP = {
-  rise: 18, //                  px off the ground
-  tilt: 4, //                   deg, nose into the climb
-  crossfadeMs: DUR.fast * 1000, // perched → flight opacity swap; the dial may explore above it
-}
-
-/* Beat 4 — the pop at the top. Starts as --wren-pop-lg's 1.12; whatever the
-   tuning settles on gets written back into that token at seal, so the two
-   celebrations never carry two different overshoots. */
-const APEX = {
-  pop: 1.12,
-}
-
-/* Beat 5 — where the bird rests while wren-float bobs it. */
-const SETTLE = {
-  hover: 8, // px above the ground line
-}
-
-export const CELEBRATION_DEFAULTS = {
-  timing: TIMING,
-  notice: NOTICE,
-  crouch: CROUCH,
-  leap: LEAP,
-  apex: APEX,
-  settle: SETTLE,
-  spring: { stiffness: SPRING.stiffness as number, damping: SPRING.damping as number },
-}
-
-export type WrenCelebrationParams = typeof CELEBRATION_DEFAULTS
+/** The bird folding up after it lands, 600 ms later. */
+const LANDING_BEAT = { name: 'wing-settle', delay: 600 } as const
 
 /**
- * The five-beat sequence. `replayTrigger` restarts it (the tuning stage's
- * replay button); timing tweaks from `params` apply on the next replay, the
- * per-beat values apply live.
+ * The fall, as the fraction of the drop still remaining at each keyframe time:
+ * the bird falls, arrives at 72%, rebounds, and stops. Two segments of
+ * --wren-ease-in (gravity taking over) then two of --wren-ease-out.
+ *
+ * The rebound is 2 px flat rather than a fraction of the drop, because it is a
+ * hop off the ground and not a proportion of however high the bird went.
+ */
+const FALL_TIMES = [0, 0.35, 0.72, 0.86, 1]
+const REBOUND = -2
+const fallFrom = (drop: number) => [drop, drop * 0.553, 0, REBOUND, 0]
+
+/**
+ * The whole celebration. `replayTrigger` restarts it, which is what the tuning
+ * stage's replay button changes.
+ *
+ * The amplitudes are not props. They are the seven tokens in tokens.css, which
+ * the sequencer reads through getComputedStyle at call time — so the tuning
+ * stage tunes by writing those custom properties, the reduced-motion block
+ * reaches the WAAPI path, and there is exactly one place any of these numbers
+ * is written down.
  */
 export function WrenCelebration({
   mode,
-  params = CELEBRATION_DEFAULTS,
   replayTrigger = 0,
 }: {
   mode: MotionMode
-  params?: WrenCelebrationParams
   replayTrigger?: number
 }) {
+  const figure = useRef<HTMLDivElement>(null)
   const host = useRef<HTMLDivElement>(null)
-  const [stage, setStage] = useState(0)
-  const timing = useRef(params.timing)
-  timing.current = params.timing
+  const [phase, setPhase] = useState<Phase>('flight')
+  const [drop, setDrop] = useState(0)
+  const [fallSec, setFallSec] = useState(1.6)
 
   useEffect(() => {
     if (mode !== 'full') return
-    setStage(0)
-    // TIMING's key order is the beat order; stage n is beat n.
-    const timers = Object.values(timing.current).map((ms, index) =>
-      setTimeout(() => setStage(index + 1), ms),
+    const root = figure.current
+    if (!root) return
+
+    setPhase('flight')
+    const timing = flightTiming(readMotion())
+    let stopSequence = flight({ root, host: host.current })
+    const timers: ReturnType<typeof setTimeout>[] = []
+
+    timers.push(
+      setTimeout(() => {
+        // Hand the settle offset AND the top of the bob to the fall in the same
+        // commit that cancels the tracks holding them, so the swap has no step:
+        // the lean's -0.86 x --wren-fly and the bob's --wren-float leave the
+        // figure exactly where this wrapper picks it up.
+        setDrop(settleHeight())
+        setFallSec(timing.descent / 1000)
+        setPhase('descent')
+        stopSequence()
+        stopSequence = descent({ root })
+      }, timing.descentAt),
     )
-    return () => timers.forEach(clearTimeout)
+    timers.push(
+      setTimeout(() => setPhase('landed'), timing.descentAt + timing.descent),
+    )
+
+    return () => {
+      for (const id of timers) clearTimeout(id)
+      stopSequence()
+    }
   }, [mode, replayTrigger])
 
-  const atApex = stage >= 4
-  useEffect(() => {
-    if (!atApex || mode !== 'full' || !host.current) return
-    return burst(host.current)
-  }, [atApex, mode])
-
-  // Reduced motion and captures: the exact markup the shipped mark renders —
-  // WrenFlyingArrival owns that contract (tokens zero it to the 120 ms
-  // crossfade; `.screenshot` stills it outright).
+  // Reduced motion and captures: a still PERCHED bird. The branch lives here
+  // rather than inside the figure because this is the component that already
+  // receives `mode`, and wren-figure.tsx reserves the reduced-motion answer for
+  // the token layer — a JS copy down there would be a second answer to it.
   if (mode !== 'full') {
     return (
-      <div className="relative flex h-28 w-36 items-center justify-center select-none">
-        <WrenFlyingArrival />
+      <div className="relative flex items-center justify-center select-none">
+        <WrenCelebrationStill />
       </div>
     )
   }
 
-  const spring = { ...SPRING, ...params.spring }
-  const crossfade = { duration: params.leap.crossfadeMs / 1000, ease: 'linear' as const }
-  const crouching = stage === 2
+  if (phase === 'landed') {
+    // One resting state for the character in the whole app: the celebration
+    // hands the bird to the same clock that runs every other quiet surface.
+    return (
+      <div className="relative flex items-center justify-center select-none">
+        <WrenPerched alive opening={LANDING_BEAT} />
+      </div>
+    )
+  }
 
-  // One row per beat — the storyboard again, as numbers. The squash joint
-  // below stays separate: it scales from the feet while these move the whole
-  // figure from its centre.
-  const frames = [
-    { y: 0, rotate: 0, scale: 1 },
-    { y: -params.notice.lift, rotate: params.notice.tilt, scale: 1 }, // NOTICE
-    { y: params.crouch.sink, rotate: params.notice.tilt, scale: 1 }, //  CROUCH
-    { y: -params.leap.rise, rotate: params.leap.tilt, scale: 1 }, //     LEAP
-    { y: -params.settle.hover, rotate: 0, scale: params.apex.pop }, //   APEX
-    { y: -params.settle.hover, rotate: 0, scale: 1 }, //                 SETTLE
-  ]
+  const falling = phase === 'descent'
 
   return (
-    <div ref={host} className="relative flex h-28 w-36 items-center justify-center select-none">
-      <WrenBlob align="end">
-        {/* The float layer: CSS owns the bob after SETTLE, so it never fights
-            the motion values below, which have finished by then. */}
-        <span
-          aria-hidden
-          className="inline-flex leading-none"
-          style={
-            stage >= 5
-              ? { animation: 'wren-float var(--wren-dur-float) ease-in-out infinite alternate' }
-              : undefined
-          }
-        >
-          {/* The flight joint: rise, tilt and the apex pop, from the centre. */}
-          <motion.span className="inline-flex" animate={frames[stage]} transition={spring}>
-            {/* The squash joint: anticipation only, planted on the feet. */}
-            <motion.span
-              className="relative inline-flex h-24 w-24 origin-bottom"
-              animate={{
-                scaleX: crouching ? params.crouch.stretchX : 1,
-                scaleY: crouching ? params.crouch.squashY : 1,
-              }}
-              transition={{ duration: DUR.fast, ease: EASE_OUT }}
-            >
-              <motion.span
-                className="absolute inset-0"
-                animate={{ opacity: stage >= 3 ? 0 : 1 }}
-                transition={crossfade}
-              >
-                <WrenPerched alive={false} className="h-24 w-24" />
-              </motion.span>
-              <motion.span
-                className="absolute inset-0"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: stage >= 3 ? 1 : 0 }}
-                transition={crossfade}
-              >
-                <WrenFlying className="h-24 w-24" />
-              </motion.span>
-            </motion.span>
-          </motion.span>
-        </span>
-      </WrenBlob>
+    <div className="relative flex items-center justify-center select-none">
+      <motion.div
+        className="inline-flex"
+        animate={falling ? { y: fallFrom(drop) } : { y: 0 }}
+        transition={
+          falling
+            ? {
+                duration: fallSec,
+                times: FALL_TIMES,
+                ease: [EASE_IN, EASE_IN, EASE_OUT, EASE_OUT],
+              }
+            : { duration: 0 }
+        }
+      >
+        <WrenFigure
+          alive
+          poses="both"
+          flying={phase === 'flight'}
+          showing={falling ? 'flight' : 'perched'}
+          rootRef={figure}
+          hostRef={host}
+        />
+      </motion.div>
     </div>
   )
 }
