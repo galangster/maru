@@ -106,3 +106,22 @@ Also this stretch: multi-device strategy brief (queue has the
 ratification item), narrow-pane rig + zoom-to-fit mail, the accounts
 group, motion pass, photo lightbox morph. All in the commit log
 between 79a2491 and fac5eb2.
+
+## Resume notes for the next agent (written at session close)
+
+- **Nick may edit the Maru mascot directly on the design canvas**
+  (https://claude.ai/code/artifact/1b29708d-84f6-4ea3-b2c3-b08553228a87).
+  Before ANY P13 work, read the artifact back (Artifact tool,
+  action "read") and compare against docs/design/wren-character/ — if
+  he saved changes, extract with the design skill's --extract flow,
+  re-trace what changed, and regenerate src/assets/wren-poses.ts
+  before touching the rig. His canvas edits are the source of truth.
+- The rig's regeneration chain: reference art → trace.mjs →
+  *.paths.txt → hand-assembled wren-poses.ts (script the assembly if
+  a third pose lands) → wren-figure.tsx.
+- First words to expect from Nick: a mascot verdict, or "freeze" (then
+  run the rebuild command in Environment facts, reinstall, smoke:
+  bodies render / links open in Arc / photos morph / Maru breathes,
+  then RECORDING-RUNBOOK.md).
+- The preview server on 1420 and the scratchpad die with the old
+  session; everything needed is in the repo.
