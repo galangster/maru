@@ -1,0 +1,24 @@
+{
+  "name": "maru-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Remotion project for the Maru Mail Google OAuth verification demo video",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render MaruDemo out/maru-demo.mp4",
+    "still": "remotion still MaruDemo out/frame.png --frame=15",
+    "compositions": "remotion compositions",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.290",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "remotion": "^4.0.290"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "typescript": "^5.7.2"
+  }
+}

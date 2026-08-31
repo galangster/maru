@@ -19,21 +19,27 @@ asking in chat. Newest at the top of each section. Strike items done.
    - Consent screen name is **"Maru Mail"** when you reach the console.
    - The trademark/name-collision check matters more for "Maru" than it
      did for Wren — busier name.
-2. **Create the production Google Cloud project** (plan Part 2 §4, all
-   console work): separate from dev, Gmail API on, External audience,
-   one Desktop OAuth client, `gmail.modify` only on Data Access, two
-   durable owners, current contact addresses, quota dashboards +
-   alerts. Delete unused clients before submission. Billing account
-   only if you accept the exposure (§4 last bullet).
-3. **Consent screen**: name "Wren Mail" (N2), publish to production,
-   then brand verification (plan §5) — homepage, privacy URL on
-   wren.so must be live first.
-4. **Inject the official client id into the release workflow**
-   (`WREN_OFFICIAL_GOOGLE_CLIENT_ID`) once the production client
-   exists. Code and checks already expect it; it must never land in
-   Git.
-5. **Demo video** (plan §8) needs the production consent screen, so it
-   sits behind items 2–3. The app-side surfaces it shows are done.
+2. ~~Create the production Google Cloud project~~ — done 2026-08-30:
+   `maru-mail-prod`, Gmail API on, External, one Desktop client,
+   `gmail.modify` only. Still open from this item, needs you in the
+   console (agent won't change account config unattended):
+   - **Second durable owner** in IAM (your other durable account).
+   - **Quota dashboards + alerts** (plan §4).
+   - **Billing decision** (moved to Non-blocking below).
+3. ~~Consent screen~~ — done 2026-08-30: "Maru Mail", In production,
+   getmaru.app branding + authorized domain. **Brand verification
+   (plan §5) still pending** — runs inside the verification submission.
+4. ~~Inject the official client id~~ — done 2026-08-30: repo variable
+   `WREN_OFFICIAL_GOOGLE_CLIENT_ID` on galangster/maru; release
+   workflow fails without it.
+5. **Demo video captures** — the Remotion scaffold is built (`demo/`,
+   2026-08-30) with the full 10-shot list, captions, and placeholder
+   slots. Your part: record the clips of the final signed build —
+   especially the three consent flows (account addition, Google
+   consent screen, agent-session consent), each ONE continuous
+   unedited capture with the address bar visible. Drop files in
+   `demo/public/captures/<shot-id>.mp4` per `demo/README.md`; the
+   agent wires durations and renders.
 
 ## Dossier placeholders
 
