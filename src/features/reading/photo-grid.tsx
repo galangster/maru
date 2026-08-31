@@ -11,19 +11,15 @@
 // are honest content, not tracking pixels — the remote-image privacy gate
 // does not apply to a message's own attachments.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'motion/react'
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { META_TEXT, PRESS, textButtonClass } from '@/components/wren-controls'
 import type { Attachment } from '@/core/types'
 import { useMailService } from '@/features/mail/service'
 import { formatBytes, toDataUrl } from '@/lib/format'
+import { DUR, EASE_OUT, EXIT_DUR, crossfadePreset, useMotionMode } from '@/lib/motion'
 import { saveWithToasts } from '@/lib/save-file'
 import { cn } from '@/lib/utils'
 
@@ -53,6 +49,36 @@ function PhotoThumb({
   const service = useMailService()
   const photo = usePhotoData(threadKey, attachment)
   const [open, setOpen] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const overlay = useRef<HTMLDivElement>(null)
+  const saveButton = useRef<HTMLButtonElement>(null)
+  const mode = useMotionMode()
+  const morph = mode === 'full'
+  const morphId = `photo-${attachment.messageId}-${attachment.id}`
+  const fade = crossfadePreset(mode)
+
+  // Escape closes; focus moves into the dialog and returns to the thumbnail
+  // after. The nearest scroller locks while open — not cosmetics: if the pane
+  // scrolled under the overlay, the close morph would fly to a stale target.
+  useEffect(() => {
+    if (!open) return
+    overlay.current?.focus()
+    let scroller: HTMLElement | null = trigger.current?.parentElement ?? null
+    while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
+      scroller = scroller.parentElement
+    }
+    const previousOverflow = scroller?.style.overflow ?? ''
+    if (scroller) scroller.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      if (scroller) scroller.style.overflow = previousOverflow
+      trigger.current?.focus()
+    }
+  }, [open])
 
   const save = async () => {
     const bytes = await service.getAttachment(threadKey, attachment.messageId, attachment.id)
@@ -62,6 +88,7 @@ function PhotoThumb({
   return (
     <>
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen(true)}
         disabled={!photo.data}
@@ -76,9 +103,14 @@ function PhotoThumb({
         )}
       >
         {photo.data ? (
-          <img
+          <motion.img
+            // `!open` is load-bearing: while the lightbox is up, the thumb
+            // must NOT share the id, or Motion hides it as the non-lead of
+            // the pair. Dropping the id re-targets the close morph home.
+            layoutId={morph && !open ? morphId : undefined}
             src={photo.data}
             alt={attachment.filename}
+            style={{ borderRadius: 12 }}
             className={cn(
               'transition-[scale] duration-(--wren-dur-base) ease-(--wren-ease-out) motion-safe:group-hover:scale-[1.03]',
               solo ? 'max-h-80 w-auto object-contain' : 'size-full object-cover',
@@ -104,37 +136,67 @@ function PhotoThumb({
         </span>
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          showCloseButton={false}
-          className="w-auto max-w-[min(92vw,1100px)] border-none bg-transparent p-0 shadow-none"
-        >
-          <DialogTitle className="sr-only">{attachment.filename}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Full-size view. Escape closes.
-          </DialogDescription>
-          {photo.data && (
-            <img
+      {/* The lightbox grows out of the thumbnail (shared layoutId): the photo
+          the user clicked is the photo on screen, moved — object permanence,
+          not a second copy fading in from nowhere. Reduced motion drops the
+          morph and keeps the crossfade; the capture path holds still.
+          Hand-rolled rather than the Dialog primitive because the close morph
+          needs AnimatePresence to own the exit — Base UI removes its node on
+          close, so the image could never fly home (same division of labour as
+          lib/motion.ts's header and the composer). The price is the trap and
+          scroll lock below, paid by hand. */}
+      <AnimatePresence>
+        {open && photo.data && (
+          <motion.div
+            ref={overlay}
+            role="dialog"
+            aria-modal="true"
+            aria-label={attachment.filename}
+            tabIndex={-1}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 p-8 outline-none"
+            initial={fade.initial}
+            animate={fade.animate}
+            exit={{ ...fade.exit, transition: { duration: EXIT_DUR } }}
+            transition={fade.transition}
+            onClick={() => setOpen(false)}
+            onKeyDown={(event) => {
+              // One focusable inside (Save): the whole focus trap is this.
+              if (event.key === 'Tab') {
+                event.preventDefault()
+                saveButton.current?.focus()
+              }
+            }}
+          >
+            <div aria-hidden className="absolute inset-0" style={{ backgroundColor: 'var(--wren-scrim)' }} />
+            <motion.img
+              layoutId={morph ? morphId : undefined}
+              transition={{ duration: DUR.base, ease: EASE_OUT }}
               src={photo.data}
               alt={attachment.filename}
-              className="max-h-[82vh] w-auto rounded-2xl object-contain"
+              style={{ borderRadius: 16 }}
+              className="relative max-h-[82vh] max-w-[min(92vw,1100px)] object-contain"
+              onClick={(event) => event.stopPropagation()}
             />
-          )}
-          <div className="mt-3 flex items-center justify-center gap-3">
-            <span className="text-sm text-white/90">{attachment.filename}</span>
-            <span className={cn(META_TEXT, 'text-white/60')}>
-              {formatBytes(attachment.sizeBytes)}
-            </span>
-            <button
-              type="button"
-              onClick={() => void save()}
-              className={cn(textButtonClass(), 'text-white/80 hover:text-white')}
+            <div
+              className="relative flex items-center gap-3"
+              onClick={(event) => event.stopPropagation()}
             >
-              Save
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+              <span className="text-sm text-white/90">{attachment.filename}</span>
+              <span className={cn(META_TEXT, 'text-white/60')}>
+                {formatBytes(attachment.sizeBytes)}
+              </span>
+              <button
+                ref={saveButton}
+                type="button"
+                onClick={() => void save()}
+                className={cn(textButtonClass(), 'text-white/80 hover:text-white')}
+              >
+                Save
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }

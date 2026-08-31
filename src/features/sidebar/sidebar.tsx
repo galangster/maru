@@ -4,6 +4,8 @@
 // Selection is a soft fill plus an accent-tinted icon. Never a left bar —
 // DIRECTION §2 (Juicebox) and §10.2.
 
+import { useEffect, useRef } from 'react'
+
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -205,16 +207,7 @@ function NavRow({
         // and there are none.
         <span aria-hidden className="flex min-w-0 flex-1 items-baseline gap-2 text-left">
           <span className="truncate">{label}</span>
-          {unread !== undefined && (
-            <span
-              className={cn(
-                'shrink-0 text-xs tabular-nums',
-                active ? 'text-brand font-medium' : 'text-ink-3',
-              )}
-            >
-              {unread}
-            </span>
-          )}
+          {unread !== undefined && <UnreadCount value={unread} active={active} />}
         </span>
       )}
     </>
@@ -234,6 +227,38 @@ function NavRow({
         <button {...buttonProps}>{content}</button>
       )}
     </li>
+  )
+}
+
+/**
+ * The inbox count, popping once when it RISES — mail arriving is feedback
+ * worth feeling; mail being read is the user's own doing and stays silent.
+ * Remounting the span (key) is what re-runs the CSS animation; the tokens'
+ * reduced-motion block neutralizes it (scale 1, [data-wren-pop] animation
+ * none), so the pop stills itself there.
+ */
+function UnreadCount({ value, active }: { value: number; active: boolean }) {
+  // A monotonic counter keys the span (the presses idiom in wren-controls):
+  // it bumps once per rise and then holds, so an unrelated parent re-render
+  // mid-pop cannot flip the key back and cut the animation short.
+  const previous = useRef(value)
+  const pops = useRef(0)
+  if (value > previous.current) pops.current++
+  useEffect(() => {
+    previous.current = value
+  }, [value])
+
+  return (
+    <span
+      key={pops.current}
+      data-wren-pop={pops.current > 0 ? '' : undefined}
+      className={cn(
+        'shrink-0 text-xs tabular-nums',
+        active ? 'text-brand font-medium' : 'text-ink-3',
+      )}
+    >
+      {value}
+    </span>
   )
 }
 
@@ -266,8 +291,19 @@ function AccountsGroup({ accounts }: { accounts: Account[] }) {
         )}
         <Icon name={!collapsed ? 'chevronDown' : 'chevronRight'} size={16} />
       </button>
-      {!collapsed &&
-        accounts.map((account) => <AccountSection key={account.id} account={account} />)}
+      {/* The fold animates through grid-template-rows (0fr ↔ 1fr): a real
+          transition, so a mid-fold second click reverses from where it is —
+          keyframes would restart. Contents stay mounted; only rows collapse. */}
+      <div
+        className="grid transition-[grid-template-rows] duration-(--wren-dur-base) ease-(--wren-ease-out) motion-reduce:transition-none"
+        style={{ gridTemplateRows: collapsed ? '0fr' : '1fr' }}
+      >
+        <div className="min-h-0 overflow-hidden" inert={collapsed || undefined}>
+          {accounts.map((account) => (
+            <AccountSection key={account.id} account={account} />
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
