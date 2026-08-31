@@ -332,6 +332,11 @@ pub fn run() {
           };
           match url.scheme() {
             "tauri" => true,
+            // wry feeds EVERY frame's navigation through this handler, not
+            // just the window's: the message iframe loads as about:srcdoc,
+            // and blocking it blanks every mail body. about: documents are
+            // inert — they carry no network fetch.
+            "about" => true,
             "http" | "https" => {
               // Own origins only, exactly: a mail link to some other
               // localhost port must not navigate the app or poke a
