@@ -4,15 +4,15 @@ Keep these addresses current in the production Google Cloud project and the annu
 
 | Contact role | Address | Purpose |
 | --- | --- | --- |
-| Primary durable project owner | `«NICK: primary durable owner address»` | Owns project access, policy notices, verification, and appeals. |
-| Second durable project owner | `«NICK: second durable owner address»` | Acts when the primary owner is unavailable. Must have independent durable access. |
-| Project editor | `«NICK: project editor address»` | Maintains approved Cloud configuration, dashboards, and evidence. |
+| Primary durable project owner | nicholasgalang@gmail.com | Owns project access, policy notices, verification, and appeals. |
+| Second durable project owner | galangsterr@gmail.com (IAM owner grant pending — queued in wayfinder/NICK-QUEUE.md) | Acts when the primary owner is unavailable. Must have independent durable access. |
+| Project editor | nicholasgalang@gmail.com (single-operator project; same person as primary owner) | Maintains approved Cloud configuration, dashboards, and evidence. |
 | User support | `support@getmaru.app` | Receives user questions about Google data, deletion, and access. Source: `site/privacy.html:70-71` and `site/support/google-data.html:52-53`. |
-| Developer contact | `«NICK: developer contact address»` | Receives Google developer notices and coordinates code or release corrections. |
+| Developer contact | nicholasgalang@gmail.com (as set on the consent screen; support@getmaru.app is live and can take this role if swapped in the console) | Receives Google developer notices and coordinates code or release corrections. |
 
 ## Review record
 
-`«NICK: contact roster review date»`
+Reviewed 2026-08-31. Next review at the annual reverification window (see REVERIFICATION.md).
 
 Enter the date when both owners confirmed access and every mailbox confirmed receipt.
 

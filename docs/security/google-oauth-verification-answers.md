@@ -58,14 +58,15 @@ The repository's current release-page pattern is `https://github.com/galangster/
 | Purpose | Submission URL | Repository source |
 | --- | --- | --- |
 | Homepage | `https://getmaru.app/` | `site/index.html` |
-| Privacy policy | `https://getmaru.app/privacy` | `site/privacy.html` |
-| Security and data flow | `https://getmaru.app/security` | `site/security.html` |
-| Support | `https://getmaru.app/support/google-data` | `site/support/google-data.html` |
-| Local deletion and Google revocation | `https://getmaru.app/support/google-data` | `site/support/google-data.html:26-53` |
+| Privacy policy | `https://getmaru.app/privacy/` | `site/privacy.html` |
+| Security and data flow | `https://getmaru.app/security/` | `site/security.html` |
+| Support | `https://getmaru.app/support/google-data/` | `site/support/google-data.html` |
+| Local deletion and Google revocation | `https://getmaru.app/support/google-data/` | `site/support/google-data.html:26-53` |
 
-`«NICK: verify all five public URL entries load without authentication or redirects before submission.»`
-
-Record the production check date and attach the result for each URL.
+Verified 2026-08-31 by production curl: every URL above returns HTTP 200
+with no authentication and zero redirects (the trailing-slash forms are
+canonical; the bare forms 301 to them, which is why the table submits the
+trailing-slash URLs). Re-run the same check on submission day.
 
 ### What Google data does Maru request?
 

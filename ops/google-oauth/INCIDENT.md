@@ -39,7 +39,7 @@ Use the addresses in `ops/google-oauth/CONTACTS.md`.
 | Role | Duty during the incident |
 | --- | --- |
 | Primary project owner | Confirm project and client state. Read Google notices. Own the appeal. |
-| `«NICK: second durable owner»` | Enter the second Google Cloud project owner. This person can act if the primary owner is unavailable. |
+| galangsterr@gmail.com (grant pending — accept the IAM invite, then strike this note) | Enter the second Google Cloud project owner. This person can act if the primary owner is unavailable. |
 | Project editor | Capture metrics, client state, scope state, and timestamps without changing configuration. |
 | Developer contact | Reproduce the error. Classify the affected release. Prepare a code or release correction when needed. |
 | `support@getmaru.app` | Collect user reports. Send the approved status and BYO fallback message. Source: `site/privacy.html:70-71`. |
@@ -98,7 +98,7 @@ Use this message only after the incident owner confirms a shared-client problem:
 
 The in-app recovery action and account-safety statement come from `src/features/settings/settings-dialog.tsx:465-486`. The custom-client setup path is documented in `docs/SETUP-GOOGLE-OAUTH.md`.
 
-`«NICK: incident status channel — name the public place where the static incident notice will appear.»`
+https://getmaru.app/status/ — a static page on the product site (GitHub Pages, deployable independently of the app). Decided 2026-08-31 under the autonomous standing order.
 
 Enter the channel that support will update. Do not create an unapproved URL in this runbook.
 

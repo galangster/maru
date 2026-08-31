@@ -4,7 +4,7 @@
 
 Assume that restricted-scope work recurs annually until Google gives Maru a written schedule for this architecture. Start the package 120 days before the approval anniversary. Google's pages do not clearly state the schedule for an assessment-exempt local client. Source: `docs/research/shared-client-implementation-plan.md` Part 1 §5.
 
-`«NICK: annual reverification calendar owner»`
+Nick (nicholasgalang@gmail.com) owns the reverification calendar.
 
 Enter the person who owns the calendar, evidence package, and submission deadline.
 
