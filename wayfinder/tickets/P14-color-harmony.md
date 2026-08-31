@@ -1,6 +1,6 @@
 # P14 — One color story: interface, logo, Maru  `wayfinder:task`
 
-status: queued (2026-08-31) · claimed: — · blocked by: owner anchor decision (NICK-QUEUE)
+status: DONE (2026-08-31) · anchor: option C, shared parent hue 13
 
 ## The ask
 
@@ -56,33 +56,37 @@ change. It is now `--wren-maru-pink` / `--wren-maru-pale` alongside the
 existing ground/field/shade tokens. Captures came back byte-identical,
 so it is a pure refactor — and the whole pass is now a token edit.
 
-## The three anchors, rendered
+## The three anchors, rendered — and the ruling
 
-All three were rendered on the real app and shown to Nick:
+All three were rendered on the real app. Nick, 2026-08-31: **"i like C"**.
 
-- **A — anchor on the logo/coral (H21).** Maru moves to the chrome. The
-  most conservative, and the character loses the hot pink the sheet was
-  drawn around.
-- **B — anchor on Maru (H5.6).** The chrome moves to the character.
-  Keeps the canonical art exactly, makes the interface noticeably
-  pinker, and leaves the LOGO as the odd one out — so it implies a logo
-  edit too.
-- **C — shared parent (~H13).** Both move to meet. Nothing is exactly
-  its original value; everything agrees.
+- A — anchor on the logo/coral (H21). Maru moves to the chrome; the
+  character loses the hot pink the sheet was drawn around.
+- B — anchor on Maru (H5.6). The chrome moves to the character; leaves
+  the logo as the odd one out.
+- **C — shared parent (H13). CHOSEN.** Both move to meet. Nothing keeps
+  its exact original value; everything agrees.
 
-## The work (once the anchor is decided)
+## Shipped
 
-- Set the anchor hue in tokens.css and re-derive the accent ramp in
-  OKLCH: equal-lightness steps, both theme landings re-checked against
-  the white-text contrast floor (the light accent currently computes
-  4.72 on white, so it has almost no headroom to move darker).
-- **Fix the light/dark accent hue disagreement in the same pass**,
-  whatever the anchor.
-- Decide the chroma relationship explicitly: does Maru stay the most
-  saturated thing on screen, or come down to the accent's level?
-- Sweep: accent ramp, semantic icon fills, the character tokens, the
-  celebration particles (`lib/hue`), and the logo asset if B or C.
-- Regenerate the 15-frame capture sweep plus the narrow set; re-review.
+- `--wren-accent` light: `oklch(0.575 0.149 13)` — L and C carried over
+  unchanged, so **white on it measures 4.73 against 4.72 before**. The
+  contrast floor never moved.
+- `--wren-accent` dark: `oklch(0.745 0.12 13)` — the same hue as light
+  for the first time. It was H35 against light's H21, so the two themes
+  had disagreed with each other independently of the character.
+- Maru: pink `oklch(0.687 0.2 13)`, pale `oklch(0.9 0.053 13)`, ground
+  `oklch(0.94 0.03 13)`. Pale sits at the sRGB gamut edge at this
+  lightness — 0.053 is the maximum in-gamut chroma, found by search
+  rather than guessed.
+- The contact shadow's tone follows to H13.
+- **Chroma relationship, decided rather than inherited:** Maru keeps
+  C 0.2 against the chrome's 0.149, so the character stays the most
+  saturated thing on screen. It is the one place the app is allowed to
+  be loud; the chrome is not.
+
+Every value is now derived from one hue, so a future re-anchor is a
+one-number edit.
 
 ## Sequencing
 

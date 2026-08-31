@@ -96,9 +96,15 @@
        darkened only as far as white text needs (4.72:1). The logo hue at
        this depth read burnt orange (owner, 2026-08-31). Distinguished from
        --wren-destructive (hue 25, C 0.21) by lightness and chroma. */
-    --wren-accent: oklch(0.575 0.15 21); /* #C14D51 coral-rose (ref #F08080)  */
-    --wren-accent-hover: oklch(0.525 0.15 21); /* #AF3F44                     */
-    --wren-accent-fg: oklch(1 0 0); /* white on accent = 4.72                 */
+    /* THE SHARED PARENT HUE, 13 (owner ruling, 2026-08-31, option C).
+       The interface accent sat at H21 in light and H35 in dark while the
+       character sat at H5.6 — three hues, and the app's own two themes 14
+       apart from EACH OTHER. Both systems now meet at 13. L and C are carried
+       over unchanged, so every verified contrast pair survives: white on the
+       light accent measures 4.73, against 4.72 before. */
+    --wren-accent: oklch(0.575 0.149 13); /* #C04C5F  white on it = 4.73      */
+    --wren-accent-hover: oklch(0.525 0.149 13); /* #AF3C51  = 5.85            */
+    --wren-accent-fg: oklch(1 0 0);
 
     /* --- Semantic ---------------------------------------------------------
        Star nudged golden (58 → 68) for the 2026-08-31 icon-colour pass; L
@@ -303,9 +309,11 @@
     --wren-text-2: oklch(0.742 0.004 50); /* #AEABA9   7.47 on surface       */
     --wren-text-3: oklch(0.66 0.004 50); /* #949190    5.50 on surface       */
 
-    /* Same hue-35 ruling as light; L/C carried over from the old values. */
-    --wren-accent: oklch(0.745 0.12 35); /* #EE9078 salmon, the logo itself   */
-    --wren-accent-hover: oklch(0.815 0.09 35); /* #F7AE9B                     */
+    /* The SAME hue as light, which it had never been: dark was H35 against
+       light's H21, so the two themes disagreed with each other as well as
+       with the character. Lightness and chroma stay where dark needs them. */
+    --wren-accent: oklch(0.745 0.12 13); /* #EE8B97                          */
+    --wren-accent-hover: oklch(0.815 0.09 13); /* #F7AEB4                    */
     --wren-accent-fg: oklch(0.16 0.003 50); /* tracks the new base           */
 
     --wren-star: oklch(0.8 0.135 80); /* #EBB34B  9.04 on surface             */
@@ -1059,21 +1067,21 @@
        change. They are the sheet's values unchanged; making them tokens is
        what lets P14 be a token edit and lets the anchor options be rendered
        and compared rather than argued. */
-    --wren-maru-pink: #ff4f87;
-    --wren-maru-pale: #ffd6e1;
-    --wren-maru-ground: #fee9ef;
+    --wren-maru-pink: oklch(0.687 0.2 13); /* #FC5777                        */
+    --wren-maru-pale: oklch(0.9 0.053 13); /* #FFD0D4, chroma at the sRGB edge */
+    --wren-maru-ground: oklch(0.94 0.03 13); /* #FFE4E5                       */
     /* The contact shadow's tone, as channels so the stops can set their own
        alpha. Pink on paper — a grey shadow under a pink character reads as
        dirt. Near-black in the dark theme, where the field is already so low
        that a pink shade would LIGHTEN the ground instead of deepening it. */
-    --wren-maru-shade: 226 106 144;
+    --wren-maru-shade: 255 126 144;
     --wren-maru-field: color-mix(in oklab, var(--wren-maru-ground) 55%, var(--wren-surface-base));
 }
 
 .dark {
-    --wren-maru-ground: color-mix(in oklab, #ff4f87 14%, var(--wren-surface-base));
+    --wren-maru-ground: color-mix(in oklab, oklch(0.687 0.2 13) 14%, var(--wren-surface-base));
     --wren-maru-shade: 0 0 0;
-    --wren-maru-field: color-mix(in oklab, #ff4f87 6%, var(--wren-surface-base));
+    --wren-maru-field: color-mix(in oklab, oklch(0.687 0.2 13) 6%, var(--wren-surface-base));
 }
 
 .wren-figure {
