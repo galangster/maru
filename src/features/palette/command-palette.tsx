@@ -188,6 +188,20 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
             onSelect={() => run(() => setApprovals(true))}
           />
           <Row icon="fileText" label="Audit log" onSelect={() => run(() => openAudit())} />
+          {/* The sidebar toggle left the titlebar for the sidebar footer, where
+              it is one of three same-weight glyphs. This row and ⌥⌘S are the
+              discoverability that slot used to provide for free. */}
+          <Row
+            icon="panelLeft"
+            label="Toggle sidebar"
+            hint={`⌥${MOD}S`}
+            onSelect={() =>
+              run(() => {
+                const ui = useUi.getState()
+                ui.setSidebarCollapsed(!ui.sidebarCollapsed)
+              })
+            }
+          />
           <Row icon="settings" label="Settings" onSelect={() => run(() => openSettings())} />
         </Group>
 

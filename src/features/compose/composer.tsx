@@ -329,7 +329,7 @@ function ComposerSheet() {
             'glass-strong fixed right-4 bottom-4 z-40 flex w-[560px] flex-col overflow-hidden',
             // A fresh compose used to collapse to the height of its own
             // chrome, which made the writing surface an afterthought.
-            'min-h-[440px] max-h-[calc(100vh-var(--wren-titlebar-h)-32px)]',
+            'min-h-[440px] max-h-[calc(100vh-var(--wren-toolbar-h)-32px)]',
           )}
         >
       <header className="flex h-10 shrink-0 items-center gap-1 pr-1 pl-4">

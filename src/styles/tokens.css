@@ -487,23 +487,54 @@
        --wren-space-* mirror of it went unread in every component. */
 
     /* --- Pane measures: alignment decided once ---------------------------- */
-    --wren-titlebar-h: 52px;
-    /* The macOS overlay traffic lights, as a measure the strip can reserve.
-       tauri.conf.json pins them at (16, 11) and macOS draws three 12 px discs
-       at a 20 px pitch, so they occupy 20 + 12 + 8 + 12 + 8 + 12 = 72 px. The
-       zone is that plus a 12 px gutter — the same gutter the sidebar gives its
-       own content — which lands on 84 and stays on DIRECTION §5's 4 px grid.
-       The 20 px inset, with the lights centered in the 52 px strip (Rust owns
-       the y — see lib.rs), matches the zone Claude, Codex and Figma give the
-       controls; macOS 26's Tahoe radius swallowed the old (16, 11).
-       Change it here if `trafficLightPosition` ever moves. */
-    --wren-titlebar-lights-w: 84px;
-    /* Windows draws minimise / maximise / close on the trailing edge and
-       reserves 140 px for them. Same idea, other end, other platform. */
+    /* There is no titlebar row any more. The window has exactly one horizontal
+       band — the per-pane header at --wren-toolbar-h — and on macOS the traffic
+       lights float on the sidebar card's own top band. So --wren-titlebar-h and
+       --wren-titlebar-lights-w are deleted rather than retuned; the second was
+       hand-derived from a 20 px inset and a `trafficLightPosition` key
+       tauri.conf.json does not contain. */
+    /* UNWIRED, kept for one future case: if `decorations: false` ever lands on
+       Windows, the webview draws its own caption controls on the trailing edge
+       and the READING PANE's header has to reserve this much for them. Today
+       `decorations` is unset, so Windows draws a real system caption bar above
+       the webview and there is nothing in-webview to reserve space for. */
     --wren-titlebar-overlay-w: 140px;
     --wren-toolbar-h: 52px;
+
+    /* The macOS traffic lights, mirrored from Rust: `place_traffic_lights` in
+       src-tauri/src/lib.rs sets `GAP = 16.0` as the distance from the window's
+       top-left corner to the red circle on BOTH axes. The measures below are
+       arithmetic on that number — if one file moves it, edit the other in the
+       same commit; nothing checks them against each other. */
+    --wren-lights-gap: 16px;
+    /* The ground channel around the floating sidebar card. On the 4 px grid,
+       and small enough that --wren-shadow-xs (~3 px extent) is never clipped by
+       the panel's own `overflow: auto` inner div. At 8 the card's left edge
+       lands on x=8, so all three lights sit ON the card with a symmetric 8 px
+       of card above and to the left of the red circle. */
+    --wren-sidebar-gutter: 8px;
+    /* The card's top band: --wren-toolbar-h 52 − the gutter 8, so the first
+       sidebar control lands at y=52, level with both pane headers' `border-b`.
+       Unconditional on every platform — off macOS it is simply empty card, and
+       that is what keeps one geometry under the screenshot gate. */
+    --wren-lights-reserve: 44px;
+    /* Collapsed, the card drops below the lights rather than widening to cover
+       them: 44 − the card's own `pt-2`, so card_top + card_pad = 52 in both
+       states and collapsing never moves the compose control vertically. */
+    --wren-lights-drop: 36px;
+
+    /* CARD widths, not panel widths. The sidebar ResizablePanel is the card
+       PLUS 2 × --wren-sidebar-gutter, and app-shell.tsx adds that padding
+       itself. pxToken() reads these at runtime, so a future caller who takes
+       them for panel widths gets a silent 16 px error. */
     --wren-sidebar-w: 248px;
-    --wren-sidebar-w-collapsed: 64px;
+    --wren-sidebar-w-min: 200px;
+    --wren-sidebar-w-max: 320px;
+    /* 56, not 64: the collapsed panel is 72 and the card's content box is
+       56 − 16 (`px-2`) = 40 px — byte-identical to the old 64 − 24 (`px-3`), so
+       the 32 px --wren-hit boxes keep their 4 px each side and the focus ring
+       is not clipped by the card's `overflow-hidden`. */
+    --wren-sidebar-w-collapsed: 56px;
     --wren-list-w: 400px;
     --wren-list-w-min: 340px;
     --wren-list-w-max: 520px;

@@ -47,50 +47,77 @@ export function Sidebar() {
   const inboxUnread = useUnreadCount(INBOX_VIEW).data ?? 0
 
   return (
-    <nav
-      aria-label="Mailboxes"
-      className="bg-canvas flex h-full flex-col"
-    >
-      <div className="shrink-0 px-3 pt-2 pb-3">
-        <ComposeButton collapsed={collapsed} />
-      </div>
+    <>
+      {/* Collapsed, the card DROPS below the traffic lights rather than
+          widening to cover them — a 76 px icon rail for an 18 px glyph is the
+          worse trade. The ground runs y 8..44 and the lights sit on it. A
+          childless div carrying a bare drag attribute is always
+          `composedPath()[0]`, so it drags on mousedown and zooms on
+          double-click; in a browser the attribute is inert. */}
+      {collapsed && (
+        <div data-tauri-drag-region aria-hidden className="h-(--wren-lights-drop) shrink-0" />
+      )}
+      <nav
+        aria-label="Mailboxes"
+        // The floating card (Apple Mail): bg-surface on the bg-canvas ground
+        // the panel's own padding exposes. NO `ring-1` — every --wren-shadow-*
+        // already carries `0 0 0 1px` as its first layer, so `shadow-xs` IS the
+        // border (DIRECTION §6). 18 − the 8 px inset below = 10, which is
+        // `--wren-radius-row`, the radius the rows already carry: concentric
+        // with no waiver and no new token.
+        className="bg-surface rounded-xl shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        {/* The card's top band, on EVERY platform. On macOS the three lights
+            land on it (x 16..68, y 16..28) with a symmetric 8 px of card above
+            and to the left of the red circle; everywhere else it is simply
+            empty card. Unconditional on purpose: it is what puts the compose
+            button at y=52 level with both pane headers' `border-b`, and what
+            keeps the committed browser captures showing the real production
+            geometry instead of a macOS-only variant nothing can prove. */}
+        {!collapsed && (
+          <div data-tauri-drag-region aria-hidden className="h-(--wren-lights-reserve) shrink-0" />
+        )}
+        <div className={cn('shrink-0 px-2 pb-3', collapsed && 'pt-2')}>
+          <ComposeButton collapsed={collapsed} />
+        </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
-        <ul className="flex flex-col gap-1">
-          {FOLDERS.map((item) => (
-            <NavRow
-              key={item.folder}
-              view={{ kind: 'unified', folder: item.folder }}
-              label={item.name}
-              icon={item.icon}
-              collapsed={collapsed}
-              unread={item.folder === 'inbox' && inboxUnread > 0 ? inboxUnread : undefined}
-            />
-          ))}
-        </ul>
-
-        {/* Collapsed, the accounts are one group of jump targets, so they sit
-            in one list at the group's own rhythm. Expanded, each is a section
-            with its own label tree. */}
-        {collapsed ? (
-          <ul className="mt-6 flex flex-col gap-1">
-            {(accounts.data ?? []).map((account) => (
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+          <ul className="flex flex-col gap-1">
+            {FOLDERS.map((item) => (
               <NavRow
-                key={account.id}
-                view={{ kind: 'account', accountId: account.id, labelId: 'INBOX' }}
-                label={`Inbox — ${account.email}`}
-                hue={hueFor(account.email)}
-                collapsed
+                key={item.folder}
+                view={{ kind: 'unified', folder: item.folder }}
+                label={item.name}
+                icon={item.icon}
+                collapsed={collapsed}
+                unread={item.folder === 'inbox' && inboxUnread > 0 ? inboxUnread : undefined}
               />
             ))}
           </ul>
-        ) : (
-          <AccountsGroup accounts={accounts.data ?? []} />
-        )}
-      </div>
 
-      <SidebarFooter collapsed={collapsed} accounts={accounts.data ?? []} />
-    </nav>
+          {/* Collapsed, the accounts are one group of jump targets, so they sit
+              in one list at the group's own rhythm. Expanded, each is a section
+              with its own label tree. */}
+          {collapsed ? (
+            <ul className="mt-6 flex flex-col gap-1">
+              {(accounts.data ?? []).map((account) => (
+                <NavRow
+                  key={account.id}
+                  view={{ kind: 'account', accountId: account.id, labelId: 'INBOX' }}
+                  label={`Inbox — ${account.email}`}
+                  hue={hueFor(account.email)}
+                  collapsed
+                />
+              ))}
+            </ul>
+          ) : (
+            <AccountsGroup accounts={accounts.data ?? []} />
+          )}
+        </div>
+
+        <SidebarFooter collapsed={collapsed} accounts={accounts.data ?? []} />
+      </nav>
+    </>
   )
 }
 
@@ -103,8 +130,8 @@ function ComposeButton({ collapsed }: { collapsed: boolean }) {
         render={
           <PrimaryButton
             onClick={compose}
-            // The label has to survive the collapse: at 64 px the word goes
-            // away and a tooltip alone is not an accessible name.
+            // The label has to survive the collapse: in the 40 px content box
+            // the word goes away and a tooltip alone is not an accessible name.
             aria-label="Compose"
             className={cn('h-9', collapsed ? 'w-9' : 'w-full gap-2')}
           />
@@ -189,7 +216,7 @@ function NavRow({
           />
         ) : hue ? (
           collapsed ? (
-            // At 64 px an account row used to fall through to a naked 6 px dot
+            // Collapsed, an account row used to fall through to a naked 6 px dot
             // floating in a 40×36 button, which reads as a rendering fault
             // (N3). An inbox glyph in the account's hue says the same thing
             // and looks intended.
@@ -368,6 +395,7 @@ function AccountSection({ account }: { account: Account }) {
 }
 
 function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: Account[] }) {
+  const setCollapsed = useUi((s) => s.setSidebarCollapsed)
   const { theme, toggle } = useThemeToggle()
   const statuses = Object.values(useSyncStatus())
   const themeIcon: IconName =
@@ -412,7 +440,13 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
         // (N7). Below 13rem of content box it drops out entirely and the glyph
         // plus the tooltip carry the state, which is the same trade the long
         // form already lost once.
-        'border-hairline @container flex shrink-0 items-center border-t px-3 py-2',
+        // `px-2` is the card's concentric inset (18 − 8 = 10 = the row radius),
+        // and it hands the @container box 8 px more than it had, so the
+        // `@[13rem]` gate below keeps its behaviour with more headroom. The top
+        // rule needs no inset of its own: the footer is 48 px tall, so it sits
+        // 48 px above the card's bottom edge and never enters the 18 px corner
+        // curve, and the nav's `overflow-hidden` clips it flush to the sides.
+        'border-hairline @container flex shrink-0 items-center border-t px-2 py-2',
         collapsed ? 'flex-col gap-1' : 'gap-2',
       )}
     >
@@ -444,6 +478,18 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
       {/* Toolbar chrome: 18, like every other toolbar (DIRECTION §8, S8). The
           sync glyph above stays at 16 because it sits inline with text, which
           is the size the same rule gives it. */}
+      {/* The sidebar toggle, moved out of the deleted titlebar and parked to
+          the LEFT of settings (owner ask, 2026-08-31). One glyph, label swapped
+          — Finder's arrangement. NOT `active`: IconButton tints `text-brand`
+          when active and a window-layout state is not what the one accent is
+          spent on (DIRECTION §10.2b). ⌥⌘S and the palette carry the
+          discoverability the titlebar slot used to. */}
+      <IconButton
+        name="panelLeft"
+        label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed(!collapsed)}
+      />
       <IconButton name="settings" label="Settings" onClick={() => openSettings()} />
       <IconButton name={themeIcon} label={themeLabel} onClick={toggle} />
     </div>

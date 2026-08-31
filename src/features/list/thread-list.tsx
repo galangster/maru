@@ -271,15 +271,26 @@ export function ThreadList() {
       tabIndex={-1}
       // `@container` so a row can ask how wide the *list* is, not the window.
       //
-      // `border-t` closes the horizon. The pane's left and right edges are real
-      // hairlines (the two resize handles) and its top was open, so a white
-      // surface met the canvas titlebar with nothing drawn between them and the
-      // two vertical rules ran up into nothing. The reading pane carries the
-      // same edge, so the line is continuous across both panes.
-      className="bg-surface border-hairline @container flex h-full min-w-0 flex-col border-t outline-none"
+      // No `border-t`. It closed the horizon under the titlebar, and the
+      // titlebar is gone — with nothing above it, that edge would draw a
+      // hairline across the very top of the window. The header's `border-b` at
+      // y=52 is now the window's first horizontal rule, and it is level with
+      // the reading pane's and with the sidebar card's first control.
+      className="bg-surface @container flex h-full min-w-0 flex-col outline-none"
     >
-      <header className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-2 border-b px-4">
+      {/* The pane header is now the window's drag field. `="deep"` lets the
+          blank areas and the title drag; Tauri's drag.js already blocks
+          BUTTON / INPUT / A that lack the attribute, so the controls
+          self-protect and only the two wrappers below need saying out loud. */}
+      <header
+        data-tauri-drag-region="deep"
+        className="border-hairline flex h-(--wren-toolbar-h) shrink-0 items-center gap-2 border-b px-4"
+      >
         {searchOpen ? (
+          // Drag-blocked on its own root — see SearchField. drag.js exempts the
+          // INPUT itself, but the gap and the glyph beside it are field, not
+          // chrome, and dragging the window while aiming at a text field is the
+          // one place the belt-and-braces attribute is genuinely required.
           <SearchField />
         ) : (
           <>
@@ -292,13 +303,19 @@ export function ThreadList() {
               <h2 className="font-ui text-ink truncate text-base font-semibold">{title}</h2>
               {subtitle && <span className="text-ink-3 truncate text-xs">{subtitle}</span>}
             </div>
-            <ListControls />
-            <SearchToggle />
-            {/* No `size` override: DIRECTION §8 puts toolbars at 18, and this
-                header sits at the same y as the reading pane's — which was
-                already 18 — separated by a 1 px rule, so a 16/18 mismatch read
-                as a direct side-by-side comparison (S8). */}
-            <IconButton name="sync" label="Refresh" onClick={() => void service.refresh()} />
+            {/* Belt and braces over drag.js's own control rule: the cluster's
+                own gaps are inside the wrapper, so no pixel between two glyphs
+                drags the window either. The `<h2>` above stays plain —
+                dragging a window by its view title is correct and native. */}
+            <div data-tauri-drag-region="false" className="flex items-center gap-2">
+              <ListControls />
+              <SearchToggle />
+              {/* No `size` override: DIRECTION §8 puts toolbars at 18, and this
+                  header sits at the same y as the reading pane's — which was
+                  already 18 — separated by a 1 px rule, so a 16/18 mismatch read
+                  as a direct side-by-side comparison (S8). */}
+              <IconButton name="sync" label="Refresh" onClick={() => void service.refresh()} />
+            </div>
           </>
         )}
       </header>
@@ -528,7 +545,10 @@ function SearchField() {
   const closeSearch = useSurfaces((s) => s.closeSearch)
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
+    // The header above is `data-tauri-drag-region="deep"`. The input blocks the
+    // drag on its own, but this box's gap and its search glyph would otherwise
+    // move the window while the user is aiming at the field.
+    <div data-tauri-drag-region="false" className="flex min-w-0 flex-1 items-center gap-2">
       <Icon name="search" size={16} className="text-ink-3 shrink-0" />
       <input
         id="wren-search"

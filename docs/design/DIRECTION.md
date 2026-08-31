@@ -241,10 +241,14 @@ Pane measures, decided once:
 
 | Token | Value | Note |
 |---|---|---|
-| `--wren-titlebar-h` | 36px | Windows drag region; macOS traffic-light inset |
-| `--wren-toolbar-h` | 52px | per-pane header |
-| `--wren-sidebar-w` | 248px | |
-| `--wren-sidebar-w-collapsed` | 64px | icon rail |
+| `--wren-toolbar-h` | 52px | per-pane header — the window's ONE horizontal band |
+| `--wren-sidebar-gutter` | 8px | the ground channel around the floating sidebar card |
+| `--wren-lights-gap` | 16px | mirrors `GAP` in `src-tauri/src/lib.rs`, both axes |
+| `--wren-lights-reserve` | 44px | the card's top band = toolbar 52 − gutter 8 |
+| `--wren-lights-drop` | 36px | collapsed: 44 − the card's own `pt-2` |
+| `--wren-sidebar-w` | 248px | CARD width; the panel is this + 2 × gutter |
+| `--wren-sidebar-w-min` / `-max` | 200px / 320px | resize clamp, card widths |
+| `--wren-sidebar-w-collapsed` | 56px | icon rail; panel 72, content box 40 |
 | `--wren-list-w` | 400px | default |
 | `--wren-list-w-min` / `-max` | 340px / 520px | resize clamp |
 | `--wren-row-h` | 68px | two-line message row |
@@ -253,7 +257,6 @@ Pane measures, decided once:
 | `--wren-row-inset-x` | 8px | the inset rounded row's horizontal inset |
 | `--wren-row-gap` | 4px | the gap between two row rects; the pitch stays 68px |
 | `--wren-tile` | 28px | the category squircle in settings and label rows |
-| `--wren-pane-px` | 16px | list horizontal padding |
 | `--wren-read-px` | 32px | reading-pane horizontal padding |
 | `--wren-read-pt` | 24px | reading-pane top padding |
 | `--wren-read-measure` | 68ch | body max-width |
@@ -277,6 +280,12 @@ Nested radii must be concentric: **inner = outer − inset.** Never nest equal r
 with a 12 px inset puts its wells at 12; a 24 palette with `p-2` puts its rows at 16. A focus
 ring is a `box-shadow` and follows its element's radius on its own, so getting the radius right
 is what gets the ring right — the composer's draft well is the worked example.
+
+The **floating sidebar card** is the second worked example, and the one that decided its own
+numbers. The card takes `-xl` **18** and insets its three bands by `px-2` **8**, so its rows
+land at 18 − 8 = **10** — `--wren-radius-row`, the radius every list and sidebar row already
+carries. No waiver, no new radius step, and `NavRow` is untouched. The rejected alternative
+(`-lg` 14 at a 12 px inset) demanded an inner radius of 2 against those same 10 px rows.
 
 **Buttons and badges are pills.** Amie uses one for every primary action and every chip at both
 densities. Keycaps are the exception and stay at `-xs`: a keycap has to read as a key.
