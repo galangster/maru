@@ -7,7 +7,16 @@
     outline: none;
     font-family: var(--wren-font-body);
     font-size: var(--text-lg);
-    line-height: var(--text-lg--line-height);
+    /* 22, not the scale's 24. This is the one place in the app where the
+       reader is TYPING, and a caret is drawn at the height of its line box —
+       so 15.5px text on 24px leading renders a cursor 2.2x the cap height,
+       which is what the owner saw immediately (2026-08-31). 22 is the leading
+       compose fields conventionally take (~1.42) and it shortens the caret
+       without tightening prose enough to hurt a long draft.
+       Off the 4px grid on purpose: DIRECTION §5's grid governs layout and
+       spacing. Leading is part of the type scale, and 20 would be the only
+       grid-legal alternative at a cramped 1.29. */
+    line-height: 22px;
     letter-spacing: var(--text-lg--letter-spacing);
     color: var(--wren-text-1);
     min-height: 100%;
