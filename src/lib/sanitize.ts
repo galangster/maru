@@ -109,7 +109,11 @@ const CSS_FETCHING_PROPERTY =
  */
 const CSS_SIZING = /(^|[;\s])(?:min-)?height\s*:[^;]*;?/gi
 
-let state: SanitizeOptions & { blocked: number } = { allowRemoteImages: false, blocked: 0 }
+let state: SanitizeOptions & { blocked: number; needsPostPass: boolean } = {
+  allowRemoteImages: false,
+  blocked: 0,
+  needsPostPass: false,
+}
 
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (!(node instanceof Element)) return
@@ -158,6 +162,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       // storing the thing this function exists to withhold.
       node.setAttribute('src', BLANK)
       node.setAttribute('class', 'wren-blocked')
+      state.needsPostPass = true
       for (const attr of ['width', 'height', 'hspace', 'vspace', 'align']) {
         node.removeAttribute(attr)
       }
@@ -188,6 +193,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       // former is exactly what leaves the hole.
       if (stripped !== style) stripped = stripped.replace(CSS_SIZING, '')
       node.setAttribute('style', stripped)
+      state.needsPostPass = true
     }
   }
 
@@ -263,33 +269,37 @@ function collapseEmptyBoxes(root: ParentNode): void {
 }
 
 export function sanitizeBody(html: string, opts: SanitizeOptions): SanitizeResult {
-  state = { ...opts, blocked: 0 }
-  const clean = DOMPurify.sanitize(html, {
+  state = { ...opts, blocked: 0, needsPostPass: false }
+  // RETURN_DOM so the post-pass gets the tree DOMPurify already built, rather
+  // than serializing and re-parsing it. "Does this box still contain anything"
+  // needs a tree and cannot be asked of a string — but it does not need a
+  // SECOND one, and a thread of twenty newsletters would otherwise pay twenty
+  // extra full parses in one synchronous render.
+  const root = DOMPurify.sanitize(html, {
     FORBID_TAGS,
     FORBID_ATTR,
     ADD_ATTR: ['target'],
     ALLOW_DATA_ATTR: false,
     WHOLE_DOCUMENT: false,
-  })
+    RETURN_DOM: true,
+  }) as unknown as HTMLElement
 
-  if (state.blocked === 0) return { html: clean, blockedImages: 0 }
+  // Read the count out NOW. `state` is module scope shared with the hook, and
+  // the post-pass below is a dozen lines away from where the value was made.
+  const blocked = state.blocked
 
-  // The post-pass needs a TREE — "does this box still contain anything" is not
-  // a question a regex over the serialized string can answer. Parsing the
-  // already-sanitized string into a detached document is the reliable way to
-  // get one: DOMPurify's own RETURN_DOM hands back a node whose children do
-  // not survive serialization under every DOM implementation, and this path is
-  // the one its string output is tested against anyway. The document is never
-  // attached and nothing in it is executed.
-  const doc = new DOMParser().parseFromString(clean, 'text/html')
+  // Gated on there being WORK, not merely on something having been blocked: a
+  // 1x1 beacon, an SVG <image> and an unresolved cid: all bump the count while
+  // leaving nothing for either pass to find.
+  if (state.needsPostPass) {
+    // Order matters: collapse while the blanked <img>s are still recognisable
+    // as withheld, THEN swap them for chips. Reversed, a chip's own text would
+    // make every container look occupied and nothing would collapse.
+    collapseEmptyBoxes(root)
+    chipBlockedImages(root)
+  }
 
-  // Order matters: collapse while the blanked <img>s are still recognisable as
-  // withheld, THEN swap them for chips. Reversed, a chip's own text would make
-  // every container look occupied and nothing would collapse.
-  collapseEmptyBoxes(doc.body)
-  chipBlockedImages(doc.body)
-
-  return { html: doc.body.innerHTML, blockedImages: state.blocked }
+  return { html: root.innerHTML, blockedImages: blocked }
 }
 
 /**
