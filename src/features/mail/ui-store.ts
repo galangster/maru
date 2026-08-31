@@ -64,6 +64,8 @@ interface UiState {
   sidebarCollapsed: boolean
   /** Account sections start collapsed — DIRECTION's sidebar spec. */
   expandedAccounts: Record<string, boolean>
+  /** The whole Accounts group, folded to one header row. */
+  accountsGroupCollapsed: boolean
   /** Thread keys the user has un-blocked images for. Session scoped, on purpose. */
   imagesAllowed: Set<string>
   /**
@@ -96,6 +98,7 @@ interface UiState {
   setTheme: (theme: ThemeChoice) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleAccount: (accountId: string) => void
+  toggleAccountsGroup: () => void
   allowImages: (threadKey: string) => void
   toggleChecked: (threadKey: string) => void
   /** Add a batch (a shift-click range, or select-all). Never removes. */
@@ -124,6 +127,7 @@ export const useUi = create<UiState>((set, get) => ({
   sidebarCollapsed: false,
   expandedAccounts:
     INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
+  accountsGroupCollapsed: false,
   imagesAllowed: new Set<string>(),
   checked: new Set<string>(),
   checkAnchor: null,
@@ -145,7 +149,11 @@ export const useUi = create<UiState>((set, get) => ({
         view.kind === 'account'
           ? { ...s.expandedAccounts, [view.accountId]: true }
           : s.expandedAccounts,
+      // Navigating into an account must reveal it, whatever the group was.
+      accountsGroupCollapsed: view.kind === 'account' ? false : s.accountsGroupCollapsed,
     })),
+  toggleAccountsGroup: () =>
+    set((s) => ({ accountsGroupCollapsed: !s.accountsGroupCollapsed })),
   setSelected: (selected, selectionSource = 'pointer') =>
     set({ selected, selectionSource, readingExpansion: 'default' }),
   setTheme: (theme) => set({ theme }),

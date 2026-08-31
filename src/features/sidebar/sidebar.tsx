@@ -6,7 +6,13 @@
 
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
-import { AccountDot, IconButton, PRESS, PrimaryButton } from '@/components/wren-controls'
+import {
+  AccountDot,
+  IconButton,
+  PRESS,
+  PrimaryButton,
+  SECTION_LABEL,
+} from '@/components/wren-controls'
 import { FOLDERS, FOLDER_BY_LABEL } from '@/core/defaults'
 import type { Account, MailView } from '@/core/types'
 import { usePendingApprovals } from '@/features/agents/queries'
@@ -18,6 +24,13 @@ import { useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { hueFor, hueSolid, type Hue } from '@/lib/hue'
 import { cn } from '@/lib/utils'
+
+/** The row chrome both sidebar disclosure headers share; typography differs
+ *  (caps for the word "Accounts", not for an email address). */
+const DISCLOSURE_ROW =
+  'rounded-row flex h-8 w-full items-center gap-2 px-2 outline-none ' +
+  'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out) ' +
+  'hover:bg-fill-hover hover:text-ink-2 focus-ring'
 
 /** The order the per-account label tree puts the system labels in. */
 const SYSTEM_ORDER = FOLDERS.map((f) => f.label)
@@ -70,9 +83,7 @@ export function Sidebar() {
             ))}
           </ul>
         ) : (
-          (accounts.data ?? []).map((account) => (
-            <AccountSection key={account.id} account={account} />
-          ))
+          <AccountsGroup accounts={accounts.data ?? []} />
         )}
       </div>
 
@@ -226,6 +237,41 @@ function NavRow({
   )
 }
 
+/**
+ * All accounts under one folding header, so four addresses read as one group
+ * rather than four competing sections (owner ask, 2026-08-30). Folded, the
+ * header keeps every account's hue dot — the group stays glanceable at the
+ * cost of one row. Navigating into an account always unfolds it (ui-store).
+ */
+function AccountsGroup({ accounts }: { accounts: Account[] }) {
+  const collapsed = useUi((s) => s.accountsGroupCollapsed)
+  const toggle = useUi((s) => s.toggleAccountsGroup)
+  if (accounts.length === 0) return null
+
+  return (
+    <section className="mt-6">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        className={cn(DISCLOSURE_ROW, SECTION_LABEL)}
+      >
+        <span className="flex-1 text-left">Accounts</span>
+        {collapsed && (
+          <span aria-hidden className="flex items-center gap-1">
+            {accounts.map((account) => (
+              <AccountDot key={account.id} hue={hueFor(account.email)} />
+            ))}
+          </span>
+        )}
+        <Icon name={!collapsed ? 'chevronDown' : 'chevronRight'} size={16} />
+      </button>
+      {!collapsed &&
+        accounts.map((account) => <AccountSection key={account.id} account={account} />)}
+    </section>
+  )
+}
+
 function AccountSection({ account }: { account: Account }) {
   const expanded = useUi((s) => s.expandedAccounts[account.id] ?? false)
   const toggle = useUi((s) => s.toggleAccount)
@@ -242,21 +288,20 @@ function AccountSection({ account }: { account: Account }) {
     })
 
   return (
-    <section className="mt-6">
+    <section className="mt-1">
       <button
         type="button"
         onClick={() => toggle(account.id)}
         aria-expanded={expanded}
         data-account-toggle={account.id}
         className={cn(
+          DISCLOSURE_ROW,
           // The eyebrow's weight and tracking (AMIE-STUDY §3) but not its
           // caps: this section's label is an email address, and an address in
           // all-caps is unreadable. The caps half of the role goes where a
           // section label is a *word* — the palette's groups, the reading
           // pane's metadata keys, the composer's field labels.
-          'rounded-row font-ui text-ink-3 flex h-8 w-full items-center gap-2 px-2 text-xs font-semibold outline-none',
-          'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-          'hover:bg-fill-hover hover:text-ink-2 focus-ring',
+          'font-ui text-ink-3 text-xs font-semibold',
         )}
       >
         <span className="flex w-6 shrink-0 items-center justify-center">
