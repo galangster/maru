@@ -109,6 +109,35 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Decisions to ratify
 
+- **The shell card is now less rounded than the cards inside it**
+  (pre-freeze sweep, 2026-08-31). You ruled the shell corner to 12
+  ("this looks bad visually" at 18, then "no padding/margin" at flush),
+  and 12 is what shipped. But message cards in the reading pane are
+  still `rounded-lg` (14) and were never part of that decision — so a
+  four-inch-tall shell card is now *less* rounded than the small cards
+  floating on it, which inverts the usual hierarchy. Three options:
+  bring message cards down to 12 or 10 so the shell is the roundest
+  thing; leave it (you may simply like it); or revisit the shell.
+  I did not touch it because you ruled on that number twice and the
+  message cards were not in front of you either time. Related, and free
+  to fix once you decide: three code comments and DIRECTION §6 still
+  derive everything from the old 18, so the next person to touch sidebar
+  geometry will read the wrong number.
+
+- **Accent-coloured text on the ground measures 4.31:1** (pre-freeze
+  sweep, 2026-08-31 — computed OKLCH → sRGB → WCAG, not estimated).
+  `--wren-accent` #C04C5F on `--wren-surface-base` #F6F4F3 is below the
+  4.5 floor. On white surface it is 4.73, which is fine and is what the
+  P14 ticket verified — the ground is the case nobody measured, and the
+  reading region IS the ground. Nothing ships accent-as-body-text there
+  today, so this is a latent trap rather than a live defect. Your call:
+  darken the light accent slightly (costs a little of the coral you
+  picked), forbid accent text on the ground in DIRECTION, or accept it
+  as decorative-only. Separately and regardless: DIRECTION §3's
+  contrast table still certifies an indigo accent on a hue-286 neutral
+  ramp — a palette that no longer exists in the build — so the one
+  document anyone would check a colour against is currently wrong.
+
 - **Should a dev build share your real mail database?** (surfaced
   2026-08-31 by "none of the emails are syncing"; ticket P18 shipped the
   UI half.) What happened: dev and release builds use different keychain
