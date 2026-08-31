@@ -80,6 +80,28 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
 ## Decisions to ratify
 
+- **Remembering "Show images" per sender** (from the P16 investigation,
+  2026-08-31). Today allow-images is scoped to a thread AND to the
+  session, so a newsletter you read daily is blocked again every time
+  and you re-click Show every time — quite possibly part of what
+  "still" meant. Options: keep it as-is (max privacy), remember per
+  sender for the session, or persist a per-sender allowlist. This is a
+  privacy-posture call, not a bug fix, so it is yours. (The actual
+  defects — the ~350px void, Show not working for CSS backgrounds, and
+  the tracking-pixel bypasses — are agent work, ticket P16.)
+
+- **Notification badge default + the iOS payload shape** (your ask,
+  2026-08-31; ticket P15-notification-badges). Modes drafted: unread in
+  inbox (your default), everything in inbox, dot-only, off, plus
+  approvals-waiting as an overlay, with per-account opt-in and quiet
+  hours. Two things need you: (1) confirm the default, (2) ratify how
+  iOS gets its number — **(b) the relay sends raw counts and the device
+  applies your preference** (recommended: no preferences or mail counts
+  on the server, keeps the verification story intact) versus (a) the
+  relay computes the badge and therefore stores your settings. This
+  decision constrains map 4's relay payload, so it is worth settling
+  before that relay is built.
+
 - **Color anchor for the harmonization pass** (your ask, 2026-08-31;
   ticket P14-color-harmony): interface coral, logo, and Maru's #FF4F87
   are three different color stories. Pick the anchor — (a) coral/logo:
