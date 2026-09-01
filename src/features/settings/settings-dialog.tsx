@@ -79,8 +79,10 @@ import { openExternalUrl } from '@/lib/env'
 import { checkForUpdates } from '@/lib/updates'
 import { AGENT_DISCLOSURE } from '@/features/agents/disclosure'
 import pkg from '../../../package.json'
+import { AccountSection } from './account/account-section'
 
 const SECTION_ICONS: Record<SettingsSection, IconName> = {
+  maru: 'sync',
   accounts: 'participants',
   // Permissions are controls, and `sliders` is the controls glyph. `key`
   // belongs to Google API and an agent credential is not what that section is
@@ -101,6 +103,7 @@ const SECTION_ICONS: Record<SettingsSection, IconName> = {
  * right one: it is what an agent's grants read as when they are working.
  */
 const SECTION_HUES: Record<SettingsSection, Hue> = {
+  maru: 'magenta',
   accounts: 'orange',
   agents: 'green',
   appearance: 'violet',
@@ -143,7 +146,7 @@ export function SettingsDialog() {
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
-          Accounts, appearance, the Google API client, sync and version.
+          Maru account, Gmail accounts, appearance, the Google API client, sync and version.
         </DialogDescription>
         {section && <SettingsBody section={section} />}
       </DialogContent>
@@ -205,6 +208,7 @@ function SettingsBody({ section }: { section: SettingsSection }) {
             Agents — run past the fixed 440, and a field sliced flat against the
             dialog's bottom edge is the hard edge DIRECTION §1 rules out. */}
         <div className="scroll-fade min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {section === 'maru' && <AccountSection />}
           {section === 'accounts' && (
             <AccountsSection
               onNeedsClient={() => {

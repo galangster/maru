@@ -110,9 +110,7 @@ export class AccountSync {
       }
       const key = await this.accountKey()
       const remoteDoc = JSON.parse(await openText(key, remote.ciphertext, `maru-vault-v1:${remote.version}`)) as VaultDocument
-      const localDoc = await buildVault(this.options.local)
-      const merged = mergeVault(remoteDoc, localDoc)
-      const summary = await applyVault(merged, this.options.local)
+      const summary = await applyVault(remoteDoc, this.options.local)
       await this.options.session.setMeta('vault-version', String(remote.version))
       this.publish({ kind: 'idle', lastSyncAt: this.now(), summary })
     } catch (error) { await this.handle(error) }

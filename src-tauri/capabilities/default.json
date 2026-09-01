@@ -37,6 +37,15 @@
         },
         {
           "url": "https://openidconnect.googleapis.com/*"
+        },
+        {
+          "url": "https://sync.getmaru.app/*"
+        },
+        {
+          "url": "https://*.up.railway.app/*"
+        },
+        {
+          "url": "http://127.0.0.1:8787/*"
         }
       ]
     },

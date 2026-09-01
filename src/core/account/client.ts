@@ -80,10 +80,12 @@ export class AccountClient {
   revokeDevice(id: string) { return this.request<{ ok: true }>(`/v1/devices/${encodeURIComponent(id)}`, { method: 'DELETE' }) }
   renameDevice(id: string, name: string) { return this.request<{ ok: true }>(`/v1/devices/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ name }) }) }
   deleteAccount(authKey: string) { return this.request<{ ok: true }>('/v1/account', { method: 'DELETE', body: JSON.stringify({ authKey }) }) }
+  pushRegister(apnsToken: string | null) { return this.request<{ ok: true }>('/v1/push/register', { method: 'POST', body: JSON.stringify({ apnsToken }) }) }
+  pushWatch(email: string, expiration: number) { return this.request<{ ok: true }>('/v1/push/watch', { method: 'POST', body: JSON.stringify({ email, expiration }) }) }
+  health() { return this.request<{ ok: true; version: string }>('/healthz', {}, false) }
   me() { return this.request<MeResponse>('/v1/me') }
   checkout(plan: Plan) { return this.request<{ url: string }>('/v1/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }) }) }
   portal() { return this.request<{ url: string }>('/v1/billing/portal', { method: 'POST' }) }
   vaultHistory() { return this.request<{ versions: VaultHistoryEntry[] }>('/v1/vault/history') }
   vaultRestore(version: number) { return this.request<{ version: number }>('/v1/vault/restore', { method: 'POST', body: JSON.stringify({ version }) }) }
 }
-

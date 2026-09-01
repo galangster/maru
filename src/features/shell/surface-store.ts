@@ -8,6 +8,7 @@
 import { create } from 'zustand'
 
 export type SettingsSection =
+  | 'maru'
   | 'accounts'
   | 'agents'
   | 'appearance'
@@ -18,6 +19,7 @@ export type SettingsSection =
 // Agents sits second, immediately under Accounts: both answer "who can touch
 // this mailbox", and a person looking for one will look where the other is.
 export const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
+  { id: 'maru', label: 'Maru account' },
   { id: 'accounts', label: 'Accounts' },
   { id: 'agents', label: 'Agents' },
   { id: 'appearance', label: 'Appearance' },
