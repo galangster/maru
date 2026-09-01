@@ -31,6 +31,7 @@ import type { Platform } from '@/core/platform'
 import type { VaultLocal } from '@/core/service/vault-port'
 import type { MailService } from '@/core/types'
 import { useUi } from '@/features/mail/ui-store'
+import { accountDeviceIdentity } from '@/lib/env'
 
 interface PendingActivation {
   phrase: string
@@ -113,12 +114,12 @@ function currentRuntime(): AccountRuntime {
 }
 
 function device() {
+  const identity = accountDeviceIdentity()
   return {
     name: navigator.platform || 'Desktop',
-    platform: navigator.userAgent.includes('Windows')
-      ? 'windows'
-      : navigator.userAgent.includes('Linux') ? 'linux' : 'macos',
-    family: 'desktop' as const,
+    platform: identity.platform,
+    // AccountClient's v1 input type still narrows this wire value to desktop.
+    family: identity.family as 'desktop',
   }
 }
 

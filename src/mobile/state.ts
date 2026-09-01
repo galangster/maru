@@ -2,7 +2,10 @@ import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
 
 export type MobileTab = 'inbox' | 'search' | 'settings'
-export type MobileStackEntry = { kind: 'inbox' } | { kind: 'thread'; threadKey: string }
+export type MobileStackEntry =
+  | { kind: 'inbox' }
+  | { kind: 'thread'; threadKey: string }
+  | { kind: 'account' }
 export type MobileSheet =
   | { kind: 'later'; threadKeys: string[] }
   | { kind: 'threadActions'; thread: Thread }
@@ -23,6 +26,7 @@ export const initialMobileRoute: MobileRoute = {
 export type MobileRouteAction =
   | { type: 'changeTab'; tab: MobileTab }
   | { type: 'pushThread'; threadKey: string }
+  | { type: 'pushAccount' }
   | { type: 'openSheet'; sheet: MobileSheet }
   | { type: 'closeSheet' }
   | { type: 'back' }
@@ -33,6 +37,8 @@ export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction
       return { tab: action.tab, stack: [{ kind: 'inbox' }], sheet: null }
     case 'pushThread':
       return { ...state, stack: [...state.stack, { kind: 'thread', threadKey: action.threadKey }] }
+    case 'pushAccount':
+      return { ...state, stack: [...state.stack, { kind: 'account' }], sheet: null }
     case 'openSheet':
       return { ...state, sheet: action.sheet }
     case 'closeSheet':

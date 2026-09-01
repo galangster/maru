@@ -65,6 +65,16 @@ export const platformOS: 'ios' | 'mac' | 'windows' | 'other' = (() => {
 /** The iPhone shell, or the gated `?mobile=1` browser-development seam. */
 export const isMobileShell = platformOS === 'ios' || params.get('mobile') === '1'
 
+export function accountDeviceIdentity(
+  os: typeof platformOS = platformOS,
+  userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent,
+): { platform: 'ios' | 'macos' | 'windows' | 'linux'; family: 'ios' | 'desktop' } {
+  if (os === 'ios') return { platform: 'ios', family: 'ios' }
+  if (os === 'windows') return { platform: 'windows', family: 'desktop' }
+  if (os === 'other' && userAgent.includes('Linux')) return { platform: 'linux', family: 'desktop' }
+  return { platform: 'macos', family: 'desktop' }
+}
+
 /** Build-time switch used by the iOS target until its OAuth client ships. */
 const buildForcesDemo = import.meta.env.VITE_MARU_DEMO === '1'
 

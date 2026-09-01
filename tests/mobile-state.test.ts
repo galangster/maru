@@ -54,6 +54,13 @@ describe('mobile route reducer', () => {
     expect(mobileRouteReducer(pushed, { type: 'back' }).stack).toEqual([{ kind: 'inbox' }])
   })
 
+  it('pushes the account screen from Settings and pops back', () => {
+    const settings = mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'settings' })
+    const account = mobileRouteReducer(settings, { type: 'pushAccount' })
+    expect(account.stack).toEqual([{ kind: 'inbox' }, { kind: 'account' }])
+    expect(mobileRouteReducer(account, { type: 'back' })).toEqual(settings)
+  })
+
   it('backs out through sheet, stack, then tab', () => {
     const threadState = mobileRouteReducer(
       mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'search' }),

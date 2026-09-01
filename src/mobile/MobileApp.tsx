@@ -16,6 +16,7 @@ import { InboxScreen } from './screens/inbox-screen'
 import { SearchScreen } from './screens/search-screen'
 import { SettingsScreen } from './screens/settings-screen'
 import { ThreadScreen } from './screens/thread-screen'
+import { AccountScreen } from './screens/account/account-screen'
 import { ComposeSheet } from './sheets/compose-sheet'
 import { LaterSheet } from './sheets/later-sheet'
 import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
@@ -49,7 +50,9 @@ export function MobileApp() {
   return (
     <div className="mobile-app" data-testid="mobile-app">
       <main className="mobile-stage">
-        {route.kind === 'thread' ? (
+        {route.kind === 'account' ? (
+          <AccountScreen onBack={() => dispatch({ type: 'back' })} />
+        ) : route.kind === 'thread' ? (
           <ThreadScreen
             threadKey={route.threadKey}
             onBack={() => dispatch({ type: 'back' })}
@@ -70,7 +73,7 @@ export function MobileApp() {
           />
         ) : navigation.tab === 'search' ? (
           <SearchScreen onOpen={(threadKey) => dispatch({ type: 'pushThread', threadKey })} />
-        ) : <SettingsScreen />}
+        ) : <SettingsScreen onAccount={() => dispatch({ type: 'pushAccount' })} />}
       </main>
 
       {route.kind === 'inbox' && <TabBar active={navigation.tab} onChange={(tab) => dispatch({ type: 'changeTab', tab })} />}
