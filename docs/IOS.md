@@ -122,10 +122,12 @@ FlowDeck drove the inbox, thread, compose, and account routes by touch.
 - Account controls have names. Authentication tabs report selection. Account sheets and recovery trap focus.
 - Sent, Archived, and sync changes use polite live regions.
 
-Accessibility Inspector attached to the Maru simulator target.
-The Tauri WebView exposed only the Maru application shell to the Inspector audit.
-The audit remained at `Auditing...` and did not return child findings.
-The source audit and touch run therefore provide the control-level evidence for this pass.
+The Accessibility Inspector audit did not complete against the Tauri WebView.
+It remained at `Auditing...` and returned no child findings.
+Source review verified roles, labels, and focus order.
+The FlowDeck run verified the same control path by touch in the simulator.
+A VoiceOver pass on a physical iPhone is still owed.
+Queue item for Nick: complete and record that physical-device VoiceOver pass.
 
 ## Dynamic Type verification
 

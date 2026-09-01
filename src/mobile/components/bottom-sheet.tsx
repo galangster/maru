@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ChevronRight, X } from 'lucide-react'
+import { MobileIcon } from './mobile-icon'
 import { useModalFocus } from '../use-modal-focus'
 
 export function BottomSheet({
@@ -24,7 +24,7 @@ export function BottomSheet({
         <span className="mobile-sheet-grabber" aria-hidden />
         <header>
           <h2>{title}</h2>
-          <button type="button" onClick={onClose} aria-label={`Close ${title}`}><X size={19} aria-hidden /></button>
+          <button type="button" onClick={onClose} aria-label={`Close ${title}`}><MobileIcon name="close" scale="action" /></button>
         </header>
         {children}
       </section>
@@ -45,7 +45,7 @@ export function SheetAction({
 }) {
   return (
     <button className={destructive ? 'is-destructive' : ''} type="button" onClick={onClick}>
-      <span className="mobile-sheet-icon" aria-hidden>{icon}</span><span>{label}</span><ChevronRight size={17} aria-hidden />
+      <span className="mobile-sheet-icon">{icon}</span><span>{label}</span><MobileIcon name="chevronRight" />
     </button>
   )
 }

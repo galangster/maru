@@ -1,18 +1,4 @@
 import { useCallback, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
-import {
-  ArrowLeft,
-  ChevronRight,
-  Cloud,
-  Copy,
-  ExternalLink,
-  KeyRound,
-  Mail,
-  RefreshCw,
-  RotateCcw,
-  ShieldCheck,
-  Smartphone,
-  Trash2,
-} from 'lucide-react'
 
 import { normalizeEmail, type VaultHistoryEntry } from '@/core/account'
 import { useMaruAccount } from '@/features/settings/account/account-store'
@@ -28,6 +14,7 @@ import { elapsedTime } from '@/lib/format'
 import { openExternalUrl } from '@/lib/env'
 import { useNow } from '@/lib/use-now'
 import { BottomSheet } from '@/mobile/components/bottom-sheet'
+import { MobileIcon } from '@/mobile/components/mobile-icon'
 import { MobileListSkeleton, MobilePrompt } from '@/mobile/components/placeholders'
 import type { MobileSheet } from '@/mobile/state'
 import { useEdgeBack } from '@/mobile/use-edge-back'
@@ -60,9 +47,9 @@ export function AccountScreen({
       {...edge.handlers}
       aria-label="Maru account"
     >
-      <header className="mobile-nav mobile-account-nav" inert={Boolean(pending || sheet)} aria-hidden={pending || sheet ? true : undefined}>
+      <header className="mobile-nav mobile-account-nav" inert={Boolean(pending || sheet)}>
         <button className="mobile-nav-back" type="button" onClick={onBack} aria-label="Back to Settings">
-          <ArrowLeft size={22} aria-hidden />
+          <MobileIcon name="chevronRight" className="mobile-icon-back" scale="large" />
           <span>Settings</span>
         </button>
         <h1>Maru account</h1>
@@ -127,7 +114,7 @@ function SignedOut() {
     <div className="mobile-scroll mobile-account-scroll mobile-account-auth">
       <MobilePrompt
         className="mobile-account-intro"
-        icon={<Cloud size={24} />}
+        icon={<MobileIcon name="sync" scale="hero" />}
         title="Take Maru with you"
         copy="Restore your settings and Gmail account list on this iPhone."
       >
@@ -249,7 +236,7 @@ function RecoveryCeremony() {
       <div className="mobile-account-ceremony-nav">
         <h2 id="mobile-recovery-title">Save your recovery words</h2>
         <button type="button" className="mobile-account-copy mobile-press" onClick={() => void copy()} aria-label="Copy all 12 recovery words">
-          <Copy size={18} aria-hidden />
+          <MobileIcon name="file" />
           <span>Copy</span>
         </button>
       </div>
@@ -267,7 +254,7 @@ function RecoveryCeremony() {
         <p className="mobile-account-loss-warning">If you lose both your password and these words, you lose your vault.</p>
         <label className="mobile-account-check-row">
           <input type="checkbox" checked={saved} onChange={(event) => setSaved(event.target.checked)} />
-          <span aria-hidden className="mobile-account-checkbox"><ShieldCheck size={17} /></span>
+          <span className="mobile-account-checkbox"><MobileIcon name="success" /></span>
           <strong>I saved these 12 words somewhere safe</strong>
         </label>
         {error && <p className="mobile-account-error" role="alert">{error}</p>}
@@ -304,9 +291,9 @@ function SignedIn({
 
   return (
     <>
-      <div className="mobile-scroll mobile-account-scroll mobile-account-signed-in" inert={sheet !== null} aria-hidden={sheet !== null || undefined}>
+      <div className="mobile-scroll mobile-account-scroll mobile-account-signed-in" inert={sheet !== null}>
         <section className="mobile-account-profile" aria-label="Account summary">
-          <span className="mobile-account-mark" aria-hidden><Cloud size={24} /></span>
+          <span className="mobile-account-mark"><MobileIcon name="sync" scale="hero" /></span>
           <div>
             <h2>{email}</h2>
             {entitlement && <p>{entitlementCopy(entitlement, now)}</p>}
@@ -320,7 +307,7 @@ function SignedIn({
 
         <AccountGroup title="Subscription">
           <AccountRow
-            icon={<ExternalLink size={18} />}
+            icon={<MobileIcon name="external" />}
             title="Manage on getmaru.app"
             detail="Opens in your browser"
             // The phone has no purchase control, so it opens the web account instead of manageSubscription().
@@ -334,7 +321,7 @@ function SignedIn({
           <AccountGroup title="Gmail accounts" footer="Available when Gmail sign-in reaches the phone (I3)">
             {pendingAccounts.map((email) => (
               <div className="mobile-row mobile-account-row mobile-account-disabled-row" key={email} aria-label={`${email}. Sign in on this iPhone. Disabled`}>
-                <span className="mobile-row-icon mobile-account-row-icon" aria-hidden><Mail size={18} /></span>
+                <span className="mobile-row-icon mobile-account-row-icon"><MobileIcon name="unread" /></span>
                 <span><strong>{email}</strong><small>Restored from your Maru account</small></span>
                 <button type="button" disabled aria-label={`Sign in to ${email} on this iPhone, unavailable until I3`}>Sign in on this iPhone</button>
               </div>
@@ -348,7 +335,7 @@ function SignedIn({
           ) : history.map((entry) => (
             <AccountRow
               key={entry.version}
-              icon={<RotateCcw size={18} />}
+              icon={<MobileIcon name="sync" />}
               title={accountDate(entry.updatedAt)}
               detail={`Version ${entry.version}`}
               onClick={() => openSheet({ kind: 'accountRestore', entry })}
@@ -357,14 +344,14 @@ function SignedIn({
         </AccountGroup>
 
         <AccountGroup title="Account controls">
-          <AccountRow icon={<KeyRound size={18} />} title="Change password" onClick={() => openSheet({ kind: 'accountPassword' })} />
+          <AccountRow icon={<MobileIcon name="key" />} title="Change password" onClick={() => openSheet({ kind: 'accountPassword' })} />
           <AccountRow
-            icon={<Smartphone size={18} />}
+            icon={<MobileIcon name="settings" />}
             title={isBusy('signout') ? 'Signing out…' : 'Sign out'}
             disabled={isBusy('signout')}
             onClick={() => void run('signout', signOut)}
           />
-          <AccountRow icon={<Trash2 size={18} />} title="Delete account" destructive onClick={() => openSheet({ kind: 'accountDelete' })} />
+          <AccountRow icon={<MobileIcon name="trash" />} title="Delete account" destructive onClick={() => openSheet({ kind: 'accountDelete' })} />
         </AccountGroup>
       </div>
 
@@ -409,8 +396,8 @@ function SyncRow({ onError }: { onError: (error: Error) => void }) {
   return (
     <AccountGroup title="Sync">
       <div className="mobile-row mobile-account-status-row" aria-live="polite">
-        <span className={`mobile-row-icon mobile-account-status-icon is-${syncState.kind}`} aria-hidden>
-          {syncState.kind === 'syncing' ? <RefreshCw size={18} /> : <Cloud size={18} />}
+        <span className={`mobile-row-icon mobile-account-status-icon is-${syncState.kind}`}>
+          <MobileIcon name={syncState.kind === 'paused' ? 'warning' : 'sync'} />
         </span>
         <span>
           <strong>{syncTitle(syncState)}</strong>
@@ -467,7 +454,7 @@ function Devices({
       )}
       {others.map((device) => (
         <div className="mobile-row mobile-account-row mobile-account-device-row" key={device.id}>
-          <span className="mobile-row-icon mobile-account-row-icon" aria-hidden><Smartphone size={18} /></span>
+          <span className="mobile-row-icon mobile-account-row-icon"><MobileIcon name="settings" /></span>
           <span><strong>{device.name}</strong><small>Seen {elapsedTime(device.lastSeenAt, now)}</small></span>
           <button
             type="button"
@@ -585,9 +572,9 @@ function AccountRow({ icon, title, detail, destructive = false, disabled = false
       onClick={onClick}
       aria-label={detail ? `${title}. ${detail}` : title}
     >
-      <span className="mobile-row-icon mobile-account-row-icon" aria-hidden>{icon}</span>
+      <span className="mobile-row-icon mobile-account-row-icon">{icon}</span>
       <span><strong>{title}</strong>{detail && <small>{detail}</small>}</span>
-      <ChevronRight size={17} aria-hidden />
+      <MobileIcon name="chevronRight" />
     </button>
   )
 }

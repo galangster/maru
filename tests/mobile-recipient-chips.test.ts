@@ -2,28 +2,28 @@ import { describe, expect, it } from 'vitest'
 
 import type { EmailAddress } from '@/core/types'
 import {
+  isRecipientCommitKey,
   recipientChipState,
   recipientSuggestions,
   reduceRecipientChips,
-} from '@/mobile/recipient-chips'
+} from '@/features/compose/recipient-chips'
 
 const address = (email: string, name?: string): EmailAddress => name ? { email, name } : { email }
 
 describe('recipient chip reducer', () => {
   it('commits one address and preserves its display name', () => {
-    const typed = reduceRecipientChips(recipientChipState(), {
+    const typed = reduceRecipientChips(recipientChipState(), [], {
       type: 'input',
       value: 'Ada Lovelace <ada@example.com>',
     })
-    expect(reduceRecipientChips(typed, { type: 'commit' })).toEqual({
+    expect(reduceRecipientChips(typed.state, typed.recipients, { type: 'commit' })).toEqual({
       recipients: [address('ada@example.com', 'Ada Lovelace')],
-      input: '',
-      invalid: [],
+      state: { input: '', invalid: false },
     })
   })
 
   it('commits every valid pasted address and leaves invalid text editable', () => {
-    const result = reduceRecipientChips(recipientChipState(), {
+    const result = reduceRecipientChips(recipientChipState(), [], {
       type: 'paste',
       value: 'Ada <ada@example.com>, broken, bob@example.com',
     })
@@ -31,23 +31,34 @@ describe('recipient chip reducer', () => {
       'ada@example.com',
       'bob@example.com',
     ])
-    expect(result.input).toBe('broken')
-    expect(result.invalid).toEqual(['broken'])
+    expect(result.state).toEqual({ input: 'broken', invalid: true })
   })
 
   it('removes the last chip on Backspace only when the input is empty', () => {
-    const initial = recipientChipState([address('a@example.com'), address('b@example.com')])
-    expect(reduceRecipientChips(initial, { type: 'backspace' }).recipients).toEqual([
+    const recipients = [address('a@example.com'), address('b@example.com')]
+    const initial = recipientChipState()
+    expect(reduceRecipientChips(initial, recipients, { type: 'backspace' }).recipients).toEqual([
       address('a@example.com'),
     ])
     const typing = { ...initial, input: 'c' }
-    expect(reduceRecipientChips(typing, { type: 'backspace' })).toBe(typing)
+    expect(reduceRecipientChips(typing, recipients, { type: 'backspace' })).toEqual({
+      state: typing,
+      recipients,
+    })
   })
 
   it('removes a tapped chip case-insensitively', () => {
-    const initial = recipientChipState([address('Ada@Example.com'), address('b@example.com')])
-    expect(reduceRecipientChips(initial, { type: 'remove', email: 'ada@example.com' }).recipients)
+    const recipients = [address('Ada@Example.com'), address('b@example.com')]
+    expect(reduceRecipientChips(recipientChipState(), recipients, { type: 'remove', email: 'ada@example.com' }).recipients)
       .toEqual([address('b@example.com')])
+  })
+
+  it('uses the same commit keys on desktop and phone', () => {
+    for (const key of ['Enter', ',', ';', 'Tab']) {
+      expect(isRecipientCommitKey(key, 'ada@example.com')).toBe(true)
+    }
+    expect(isRecipientCommitKey(' ', 'ada@example.com')).toBe(true)
+    expect(isRecipientCommitKey(' ', 'Ada Lovelace')).toBe(false)
   })
 })
 
