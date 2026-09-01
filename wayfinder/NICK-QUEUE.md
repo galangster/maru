@@ -384,6 +384,51 @@ installs rather than merely failing to help them.
   decide whether the map-4 grill waits for Google's review verdict.
   Until then, P5's settings export/import is the zero-server stopgap.
 
+## The launch ceiling — surfaced 2026-09-01, because you asked about mass distribution
+
+**One Google Cloud project is the constraint, not the app.** The arithmetic is
+already in `docs/research/shared-client-implementation-plan.md` §7; it was
+filed under "billing" and marked non-blocking, which undersells it. It is a
+capacity ceiling, and one of the numbers cannot be raised at any price.
+
+- **Daily threshold: 80,000,000 units per project, and Google does not raise
+  it.** Not a billing tier — a wall.
+- A cold first sync costs roughly **200,000 units**. That is about **400 new
+  users per day**, before anyone reads anything.
+- An idle account polling every minute costs ~2,880 units/day → about
+  **27,700 continuously-open accounts** before any sync work at all.
+- Minute quota is 1,200,000/project and Maru caps each account at 4,500 →
+  about **266 accounts saturating at once**.
+
+So "mass distribute" on the current single-client architecture means roughly
+**a few hundred new installs a day**, not a launch spike. That is fine for a
+real launch and fatal for a front-page one.
+
+**Three mitigations, and their costs, so this is decided rather than
+discovered:**
+
+1. **Staged cohorts.** The cheapest and the one the plan already recommends —
+   release in waves rather than opening the download to everyone at once.
+   Costs nothing technically; costs launch drama.
+2. **Cold-sync jitter.** The plan names it (§7 mitigation 3) and it is NOT
+   built. I deliberately did not build it speculatively: it puts a permanent
+   random delay on every first run to protect against a spike that may never
+   come, and run 6 spent real effort making startup faster (P19). Worth
+   building the week before a wide launch, not before.
+3. **Shrink the cold sync.** 200,000 units is the 90-day window and body
+   prefetch. Narrowing either raises the daily ceiling proportionally, and
+   costs first-run richness.
+
+**The other launch gate is not quota at all:** an unverified app has a
+lifetime cap of **100 new authorizations** before Google disables new
+sign-ins. Verification is a hard gate in front of ANY distribution, which is
+what makes the open submission the critical path it already is.
+
+**And the single point of failure worth knowing before you scale:** deleting
+the shared OAuth client invalidates every token it ever issued, and a
+replacement client does not repair them. Every install shares fate with that
+one client id.
+
 ## Non-blocking
 
 - **Re-test the 7-day re-auth path** against the production consent
