@@ -77,11 +77,22 @@ function oldestSync(known: SyncStatus[], total: number): number | undefined {
   return Math.min(...ages)
 }
 
+/**
+ * How long "Starting…" is allowed to stand before it becomes a different
+ * sentence. The engine emits `syncing` as the first act of both its backfill
+ * and its incremental pass, so a healthy account clears this in well under a
+ * second — anything still silent after half a minute is not starting, it is
+ * stuck, and the footer should stop implying otherwise.
+ */
+const STARTUP_GRACE_MS = 30_000
+
 export function describeSync(
   accounts: Account[],
   statuses: Record<string, SyncStatus>,
   demo: boolean,
   now: number,
+  /** When this window started waiting. Defaults to `now`, i.e. no elapsed. */
+  startedAt: number = now,
 ): SyncSummary {
   const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
 
@@ -230,18 +241,29 @@ export function describeSync(
 
   if (unheard > 0) {
     // The state the owner actually hit, and the one the old code rendered as
-    // "Up to date". Known gap, deliberately deferred: there is no timeout, so
-    // an engine that never emits shows this indefinitely. Still strictly
-    // better than a false claim that mail is current.
+    // "Up to date".
+    //
+    // It escalates rather than standing forever. "Starting…" is a promise that
+    // something is about to happen, and after the grace period that promise is
+    // one the app cannot keep — so it becomes a statement of fact instead, and
+    // one that offers somewhere to go. The threshold is checked against the
+    // app-wide clock, which ticks once a minute, so the change lands at the
+    // first tick past the grace rather than to the second. That is deliberate:
+    // a dedicated timer for a sentence nobody is watching would be a second
+    // clock to keep in step with the first.
+    const stuck = now - startedAt >= STARTUP_GRACE_MS
+    const which =
+      known.length === 0
+        ? 'No account has reported yet.'
+        : `${unheard} of ${accounts.length} accounts have not reported.`
     return {
       kind: 'unheard',
-      short: 'Starting…',
-      full: 'Starting…',
-      detail:
-        known.length === 0
-          ? 'Maru is starting up. No account has reported yet.'
-          : `${unheard} of ${accounts.length} accounts have not started syncing yet.`,
-      action: null,
+      short: stuck ? 'Not synced' : 'Starting…',
+      full: stuck ? 'Not synced yet' : 'Starting…',
+      detail: stuck
+        ? `${which} Mail is not arriving. Open Settings to check the accounts.`
+        : `Maru is starting up. ${which}`,
+      action: stuck ? 'accounts' : null,
     }
   }
 

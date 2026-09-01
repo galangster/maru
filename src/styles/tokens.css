@@ -200,7 +200,14 @@
     --wren-hairline-strong: oklch(0.872 0.004 50); /* #D6D6DA               */
     --wren-fill-hover: oklch(0.205 0.004 50 / 0.045);
     --wren-fill-active: oklch(0.205 0.004 50 / 0.075);
-    --wren-fill-selected: oklch(0.575 0.15 21 / 0.08);
+    /* DERIVED, not restated. This was `oklch(0.575 0.15 21 / 0.08)` — the
+       accent's pre-P14 hue, frozen as a literal, so it quietly did not follow
+       when everything else moved to hue 13. DIRECTION §3 defines the selected
+       row as "accent at 8% light / 14% dark", and now it actually is: a future
+       re-anchor is one edit again rather than three.
+       `color-mix(… , transparent)` premultiplies, so this is the accent at 8%
+       alpha and not the accent darkened toward black. */
+    --wren-fill-selected: color-mix(in oklab, var(--wren-accent) 8%, transparent);
     --wren-scrim: oklch(0.205 0.004 50 / 0.28);
 
     /* --- Glass -------------------------------------------------------------
@@ -376,7 +383,9 @@
     --wren-hairline-strong: oklch(1 0 0 / 0.16);
     --wren-fill-hover: oklch(1 0 0 / 0.05);
     --wren-fill-active: oklch(1 0 0 / 0.09);
-    --wren-fill-selected: oklch(0.745 0.12 35 / 0.14);
+    /* Same derivation as light; see the note there. Was hue 35, the pre-P14
+       dark accent. */
+    --wren-fill-selected: color-mix(in oklab, var(--wren-accent) 14%, transparent);
     --wren-scrim: oklch(0.08 0.002 50 / 0.6);
 
     --wren-glass-tint: oklch(0.285 0.005 50 / 0.68); /* tracks new raised    */

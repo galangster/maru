@@ -417,7 +417,11 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
   // "Demo data" is the truest thing to say about a demo window. But the demo
   // service is the only way to reach these states in a browser, so ?sync= has
   // to be allowed past it or the flag could never show anything.
-  const sync = describeSync(accounts, statuses, demo && !syncPreview, now)
+  // When this window started waiting, so "Starting…" can escalate rather than
+  // stand forever. A ref, not state: it is read during render and never drives
+  // one, and it must survive the minute tick that re-renders this footer.
+  const startedAt = useRef(now)
+  const sync = describeSync(accounts, statuses, demo && !syncPreview, now, startedAt.current)
 
   return (
     <div

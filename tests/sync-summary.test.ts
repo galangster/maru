@@ -41,7 +41,7 @@ describe('describeSync', () => {
     // had heard nothing about.
     const sync = describeSync(FOUR, statuses(ok('a')), false, NOW)
     expect(sync.short).toBe('Starting…')
-    expect(sync.detail).toBe('3 of 4 accounts have not started syncing yet.')
+    expect(sync.detail).toBe('Maru is starting up. 3 of 4 accounts have not reported.')
     expect(isUrgent(sync)).toBe(false)
   })
 
@@ -174,6 +174,33 @@ describe('describeSync', () => {
     const busy: SyncStatus = { accountId: 'b', state: 'syncing' }
     const sync = describeSync(FOUR, statuses(dead, busy, ok('c'), ok('d')), false, NOW)
     expect(sync.detail).toContain('The other 2 accounts are up to date.')
+  })
+
+  it('says Starting… inside the grace period', () => {
+    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW, NOW - 5_000)
+    expect(sync.short).toBe('Starting…')
+    expect(sync.action).toBeNull()
+  })
+
+  it('stops saying Starting… once it is plainly not starting', () => {
+    // "Starting…" is a promise that something is about to happen. After the
+    // grace period the app cannot keep it, so it becomes a statement of fact
+    // that offers somewhere to go, rather than standing forever.
+    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW, NOW - 45_000)
+    expect(sync.short).toBe('Not synced')
+    expect(sync.full).toBe('Not synced yet')
+    expect(sync.detail).toContain('Mail is not arriving')
+    expect(sync.action, 'and it now leads somewhere').toBe('accounts')
+    // Still not an alarm: nothing is known to be broken, only silent.
+    expect(isUrgent(sync)).toBe(false)
+  })
+
+  it('the escalation never fires while every account has reported', () => {
+    // A long-running window must not decay into "Not synced yet" just because
+    // it has been open a while.
+    const all = statuses(ok('a'), ok('b'), ok('c'), ok('d'))
+    const sync = describeSync(FOUR, all, false, NOW, NOW - 86_400_000)
+    expect(sync.short).toBe('Up to date')
   })
 
   it('does not congratulate you on syncing zero accounts', () => {
