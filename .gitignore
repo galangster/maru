@@ -4,3 +4,5 @@ src-tauri/target
 src-tauri/gen
 *.local
 .claude/
+/server/node_modules
+/server/dist
