@@ -108,7 +108,7 @@ You can test the image locally:
 
 ```bash
 cd server
-docker build -t maru-sync .
+docker build -f server/Dockerfile -t maru-sync . (from the repository root)
 docker run --rm -p 8787:8787 -e PORT=8787 -e DATABASE_URL=postgres://... maru-sync
 ```
 
