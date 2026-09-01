@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Hono } from "hono";
-import { allowlistStatus } from "./allowlist.js";
+import { allowlistStatus, isComped } from "./allowlist.js";
 import { DEFAULT_KDF, TRIAL_DAYS } from "./constants.js";
 import { hashProof, verifyProof } from "./crypto.js";
 import { error, jsonBody } from "./http.js";
@@ -86,7 +86,9 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
 
     const id = randomUUID();
     const now = deps.clock.now();
-    const [authHash, recAuthHash] = await Promise.all([hashProof(body.authKey), hashProof(body.recAuthKey)]);
+    const [authHash, recAuthHash, comped] = await Promise.all([
+      hashProof(body.authKey), hashProof(body.recAuthKey), isComped(deps.db, email),
+    ]);
     const created = await deps.db.transaction(async (tx) => {
       const inserted = await tx.query<{ id: string }>(
         `INSERT INTO users
@@ -95,7 +97,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
          VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
          ON CONFLICT (email) DO NOTHING RETURNING id`,
         [id, email, authHash, recAuthHash, JSON.stringify(body.kdf), body.wrappedByPassword,
-          body.wrappedByRecovery, addDays(now, TRIAL_DAYS), false, now],
+          body.wrappedByRecovery, addDays(now, TRIAL_DAYS), comped, now],
       );
       if (inserted.length === 0) return null;
       return createDevice({ ...deps, db: tx }, id, device);

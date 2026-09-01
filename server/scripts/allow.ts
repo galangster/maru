@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { migrate, createPostgresDb } from "../src/db.js";
 import { normalizeEmail } from "../src/util.js";
+import { comp } from "../src/allowlist.js";
 
 const [command, rawEmail] = process.argv.slice(2);
 const emailCommands = new Set(["add", "remove", "comp", "uncomp"]);
@@ -29,11 +30,7 @@ if (!valid) {
       } else if (command === "remove") {
         await db.query("DELETE FROM allowed_emails WHERE email = $1", [email]);
       } else {
-        const rows = await db.query<{ id: string }>(
-          "UPDATE users SET comped = $2 WHERE email = $1 AND deleted_at IS NULL RETURNING id",
-          [email, command === "comp"],
-        );
-        if (rows.length === 0) throw new Error("Account not found");
+        await comp(db, email, command === "comp");
       }
       console.log(JSON.stringify({ ok: true, command }));
     }

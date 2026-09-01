@@ -16,6 +16,16 @@ import {
 } from "./helpers.js";
 
 describe("authentication", () => {
+  it("comps an address on the standing list when it signs up later", async () => {
+    const { app, db } = await ready();
+    const { seedComped } = await import("../src/allowlist.js");
+    await seedComped(db, EMAIL);
+    const created = await signup(app);
+    expect(created.response.status).toBe(201);
+    const [row] = await db.query<{ comped: boolean }>("SELECT comped FROM users WHERE email = $1", [EMAIL]);
+    expect(row?.comped).toBe(true);
+  });
+
   it("signs up and logs in with the same auth key", async () => {
     const { app, db } = await ready();
     const created = await signup(app);
