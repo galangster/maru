@@ -1,7 +1,8 @@
 # Handoff — 2026-08-31, run 6: the night real mail found the bugs
 
-Baseline: `b3b9ec9` (start of session) → `8b0acd9`. 49 commits. Every one is
-pushed to `galangster/maru` on `main`.
+Baseline: `b3b9ec9` (start of session) → `fa25ed2`. **51 commits, all pushed** to
+`galangster/maru` on `main`. Working tree clean. 577 tests pass. **0.1.7 is
+installed at `/Applications/Maru.app` and running on Nick's four real accounts.**
 
 Shipped versions this session: **0.1.1 → 0.1.7**, each signed, notarized,
 stapled and Gatekeeper-verified, each installed to `/Applications/Maru.app`.
@@ -54,6 +55,20 @@ Also: the updater endpoint pointed at the pre-rename `galangster/wren`
 welded neighbouring declarations together in every minified newsletter;
 `describeSync` reported "0 accounts · last synced just now" with no accounts;
 `MissingOAuthClientError` read as a transient blip forever.
+
+## Two more things landed after that
+
+**A dev build now gets its own database** (`wren.dev.db`), with
+`VITE_MARU_REAL_DB=1` as a deliberate opt-in. Nick delegated this one. The
+argument that decided it: a dev build RUNS MIGRATIONS against real mail, and
+two migrations were written that day — one of them a repair that rewrites label
+rows across every thread. The keychain split already stopped a dev build
+syncing or sending; it did nothing to stop it writing. It also closes the
+shared agent registry, which the socket split could not reach. Verified by
+running a dev build beside the installed app: `wren.db` kept its 4 accounts and
+3,682 threads with its mtime unchanged.
+
+**P21 is designed and not built** — see below.
 
 ## What changed on purpose
 
@@ -116,17 +131,51 @@ than optional.
   DOMPurify hook and measures the wrong module instance. Import without the
   query, on a freshly loaded page.
 
+## P21 — Later and swipe, designed 2026-08-31, NOT built
+
+`wayfinder/tickets/P21-later-and-swipe.md` holds the full spec. The three
+things worth knowing before opening it:
+
+1. **Local-only, own table, and the reason is the failure mode** — not privacy
+   and not OAuth scope. A Gmail-label snooze removes INBOX at Google and needs
+   a network write at wake time that only happens if this Mac runs; a laptop
+   shut Monday to Friday hides mail on every device, past its time, with no
+   timer anywhere to fix it. Local-only is a predicate evaluated at query time
+   and cannot be missed. Label-based fails unsafe, local-only fails safe.
+2. **It is called Later, not Snooze**, because Snooze is a cross-device promise
+   everywhere else and this is one-device. Three permanent disclosure sites,
+   deliberately not the toast.
+3. **Two lanes, and lane 2 is gated on Nick's trackpad.** WebKit exposes no
+   gesture phase to JavaScript, so a web swipe cannot know when fingers lift
+   and is necessarily a heuristic. Lane 1 (Later) is complete without it, has
+   three keyboard doors, and touches no Gmail method — so it does not disturb
+   the open verification submission. **Start with lane 1.**
+
 ## Still open
 
-**Owner decisions** (all in `NICK-QUEUE.md`): the restricted-data question to
-Google; whether the submission discloses the sync roadmap; does Maru ship for
-Intel; should a dev build share the real database; the shell/message-card
-radius inversion; accent-on-ground contrast at 4.31:1.
+**Owner decisions** (all in `NICK-QUEUE.md`, newest at the top): the ten-second
+trackpad experiment that gates P21 lane 2; whether a reply should wake a
+deferred thread early; the restricted-data question to Google; whether the
+submission discloses the sync roadmap; the shell/message-card radius inversion;
+accent-on-ground contrast at 4.31:1.
 
-**Agent work with no gate**: the agent registry is still shared between dev and
-release builds (the socket is split, the credentials are not). P15 notification
-badges, P17 menu-bar residency and G3 the agent gatekeeper are all queued behind
-owner sign-off.
+**Answered 2026-08-31, do not re-ask:** Maru does not ship for Intel (Apple
+Silicon only, now stated at the download button). A dev build does not share
+the real database. G2 is ruled (b) — the tokens sync.
+
+**The website is seven versions stale and the auto-updater is confidently
+wrong.** `NICK-QUEUE.md` carries the full release checklist. getmaru.app's
+download button 302s to v0.1.0 with assets still named `Wren`, and
+`latest.json` at that endpoint returns HTTP 200 with the 0.1.0 manifest — so
+every installed copy polls it, sees a version older than itself, and correctly
+does nothing, silently. The site's PROSE deploys from `main` on push; only the
+artifacts are stale. Recommendation recorded: publish once, at the freeze, with
+the build the demo is recorded against.
+
+**Agent work with no gate**: P21 lane 1 (Later) is the obvious next build — it
+is designed to the file-and-identifier level and needs no decision. P15
+notification badges, P17 menu-bar residency and G3 the agent gatekeeper are all
+queued behind owner sign-off.
 
 **The submission is the actual critical path, and it runs through Nick**: the
 IAM second-owner grant, four `«NICK: …»` dossier fields, and the ~20-minute
