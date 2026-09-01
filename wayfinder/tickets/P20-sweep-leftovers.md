@@ -12,27 +12,55 @@ Two design questions went to `NICK-QUEUE.md` instead — the shell/message-card
 radius inversion, and accent-on-ground contrast. They are decisions, not
 defects.
 
-## 1. Intel Macs will never receive an update
+## 1. ~~Intel Macs will never receive an update~~ — half fixed, and it was worse than the ticket said
 
-`scripts/release-macos.sh:74` emits a hardcoded `"darwin-aarch64"` as the only
-key under `platforms`, while line 62 runs plain `npm run tauri build` — which
-builds for the *host* architecture with no `--target`. Nothing checks that the
-two agree.
+**DONE 2026-08-31 (the manifest half). The Intel half is a real decision and is
+below.**
 
-Consequences, both real:
+The ticket framed this as an updater bug. It is not, or not only. `lipo -archs`
+on the shipped binary returns **arm64** and nothing else, so an Intel Mac does
+not merely fail to update — **it cannot launch Maru at all.** Meanwhile
+`site/index.html` offered a button reading "Download for macOS" with no
+qualifier. Someone on an Intel Mac would download a DMG, drag it across, and
+watch it refuse to open with no explanation.
 
-- Anyone who installs the DMG on an Intel Mac looks up `darwin-x86_64`, finds
-  no entry, and never updates. Silently: `src/lib/updates.ts` passes
-  `announceNoUpdate: false` on the launch check, so a failure and "no update"
-  are indistinguishable and neither says anything.
-- If a release were ever cut *on* an Intel machine, the manifest would
-  advertise an x86_64 tarball under the aarch64 key, handing Apple Silicon
-  users a binary they would run under Rosetta.
+Fixed now:
 
-Fix: derive the platform key from the actual build target, and either ship a
-universal binary or emit both keys. Whichever is chosen, the script should
-fail loudly when the key and the artifact disagree rather than writing a
-manifest nobody reads.
+- **`scripts/release-macos.sh` reads the platform keys off the binary** with
+  `lipo -archs`, instead of hardcoding `darwin-aarch64`. Verified against all
+  three cases — arm64, x86_64, and universal, which emits both keys with no
+  further edit. An unrecognised architecture is a hard error rather than a
+  silently wrong manifest. The script also now prints a NOTE after every
+  non-universal build saying Intel is excluded.
+- **The site and README say Apple Silicon**, at the download button and in the
+  status blockquote respectively.
+
+Why the manifest fix matters even though the old hardcoded key was accidentally
+correct: it was unguarded in both directions. A release cut on an Intel Mac
+would have advertised an x86_64 tarball under the aarch64 key, handing Apple
+Silicon users a binary to run under Rosetta. And a lookup that finds no matching
+key returns null, which `check()` reports as "no update" — `src/lib/updates.ts`
+passes `announceNoUpdate: false` on launch, so the user is never told.
+
+### Still open: does Maru ship for Intel at all?
+
+An owner decision, not a task. `rustup` is not installed on this machine (cargo
+comes from Homebrew), so only the host target exists — shipping x86_64 or a
+universal binary needs the toolchain added first. Then:
+
+- **Universal** — one artifact, both architectures, no manifest change needed
+  because the script now derives the keys. Costs roughly double the binary, and
+  README currently advertises "~10 MB core".
+- **Two artifacts** — keeps the arm64 download small, needs both keys pointing
+  at different URLs, which the current script does NOT do (it points every key
+  at one tarball). That is a further change, and the script should fail loudly
+  rather than emit it wrongly.
+- **Neither** — Apple Silicon only, now stated honestly at the point of
+  download. Defensible for a pre-1.0 client; Intel Macs are past their last
+  macOS release.
+
+Nothing is broken while this is undecided, because the requirement is now
+stated where people download.
 
 ## 2. A stray `tauri dev` steals the release build's agent connections
 

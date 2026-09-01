@@ -66,18 +66,53 @@ fi
 VERSION=$(node -p "require('./package.json').version")
 TARBALL=$(ls src-tauri/target/release/bundle/macos/*.app.tar.gz | head -1)
 SIG=$(cat "${TARBALL}.sig")
+URL="https://github.com/galangster/maru/releases/download/v${VERSION}/$(basename "$TARBALL")"
+
+# The platform keys are READ OFF THE BINARY, never assumed.
+#
+# This block used to hardcode `darwin-aarch64`. That happened to be true, because
+# the only machine that has ever cut a release is Apple Silicon — but nothing
+# checked, and the failure mode is silent in both directions. A release cut on an
+# Intel Mac would have advertised an x86_64 tarball under the aarch64 key, handing
+# Apple Silicon users a binary to run under Rosetta. And an updater lookup that
+# finds no matching key returns null, which `check()` reports as "no update" —
+# src/lib/updates.ts passes announceNoUpdate:false on launch, so a user on an
+# unlisted architecture would simply never update and never be told.
+#
+# `lipo -archs` is the only source of truth for what was actually built. A
+# universal binary prints both and gets both keys, with no further edit here.
+ARCHS=$(lipo -archs "$APP/Contents/MacOS/wren")
+PLATFORMS=""
+for arch in $ARCHS; do
+  case "$arch" in
+    arm64)  key="darwin-aarch64" ;;
+    x86_64) key="darwin-x86_64" ;;
+    *) echo "error: unknown architecture '$arch' in the built binary." >&2; exit 1 ;;
+  esac
+  [[ -n "$PLATFORMS" ]] && PLATFORMS="${PLATFORMS},"
+  PLATFORMS="${PLATFORMS}
+    \"${key}\": {
+      \"url\": \"${URL}\",
+      \"signature\": \"${SIG}\"
+    }"
+done
+
 cat > src-tauri/target/release/bundle/latest.json <<MANIFEST
 {
   "version": "${VERSION}",
   "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "platforms": {
-    "darwin-aarch64": {
-      "url": "https://github.com/galangster/maru/releases/download/v${VERSION}/$(basename "$TARBALL")",
-      "signature": "${SIG}"
-    }
+  "platforms": {${PLATFORMS}
   }
 }
 MANIFEST
+
+# Say it out loud rather than leaving it to be discovered. An arm64-only build
+# does not merely fail to update on an Intel Mac — it does not launch there at
+# all, so the download page must not promise plain "macOS".
+if [[ "$ARCHS" != *x86_64* ]]; then
+  echo "==> NOTE: this build is $ARCHS only. Intel Macs cannot run it, and will"
+  echo "    never see an update. See wayfinder/tickets/P20-sweep-leftovers.md §1."
+fi
 
 echo "==> artifacts (upload the tar.gz, its .sig, latest.json and the DMG to the v${VERSION} release)"
 ls -lh "$APP" "$DMG" "$TARBALL" src-tauri/target/release/bundle/latest.json | awk '{print $5, $9}'

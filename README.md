@@ -10,8 +10,9 @@ ever contacts.
 
 > **Pre-1.0.** Maru works — five real accounts and a real agent gateway
 > run on it daily — but it is weeks old and macOS-verified. macOS builds
-> are signed and notarized; the Windows installer is unsigned and not
-> yet hand-tested.
+> are signed and notarized, and are **Apple Silicon only**: the binary is
+> arm64, so it will not launch on an Intel Mac at all. The Windows
+> installer is unsigned and not yet hand-tested.
 > Read [SECURITY.md](SECURITY.md) before trusting it with a mailbox.
 > Maru is free and open (AGPL); a paid hosted **sync** service is planned
 > — the app never becomes the product's hostage.
