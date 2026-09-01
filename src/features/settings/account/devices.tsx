@@ -5,15 +5,17 @@ import { useBusyAction } from './use-busy-action'
 
 export function Devices({
   devices,
+  now,
   onRename,
   onRevoke,
 }: {
   devices: AccountDevice[]
+  now: number
   onRename(id: string, name: string): Promise<void>
   onRevoke(id: string): Promise<void>
 }) {
   const current = devices.find((item) => item.current)
-  const { busy, run } = useBusyAction()
+  const { isBusy, run } = useBusyAction()
 
   return (
     <div className="border-hairline flex flex-col gap-3 border-t pt-4">
@@ -25,12 +27,12 @@ export function Devices({
             event.preventDefault()
             const next = String(new FormData(event.currentTarget).get('device-name') ?? '').trim()
             if (!next || next === current.name) return
-            run(current.id, () => onRename(current.id, next))
+            void run(current.id, () => onRename(current.id, next))
           }}
         >
           <TextField id="maru-device-name" name="device-name" label="This device" value={current.name} autoComplete="off" spellCheck={false} className="min-w-0 flex-1" inputClassName="h-10" />
-          <PrimaryButton type="submit" disabled={busy !== null} className="h-10 px-3">
-            {busy === current.id ? 'Saving…' : 'Save name'}
+          <PrimaryButton type="submit" disabled={isBusy(current.id)} className="h-10 px-3">
+            {isBusy(current.id) ? 'Saving…' : 'Save name'}
           </PrimaryButton>
         </form>
       )}
@@ -39,15 +41,15 @@ export function Devices({
           <li key={item.id} className="flex min-h-10 items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-ink truncate text-sm">{item.name}</p>
-              <p className="text-ink-3 text-xs tabular-nums">Seen {elapsedTime(item.lastSeenAt, Date.now())}</p>
+              <p className="text-ink-3 text-xs tabular-nums">Seen {elapsedTime(item.lastSeenAt, now)}</p>
             </div>
             <button
               type="button"
-              disabled={busy !== null}
-              onClick={() => run(item.id, () => onRevoke(item.id))}
+              disabled={isBusy(item.id)}
+              onClick={() => void run(item.id, () => onRevoke(item.id))}
               className={textButtonClass('danger', 'min-h-10')}
             >
-              {busy === item.id ? 'Signing out…' : 'Sign out'}
+              {isBusy(item.id) ? 'Signing out…' : 'Sign out'}
             </button>
           </li>
         ))}

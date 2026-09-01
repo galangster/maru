@@ -98,13 +98,17 @@ The following behavior is real in the iOS application:
 - Thread push and pop transitions, edge-swipe back, sanitized message bodies, and attachment rendering.
 - Compose and reply sheets, the system file picker, discard confirmation, and the system share sheet.
 - Later presets, grouped settings, pull to refresh, and the animated Maru empty state.
+- Maru account sign-in, sign-up, recovery, device management, history restore, password changes, sign-out, and account deletion.
+- Account subscription management opens `https://getmaru.app/account` in the system browser. The phone contains no purchase control.
+- Restored Gmail addresses remain disabled until Gmail sign-in reaches the phone in I3.
 
 The following behavior uses demo fixtures:
 
 - Mail reads and mutations stay inside `DemoMailService` memory.
 - Send adds a message to the demo thread and does not contact Gmail.
 - Archive, Later, read state, stars, and settings reset after process restart.
-- Account rows are fixture accounts. Account management is read-only.
+- Maru account operations stay inside `DemoAccountClient` memory.
+- Demo account data resets after process restart.
 - Background Gmail sync and remote notifications do not run.
 
 ## iOS OAuth follow-up
@@ -131,4 +135,10 @@ npm run typecheck && npm test && npm run build
 ```
 
 Simulator proof lives in `wayfinder/captures/ios`.
-The folder contains Inbox, Thread, Compose, Later, Settings, and empty-state captures in both themes.
+The folder contains Inbox, Thread, Compose, Later, Settings, account, and empty-state captures in both themes.
+
+The account proof files are:
+
+- `account-signed-out-light.png` and `account-signed-out-dark.png`
+- `account-ceremony-light.png` and `account-ceremony-dark.png`
+- `account-signed-in-light.png` and `account-signed-in-dark.png`

@@ -44,8 +44,8 @@ describe('mobile route reducer', () => {
 
   it('pushes a thread and pops back to the root', () => {
     const pushed = mobileRouteReducer(initialMobileRoute, {
-      type: 'pushThread',
-      threadKey: 'account/thread-1',
+      type: 'push',
+      entry: { kind: 'thread', threadKey: 'account/thread-1' },
     })
     expect(pushed.stack).toEqual([
       { kind: 'inbox' },
@@ -54,10 +54,17 @@ describe('mobile route reducer', () => {
     expect(mobileRouteReducer(pushed, { type: 'back' }).stack).toEqual([{ kind: 'inbox' }])
   })
 
+  it('pushes the account screen from Settings and pops back', () => {
+    const settings = mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'settings' })
+    const account = mobileRouteReducer(settings, { type: 'push', entry: { kind: 'account' } })
+    expect(account.stack).toEqual([{ kind: 'inbox' }, { kind: 'account' }])
+    expect(mobileRouteReducer(account, { type: 'back' })).toEqual(settings)
+  })
+
   it('backs out through sheet, stack, then tab', () => {
     const threadState = mobileRouteReducer(
       mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'search' }),
-      { type: 'pushThread', threadKey: 'account/thread-1' },
+      { type: 'push', entry: { kind: 'thread', threadKey: 'account/thread-1' } },
     )
     const sheetState = mobileRouteReducer(threadState, {
       type: 'openSheet',
@@ -68,6 +75,15 @@ describe('mobile route reducer', () => {
     const withoutThread = mobileRouteReducer(withoutSheet, { type: 'back' })
     expect(withoutThread.stack).toEqual([{ kind: 'inbox' }])
     expect(mobileRouteReducer(withoutThread, { type: 'back' }).tab).toBe('inbox')
+  })
+
+  it('backs out of an account sheet before the account screen', () => {
+    const settings = mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'settings' })
+    const account = mobileRouteReducer(settings, { type: 'push', entry: { kind: 'account' } })
+    const sheet = mobileRouteReducer(account, { type: 'openSheet', sheet: { kind: 'accountPassword' } })
+
+    expect(mobileRouteReducer(sheet, { type: 'back' })).toEqual(account)
+    expect(mobileRouteReducer(account, { type: 'back' })).toEqual(settings)
   })
 })
 

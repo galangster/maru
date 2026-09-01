@@ -13,10 +13,10 @@ export function EmptyInbox() {
   )
 }
 
-export function MobileListSkeleton() {
-  return <div className="mobile-list-skeleton" aria-label="Loading"><span /><span /><span /><span /><span /></div>
+export function MobileListSkeleton({ className = '' }: { className?: string }) {
+  return <div className={`mobile-list-skeleton${className ? ` ${className}` : ''}`} aria-label="Loading"><span /><span /><span /><span /><span /></div>
 }
 
-export function MobilePrompt({ icon, title, copy }: { icon: ReactNode; title: string; copy: string }) {
-  return <div className="mobile-prompt"><span>{icon}</span><h2>{title}</h2><p>{copy}</p></div>
+export function MobilePrompt({ icon, title, copy, className = '', children }: { icon: ReactNode; title: string; copy: string; className?: string; children?: ReactNode }) {
+  return <div className={`mobile-prompt${className ? ` ${className}` : ''}`}><span>{icon}</span><h2>{title}</h2><p>{copy}</p>{children}</div>
 }

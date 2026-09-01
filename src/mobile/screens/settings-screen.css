@@ -2,3 +2,10 @@
   outline: 2px solid var(--wren-text-1);
   outline-offset: 2px;
 }
+
+.mobile-settings-link {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: start;
+}
