@@ -62,35 +62,40 @@ universal binary needs the toolchain added first. Then:
 Nothing is broken while this is undecided, because the requirement is now
 stated where people download.
 
-## 2. A stray `tauri dev` steals the release build's agent connections
+## 2. ~~A stray `tauri dev` steals the release build's agent connections~~ — DONE 2026-08-31
 
-`src-tauri/src/gateway.rs:351` puts the socket at
-`app_data_dir()/gateway.sock`, which both builds share because both carry
-identifier `dev.wren.app`. `ListenerOptions::new().name(name).try_overwrite(true)`
-(gateway.rs:315) means a dev build launched while the release build is running
-**unlinks and rebinds the release build's socket**. The release process keeps
-its listener on an unlinked inode, and every subsequent agent connection lands
-on the dev build.
+The socket name is now split by build type, the same way `KEYRING_SERVICE`
+already splits for the same shared-identifier reason. A debug build binds
+`gateway.dev.sock` (and a `-dev` named pipe on Windows); a release build keeps
+`gateway.sock`.
 
-Worse in kind, though not in reach: agent credential hashes, grants and the
-audit log all live in the shared `wren.db`, so a credential issued by the dev
-build is accepted by the release build and vice versa.
+**Verified empirically rather than by reading**, because the failure was silent
+in the old code and would have been silent in a wrong fix too. With the
+installed 0.1.6 running, a `npm run tauri dev` was started beside it:
 
-This is same-user, same-machine only — not an attack surface. But it is the
-same class as the keychain confusion that cost an afternoon: **the keychain
-split isolates tokens, and the socket and agent registry are not isolated with
-it.** During a recording it means a forgotten `npm run tauri dev` in another
-terminal silently takes over agent connections from the app on camera.
+| socket | bound at | held by |
+|---|---|---|
+| `gateway.sock` | 20:48 | `/Applications/Maru.app` |
+| `gateway.dev.sock` | 21:01 | `target/debug/wren` |
 
-The auth path itself was checked and is sound: the first frame is relayed to
-the webview and nothing moves until `gateway_auth_result` lands; the agent id
-on every relayed frame comes from the Rust-side tag rather than the frame; the
-socket is a unix domain socket in a 0700 directory at 0600, never a loopback
-TCP port. Nothing unauthenticated can drive mail actions.
+The release socket's bind time is unchanged. Before the split,
+`try_overwrite(true)` would have unlinked and rebound it at 21:01, leaving the
+release process listening on an unlinked inode and hearing nobody.
 
-Fix: give the dev build its own socket name and its own agent namespace — the
-same `#[cfg(debug_assertions)]` split the keychain already uses. Depends on
-the queue decision about whether dev should share the database at all.
+`bin/maru-mcp.mjs` and the published `npm/maru-mcp` copy still resolve the
+RELEASE endpoint by default, deliberately: an agent connecting from outside
+wants the installed app, not whatever is running under a developer's terminal.
+Both now say so, and name `--socket` / `MARU_GATEWAY_SOCKET` as the way to
+reach a dev build. `docs/CONNECT-AN-AGENT.md` carries the same note.
+
+### Still shared, and still worth closing
+
+Agent credentials, grants and the audit log all live in the shared `wren.db`,
+so a credential issued by one build is still accepted by the other. That is the
+larger half of the original finding and it is NOT fixed here — it depends on
+the open queue question of whether a dev build should share the database at
+all. Recorded in the code comment beside the split so the next reader does not
+assume the isolation is complete.
 
 ## 3. `--wren-fill-selected` missed the hue-13 anchor
 

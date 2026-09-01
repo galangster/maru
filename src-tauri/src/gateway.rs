@@ -13,6 +13,8 @@
 //!
 //! 1. Listens on a user-private local channel: a unix domain socket at
 //!    `<app-data>/gateway.sock` on macOS and Linux, a named pipe on Windows.
+//!    A debug build uses `gateway.dev.sock` and a `-dev` pipe instead, so a
+//!    `tauri dev` cannot steal a running release build's agent connections.
 //!    Never a loopback TCP port — `docs/research/mcp-gateway-notes.md` §1 is
 //!    explicit that "it is on localhost" is not an authentication story, and
 //!    the DNS-rebinding advisories against the reference SDKs are what happens
@@ -60,8 +62,31 @@ const MAX_CONNECTIONS: usize = 8;
 /// answers must not leak a thread and a socket per connection attempt.
 const AUTH_VERDICT_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// The Windows pipe name. Mirrored by `bin/maru-mcp.mjs`.
-#[cfg(windows)]
+/// Socket and pipe names, split by build type on purpose. Mirrored by
+/// `bin/maru-mcp.mjs`, which has to find the same endpoint.
+///
+/// Dev and release share one bundle identifier and therefore one app-data
+/// directory, so before this split they shared one socket — and
+/// `ListenerOptions::try_overwrite(true)` below means the second process to
+/// start UNLINKS and rebinds the first one's. A `tauri dev` launched beside a
+/// running release build silently took over every agent connection: the release
+/// process kept its listener on an unlinked inode and simply stopped hearing
+/// anyone, with nothing on screen to say so.
+///
+/// Same reasoning as `KEYRING_SERVICE` in lib.rs, which splits for the same
+/// shared-identifier reason. Note what is still NOT split: agent credentials,
+/// grants and the audit log live in the shared `wren.db`, so a credential
+/// issued by one build is still accepted by the other. Closing that depends on
+/// the open question of whether dev should share the database at all
+/// (wayfinder/NICK-QUEUE.md) and is a bigger change than a name.
+#[cfg(debug_assertions)]
+const SOCKET_FILE: &str = "gateway.dev.sock";
+#[cfg(not(debug_assertions))]
+const SOCKET_FILE: &str = "gateway.sock";
+
+#[cfg(all(windows, debug_assertions))]
+const PIPE_NAME: &str = "dev.wren.app-gateway-dev";
+#[cfg(all(windows, not(debug_assertions)))]
 const PIPE_NAME: &str = "dev.wren.app-gateway";
 
 // ---------------------------------------------------------------------------
@@ -348,7 +373,7 @@ fn resolve_name<R: Runtime>(app: &AppHandle<R>) -> Result<(Name<'static>, String
     // deliberately opened up is their call, not a reason to refuse to start.
     let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
 
-    let path = dir.join("gateway.sock");
+    let path = dir.join(SOCKET_FILE);
     // A crash leaves the socket file behind and bind() would fail on it.
     let _ = std::fs::remove_file(&path);
     let display = path.display().to_string();

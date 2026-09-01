@@ -78,7 +78,19 @@ function parseArgs(argv) {
   return args
 }
 
-/** Must match `resolve_name` in src-tauri/src/gateway.rs. */
+/**
+ * Must match `resolve_name` in src-tauri/src/gateway.rs.
+ *
+ * This resolves the RELEASE endpoint, deliberately: an agent connecting from
+ * outside wants the installed app, not whatever happens to be running under a
+ * developer's terminal. A debug build listens on `gateway.dev.sock` (and a
+ * `-dev` pipe on Windows) so the two can never collide — before that split they
+ * shared one socket and the second process to start silently stole the first
+ * one's connections.
+ *
+ * To point an agent at a dev build, pass `--socket` or set
+ * MARU_GATEWAY_SOCKET to the `.dev.sock` path.
+ */
 function defaultSocketPath() {
   if (process.platform === 'win32') return '\\\\.\\pipe\\dev.wren.app-gateway'
   if (process.platform === 'darwin') {

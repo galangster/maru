@@ -202,10 +202,13 @@ agent  ──stdio──▶  maru-mcp  ──unix socket──▶  Maru (Rust re
 - The channel is a unix domain socket at
   `~/Library/Application Support/dev.wren.app/gateway.sock` on macOS,
   `$XDG_DATA_HOME/dev.wren.app/gateway.sock` on Linux, and the named pipe
-  `\\.\pipe\dev.wren.app-gateway` on Windows. Never a loopback TCP port: the
-  MCP security guidance is explicit that a localhost port is not an
-  authentication story, and the DNS-rebinding advisories against the reference
-  SDKs are what happens to people who assumed otherwise.
+  `\\.\pipe\dev.wren.app-gateway` on Windows. A development build of Maru
+  listens on `gateway.dev.sock` (and a `-dev` pipe) instead, so a `tauri dev`
+  running beside the installed app cannot take over its agent connections —
+  point `--socket` at that path if you mean to reach one. Never a loopback
+  TCP port: the MCP security guidance is explicit that a localhost port is not
+  an authentication story, and the DNS-rebinding advisories against the
+  reference SDKs are what happens to people who assumed otherwise.
 - The first frame of every connection is the credential, and it is resolved
   **once**, by Maru, before anything else is relayed. Every later frame is
   tagged with the agent id that credential resolved to.
