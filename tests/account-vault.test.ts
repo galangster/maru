@@ -48,12 +48,20 @@ const document = (patch: Partial<VaultDocument> = {}): VaultDocument => ({
 
 describe('vault document', () => {
   it('excludes googleClientSecret and includes desktop credentials', async () => {
-    const vault = await buildVault(new FakeLocal(), 20)
+    const vault = await buildVault(new FakeLocal(), 20, undefined, 'desktop')
     expect(vault.settings).not.toHaveProperty('googleClientSecret')
     expect(vault.credentials.desktop['nick@example.com']).toMatchObject({
       clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10,
     })
     expect(vault.credentials.ios).toEqual({})
+  })
+
+  it('writes the same local credentials only to the iOS family on iOS', async () => {
+    const vault = await buildVault(new FakeLocal(), 20, undefined, 'ios')
+    expect(vault.credentials.desktop).toEqual({})
+    expect(vault.credentials.ios['nick@example.com']).toMatchObject({
+      clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10,
+    })
   })
 
   it('merges settings by document time, accounts by union and credentials by issuedAt', () => {
@@ -86,10 +94,30 @@ describe('vault document', () => {
         ios: { 'ios@example.com': { clientId: 'ios', refreshToken: 'ios-token', scope: 'scope', issuedAt: 5 } },
       },
     })
-    const result = await applyVault(vault, local)
+    const result = await applyVault(vault, local, 'desktop')
     expect(local.accounts.map((account) => account.email)).toEqual(['restored@example.com', 'ios@example.com'])
     expect([...local.credentials.values()]).toContainEqual({ clientId: 'desktop', refreshToken: 'token', issuedAt: 4 })
     expect(local.consent).toEqual(['ios@example.com'])
+    expect(result).toMatchObject({ added: 2, removed: 1, tokensFiled: 1 })
+    expect(local.refreshes).toBe(1)
+  })
+
+  it('files iOS tokens and sends desktop-only addresses to directed consent', async () => {
+    const local = new FakeLocal()
+    const vault = document({
+      accounts: [
+        { email: 'restored@example.com', label: 'Restored' },
+        { email: 'desktop@example.com', label: 'Desktop' },
+      ],
+      credentials: {
+        desktop: { 'desktop@example.com': { clientId: 'desktop', refreshToken: 'desktop-token', scope: 'scope', issuedAt: 4 } },
+        ios: { 'restored@example.com': { clientId: 'ios', refreshToken: 'ios-token', scope: 'scope', issuedAt: 5 } },
+      },
+    })
+    const result = await applyVault(vault, local, 'ios')
+    expect(local.accounts.map((account) => account.email)).toEqual(['restored@example.com', 'desktop@example.com'])
+    expect([...local.credentials.values()]).toContainEqual({ clientId: 'ios', refreshToken: 'ios-token', issuedAt: 5 })
+    expect(local.consent).toEqual(['desktop@example.com'])
     expect(result).toMatchObject({ added: 2, removed: 1, tokensFiled: 1 })
     expect(local.refreshes).toBe(1)
   })

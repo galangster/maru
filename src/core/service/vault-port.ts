@@ -1,5 +1,7 @@
 import type { Account, Settings } from '../types'
 
+export type PlatformFamily = 'desktop' | 'ios'
+
 export interface LocalCredential {
   refreshToken: string
   clientId: string

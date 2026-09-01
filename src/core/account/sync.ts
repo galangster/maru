@@ -1,8 +1,10 @@
 import { MaruApiError, type AccountClient, type VaultConflict } from './client'
 import { openText, seal } from './crypto'
 import type { LocalCredential } from '../service/vault-port'
+import type { PlatformFamily } from '../service/vault-port'
 import type { AccountSessionAccess } from './session'
 import { applyVault, buildVault, mergeVault, type ApplyVaultSummary, type VaultDocument, type VaultLocal } from './vault'
+import { accountDeviceIdentity } from '@/lib/env'
 
 export type AccountSyncState =
   | { kind: 'idle'; lastSyncAt?: number; summary?: ApplyVaultSummary }
@@ -29,6 +31,7 @@ export class AccountSync {
   private pushInFlight: Promise<void> | null = null
   private credentialCache: Map<string, LocalCredential> | null = null
   private credentialCacheInFlight: Promise<Map<string, LocalCredential>> | null = null
+  private deviceFamilyPromise: Promise<PlatformFamily> | null = null
   private applying = false
   private stopped = true
   private readonly now: () => number
@@ -102,6 +105,11 @@ export class AccountSync {
     this.credentialCacheInFlight = null
   }
 
+  private deviceFamily(): Promise<PlatformFamily> {
+    this.deviceFamilyPromise ??= accountDeviceIdentity().then((identity) => identity.family)
+    return this.deviceFamilyPromise
+  }
+
   private credentials(): Promise<Map<string, LocalCredential>> {
     if (this.credentialCache) return Promise.resolve(this.credentialCache)
     if (this.credentialCacheInFlight) return this.credentialCacheInFlight
@@ -172,7 +180,7 @@ export class AccountSync {
       this.applying = true
       let summary: ApplyVaultSummary
       try {
-        summary = await applyVault(remoteDoc, this.options.local)
+        summary = await applyVault(remoteDoc, this.options.local, await this.deviceFamily())
       } finally {
         this.applying = false
       }
@@ -196,7 +204,12 @@ export class AccountSync {
     this.publish({ kind: 'syncing', direction: 'push' })
     try {
       let baseVersion = await this.version()
-      let doc = await buildVault(this.options.local, undefined, await this.credentials())
+      let doc = await buildVault(
+        this.options.local,
+        undefined,
+        await this.credentials(),
+        await this.deviceFamily(),
+      )
       const key = await this.accountKey()
       for (let round = 0; round < 3; round += 1) {
         try {

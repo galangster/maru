@@ -1,6 +1,7 @@
 import type { Account, Settings } from '../types'
-import type { LocalCredential, VaultLocal } from '../service/vault-port'
+import type { LocalCredential, PlatformFamily, VaultLocal } from '../service/vault-port'
 import type { TransferSettings } from '@/features/settings/transfer'
+import { accountDeviceIdentity } from '@/lib/env'
 
 export type { LocalCredential, VaultLocal } from '../service/vault-port'
 
@@ -42,15 +43,17 @@ export async function buildVault(
   local: VaultLocal,
   updatedAt = local.now?.() ?? Date.now(),
   cachedCredentials?: ReadonlyMap<string, LocalCredential>,
+  family?: PlatformFamily,
 ): Promise<VaultDocument> {
+  const currentFamily = family ?? (await accountDeviceIdentity()).family
   const [settings, accounts] = await Promise.all([local.getSettings(), local.listAccounts()])
-  const desktop: Record<string, VaultCredential> = {}
+  const credentials: VaultDocument['credentials'] = { desktop: {}, ios: {} }
   await Promise.all(accounts.map(async (account) => {
     const stored = cachedCredentials
       ? cachedCredentials.get(account.id)
       : await local.loadCredential(account.id)
     if (!stored) return
-    desktop[normalizeEmail(account.email)] = {
+    credentials[currentFamily][normalizeEmail(account.email)] = {
       clientId: stored.clientId,
       refreshToken: stored.refreshToken,
       scope: 'https://www.googleapis.com/auth/gmail.modify',
@@ -62,7 +65,7 @@ export async function buildVault(
     updatedAt,
     settings: vaultSettings(settings),
     accounts: accounts.map((account) => ({ email: normalizeEmail(account.email), label: account.displayName })),
-    credentials: { desktop, ios: {} },
+    credentials,
   }
   if (encoder.encode(JSON.stringify(document)).byteLength > 256 * 1024) {
     throw new Error('The Maru vault exceeds the 256 KiB limit')
@@ -111,8 +114,13 @@ export interface ApplyVaultSummary {
   needsConsent: string[]
 }
 
-export async function applyVault(doc: VaultDocument, local: VaultLocal): Promise<ApplyVaultSummary> {
+export async function applyVault(
+  doc: VaultDocument,
+  local: VaultLocal,
+  family?: PlatformFamily,
+): Promise<ApplyVaultSummary> {
   if (doc.v !== 1) throw new Error(`Unsupported Maru vault version: ${String(doc.v)}`)
+  const currentFamily = family ?? (await accountDeviceIdentity()).family
   const now = local.now?.() ?? Date.now()
   const currentSettings = await local.getSettings()
   const nextSettings = { ...doc.settings, googleClientSecret: currentSettings.googleClientSecret }
@@ -150,7 +158,7 @@ export async function applyVault(doc: VaultDocument, local: VaultLocal): Promise
       await local.upsertAccount(account)
       added += 1
     }
-    const credential = doc.credentials.desktop[email]
+    const credential = doc.credentials[currentFamily][email]
     if (credential) {
       const stored = await local.loadCredential(account.id)
       if (!stored || (stored.issuedAt ?? 0) < credential.issuedAt) {
