@@ -47,6 +47,7 @@ export class AccountSessionStore {
       this.platform.secretDelete(ACCOUNT_SESSION_SECRET),
       this.platform.secretDelete(ACCOUNT_KEY_SECRET),
     ])
+    await (await this.database()).execute("DELETE FROM meta WHERE key LIKE 'maru-account:%'")
   }
 
   async getMeta(key: string): Promise<string | null> {
@@ -65,4 +66,3 @@ export class AccountSessionStore {
     await (await this.database()).execute('DELETE FROM meta WHERE key = $1', [`${META_PREFIX}${key}`])
   }
 }
-

@@ -178,6 +178,14 @@ export function MaruAccountProvider({ children }: { children: React.ReactNode })
       setHistory(historyResult.versions)
       setBillingAvailable(true)
     } catch (error) {
+      if (error instanceof MaruApiError && error.status === 401 && (error.code === 'revoked' || error.code === 'expired')) {
+        syncRef.current?.stop()
+        await sessionRef.current?.clear()
+        client().setToken(null)
+        setEmail(null)
+        setExplanation(error.code === 'expired' ? 'Your Maru session expired. Sign in again.' : 'This device was signed out remotely. Sign in again to resume sync.')
+        return
+      }
       if (error instanceof MaruApiError && error.status === 503 && error.code === 'billing_unavailable') {
         setBillingAvailable(false)
         return

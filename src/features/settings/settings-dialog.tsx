@@ -1071,7 +1071,8 @@ function TransferBlock() {
           <Explainer>
             {toConnect.length} account{toConnect.length === 1 ? '' : 's'} to sign in to. Maru asks
             Google for each one in turn and pre-selects the address, so you approve rather than
-            choose. Nothing was copied — each device earns its own tokens.
+            choose. No compatible desktop token was available, so Google needs one approval per
+            address.
           </Explainer>
           <ul className="flex flex-col gap-1">
             {toConnect.map((email) => (
@@ -1145,7 +1146,9 @@ function AboutSection() {
       <div className="flex flex-col gap-2">
         <p className="font-ui text-ink text-xl font-semibold">Maru</p>
         <p className="text-ink-3 text-sm tabular-nums">Version {pkg.version}</p>
-        <p className="text-ink-2 text-sm text-pretty">Local-first. Talks only to Google.</p>
+        <p className="text-ink-2 text-sm text-pretty">
+          Mail stays local. Sync stores only encrypted account data.
+        </p>
       </div>
       <div className="flex flex-col gap-2">
         <Explainer>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { PrimaryButton, textButtonClass } from '@/components/wren-controls'
 import type { AccountDevice } from '@/core/account'
@@ -16,6 +16,7 @@ export function Devices({
   const current = devices.find((item) => item.current)
   const [name, setName] = useState(current?.name ?? '')
   const [busy, setBusy] = useState<string | null>(null)
+  useEffect(() => setName(current?.name ?? ''), [current?.name])
 
   return (
     <div className="border-hairline flex flex-col gap-3 border-t pt-4">

@@ -63,13 +63,17 @@ export async function buildVault(local: VaultLocal, updatedAt = local.now?.() ??
       issuedAt: stored.issuedAt ?? updatedAt,
     }
   }))
-  return {
+  const document: VaultDocument = {
     v: 1,
     updatedAt,
     settings: vaultSettings(settings),
     accounts: accounts.map((account) => ({ email: account.email.trim().toLowerCase(), label: account.displayName })),
     credentials: { desktop, ios: {} },
   }
+  if (new TextEncoder().encode(JSON.stringify(document)).byteLength > 256 * 1024) {
+    throw new Error('The Maru vault exceeds the 256 KiB limit')
+  }
+  return document
 }
 
 function mergeCredentials(

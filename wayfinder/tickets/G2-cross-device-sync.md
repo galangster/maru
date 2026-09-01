@@ -341,3 +341,68 @@ stand in front of it, and none is code:
 The friction table above prices the gap honestly: the vault is worth ~5
 gestures when browser sessions are live and up to ~17 on a genuinely cold
 machine. What shipped today closes the part that needs no custody at all.
+
+---
+
+# BUILD LOG — desktop Maru account, 2026-09-01
+
+## What shipped
+
+The desktop app now supports Maru account signup, sign-in, recovery, sync,
+device management, password changes, sign-out, and account deletion.
+
+The vault restores settings, account rows, and desktop-family Gmail refresh
+tokens. Addresses without desktop credentials enter the existing directed
+Google consent list.
+
+Sync pulls at launch, focus, and five-minute intervals. Local changes schedule
+a push after two seconds. Three conflicts pause sync until retry.
+
+A network failure pauses all sync requests until retry. A subscription pause
+continues pulls and blocks writes.
+
+The account section shows trial, active, past-due, expired, and complimentary
+entitlements. It opens Stripe checkout and portal URLs in the system browser.
+
+Vault history lists stored versions. A confirmed restore copies the chosen
+version forward and pulls it into the app.
+
+Demo mode uses an in-memory account API. It requires no sync server.
+
+## Files
+
+- `src/core/account/` contains cryptography, recovery, API, session, vault,
+  and sync modules.
+- `src/features/settings/account/` contains the complete account interface.
+- `src/core/service/real.ts` exposes the narrow local vault adapter.
+- `src/core/auth/oauth.ts` preserves token issue times for vault merges.
+- `src/App.tsx` mounts account sync before Settings opens.
+- `src-tauri/capabilities/default.json` permits production, Railway, and local
+  sync hosts.
+- `tests/account-*.test.ts` covers the required account contracts.
+- Public security and privacy text now discloses encrypted token custody.
+
+## Verification
+
+`npm run typecheck && npm test && npm run build` passed.
+
+The suite passed 650 tests across 38 files. Twelve focused account tests cover
+crypto, recovery, vault rules, API routing, conflicts, payment, and revocation.
+
+The Vite app started at `http://localhost:1420/?demo=1`.
+
+Interactive browser proof did not run. Chrome control timed out twice, and the
+built-in browser was unavailable. No screenshot or visual judgment was made.
+
+## Choices where the contract was silent
+
+- Recovery reads an optional `wrappedByRecovery` from prelogin. The written
+  API otherwise returns that value after the client already needs it.
+- Device name edits use `PATCH /v1/devices/:id`. The device endpoint table
+  defines listing and revocation but no rename method.
+- Signup creates the server record before confirmation. The app withholds the
+  local session and account key until "I saved it" is checked.
+- Session cleanup removes Maru account metadata. This prevents one account's
+  vault version from affecting the next account.
+- Gmail access tokens never enter the vault. Refresh tokens stay partitioned
+  under the `desktop` family.

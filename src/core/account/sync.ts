@@ -61,12 +61,18 @@ export class AccountSync {
   }
 
   schedulePush(): void {
+    if (this.state.kind === 'paused' && this.state.reason === 'subscription_needed') return
     if (this.pushTimer) clearTimeout(this.pushTimer)
     this.pushTimer = setTimeout(() => void this.push(), this.options.debounceMs ?? 2_000)
   }
 
-  retry(): Promise<void> {
-    return this.state.kind === 'paused' && this.state.reason === 'subscription_needed' ? this.pull() : this.push()
+  async retry(): Promise<void> {
+    if (this.state.kind === 'paused' && this.state.reason === 'subscription_needed') {
+      await this.pull(true)
+      await this.push()
+      return
+    }
+    await this.push()
   }
 
   private async accountKey(): Promise<Uint8Array> {
@@ -94,8 +100,9 @@ export class AccountSync {
     this.publish({ kind: 'paused', reason: network ? 'network' : 'conflict', message: network ? 'Sync paused. Check your connection and retry.' : 'Sync paused after three conflicts. Retry to merge again.' })
   }
 
-  async pull(): Promise<void> {
+  async pull(force = false): Promise<void> {
     if (this.state.kind === 'signed_out') return
+    if (!force && this.state.kind === 'paused' && this.state.reason !== 'subscription_needed') return
     this.publish({ kind: 'syncing', direction: 'pull' })
     try {
       const remote = await this.options.client.vault()

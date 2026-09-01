@@ -2,7 +2,9 @@
 
 ## Architecture
 
-Maru is an installed desktop client. The app uses a system browser and a loopback callback for OAuth 2.0 with PKCE. It requests only `gmail.modify`. The OAuth authorization, token, and Gmail endpoints are Google endpoints. OAuth tokens stay in the operating-system keychain. Sources: `src/core/auth/oauth.ts:1-17`, `src/core/auth/oauth.ts:126-151`, and `src/core/auth/oauth.ts:410-457`.
+Maru is an installed desktop client. The app uses a system browser and a loopback callback for OAuth 2.0 with PKCE. It requests only `gmail.modify`. The OAuth authorization, token, and Gmail endpoints are Google endpoints. OAuth tokens stay in the operating-system keychain. With optional Maru Sync, refresh tokens also enter an end-to-end encrypted vault. Access tokens never enter that vault. Sources: `src/core/auth/oauth.ts` and `src/core/account/`.
+
+The Maru sync service stores opaque vault ciphertext and a version number. The account key stays in each signed-in device's operating-system keychain. The service has no key that can decrypt settings, addresses, or refresh tokens. Mail content, headers, identifiers, agent grants, and the audit log never enter the vault. Sources: `docs/spec/MARU-ACCOUNT.md` and `src/core/account/vault.ts`.
 
 Maru fetches Gmail data directly from Google over TLS. It stores the local mail cache in SQLite. Content columns use AES-256-GCM with one key per account. The operating-system keychain stores those keys. Sources: `src/core/gmail/api.ts:40-42`, `src/core/gmail/api.ts:188-228`, `src/core/store/db.ts:41-185`, `src/core/store/db.ts:253-269`, and `SECURITY.md:29-40`.
 
@@ -16,6 +18,7 @@ An agent cannot dispatch mail. An agent send request enters Maru's approval queu
 flowchart LR
   Google[Google OAuth and Gmail APIs]
   Hosted[Possible hosted model provider]
+  Sync[(Maru Sync\nopaque encrypted vault)]
 
   subgraph Device[User device]
     Browser[System browser and loopback OAuth callback]
@@ -33,6 +36,7 @@ flowchart LR
   Maru <-->|TLS Gmail API calls| Google
   Maru --> Keychain
   Maru --> SQLite
+  Maru <-->|TLS encrypted vault| Sync
   Maru -->|session-gated selected data| Gateway
   Gateway --> Agent
   Agent -.->|possible disclosed provider hop| Hosted
@@ -46,6 +50,6 @@ flowchart LR
 
 ## Network boundary
 
-Maru has no telemetry server and no Maru-operated mail server. Maru opens no other network path for Gmail data. Its direct remote peers are Google's OAuth and Gmail endpoints. The OAuth callback and agent gateway are local endpoints. A hosted-model transfer is a separate hop made by the user-selected agent client after Maru's session consent. Source: `SECURITY.md:10-20`.
+Maru has no telemetry server and no Maru-operated mail server. Its direct remote peers are Google's OAuth and Gmail endpoints plus the optional sync service, which receives only encrypted vault blobs. The OAuth callback and agent gateway are local endpoints. A hosted-model transfer is a separate hop made by the user-selected agent client after Maru's session consent.
 
-> NOTE: `site/index.html:46` and `site/privacy.html:46` say that Google is the only network peer for mail. Those absolute sentences can hide the disclosed agent-provider hop. The same pages disclose that hop at `site/index.html:39-40` and `site/privacy.html:48-50`. Review the absolute sentences before submission. This document follows the complete current path.
+The public homepage, privacy policy, and security page disclose the encrypted sync path separately from mail traffic.

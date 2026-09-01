@@ -36,8 +36,9 @@ describe('Maru account cryptography', () => {
     const key = new Uint8Array(32).fill(3)
     const value = await seal(key, 'private', 'test-aad')
     expect(new TextDecoder().decode(await open(key, value, 'test-aad'))).toBe('private')
-    const final = value.at(-1) === 'A' ? 'B' : 'A'
-    await expect(open(key, `${value.slice(0, -1)}${final}`, 'test-aad')).rejects.toThrow()
+    const parts = value.split('.')
+    parts[2] = `${parts[2][0] === 'A' ? 'B' : 'A'}${parts[2].slice(1)}`
+    await expect(open(key, parts.join('.'), 'test-aad')).rejects.toThrow()
     await expect(open(key, value, 'wrong-aad')).rejects.toThrow()
   })
 
@@ -69,4 +70,3 @@ describe('Maru recovery phrase', () => {
     expect(() => recoveryEntropy(words.join(' '))).toThrow(/12 recovery words/u)
   })
 })
-
