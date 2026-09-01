@@ -104,7 +104,13 @@ export function InboxScreen({
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index]
               return (
-                <div className="mobile-virtual-row" key={row.thread.key} style={{ transform: `translateY(${virtualRow.start}px)` }}>
+                <div
+                  ref={virtualizer.measureElement}
+                  className="mobile-virtual-row"
+                  data-index={virtualRow.index}
+                  key={row.thread.key}
+                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+                >
                   <SwipeThreadRow
                     thread={row.thread}
                     model={row.model}
@@ -125,7 +131,7 @@ export function InboxScreen({
       </div>
 
       {editing && (
-        <div className="mobile-bulk-toolbar" aria-label="Bulk actions">
+        <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
           <button type="button" disabled={selected.size === 0} onClick={() => onArchive(selectedKeys)}><Archive size={20} /><span>Archive</span></button>
           <button type="button" disabled={selected.size === 0} onClick={() => onLater(selectedKeys)}><Clock3 size={20} /><span>Later</span></button>
           <button type="button" disabled={selected.size === 0} onClick={stopEditing}><Check size={20} /><span>Done</span></button>

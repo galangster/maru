@@ -16,7 +16,7 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
         <SettingsGroup title="Accounts">{accounts.map((account) => <SettingsRow key={account.id} icon={<UserRound size={19} />} title={account.displayName} detail={account.email} />)}</SettingsGroup>
         <SettingsGroup title="Appearance">
           <div className="mobile-theme-picker" role="group" aria-label="Appearance">
-            {(['system', 'light', 'dark'] as const).map((theme) => <button key={theme} type="button" className={current?.theme === theme ? 'is-active' : ''} onClick={() => save.mutate({ theme })}>{theme[0].toUpperCase() + theme.slice(1)}</button>)}
+            {(['system', 'light', 'dark'] as const).map((theme) => <button key={theme} type="button" aria-pressed={current?.theme === theme} className={current?.theme === theme ? 'is-active' : ''} onClick={() => save.mutate({ theme })}>{theme[0].toUpperCase() + theme.slice(1)}</button>)}
           </div>
         </SettingsGroup>
         <SettingsGroup title="Messages">
@@ -34,7 +34,7 @@ function SettingsGroup({ title, children }: { title: string; children: ReactNode
   return <section className="mobile-group"><h2>{title}</h2><div>{children}</div></section>
 }
 function SettingsRow({ icon, title, detail, onClick }: { icon: ReactNode; title: string; detail: string; onClick?: () => void }) {
-  const content = <><span className="mobile-row-icon">{icon}</span><span><strong>{title}</strong><small>{detail}</small></span>{onClick && <ChevronRight size={17} aria-hidden />}</>
+  const content = <><span className="mobile-row-icon" aria-hidden>{icon}</span><span><strong>{title}</strong><small>{detail}</small></span>{onClick && <ChevronRight size={17} aria-hidden />}</>
   return onClick
     ? <button type="button" className="mobile-row mobile-settings-link mobile-press" onClick={onClick} aria-label={`${title}. ${detail}`}>{content}</button>
     : <div className="mobile-row">{content}</div>

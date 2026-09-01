@@ -74,7 +74,7 @@ export function ThreadScreen({
           ))}
         </div>
       </div>
-      <div className="mobile-thread-toolbar" aria-label="Thread actions">
+      <div className="mobile-thread-toolbar" role="toolbar" aria-label="Thread actions">
         <ToolbarButton label="Reply" icon={<Reply size={20} />} onClick={() => onReply(detail.data, 'reply')} />
         <ToolbarButton label="Reply all" icon={<ReplyAll size={20} />} onClick={() => onReply(detail.data, 'replyAll')} />
         <ToolbarButton label="Forward" icon={<Forward size={20} />} onClick={() => onReply(detail.data, 'forward')} />
@@ -87,5 +87,5 @@ export function ThreadScreen({
 }
 
 function ToolbarButton({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
-  return <button type="button" onClick={onClick} aria-label={label}>{icon}</button>
+  return <button type="button" onClick={onClick} aria-label={label}><span aria-hidden>{icon}</span></button>
 }

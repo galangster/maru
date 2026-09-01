@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ChevronRight, X } from 'lucide-react'
+import { useModalFocus } from '../use-modal-focus'
 
 export function BottomSheet({
   title,
@@ -10,6 +11,7 @@ export function BottomSheet({
   onClose: () => void
   children: ReactNode
 }) {
+  const dialogRef = useModalFocus<HTMLElement>(onClose)
   return (
     <div
       className="mobile-sheet-layer mobile-bottom-layer"
@@ -18,11 +20,11 @@ export function BottomSheet({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <section className="mobile-bottom-sheet" role="dialog" aria-modal="true" aria-label={title}>
+      <section ref={dialogRef} className="mobile-bottom-sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}>
         <span className="mobile-sheet-grabber" aria-hidden />
         <header>
           <h2>{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close"><X size={19} /></button>
+          <button type="button" onClick={onClose} aria-label={`Close ${title}`}><X size={19} aria-hidden /></button>
         </header>
         {children}
       </section>
@@ -43,7 +45,7 @@ export function SheetAction({
 }) {
   return (
     <button className={destructive ? 'is-destructive' : ''} type="button" onClick={onClick}>
-      <span className="mobile-sheet-icon">{icon}</span><span>{label}</span><ChevronRight size={17} />
+      <span className="mobile-sheet-icon" aria-hidden>{icon}</span><span>{label}</span><ChevronRight size={17} aria-hidden />
     </button>
   )
 }

@@ -9,8 +9,9 @@ import {
   commitRecipientInput,
   recipientChipState,
 } from '../recipient-chips'
+import { useModalFocus } from '../use-modal-focus'
 
-export function ComposeSheet() {
+export function ComposeSheet({ onSent }: { onSent: () => void }) {
   const service = useMailService()
   const { accounts, selfEmails } = useAccountsById()
   const inbox = useThreads({ kind: 'unified', folder: 'inbox' })
@@ -41,6 +42,7 @@ export function ComposeSheet() {
     if (dirty && !window.confirm('Discard this draft? Your message will be lost.')) return
     closeStore()
   }
+  const dialogRef = useModalFocus<HTMLElement>(close)
   const send = async () => {
     const to = commitRecipientInput(toState)
     const cc = commitRecipientInput(ccState)
@@ -58,6 +60,7 @@ export function ComposeSheet() {
     try {
       await service.send(toComposeDraft(outgoing))
       remember(draft.accountId)
+      onSent()
       closeStore()
     } catch (cause) {
       setSending(false)
@@ -72,7 +75,7 @@ export function ComposeSheet() {
 
   return (
     <div className="mobile-sheet-layer" role="presentation">
-      <section className="mobile-compose-sheet" role="dialog" aria-modal="true" aria-label="Compose message">
+      <section ref={dialogRef} className="mobile-compose-sheet" role="dialog" aria-modal="true" aria-label="Compose message" tabIndex={-1}>
         <header className="mobile-sheet-nav">
           <button type="button" className="mobile-nav-text" onClick={close}>Cancel</button>
           <h2>{draft.reply ? 'Reply' : 'New Message'}</h2>
@@ -90,11 +93,11 @@ export function ComposeSheet() {
           </>}
           <label className="mobile-compose-field"><span>Subject</span><input type="text" value={draft.subject} onChange={(event) => edit({ subject: event.target.value })} /></label>
           <label className="mobile-compose-body"><span className="sr-only">Message</span><textarea value={draft.bodyText} onChange={(event) => edit({ bodyText: event.target.value })} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void send() }} placeholder="Write a message…" /></label>
-          {draft.attachments.length > 0 && <div className="mobile-draft-attachments">{draft.attachments.map((attachment) => <span key={attachment.id}><Paperclip size={15} />{attachment.filename}<button type="button" aria-label={`Remove ${attachment.filename}`} onClick={() => edit({ attachments: draft.attachments.filter((item) => item.id !== attachment.id) })}><X size={15} /></button></span>)}</div>}
+          {draft.attachments.length > 0 && <div className="mobile-draft-attachments">{draft.attachments.map((attachment) => <span key={attachment.id}><Paperclip size={15} aria-hidden />{attachment.filename}<button type="button" aria-label={`Remove ${attachment.filename}`} onClick={() => edit({ attachments: draft.attachments.filter((item) => item.id !== attachment.id) })}><X size={15} aria-hidden /></button></span>)}</div>}
           {error && <p className="mobile-form-error" role="alert">{error}</p>}
           <div className="mobile-compose-footer">
-            <label className="mobile-attach-button"><Paperclip size={19} /><span>Add attachment</span><input type="file" multiple onChange={(event) => void addFiles(event.target.files)} /></label>
-            <button type="button" className="mobile-discard-button mobile-press" onClick={close} aria-label="Discard draft"><Trash2 size={19} /></button>
+            <label className="mobile-attach-button"><Paperclip size={19} aria-hidden /><span>Add attachment</span><input type="file" multiple onChange={(event) => void addFiles(event.target.files)} /></label>
+            <button type="button" className="mobile-discard-button mobile-press" onClick={close} aria-label="Discard draft"><Trash2 size={19} aria-hidden /></button>
           </div>
         </form>
       </section>

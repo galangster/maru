@@ -97,6 +97,9 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
         role="button"
         tabIndex={0}
         aria-label={`${model.sender}, ${model.subject}`}
+        aria-pressed={editing ? selected : undefined}
+        aria-haspopup="dialog"
+        aria-description="Swipe right to archive or left to save for later. Long press for more actions."
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') editing ? onSelect() : onOpen()
         }}

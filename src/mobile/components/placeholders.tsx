@@ -14,9 +14,9 @@ export function EmptyInbox() {
 }
 
 export function MobileListSkeleton({ className = '' }: { className?: string }) {
-  return <div className={`mobile-list-skeleton${className ? ` ${className}` : ''}`} aria-label="Loading"><span /><span /><span /><span /><span /></div>
+  return <div className={`mobile-list-skeleton${className ? ` ${className}` : ''}`} role="status" aria-label="Loading"><span /><span /><span /><span /><span /></div>
 }
 
 export function MobilePrompt({ icon, title, copy, className = '', children }: { icon: ReactNode; title: string; copy: string; className?: string; children?: ReactNode }) {
-  return <div className={`mobile-prompt${className ? ` ${className}` : ''}`}><span>{icon}</span><h2>{title}</h2><p>{copy}</p>{children}</div>
+  return <div className={`mobile-prompt${className ? ` ${className}` : ''}`}><span aria-hidden>{icon}</span><h2>{title}</h2><p>{copy}</p>{children}</div>
 }

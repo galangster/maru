@@ -31,6 +31,7 @@ import { BottomSheet } from '@/mobile/components/bottom-sheet'
 import { MobileListSkeleton, MobilePrompt } from '@/mobile/components/placeholders'
 import type { MobileSheet } from '@/mobile/state'
 import { useEdgeBack } from '@/mobile/use-edge-back'
+import { useModalFocus } from '@/mobile/use-modal-focus'
 import { syncLabel, syncTitle } from './account-logic'
 import './account-screen.css'
 
@@ -59,7 +60,7 @@ export function AccountScreen({
       {...edge.handlers}
       aria-label="Maru account"
     >
-      <header className="mobile-nav mobile-account-nav">
+      <header className="mobile-nav mobile-account-nav" inert={Boolean(pending || sheet)} aria-hidden={pending || sheet ? true : undefined}>
         <button className="mobile-nav-back" type="button" onClick={onBack} aria-label="Back to Settings">
           <ArrowLeft size={22} aria-hidden />
           <span>Settings</span>
@@ -220,6 +221,7 @@ function RecoveryCeremony() {
   const [error, setError] = useState<string | null>(null)
   const phrase = pending?.phrase ?? ''
   const words = phrase.split(' ')
+  const dialogRef = useModalFocus<HTMLDivElement>()
 
   const copy = async () => {
     try {
@@ -243,7 +245,7 @@ function RecoveryCeremony() {
   }
 
   return (
-    <div className="mobile-account-ceremony-layer" role="dialog" aria-modal="true" aria-labelledby="mobile-recovery-title">
+    <div ref={dialogRef} className="mobile-account-ceremony-layer" role="dialog" aria-modal="true" aria-labelledby="mobile-recovery-title" tabIndex={-1}>
       <div className="mobile-account-ceremony-nav">
         <h2 id="mobile-recovery-title">Save your recovery words</h2>
         <button type="button" className="mobile-account-copy mobile-press" onClick={() => void copy()} aria-label="Copy all 12 recovery words">
@@ -302,7 +304,7 @@ function SignedIn({
 
   return (
     <>
-      <div className="mobile-scroll mobile-account-scroll mobile-account-signed-in">
+      <div className="mobile-scroll mobile-account-scroll mobile-account-signed-in" inert={sheet !== null} aria-hidden={sheet !== null || undefined}>
         <section className="mobile-account-profile" aria-label="Account summary">
           <span className="mobile-account-mark" aria-hidden><Cloud size={24} /></span>
           <div>
