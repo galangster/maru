@@ -1,11 +1,8 @@
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from "jose";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createPubSubVerifier } from "../src/push.js";
-import type { PushService } from "../src/types.js";
-import { allow, bearer, fixture, signup } from "./helpers.js";
-
-const close: Array<() => Promise<void>> = [];
-afterEach(async () => Promise.all(close.splice(0).map((fn) => fn())));
+import type { PubSubVerifier, PushSender } from "../src/types.js";
+import { allow, bearer, close, fixture, signup } from "./helpers.js";
 
 describe("Gmail push relay", () => {
   it("rejects a bad JWT and accepts a locally signed matching JWT", async () => {
@@ -13,14 +10,14 @@ describe("Gmail push relay", () => {
     const jwk = await exportJWK(publicKey);
     jwk.kid = "test-key";
     jwk.alg = "ES256";
-    const verifyPubSubToken = createPubSubVerifier({
+    const pubSubVerifier = createPubSubVerifier({
       audience: "https://sync.test/v1/push/gmail",
       serviceAccount: "pubsub@example.iam.gserviceaccount.com",
       jwks: createLocalJWKSet({ keys: [jwk] }),
     });
     const send = vi.fn(async () => undefined);
-    const push: PushService = { verifyPubSubToken, send };
-    const value = await fixture({ push });
+    const pushSender: PushSender = { send };
+    const value = await fixture({ pubSubVerifier, pushSender });
     close.push(() => value.db.close());
     await allow(value.db);
     const created = await signup(value.app);
@@ -63,15 +60,13 @@ describe("Gmail push relay", () => {
       body,
     });
     expect(good.status).toBe(204);
-    expect(send).toHaveBeenCalledWith(["apns-device-token"]);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith(["apns-device-token"]));
   });
 
   it("returns 204 for malformed Pub/Sub data after valid authentication", async () => {
-    const push: PushService = {
-      verifyPubSubToken: vi.fn(async () => undefined),
-      send: vi.fn(async () => undefined),
-    };
-    const value = await fixture({ push });
+    const pubSubVerifier: PubSubVerifier = { verify: vi.fn(async () => undefined) };
+    const pushSender: PushSender = { send: vi.fn(async () => undefined) };
+    const value = await fixture({ pubSubVerifier, pushSender });
     close.push(() => value.db.close());
     const response = await value.app.request("/v1/push/gmail", {
       method: "POST",
@@ -79,6 +74,6 @@ describe("Gmail push relay", () => {
       body: JSON.stringify({ message: { data: "not-json" } }),
     });
     expect(response.status).toBe(204);
-    expect(push.send).not.toHaveBeenCalled();
+    expect(pushSender.send).not.toHaveBeenCalled();
   });
 });

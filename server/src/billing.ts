@@ -1,9 +1,9 @@
 import Stripe from "stripe";
 import type { Hono } from "hono";
-import { currentEntitlement } from "./access.js";
+import type { Db } from "./db.js";
 import { error, jsonBody } from "./http.js";
-import type { AppEnv } from "./session.js";
-import type { AppDeps, BillingClient, StripeEvent, SubscriptionRow } from "./types.js";
+import type { AppDeps, AppEnv, BillingClient, StripeEvent, SubscriptionRow, SubscriptionStatus } from "./types.js";
+import { isRecord } from "./util.js";
 
 const SUCCESS_URL = "https://getmaru.app/account?checkout=success";
 const CANCEL_URL = "https://getmaru.app/account?checkout=cancel";
@@ -36,26 +36,22 @@ function stringField(value: unknown) {
   return typeof value === "string" ? value : null;
 }
 
-function booleanField(value: unknown) {
-  return value === true;
-}
-
 function timestampField(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? new Date(value * 1000) : null;
 }
 
 function objectField(value: unknown) {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
+  return isRecord(value) ? value : null;
+}
+
+function subscriptionDetails(object: Record<string, unknown>) {
+  return objectField(objectField(object.parent)?.subscription_details);
 }
 
 function subscriptionIdFromInvoice(object: Record<string, unknown>) {
   const direct = stringField(object.subscription);
   if (direct) return direct;
-  const parent = objectField(object.parent);
-  const details = objectField(parent?.subscription_details);
-  return stringField(details?.subscription);
+  return stringField(subscriptionDetails(object)?.subscription);
 }
 
 function subscriptionPrice(object: Record<string, unknown>) {
@@ -76,9 +72,23 @@ function subscriptionPeriodEnd(object: Record<string, unknown>) {
 function accountIdFromMetadata(object: Record<string, unknown>) {
   const direct = stringField(objectField(object.metadata)?.accountId);
   if (direct) return direct;
-  const parent = objectField(object.parent);
-  const details = objectField(parent?.subscription_details);
-  return stringField(objectField(details?.metadata)?.accountId);
+  return stringField(objectField(subscriptionDetails(object)?.metadata)?.accountId);
+}
+
+function subscriptionStatus(value: unknown): SubscriptionStatus {
+  return value === "active" || value === "trialing" || value === "past_due" ? value : "ended";
+}
+
+async function findUserId(db: Db, accountId: string | null, customerId: string | null) {
+  if (!accountId && !customerId) return null;
+  const [user] = await db.query<{ id: string }>(
+    `UPDATE users SET stripe_customer_id = COALESCE(stripe_customer_id, $2)
+      WHERE ($1::text IS NOT NULL AND id = $1)
+         OR ($1::text IS NULL AND stripe_customer_id = $2)
+      RETURNING id`,
+    [accountId, customerId],
+  );
+  return user?.id ?? null;
 }
 
 function planFor(object: Record<string, unknown>, deps: AppDeps) {
@@ -104,17 +114,12 @@ async function handleStripeEvent(event: StripeEvent, deps: AppDeps) {
   if (event.type.startsWith("customer.subscription.")) {
     const subscriptionId = stringField(object.id);
     const customerId = stringField(object.customer);
-    const status = stringField(object.status);
-    if (!subscriptionId || !customerId || !status) return;
+    const stripeStatus = stringField(object.status);
+    if (!subscriptionId || !customerId || !stripeStatus) return;
+    const status = subscriptionStatus(stripeStatus);
     const accountId = accountIdFromMetadata(object);
-    const [user] = accountId
-      ? await deps.db.query<{ id: string }>("SELECT id FROM users WHERE id = $1", [accountId])
-      : await deps.db.query<{ id: string }>("SELECT id FROM users WHERE stripe_customer_id = $1", [customerId]);
-    if (!user) return;
-    await deps.db.query(
-      "UPDATE users SET stripe_customer_id = COALESCE(stripe_customer_id, $2) WHERE id = $1",
-      [user.id, customerId],
-    );
+    const userId = await findUserId(deps.db, accountId, customerId);
+    if (!userId) return;
     await deps.db.query(
       `INSERT INTO subscriptions
         (user_id, stripe_subscription_id, status, plan, current_period_end, cancel_at_period_end, past_due_since)
@@ -129,8 +134,8 @@ async function handleStripeEvent(event: StripeEvent, deps: AppDeps) {
            WHEN EXCLUDED.status = 'past_due' THEN COALESCE(subscriptions.past_due_since, EXCLUDED.past_due_since)
            ELSE NULL
          END`,
-      [user.id, subscriptionId, status, planFor(object, deps), subscriptionPeriodEnd(object),
-        booleanField(object.cancel_at_period_end), deps.clock.now()],
+      [userId, subscriptionId, status, planFor(object, deps), subscriptionPeriodEnd(object),
+        object.cancel_at_period_end === true, deps.clock.now()],
     );
     return;
   }
@@ -142,35 +147,25 @@ async function handleStripeEvent(event: StripeEvent, deps: AppDeps) {
       "SELECT user_id FROM subscriptions WHERE stripe_subscription_id = $1",
       [subscriptionId],
     );
-    if (!existing) {
-      const accountId = accountIdFromMetadata(object);
-      const customerId = stringField(object.customer);
-      const [user] = accountId
-        ? await deps.db.query<{ id: string }>("SELECT id FROM users WHERE id = $1", [accountId])
-        : customerId
-          ? await deps.db.query<{ id: string }>("SELECT id FROM users WHERE stripe_customer_id = $1", [customerId])
-          : [];
-      if (!user) return;
-      await deps.db.query(
-        `INSERT INTO subscriptions
-          (user_id, stripe_subscription_id, status, plan, cancel_at_period_end, past_due_since)
-         VALUES ($1, $2, $3, NULL, false, $4)`,
-        [user.id, subscriptionId, event.type === "invoice.payment_failed" ? "past_due" : "active",
-          event.type === "invoice.payment_failed" ? deps.clock.now() : null],
-      );
-    }
-    if (event.type === "invoice.payment_failed") {
-      await deps.db.query(
-        `UPDATE subscriptions SET status = 'past_due', past_due_since = COALESCE(past_due_since, $2)
-          WHERE stripe_subscription_id = $1`,
-        [subscriptionId, deps.clock.now()],
-      );
-    } else {
-      await deps.db.query(
-        "UPDATE subscriptions SET status = 'active', past_due_since = NULL WHERE stripe_subscription_id = $1",
-        [subscriptionId],
-      );
-    }
+    const userId = existing?.user_id ?? await findUserId(
+      deps.db,
+      accountIdFromMetadata(object),
+      stringField(object.customer),
+    );
+    if (!userId) return;
+    const status: SubscriptionStatus = event.type === "invoice.payment_failed" ? "past_due" : "active";
+    await deps.db.query(
+      `INSERT INTO subscriptions
+        (user_id, stripe_subscription_id, status, plan, cancel_at_period_end, past_due_since)
+       VALUES ($1, $2, $3, NULL, false, CASE WHEN $3 = 'past_due' THEN $4::timestamptz ELSE NULL END)
+       ON CONFLICT (stripe_subscription_id) DO UPDATE SET
+         status = EXCLUDED.status,
+         past_due_since = CASE
+           WHEN EXCLUDED.status = 'past_due' THEN COALESCE(subscriptions.past_due_since, EXCLUDED.past_due_since)
+           ELSE NULL
+         END`,
+      [userId, subscriptionId, status, deps.clock.now()],
+    );
   }
 }
 
@@ -182,15 +177,6 @@ async function ensureCustomer(deps: AppDeps, user: { id: string; email: string; 
 }
 
 export function registerBillingRoutes(app: Hono<AppEnv>, deps: AppDeps) {
-  app.get("/v1/me", async (c) => {
-    const session = c.get("session");
-    return c.json({
-      email: session.user.email,
-      accountId: session.user.id,
-      entitlement: await currentEntitlement(c, deps),
-    });
-  });
-
   app.post("/v1/billing/checkout", async (c) => {
     if (!deps.billing || !deps.stripePriceMonthly || !deps.stripePriceYearly) {
       return error(c, 503, "billing_unavailable", "Billing is not configured.");

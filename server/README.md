@@ -16,6 +16,7 @@ The service runs on Node 22, Hono, and Postgres. It applies the SQL files in
 | `DATABASE_URL` | Yes | Postgres connection URL. |
 | `PORT` | No | HTTP port. Defaults to `8787`. |
 | `MARU_ALLOWLIST` | No | Comma-separated emails to add to `allowed_emails` at startup. Existing rows remain. |
+| `MARU_COMPED` | No | Comma-separated existing account emails to comp at startup. Repeated seeds are safe. |
 | `PUBSUB_AUDIENCE` | For Gmail push | Expected Google OIDC audience. |
 | `PUBSUB_SERVICE_ACCOUNT` | For Gmail push | Exact service-account email required in the OIDC `email` claim. |
 | `APNS_TEAM_ID` | For APNs | Apple developer team ID. |
@@ -73,17 +74,15 @@ DATABASE_URL=postgres://... node --import tsx scripts/allow.ts remove person@exa
 DATABASE_URL=postgres://... node --import tsx scripts/allow.ts list
 DATABASE_URL=postgres://... node --import tsx scripts/allow.ts comp person@example.com
 DATABASE_URL=postgres://... node --import tsx scripts/allow.ts uncomp person@example.com
+DATABASE_URL=postgres://... node --import tsx scripts/allow.ts enforce on
+DATABASE_URL=postgres://... node --import tsx scripts/allow.ts enforce off
 ```
 
 `list` prints email addresses because it is an explicit administrator command.
 The service logger never prints them.
 
-Allowlist enforcement defaults to on. Open signup without a deploy by changing
-the configuration row:
-
-```sql
-UPDATE config SET value = 'false' WHERE key = 'allowlist_enforced';
-```
+Allowlist enforcement defaults to on. Use `enforce off` to open signup without
+a deploy. Use `enforce on` to close signup again.
 
 ## Stripe setup
 
@@ -120,8 +119,8 @@ The container applies pending migrations before it accepts traffic.
 The protocol leaves a few implementation details open. This service makes
 these choices:
 
-- An email already present in `allowed_emails` receives `comped = true` at
-  signup. Disabling enforcement opens signup but does not comp new accounts.
+- Signup always writes `comped = false`. Use `comp`, `uncomp`, or `MARU_COMPED`
+  to manage complimentary access independently from the allowlist.
 - A trial expires at its `trial_ends_at` instant. Past-due access expires at
   the exact instant seven days after `past_due_since`.
 - Vault history contains each successful current version. The history endpoint

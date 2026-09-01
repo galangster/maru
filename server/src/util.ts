@@ -30,6 +30,10 @@ export function addDays(date: Date, days: number) {
   return new Date(date.getTime() + days * 86_400_000);
 }
 
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 export function isBase64UrlBytes(value: unknown, bytes: number): value is string {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) return false;
   try {

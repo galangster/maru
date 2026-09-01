@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { hash, verify, type Algorithm } from "@node-rs/argon2";
-import { DEFAULT_KDF } from "./constants.js";
+import { SERVER_HASH_KDF } from "./constants.js";
 
 const options = {
   algorithm: 2 as Algorithm,
-  memoryCost: DEFAULT_KDF.m,
-  timeCost: DEFAULT_KDF.t,
-  parallelism: DEFAULT_KDF.p,
+  memoryCost: SERVER_HASH_KDF.m,
+  timeCost: SERVER_HASH_KDF.t,
+  parallelism: SERVER_HASH_KDF.p,
   outputLen: 32,
 };
 

@@ -3,10 +3,10 @@ import { resolve } from "node:path";
 import { serve } from "@hono/node-server";
 import pino from "pino";
 import { createApp } from "./app.js";
-import { seedAllowlist } from "./allowlist.js";
+import { seedAllowlist, seedComped } from "./allowlist.js";
 import { createStripeClient } from "./billing.js";
 import { createPostgresDb, migrate } from "./db.js";
-import { createPushService } from "./push.js";
+import { createPushServices } from "./push.js";
 import { TokenBucketRateLimiter } from "./ratelimit.js";
 
 const logger = pino();
@@ -18,8 +18,10 @@ const db = createPostgresDb(databaseUrl);
 await migrate(db);
 const seeded = await seedAllowlist(db, process.env.MARU_ALLOWLIST);
 logger.info({ code: "allowlist_seed", count: seeded }, "Allowlist seed complete");
+const comped = await seedComped(db, process.env.MARU_COMPED);
+logger.info({ code: "comped_seed", count: comped }, "Comp seed complete");
 
-const push = await createPushService(process.env, logger);
+const { pubSubVerifier, pushSender } = await createPushServices(process.env, logger);
 const billing = process.env.STRIPE_SECRET_KEY ? createStripeClient(process.env.STRIPE_SECRET_KEY) : null;
 const port = Number(process.env.PORT ?? 8787);
 const app = createApp({
@@ -28,11 +30,12 @@ const app = createApp({
   clock: { now: () => new Date() },
   version: packageJson.version,
   rateLimiter: new TokenBucketRateLimiter(),
-  push,
+  pubSubVerifier,
+  pushSender,
   billing,
-  ...(process.env.STRIPE_WEBHOOK_SECRET ? { stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET } : {}),
-  ...(process.env.STRIPE_PRICE_MONTHLY ? { stripePriceMonthly: process.env.STRIPE_PRICE_MONTHLY } : {}),
-  ...(process.env.STRIPE_PRICE_YEARLY ? { stripePriceYearly: process.env.STRIPE_PRICE_YEARLY } : {}),
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+  stripePriceMonthly: process.env.STRIPE_PRICE_MONTHLY,
+  stripePriceYearly: process.env.STRIPE_PRICE_YEARLY,
 });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {

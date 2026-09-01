@@ -1,10 +1,12 @@
 import { PGlite } from "@electric-sql/pglite";
 import pino from "pino";
-import { vi } from "vitest";
+import { afterEach, vi } from "vitest";
 import { createApp } from "../src/app.js";
-import { createPgliteDb, migrate } from "../src/db.js";
+import { DEFAULT_KDF } from "../src/constants.js";
+import { migrate } from "../src/db.js";
 import { TokenBucketRateLimiter } from "../src/ratelimit.js";
-import type { AppDeps, BillingClient, PushService } from "../src/types.js";
+import type { AppDeps, BillingClient, PubSubVerifier, PushSender } from "../src/types.js";
+import { createPgliteDb } from "./pglite-db.js";
 
 export const EMAIL = "test@example.com";
 export const AUTH_KEY = Buffer.alloc(32, 1).toString("base64url");
@@ -15,7 +17,8 @@ export const NEW_REC_KEY = Buffer.alloc(32, 4).toString("base64url");
 export const device = (name = "Test Mac") => ({ name, platform: "macos", family: "desktop" });
 
 export interface FixtureOptions {
-  push?: PushService;
+  pubSubVerifier?: PubSubVerifier;
+  pushSender?: PushSender;
   billing?: BillingClient | null;
   stripeWebhookSecret?: string;
   stripePriceMonthly?: string;
@@ -27,23 +30,30 @@ export async function fixture(options: FixtureOptions = {}) {
   const db = createPgliteDb(client);
   await migrate(db);
   const current = { value: new Date("2026-09-01T12:00:00.000Z") };
-  const defaultPush: PushService = {
-    send: vi.fn(async () => undefined),
-    verifyPubSubToken: vi.fn(async () => undefined),
-  };
   const deps: AppDeps = {
     db,
     logger: pino({ level: "silent" }),
     clock: { now: () => new Date(current.value) },
     version: "0.1.7-test",
     rateLimiter: new TokenBucketRateLimiter(() => current.value.getTime()),
-    push: options.push ?? defaultPush,
+    pubSubVerifier: options.pubSubVerifier ?? { verify: vi.fn(async () => undefined) },
+    pushSender: options.pushSender ?? { send: vi.fn(async () => undefined) },
     billing: options.billing ?? null,
-    ...(options.stripeWebhookSecret ? { stripeWebhookSecret: options.stripeWebhookSecret } : {}),
-    ...(options.stripePriceMonthly ? { stripePriceMonthly: options.stripePriceMonthly } : {}),
-    ...(options.stripePriceYearly ? { stripePriceYearly: options.stripePriceYearly } : {}),
+    stripeWebhookSecret: options.stripeWebhookSecret,
+    stripePriceMonthly: options.stripePriceMonthly,
+    stripePriceYearly: options.stripePriceYearly,
   };
   return { app: createApp(deps), db, deps, current };
+}
+
+export const close: Array<() => Promise<void>> = [];
+afterEach(async () => Promise.all(close.splice(0).map((fn) => fn())));
+
+export async function ready(options: FixtureOptions = {}) {
+  const value = await fixture(options);
+  close.push(() => value.db.close());
+  await allow(value.db);
+  return value;
 }
 
 export async function allow(db: AppDeps["db"], email = EMAIL) {
@@ -63,7 +73,7 @@ export async function signup(
       email,
       authKey,
       recAuthKey,
-      kdf: { algo: "argon2id", m: 65_536, t: 3, p: 4 },
+      kdf: DEFAULT_KDF,
       wrappedByPassword: "m1.password.wrapped",
       wrappedByRecovery: "m1.recovery.wrapped",
       device: device(),

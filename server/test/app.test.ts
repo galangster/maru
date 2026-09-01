@@ -1,27 +1,19 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { verifyProof } from "../src/crypto.js";
+import { DEFAULT_KDF } from "../src/constants.js";
+import { seedComped } from "../src/allowlist.js";
 import {
   allow,
   AUTH_KEY,
   bearer,
   device,
   EMAIL,
-  fixture,
   NEW_AUTH_KEY,
   NEW_REC_KEY,
   REC_KEY,
+  ready,
   signup,
 } from "./helpers.js";
-
-const close: Array<() => Promise<void>> = [];
-afterEach(async () => Promise.all(close.splice(0).map((fn) => fn())));
-
-async function ready() {
-  const value = await fixture();
-  close.push(() => value.db.close());
-  await allow(value.db);
-  return value;
-}
 
 describe("authentication", () => {
   it("signs up and logs in with the same auth key", async () => {
@@ -69,6 +61,32 @@ describe("authentication", () => {
     expect(await response.json()).toMatchObject({ error: "bad_credentials" });
   });
 
+  it("returns the recovery wrapping only after a valid recovery proof", async () => {
+    const { app } = await ready();
+    await signup(app);
+    const request = (recAuthKey: string) => app.request("/v1/auth/recover-start", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "192.0.2.10" },
+      body: JSON.stringify({ email: EMAIL, recAuthKey }),
+    });
+    const bad = await request(NEW_REC_KEY);
+    expect(bad.status).toBe(401);
+    expect(await bad.json()).toMatchObject({ error: "bad_credentials" });
+    const good = await request(REC_KEY);
+    expect(good.status).toBe(200);
+    expect(await good.json()).toEqual({ wrappedByRecovery: "m1.recovery.wrapped", kdf: DEFAULT_KDF });
+  });
+
+  it("keeps allowlisted signup uncomped and applies MARU_COMPED idempotently", async () => {
+    const { app, db } = await ready();
+    await signup(app);
+    const getComped = async () => (await db.query<{ comped: boolean }>("SELECT comped FROM users"))[0]!.comped;
+    expect(await getComped()).toBe(false);
+    expect(await seedComped(db, ` ${EMAIL.toUpperCase()} ,${EMAIL}`)).toBe(1);
+    expect(await seedComped(db, EMAIL)).toBe(0);
+    expect(await getComped()).toBe(true);
+  });
+
   it("revokes old devices and rotates both hashes during recovery", async () => {
     const { app, db } = await ready();
     const first = await signup(app);
@@ -93,7 +111,7 @@ describe("authentication", () => {
       }),
     });
     expect(recovery.status).toBe(200);
-    expect(await recovery.clone().json()).toMatchObject({ wrappedByRecovery: "m1.recovery.wrapped" });
+    expect(await recovery.clone().json()).not.toHaveProperty("wrappedByRecovery");
     for (const token of [first.body.token, second.token]) {
       expect((await app.request("/v1/devices", { headers: bearer(token) })).status).toBe(401);
     }
@@ -102,6 +120,7 @@ describe("authentication", () => {
     expect(after!.rec_auth_hash).not.toBe(before!.rec_auth_hash);
     expect(await verifyProof(after!.auth_hash, NEW_AUTH_KEY)).toBe(true);
     expect(await verifyProof(after!.rec_auth_hash, NEW_REC_KEY)).toBe(true);
+    expect(after!.auth_hash).toContain("m=19456,t=2,p=1");
   });
 
   it("rate limits the eleventh signup attempt by email and IP", async () => {
@@ -191,6 +210,28 @@ describe("vaults and devices", () => {
     expect(revoked.status).toBe(401);
     expect(await revoked.json()).toMatchObject({ error: "revoked" });
   });
+
+  it("renames an owned device but not another account's device", async () => {
+    const { app, db } = await ready();
+    const first = await signup(app);
+    const otherEmail = "other@example.com";
+    await allow(db, otherEmail);
+    const other = await signup(app, otherEmail, NEW_AUTH_KEY, NEW_REC_KEY);
+    const renamed = await app.request(`/v1/devices/${first.body.deviceId}`, {
+      method: "PATCH",
+      headers: bearer(first.body.token),
+      body: JSON.stringify({ name: "  Studio Mac  " }),
+    });
+    expect(renamed.status).toBe(200);
+    const [deviceRow] = await db.query<{ name: string }>("SELECT name FROM devices WHERE id = $1", [first.body.deviceId]);
+    expect(deviceRow!.name).toBe("Studio Mac");
+    const forbidden = await app.request(`/v1/devices/${other.body.deviceId}`, {
+      method: "PATCH",
+      headers: bearer(first.body.token),
+      body: JSON.stringify({ name: "Taken over" }),
+    });
+    expect(forbidden.status).toBe(404);
+  });
 });
 
 describe("account deletion", () => {
@@ -228,5 +269,22 @@ describe("account deletion", () => {
       const [row] = await db.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table}`);
       expect(row!.count, table).toBe("0");
     }
+  });
+});
+
+describe("database transactions", () => {
+  it("rolls back a nested transaction to its savepoint", async () => {
+    const { db } = await ready();
+    await db.transaction(async (tx) => {
+      await tx.query("INSERT INTO allowed_emails (email) VALUES ('outer@example.com')");
+      await expect(tx.transaction(async (nested) => {
+        await nested.query("INSERT INTO allowed_emails (email) VALUES ('nested@example.com')");
+        throw new Error("rollback nested work");
+      })).rejects.toThrow("rollback nested work");
+    });
+    const rows = await db.query<{ email: string }>("SELECT email FROM allowed_emails ORDER BY email");
+    const emails = rows.map((row) => row.email);
+    expect(emails).toContain("outer@example.com");
+    expect(emails).not.toContain("nested@example.com");
   });
 });

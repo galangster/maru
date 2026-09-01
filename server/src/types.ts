@@ -1,8 +1,10 @@
 import type { Logger } from "pino";
 import type { Db } from "./db.js";
+import type { Entitlement } from "./entitlement.js";
 
 export type Kdf = { algo: "argon2id"; m: number; t: number; p: number };
 export type Family = "desktop" | "ios";
+export type SubscriptionStatus = "active" | "trialing" | "past_due" | "ended";
 
 export interface UserRow extends Record<string, unknown> {
   id: string;
@@ -18,10 +20,15 @@ export interface UserRow extends Record<string, unknown> {
   created_at: Date | string;
 }
 
+export type SessionUserRow = Pick<
+  UserRow,
+  "id" | "email" | "auth_hash" | "rec_auth_hash" | "trial_ends_at" | "comped" | "stripe_customer_id" | "created_at"
+>;
+
 export interface SubscriptionRow extends Record<string, unknown> {
   user_id: string;
   stripe_subscription_id: string;
-  status: string;
+  status: SubscriptionStatus;
   plan: string | null;
   current_period_end: Date | string | null;
   cancel_at_period_end: boolean;
@@ -29,13 +36,17 @@ export interface SubscriptionRow extends Record<string, unknown> {
 }
 
 export interface Session {
-  user: UserRow;
+  user: SessionUserRow;
   deviceId: string;
+  subscription: SubscriptionRow | null;
 }
 
 export interface AppVariables {
   session: Session;
+  entitlement: Entitlement;
 }
+
+export type AppEnv = { Variables: AppVariables };
 
 export interface Clock {
   now(): Date;
@@ -47,20 +58,24 @@ export interface AppDeps {
   clock: Clock;
   version: string;
   rateLimiter: RateLimiter;
-  push: PushService;
+  pubSubVerifier: PubSubVerifier;
+  pushSender: PushSender;
   billing: BillingClient | null;
-  stripeWebhookSecret?: string;
-  stripePriceMonthly?: string;
-  stripePriceYearly?: string;
+  stripeWebhookSecret: string | undefined;
+  stripePriceMonthly: string | undefined;
+  stripePriceYearly: string | undefined;
 }
 
 export interface RateLimiter {
   consume(email: string, ip: string): boolean;
 }
 
-export interface PushService {
+export interface PubSubVerifier {
+  verify(token: string): Promise<void>;
+}
+
+export interface PushSender {
   send(tokens: string[]): Promise<void>;
-  verifyPubSubToken(token: string): Promise<void>;
 }
 
 export interface BillingClient {

@@ -23,7 +23,7 @@ describe("entitlementFor", () => {
     expect(entitlementFor(user({ comped: true }), subscription({ status: "past_due" }), now).state).toBe("comped");
   });
 
-  it.each(["active", "trialing"])("maps a Stripe %s subscription to active", (status) => {
+  it.each(["active", "trialing"] as const)("maps a Stripe %s subscription to active", (status) => {
     expect(entitlementFor(user(), subscription({ status }), now).state).toBe("active");
   });
 
@@ -51,7 +51,7 @@ describe("entitlementFor", () => {
     expect(result.state).toBe("expired");
   });
 
-  it.each(["canceled", "unpaid", "incomplete_expired"])("expires a %s subscription", (status) => {
-    expect(entitlementFor(user(), subscription({ status }), now).state).toBe("expired");
+  it("expires an ended subscription", () => {
+    expect(entitlementFor(user(), subscription({ status: "ended" }), now).state).toBe("expired");
   });
 });

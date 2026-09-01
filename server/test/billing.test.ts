@@ -1,9 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { BillingClient, StripeEvent } from "../src/types.js";
-import { allow, bearer, EMAIL, fixture, signup } from "./helpers.js";
-
-const close: Array<() => Promise<void>> = [];
-afterEach(async () => Promise.all(close.splice(0).map((fn) => fn())));
+import { allow, bearer, close, EMAIL, fixture, signup } from "./helpers.js";
 
 function billingMock(event: StripeEvent): BillingClient {
   return {
@@ -115,5 +112,49 @@ describe("billing", () => {
     expect((await value.app.request("/v1/vault", { headers: bearer(created.body.token) })).status).toBe(204);
     const me = await value.app.request("/v1/me", { headers: bearer(created.body.token) });
     expect(await me.json()).toMatchObject({ entitlement: { state: "expired" } });
+  });
+
+  it.each([
+    ["PUT", "/v1/vault", { baseVersion: 0, ciphertext: "cipher" }],
+    ["POST", "/v1/vault/restore", { version: 1 }],
+    ["POST", "/v1/push/register", { apnsToken: "apns-token" }],
+    ["POST", "/v1/push/watch", { email: "mail@example.com", expiration: "2026-09-02T00:00:00Z" }],
+  ] as const)("gates %s %s through entitlement middleware", async (method, path, body) => {
+    const value = await fixture();
+    close.push(() => value.db.close());
+    await allow(value.db);
+    const created = await signup(value.app);
+    await value.db.query("UPDATE users SET trial_ends_at = $2 WHERE id = $1", [
+      created.body.accountId,
+      new Date("2026-08-01T00:00:00Z"),
+    ]);
+    const response = await value.app.request(path, {
+      method,
+      headers: bearer(created.body.token),
+      body: JSON.stringify(body),
+    });
+    expect(response.status).toBe(402);
+    expect(await response.json()).toMatchObject({ error: "payment_required" });
+  });
+
+  it("maps unknown Stripe subscription statuses to ended at ingestion", async () => {
+    const event: StripeEvent = {
+      id: "evt_paused",
+      type: "customer.subscription.updated",
+      data: { object: { id: "sub_paused", customer: "cus_paused", status: "paused" } },
+    };
+    const value = await fixture({ billing: billingMock(event), stripeWebhookSecret: "whsec_test" });
+    close.push(() => value.db.close());
+    await allow(value.db);
+    const created = await signup(value.app);
+    await value.db.query("UPDATE users SET stripe_customer_id = 'cus_paused' WHERE id = $1", [created.body.accountId]);
+    const response = await value.app.request("/v1/billing/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": "valid" },
+      body: "{}",
+    });
+    expect(response.status).toBe(200);
+    const [stored] = await value.db.query<{ status: string }>("SELECT status FROM subscriptions");
+    expect(stored!.status).toBe("ended");
   });
 });

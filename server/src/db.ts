@@ -1,6 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { PGlite } from "@electric-sql/pglite";
 import postgres, { type Sql } from "postgres";
 
 export interface Db {
@@ -34,26 +33,6 @@ export function createPostgresDb(databaseUrl: string): Db {
   return postgresAdapter(postgres(databaseUrl, { max: 10 }));
 }
 
-export function createPgliteDb(client: PGlite): Db {
-  const adapter = (connection: Pick<PGlite, "query" | "exec">, root: PGlite | null): Db => ({
-    async query<T extends Record<string, unknown>>(text: string, params: readonly unknown[] = []) {
-      const result = await connection.query<T>(text, [...params]);
-      return result.rows;
-    },
-    async exec(text: string) {
-      await connection.exec(text);
-    },
-    async transaction<T>(work: (db: Db) => Promise<T>) {
-      if (!root) return work(adapter(connection, null));
-      return root.transaction(async (transaction) => work(adapter(transaction, null)));
-    },
-    async close() {
-      if (root) await root.close();
-    },
-  });
-  return adapter(client, client);
-}
-
 export async function migrate(db: Db, migrationsDir = resolve(process.cwd(), "migrations")) {
   await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -65,17 +44,15 @@ export async function migrate(db: Db, migrationsDir = resolve(process.cwd(), "mi
   const names = (await readdir(migrationsDir))
     .filter((name) => /^\d{3}-[a-z0-9-]+\.sql$/.test(name))
     .sort();
+  const applied = new Set((await db.query<{ name: string }>("SELECT name FROM schema_migrations")).map((row) => row.name));
 
   for (const name of names) {
-    const applied = await db.query<{ name: string }>(
-      "SELECT name FROM schema_migrations WHERE name = $1",
-      [name],
-    );
-    if (applied.length > 0) continue;
+    if (applied.has(name)) continue;
     const sql = await readFile(resolve(migrationsDir, name), "utf8");
     await db.transaction(async (tx) => {
       await tx.exec(sql);
       await tx.query("INSERT INTO schema_migrations (name) VALUES ($1)", [name]);
     });
+    applied.add(name);
   }
 }

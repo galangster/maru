@@ -1,11 +1,19 @@
 import type { Hono } from "hono";
 import { verifyProof } from "./crypto.js";
 import { error, jsonBody } from "./http.js";
-import type { AppEnv } from "./session.js";
-import type { AppDeps } from "./types.js";
+import type { AppDeps, AppEnv } from "./types.js";
 import { isBase64UrlBytes } from "./util.js";
 
 export function registerAccountRoutes(app: Hono<AppEnv>, deps: AppDeps) {
+  app.get("/v1/me", (c) => {
+    const session = c.get("session");
+    return c.json({
+      email: session.user.email,
+      accountId: session.user.id,
+      entitlement: c.get("entitlement"),
+    });
+  });
+
   app.delete("/v1/account", async (c) => {
     const body = await jsonBody(c);
     const user = c.get("session").user;

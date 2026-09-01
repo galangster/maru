@@ -1,7 +1,6 @@
 import type { Hono } from "hono";
-import { error } from "./http.js";
-import type { AppEnv } from "./session.js";
-import type { AppDeps } from "./types.js";
+import { error, jsonBody } from "./http.js";
+import type { AppDeps, AppEnv } from "./types.js";
 import { asDate } from "./util.js";
 
 interface DeviceRow extends Record<string, unknown> {
@@ -32,6 +31,22 @@ export function registerDeviceRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         current: device.id === session.deviceId,
       })),
     });
+  });
+
+  app.patch("/v1/devices/:id", async (c) => {
+    const body = await jsonBody(c);
+    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    if (name.length < 1 || name.length > 64) {
+      return error(c, 400, "invalid_request", "Device name must be between 1 and 64 characters.");
+    }
+    const rows = await deps.db.query<{ id: string }>(
+      `UPDATE devices SET name = $3
+        WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL RETURNING id`,
+      [c.req.param("id"), c.get("session").user.id, name],
+    );
+    return rows.length > 0
+      ? c.json({ ok: true })
+      : error(c, 404, "not_found", "The device does not exist.");
   });
 
   app.delete("/v1/devices/:id", async (c) => {

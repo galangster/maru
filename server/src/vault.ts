@@ -1,9 +1,8 @@
 import type { Hono } from "hono";
-import { requirePaidWrite } from "./access.js";
 import { MAX_VAULT_BYTES } from "./constants.js";
+import type { Db } from "./db.js";
 import { error, jsonBody } from "./http.js";
-import type { AppEnv } from "./session.js";
-import type { AppDeps } from "./types.js";
+import type { AppDeps, AppEnv } from "./types.js";
 import { asDate } from "./util.js";
 
 interface VaultRow extends Record<string, unknown> {
@@ -20,15 +19,24 @@ function vaultResponse(vault: VaultRow) {
   };
 }
 
-async function retainTen(deps: AppDeps, userId: string) {
-  await deps.db.query(
-    `DELETE FROM vault_history
-      WHERE user_id = $1
-        AND version NOT IN (
-          SELECT version FROM vault_history WHERE user_id = $1 ORDER BY version DESC LIMIT 10
-        )`,
-    [userId],
+async function writeVaultVersion(tx: Db, userId: string, ciphertext: string, now: Date) {
+  const [vault] = await tx.query<{ version: number }>(
+    `INSERT INTO vaults (user_id, version, ciphertext, updated_at) VALUES ($1, 1, $2, $3)
+     ON CONFLICT (user_id) DO UPDATE SET version = vaults.version + 1,
+       ciphertext = EXCLUDED.ciphertext, updated_at = EXCLUDED.updated_at
+     RETURNING version`,
+    [userId, ciphertext, now],
   );
+  const version = vault!.version;
+  await tx.query(
+    "INSERT INTO vault_history (user_id, version, ciphertext, updated_at) VALUES ($1, $2, $3, $4)",
+    [userId, version, ciphertext, now],
+  );
+  await tx.query(
+    "DELETE FROM vault_history WHERE user_id = $1 AND version <= $2 - 10",
+    [userId, version],
+  );
+  return version;
 }
 
 export function registerVaultRoutes(app: Hono<AppEnv>, deps: AppDeps) {
@@ -41,8 +49,6 @@ export function registerVaultRoutes(app: Hono<AppEnv>, deps: AppDeps) {
   });
 
   app.put("/v1/vault", async (c) => {
-    const denied = await requirePaidWrite(c, deps);
-    if (denied) return denied;
     const body = await jsonBody(c);
     if (!Number.isSafeInteger(body?.baseVersion) || (body?.baseVersion as number) < 0 || typeof body?.ciphertext !== "string") {
       return error(c, 400, "invalid_request", "A base version and ciphertext are required.");
@@ -59,30 +65,15 @@ export function registerVaultRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       );
       const currentVersion = current?.version ?? 0;
       if (body.baseVersion !== currentVersion) return { conflict: current ?? null } as const;
-      const version = currentVersion + 1;
-      const now = deps.clock.now();
-      await tx.query(
-        `INSERT INTO vaults (user_id, version, ciphertext, updated_at) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id) DO UPDATE SET version = EXCLUDED.version,
-           ciphertext = EXCLUDED.ciphertext, updated_at = EXCLUDED.updated_at`,
-        [userId, version, ciphertext, now],
-      );
-      await tx.query(
-        "INSERT INTO vault_history (user_id, version, ciphertext, updated_at) VALUES ($1, $2, $3, $4)",
-        [userId, version, ciphertext, now],
-      );
-      return { version } as const;
+      return { version: await writeVaultVersion(tx, userId, ciphertext, deps.clock.now()) } as const;
     });
     if ("conflict" in result) {
       const current = result.conflict;
-      return c.json({
-        error: "conflict",
-        message: "The vault has a newer version.",
+      return error(c, 409, "conflict", "The vault has a newer version.", {
         version: current?.version ?? 0,
         ciphertext: current?.ciphertext ?? null,
-      }, 409);
+      });
     }
-    await retainTen(deps, userId);
     return c.json({ version: result.version });
   });
 
@@ -97,8 +88,6 @@ export function registerVaultRoutes(app: Hono<AppEnv>, deps: AppDeps) {
   });
 
   app.post("/v1/vault/restore", async (c) => {
-    const denied = await requirePaidWrite(c, deps);
-    if (denied) return denied;
     const body = await jsonBody(c);
     const requestedVersion = body?.version;
     if (typeof requestedVersion !== "number" || !Number.isSafeInteger(requestedVersion) || requestedVersion < 1) {
@@ -111,26 +100,9 @@ export function registerVaultRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         [userId, requestedVersion],
       );
       if (!source) return null;
-      const [current] = await tx.query<VaultRow>(
-        "SELECT version, ciphertext, updated_at FROM vaults WHERE user_id = $1 FOR UPDATE",
-        [userId],
-      );
-      const version = (current?.version ?? 0) + 1;
-      const now = deps.clock.now();
-      await tx.query(
-        `INSERT INTO vaults (user_id, version, ciphertext, updated_at) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id) DO UPDATE SET version = EXCLUDED.version,
-           ciphertext = EXCLUDED.ciphertext, updated_at = EXCLUDED.updated_at`,
-        [userId, version, source.ciphertext, now],
-      );
-      await tx.query(
-        "INSERT INTO vault_history (user_id, version, ciphertext, updated_at) VALUES ($1, $2, $3, $4)",
-        [userId, version, source.ciphertext, now],
-      );
-      return version;
+      return writeVaultVersion(tx, userId, source.ciphertext, deps.clock.now());
     });
     if (restored === null) return error(c, 404, "not_found", "That vault version does not exist.");
-    await retainTen(deps, userId);
     return c.json({ version: restored });
   });
 }

@@ -4,9 +4,8 @@ import { allowlistStatus } from "./allowlist.js";
 import { DEFAULT_KDF, TRIAL_DAYS } from "./constants.js";
 import { hashProof, verifyProof } from "./crypto.js";
 import { error, jsonBody } from "./http.js";
-import type { AppEnv } from "./session.js";
-import type { AppDeps, Family, Kdf, UserRow } from "./types.js";
-import { addDays, clientSalt, isBase64UrlBytes, issueSessionToken, normalizeEmail, tokenHash } from "./util.js";
+import type { AppDeps, AppEnv, Family, Kdf, UserRow } from "./types.js";
+import { addDays, clientSalt, isBase64UrlBytes, isRecord, issueSessionToken, normalizeEmail, tokenHash } from "./util.js";
 
 interface DeviceInput {
   name: string;
@@ -15,8 +14,8 @@ interface DeviceInput {
 }
 
 function deviceInput(value: unknown): DeviceInput | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
+  if (!isRecord(value)) return null;
+  const record = value;
   if (
     typeof record.name !== "string" || record.name.trim().length === 0 || record.name.length > 120 ||
     typeof record.platform !== "string" || record.platform.trim().length === 0 || record.platform.length > 60 ||
@@ -30,9 +29,9 @@ function wrapped(value: unknown): value is string {
 }
 
 function validKdf(value: unknown): value is Kdf {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const kdf = value as Record<string, unknown>;
-  return kdf.algo === "argon2id" && kdf.m === 65_536 && kdf.t === 3 && kdf.p === 4;
+  if (!isRecord(value)) return false;
+  return value.algo === DEFAULT_KDF.algo && value.m === DEFAULT_KDF.m &&
+    value.t === DEFAULT_KDF.t && value.p === DEFAULT_KDF.p;
 }
 
 function clientIp(headers: { get(name: string): string | null | undefined }) {
@@ -96,7 +95,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
          VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
          ON CONFLICT (email) DO NOTHING RETURNING id`,
         [id, email, authHash, recAuthHash, JSON.stringify(body.kdf), body.wrappedByPassword,
-          body.wrappedByRecovery, addDays(now, TRIAL_DAYS), gate.allowed, now],
+          body.wrappedByRecovery, addDays(now, TRIAL_DAYS), false, now],
       );
       if (inserted.length === 0) return null;
       return createDevice({ ...deps, db: tx }, id, device);
@@ -127,6 +126,24 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       kdf: user.kdf_json,
       wrappedByPassword: user.wrapped_by_password,
     });
+  });
+
+  app.post("/v1/auth/recover-start", async (c) => {
+    const body = await jsonBody(c);
+    const email = typeof body?.email === "string" ? normalizeEmail(body.email) : "";
+    if (limited(deps, email, c.req.raw.headers)) return error(c, 429, "rate_limited", "Try again later.");
+    if (!email || !isBase64UrlBytes(body?.recAuthKey, 32)) {
+      return error(c, 400, "invalid_request", "The recovery request is invalid.");
+    }
+    const [user] = await deps.db.query<Pick<UserRow, "rec_auth_hash" | "wrapped_by_recovery" | "kdf_json"> & Record<string, unknown>>(
+      `SELECT rec_auth_hash, wrapped_by_recovery, kdf_json
+         FROM users WHERE email = $1 AND deleted_at IS NULL`,
+      [email],
+    );
+    if (!user || !(await verifyProof(user.rec_auth_hash, body.recAuthKey))) {
+      return error(c, 401, "bad_credentials", "The recovery key is incorrect.");
+    }
+    return c.json({ wrappedByRecovery: user.wrapped_by_recovery, kdf: user.kdf_json });
   });
 
   app.post("/v1/auth/recover", async (c) => {
@@ -161,7 +178,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       );
       return createDevice({ ...deps, db: tx }, user.id, device);
     });
-    return c.json({ ...result, accountId: user.id, wrappedByRecovery: user.wrapped_by_recovery });
+    return c.json({ ...result, accountId: user.id });
   });
 
   app.post("/v1/auth/password", async (c) => {
