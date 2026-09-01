@@ -19,3 +19,15 @@ the vault row back.
   addresses), `NODE_ENV`, `PORT=8787`. Service domain: https://sync-production-c0b0.up.railway.app.
 - The Railway MCP server is denied on this project; use the CLI.
 - Deploy: `cd server && railway up --service sync` once lane A merges.
+
+## Live 2026-09-01 (`65d7647`)
+
+Managed by `.railway/railway.ts` (GitHub source `galangster/maru`, branch
+`main`, root `server/`; healthcheck `/healthz`; the custom domain; one
+Postgres and its volume; the stray second Postgres from a double `railway add`
+was removed by the apply). Three lessons, each cost a failed deploy:
+`railway.json` is deprecated and ignored by new services; `railway up`
+uploads the linked root whatever path it is given; Railway's builder wants
+cache-mount ids prefixed with a service cache key, so the Dockerfile uses a
+plain `npm ci`. Healthy: `{"ok":true,"version":"0.1.7"}`. Restore drill:
+not yet run.
