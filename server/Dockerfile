@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,id=maru-npm,target=/root/.npm npm ci
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 COPY scripts ./scripts
