@@ -64,9 +64,11 @@ describe('Maru recovery phrase', () => {
   })
 
   it('rejects a phrase with the wrong checksum', async () => {
-    const words = (await generateRecoveryPhrase()).split(' ')
-    words[11] = words[11] === 'zoo' ? 'abandon' : 'zoo'
-    expect(await validateRecoveryPhrase(words.join(' '))).toBe(false)
-    await expect(recoveryEntropy(words.join(' '))).rejects.toThrow(/12 recovery words/u)
+    // Twelve words carry a 4-bit checksum, so altering one word of a random
+    // phrase validates one time in sixteen. Use the known-bad vector instead:
+    // "abandon" x11 + "about" is valid; "abandon" x12 is not.
+    const bad = Array(12).fill('abandon').join(' ')
+    expect(await validateRecoveryPhrase(bad)).toBe(false)
+    await expect(recoveryEntropy(bad)).rejects.toThrow(/12 recovery words/u)
   })
 })
