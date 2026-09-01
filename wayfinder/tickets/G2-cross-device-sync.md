@@ -1,6 +1,11 @@
 # G2 — Cross-device settings sync  `wayfinder:grilling`
 
-status: DESIGNED (2026-08-31) · claimed: — · blocked by: one owner decision on liability appetite
+status: **v1 PAYLOAD SHIPPED (2026-09-01)** · the vault is still map 4 · blocked by: the Google submission, P2, and one Google answer
+
+The half that needs no server is built: the settings export now carries the
+**account address list**, and importing it turns "Add account" into one
+directed consent per address. See the build log at the bottom. The credential
+vault — option (b), tokens sync — is unchanged and unbuilt.
 
 ## The ask
 
@@ -259,3 +264,80 @@ flight. Two consequences, in order:
 confirming that stays true under (b), because once credentials are on a
 server the temptation to cache "just the headers" is exactly how a
 local-first client stops being one.
+
+
+---
+
+# BUILD LOG — the v1 payload, 2026-09-01
+
+Nick, today: *"so are we able to do the sync login thing now?"*
+
+**Not the one you mean, and here is the honest split.**
+
+## What shipped
+
+The design verdict above names a v1 payload of "settings and the account
+address list". Settings shipped as P5. **The address list shipped today.**
+
+`exportSettings` now takes the addresses this device holds and writes them as
+a top-level `accounts` key. On the other device, importing shows them, and a
+**From your other device** block offers one directed consent per address —
+each carrying its own `expectEmail`, so Google pre-selects it and
+`runAuthFlow` asserts the address Google returns against the one asked for,
+discarding the grant on a mismatch rather than filing the wrong mailbox's
+tokens under it.
+
+That assertion and the `loginHint` threading were already done. The list was
+the missing half: without it a new machine knows your OAuth client but not
+which four addresses to use, so every account is an undirected picker you can
+get wrong. **This is the whole of the "buildable NOW, no server, no decision"
+finding, now actually built.**
+
+Every hard constraint from grill 3 holds, and a test asserts it on the
+artifact rather than trusting the code: **no token, no grant, no agent, no
+mail.** It is a list of strings a person could have typed from memory, and
+typing them from memory is exactly what it saves.
+
+## Three decisions inside it worth knowing
+
+**The version did not move, and the key is omitted when empty.** A device with
+no accounts produces the exact bytes a pre-address-list Maru wrote. An older
+Maru reads a newer file, ignores the key, and applies the settings.
+
+**The address list is deliberately NOT in the checksum.** A hash living in the
+same file as the data it covers detects truncation, not tampering — anyone who
+can edit an address can recompute the hash. What the checksum is really for is
+a clipboard that dropped half the OAuth secret, which is silent and breaks
+sign-in; a truncated address list just offers fewer accounts, which is visible
+and harmless. A *tampered* address is caught by something strictly stronger
+than a hash: the consent flow asks Google. Keeping the list out of the
+canonical form is also what stops an older Maru rejecting a valid file as
+"altered in transit", which would be a lie.
+
+**Junk entries are dropped rather than refusing the file** — the opposite of
+the settings rule, and on purpose. A malformed setting would be applied to the
+app; a malformed address is only ever shown to a human who then chooses
+whether to sign in to it. The list is capped at 20 so a hostile paste cannot
+queue an unbounded run of consent screens.
+
+## What did NOT ship, and why it cannot yet
+
+**Option (b), the credential vault — sign in once and the mail is simply
+there.** Ruled as the destination on 2026-08-31 and still map 4. Three things
+stand in front of it, and none is code:
+
+1. **The Google submission is open.** A token vault is exactly what OAuth
+   verification scrutinises, and it makes four public claims in the dossier
+   false on the day it ships. Amending a submission in flight to add
+   credential custody is the worst possible time to do it.
+2. **P2, signed and reproducible builds, is unstarted.** End-to-end encryption
+   of a credential vault rests entirely on the claim that the client you run is
+   the client whose source you can read — and one person ships both the client
+   and the server here. That supply chain does not exist yet.
+3. **No Google sentence exists on whether a refresh token counts as restricted
+   data.** That question is in `NICK-QUEUE.md` and belongs *inside* the open
+   review, where asking is cheap.
+
+The friction table above prices the gap honestly: the vault is worth ~5
+gestures when browser sessions are live and up to ~17 on a genuinely cold
+machine. What shipped today closes the part that needs no custody at all.

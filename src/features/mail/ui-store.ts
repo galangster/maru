@@ -98,6 +98,18 @@ interface UiState {
   /** The last key toggled — the fixed end of a shift-click range. */
   checkAnchor: string | null
   /**
+   * Addresses a settings import brought over that this device has not signed
+   * in to yet — G2's map-4 v1 payload, the half that needs no server.
+   *
+   * Here rather than in the Settings dialog because the dialog unmounts: a
+   * person who imports, closes Settings to look at something, and comes back
+   * would otherwise find the queue gone with no way to recover it but pasting
+   * again. Session scoped like the rest of this store — an unfinished sign-in
+   * is an intent about this sitting, and a fresh launch should not nag about
+   * a decision made yesterday. NO TOKEN is held here, only addresses.
+   */
+  pendingAccounts: string[]
+  /**
    * Per-view list preferences, keyed by `viewKey`. Sparse: a view absent here
    * is at `DEFAULT_LIST_PREFS`. Session scoped like the rest of this store —
    * a filter is a way of looking, not a setting.
@@ -126,6 +138,7 @@ interface UiState {
   /** Add a batch (a shift-click range, or select-all). Never removes. */
   checkMany: (threadKeys: string[]) => void
   clearChecked: () => void
+  setPendingAccounts: (emails: string[]) => void
   /** Change part of a view's list lens; the rest keeps its current value. */
   setListPrefs: (view: MailView, patch: Partial<ListPrefs>) => void
   setReadingExpansion: (next: ReadingExpansion) => void
@@ -183,6 +196,7 @@ export const useUi = create<UiState>()((set, get) => ({
   syncNoticeDismissed: new Set<string>(),
   checked: new Set<string>(),
   checkAnchor: null,
+  pendingAccounts: [],
   listPrefs: {},
   readingExpansion: 'default',
   undoable: null,
@@ -241,6 +255,7 @@ export const useUi = create<UiState>()((set, get) => ({
       return { checked }
     }),
   clearChecked: () => set({ checked: new Set<string>(), checkAnchor: null }),
+  setPendingAccounts: (pendingAccounts) => set({ pendingAccounts }),
   setReadingExpansion: (readingExpansion) => set({ readingExpansion }),
   setListPrefs: (view, patch) =>
     set((s) => {

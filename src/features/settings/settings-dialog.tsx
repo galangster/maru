@@ -44,7 +44,13 @@ import {
 import type { Account, Settings, SyncStatus } from '@/core/types'
 import { AgentsSection } from '@/features/agents/agents-settings'
 import { LATER_DISCLOSURE } from '@/features/list/later-picker'
-import { useAccounts, useSaveSettings, useSettings, useSyncStatus } from '@/features/mail/queries'
+import {
+  useAccounts,
+  useAccountsById,
+  useSaveSettings,
+  useSettings,
+  useSyncStatus,
+} from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import {
   focusThreadList,
@@ -882,23 +888,73 @@ function LaterBlock() {
 function TransferBlock() {
   const settings = useSettings()
   const save = useSaveSettings()
+  const service = useMailService()
+  // One hook, not two: `useAccountsById` already calls `useAccounts` and hands
+  // back both shapes. `selfEmails` is "every address the user owns,
+  // lower-cased" — the exact set the import comparison needs, built once for
+  // the whole app rather than a second time here.
+  const { accounts, selfEmails } = useAccountsById()
   const setTheme = useUi((s) => s.setTheme)
   const [pasted, setPasted] = useState('')
-  const [preview, setPreview] = useState<{ patch: Partial<Settings> } | { error: string } | null>(
-    null,
-  )
+  const [preview, setPreview] = useState<
+    { patch: Partial<Settings>; accounts: string[] } | { error: string } | null
+  >(null)
+  // Addresses imported and not yet signed in on this device. In the UI store
+  // rather than here, so closing Settings does not lose the queue — this
+  // component unmounts with the dialog.
+  const toConnect = useUi((s) => s.pendingAccounts)
+  const setToConnect = useUi((s) => s.setPendingAccounts)
+  const [connecting, setConnecting] = useState<string | null>(null)
+
+  const here = new Set(selfEmails)
 
   const exportNow = async () => {
     if (!settings.data) return
-    const ok = await copyText(await exportSettings(settings.data))
+    // Exported in their original case, not `selfEmails`: the comparison on
+    // import folds case, but what travels should be what the person's own
+    // provider calls them.
+    const addresses = accounts.map((a) => a.email)
+    const ok = await copyText(await exportSettings(settings.data, addresses))
     if (ok) {
       toast('Settings copied', {
         description:
-          'Paste into Maru on your other device — Sync → Import. Carries your OAuth client, never tokens or agents.',
+          'Paste into Maru on your other device — Sync → Import. Carries your OAuth client and which addresses to sign in to; never tokens, agents or mail.',
       })
     } else {
       toast.error('Could not reach the clipboard')
     }
+  }
+
+  /**
+   * Sign in to the imported addresses, one directed consent after another.
+   *
+   * Sequential rather than parallel, and that is not a limitation: each trip
+   * is a browser window the person has to look at, and four at once is four
+   * windows racing for the same loopback port. Each carries its address as
+   * `expectEmail`, so Google pre-selects it and the flow refuses tokens that
+   * come back for a different mailbox rather than filing them under this one.
+   *
+   * It stops at the first failure and keeps the rest queued. A cancelled
+   * consent is the common case, not an error worth losing the list over.
+   */
+  const connectAll = async () => {
+    for (const email of [...toConnect]) {
+      setConnecting(email)
+      try {
+        await service.addAccount(email)
+        // Read through the store rather than a stale closure: the loop is
+        // async and `toConnect` above was captured before the first await.
+        setToConnect(useUi.getState().pendingAccounts.filter((e) => e !== email))
+      } catch (error) {
+        setConnecting(null)
+        toast.error(`Could not add ${email}`, {
+          description: error instanceof Error ? error.message : undefined,
+        })
+        return
+      }
+    }
+    setConnecting(null)
+    toast.success('Accounts connected')
   }
 
   const inspect = async (text: string) => {
@@ -908,7 +964,11 @@ function TransferBlock() {
       return
     }
     const parsed = await parseSettingsTransfer(text)
-    setPreview(parsed.ok ? { patch: parsed.settings } : { error: parsed.reason })
+    setPreview(
+      parsed.ok
+        ? { patch: parsed.settings, accounts: parsed.accounts }
+        : { error: parsed.reason },
+    )
   }
 
   const apply = () => {
@@ -917,6 +977,10 @@ function TransferBlock() {
     // Theme lives in two places on purpose (instant paint + persistence);
     // an import must move both, exactly as the Appearance picker does.
     if (preview.patch.theme) setTheme(preview.patch.theme)
+    // The addresses outlive the paste AND the dialog — they are held in the UI
+    // store. Only the ones this device does not already hold: re-consenting an
+    // account that is already signed in here buys nothing.
+    setToConnect(preview.accounts.filter((email) => !here.has(email)))
     toast.success('Settings imported')
     setPasted('')
     setPreview(null)
@@ -926,9 +990,11 @@ function TransferBlock() {
     <div className="border-hairline flex flex-col gap-2 border-t pt-4">
       <p className={SECTION_LABEL}>This device</p>
       <Explainer>
-        Move your settings to another Maru by clipboard: export here, paste into
-        the other device's import. Your Google OAuth client travels; account
-        tokens, agents and grants never do — each device earns its own trust.
+        Move your setup to another Maru by clipboard: export here, paste into
+        the other device's import. Your Google OAuth client and the LIST of
+        addresses you use travel, so the other device knows which accounts to
+        sign in to. Account tokens, agents, grants and mail never do — each
+        device earns its own trust.
       </Explainer>
       <div className="flex items-center gap-2">
         <button
@@ -953,9 +1019,11 @@ function TransferBlock() {
       )}
       {preview && 'patch' in preview && settings.data && (() => {
         const rows = transferDiff(settings.data, preview.patch)
+        const newHere = preview.accounts.filter((email) => !here.has(email))
+        const nothing = rows.length === 0 && newHere.length === 0
         return (
         <div className="flex flex-col gap-2">
-          {rows.length === 0 ? (
+          {nothing ? (
             <p className="text-ink-3 text-sm">
               A valid export — and it matches this device already. Nothing to change.
             </p>
@@ -966,16 +1034,68 @@ function TransferBlock() {
                   <span className="text-ink font-medium">{row.field}</span>: {row.from} → {row.to}
                 </li>
               ))}
+              {/* Named separately from the settings rows, because it is a
+                  different KIND of thing: a setting is applied, an address is
+                  only ever offered. The count leads so the sentence is true
+                  before it is read to the end. */}
+              {newHere.length > 0 && (
+                <li className="text-ink-2 text-sm">
+                  <span className="text-ink font-medium">accounts</span>: {newHere.length} to sign
+                  in to — {newHere.join(', ')}
+                </li>
+              )}
             </ul>
           )}
-          {rows.length > 0 && (
+          {!nothing && (
             <PrimaryButton onClick={apply} className="h-8 w-fit px-4">
-              Apply {rows.length} change{rows.length === 1 ? '' : 's'}
+              Apply
             </PrimaryButton>
           )}
         </div>
         )
       })()}
+
+      {/* The imported addresses, after the settings have landed. This is the
+          whole of the "sign in once and it is all there" feeling that needs no
+          server: the list is the part a person would otherwise have to
+          remember, and each row is one directed consent rather than a picker
+          they can get wrong. Tokens still never travel — every one of these is
+          a fresh grant earned on this machine. */}
+      {toConnect.length > 0 && (
+        <div className="border-hairline mt-2 flex flex-col gap-2 border-t pt-3">
+          <p className={SECTION_LABEL}>From your other device</p>
+          <Explainer>
+            {toConnect.length} account{toConnect.length === 1 ? '' : 's'} to sign in to. Maru asks
+            Google for each one in turn and pre-selects the address, so you approve rather than
+            choose. Nothing was copied — each device earns its own tokens.
+          </Explainer>
+          <ul className="flex flex-col gap-1">
+            {toConnect.map((email) => (
+              <li key={email} className="text-ink-2 flex items-center gap-2 text-sm">
+                <span className="truncate">{email}</span>
+                {connecting === email && <span className="text-ink-3 text-xs">signing in…</span>}
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center gap-2">
+            <PrimaryButton
+              onClick={() => void connectAll()}
+              disabled={connecting !== null}
+              className="h-8 w-fit px-4"
+            >
+              {connecting ? 'Signing in…' : `Sign in to ${toConnect.length}`}
+            </PrimaryButton>
+            <button
+              type="button"
+              onClick={() => setToConnect([])}
+              disabled={connecting !== null}
+              className={textButtonClass('default', 'w-fit')}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

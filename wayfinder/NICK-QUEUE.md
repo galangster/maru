@@ -279,6 +279,14 @@ installs rather than merely failing to help them.
   "yeah i like b". The tokens sync; one sign-in brings the mail with it.
   Maru becomes a custodian. Recorded in full in G2, including the four
   public claims it makes false and the prerequisites it creates.
+  **The address-list half SHIPPED 2026-09-01** (you asked "are we able to do
+  the sync login thing now?"). Export from one Mac, paste into another, and
+  the second one now knows which addresses to sign in to and walks them one
+  directed consent at a time — Google pre-selects each address and the flow
+  refuses tokens that come back for a different mailbox. No server, no token,
+  no decision needed. The vault itself is still map 4 and still gated; G2's
+  build log says exactly what shipped and what did not.
+
   **Two things now need you, and the first is time-sensitive:**
   1. **Add the restricted-data question to the Google submission while it
      is open.** The repo has never held a Google sentence on whether a
@@ -351,6 +359,14 @@ installs rather than merely failing to help them.
   relay computes the badge and therefore stores your settings. This
   decision constrains map 4's relay payload, so it is worth settling
   before that relay is built.
+
+- ~~**The app icon**~~ — ruled 2026-09-01: **"yeah i like the salmon"**,
+  so the mark is NOT being redrawn. Recorded so nobody regenerates it as a
+  loose end. What it costs, measured: the icon's field is `#FFAB9E`
+  (OKLCH L 0.82 C 0.10 **h 29**) and the interface accent is `#C04C5F`
+  (**h 13**) — a 16° drift, the icon reading warmer and more orange than
+  the app. If it ever bothers you, the cheap fix is rotating the field hue
+  to 13 and leaving the bird alone; the expensive one is redrawing.
 
 - ~~**Color anchor**~~ — decided 2026-08-31: option C, a shared parent
   hue of 13. The interface accent (both themes), the character and the
