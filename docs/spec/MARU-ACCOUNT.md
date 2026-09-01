@@ -70,7 +70,9 @@ vaultCiphertext   = seal(accountKey, utf8(json(vault)), aad = "maru-vault-v1:" +
 The KDF parameters are stored server-side per user and returned by
 `prelogin`, so they can be raised later without a migration. The server stores
 `authKey` and `recAuthKey` only as slow hashes (Argon2id, server-side random
-salt, same parameters). It never sees masterKey, encKey, accountKey, or
+salt, **server parameters m = 19456 KiB, t = 2, p = 1** — the input is already
+32 uniformly random bytes, so the client's password-stretching cost buys
+nothing here and would only throttle logins). It never sees masterKey, encKey, accountKey, or
 recEncKey.
 
 Password change: derive the new encKey, re-wrap accountKey, send the new
@@ -183,7 +185,7 @@ issued to that device by Google); "Delete local data" remains the local wipe.
 
 ## 8. Beta gating
 
-`allowed_emails` on the server is the only door. Signup returns 403
+`allowed_emails` on the server is the only door. It is a door, not a plan: signup never sets `comped`. Beta testers are comped explicitly (`allow.ts comp <email>`, or the `MARU_COMPED` env list at boot). Signup returns 403
 otherwise. Seeded from `MARU_ALLOWLIST` at boot (comma-separated) and
 editable with `server/scripts/allow.ts`. Opening the beta = clearing the
 table's enforcement flag, not a deploy.
