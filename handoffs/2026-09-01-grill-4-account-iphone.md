@@ -1,6 +1,6 @@
 # Handoff — 2026-09-01, grill 4: the account, the phone, and production
 
-Baseline `395608e` → **`bd4303a`** on `main`, pushed to `galangster/maru`.
+Baseline `395608e` → **`4c2b2c7`** on `main`, pushed to `galangster/maru`.
 Working tree clean. **660 tests pass** (638 at the baseline), `tsc` clean,
 `vite build` clean; server: 34 tests, typecheck, build. Orchestrated by one
 Fable 5.1 session as planner and auditor; seven Codex `gpt-5.6-sol` lanes
@@ -81,8 +81,14 @@ across devices); second operator; beta device list.
   (proofs are now hashed as base64url text; test keys carry 0xff so it cannot
   recur). Leaves no account behind.
 - **A5 restore drill** is not done.
-- **I3** (Gmail sign-in on iOS) waits on the iOS OAuth client. **I4** waits
-  on A4. **I5** can start now: the phone's Settings row is a placeholder.
+- **I5 is merged** (`5d8b26c`, `462409b`): Settings → Maru account on the
+  phone — signed-out with the segment control, the recovery ceremony, the
+  signed-in grouped list with entitlement, "Manage on getmaru.app", devices,
+  restore, change password, sign out, delete; sheets in the reducer, edge
+  swipe back, lazy chunk. Six captures `account-*.png`. Demo backend until
+  I3. **I3** waits on the iOS OAuth client; **I4** on A4.
+- **A5 restore drill: done** (see the ticket): dump and restore into a
+  scratch database in one second, vault row identical.
 - **0.1.8 is published** with the account inside, built with
   `VITE_MARU_SYNC_URL` pointing at the Railway domain until DNS lands.
   Windows installers are attached (CI-built, unsigned, not hand-tested);
@@ -100,15 +106,17 @@ worktree; use `git show rev:path > path`.
 
 1. Launch the installed 0.1.7 and accept the 0.1.8 update (proves the updater
    end to end); then sign in to the Maru account from the real app.
-2. I5, then I3/I4 as the console items land.
-3. A5 restore drill; A9 once Nick decides. Dossier "frozen build" fields now
-   name 0.1.8 (Nick).
+2. I3 and I4 as the console items land; A9 once Nick decides; dossier
+   "frozen build" fields now name 0.1.8 (Nick).
+3. I2 polish: recipient chips in compose, VoiceOver and Dynamic Type pass.
 
 ## Opener for the next session
 
 ```
 Resume wren from handoffs/2026-09-01-grill-4-account-iphone.md. Main is at
 bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
-Do I5 (the Maru account on the phone), then the A5 restore drill. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
+I5 and the A5 drill are done. Next: accept the 0.1.8 update on the installed
+app and sign in to the account from it; then the I2 polish pass (recipient
+chips, VoiceOver, Dynamic Type) unless a console item has landed for I3/I4. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
 order: work autonomously.
 ```
