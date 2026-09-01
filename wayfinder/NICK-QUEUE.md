@@ -162,27 +162,27 @@ CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
   Recommend **(a)**, now that the app is honest about it. Only worth
   revisiting if you get caught by this a second time.
 
-- **Unified sign-in — one question, and it is about liability, not
-  security** (your ruling 2026-08-31; designed panel in G2). The design
-  is settled: settings + account-list sync, built on a sealed envelope
-  from day one so a credential vault is later a schema slot, not a
-  rewrite. Everything else was decided for you and is written down,
-  including a list of things ruled out permanently so they do not get
-  proposed again ("encrypted at rest" with a server-held key, a token
-  broker, HSM wrapping, any sixty-second variant).
-  **Your decision: are you willing to be the custodian of other
-  people's live mailbox credentials?** You buy 5 to 17 fewer gestures
-  per new device, forever. You accept that a compromise of the server
-  OR the build pipeline, ever, means telling every subscriber someone
-  may have read all their mail and sent as them. Gated on three things
-  regardless: Google's verdict, signed builds (P2), and a second
-  operator with real access.
-  FREE WIN, needs no server and no decision: `loginHint` is already
-  declared and wired into the auth URL in oauth.ts and simply never
-  passed at the call site (:427). Threading it through plus batching the
-  four consents into one browser trip removes most of the felt friction
-  today. Held back only because it touches OAuth and a submission is in
-  flight — say the word and it lands after the freeze.
+- ~~**Unified sign-in — (a) or (b)?**~~ — ruled 2026-08-31: **(b)**,
+  "yeah i like b". The tokens sync; one sign-in brings the mail with it.
+  Maru becomes a custodian. Recorded in full in G2, including the four
+  public claims it makes false and the prerequisites it creates.
+  **Two things now need you, and the first is time-sensitive:**
+  1. **Add the restricted-data question to the Google submission while it
+     is open.** The repo has never held a Google sentence on whether a
+     stored refresh token counts as restricted data. Under (a) that was
+     optional; under (b) it is load-bearing, and asking inside an open
+     review is far cheaper than shipping a vault and finding out through
+     enforcement. The dossier already carries one open question — this
+     goes beside it.
+  2. **Decide whether the submission discloses the roadmap.** If Google
+     approves a dossier describing local-only tokens and the vault ships
+     after, that is a material change to what was reviewed. Disclose now,
+     or plan a re-review. Your call which.
+  Not urgent, but now on map 4's critical path rather than map 3's polish
+  list: **P2 signed and reproducible builds**. A client-side-encrypted
+  vault is only as good as the claim that the client you run is the client
+  whose source you can read — and one person ships both the client and the
+  server here.
 
 - **Book a Wayfinder + grill for the AGENT GATEKEEPER** (your ask,
   2026-08-31; ticket G3-agent-gatekeeper). The idea is good and the

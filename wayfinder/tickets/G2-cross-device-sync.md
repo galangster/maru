@@ -178,3 +178,84 @@ forever. What you accept is that a compromise of your server *or* your build
 pipeline, at any point for as long as the service exists, means writing to
 every subscriber a sentence you cannot soften: someone may have read every
 email in your accounts and may have sent mail as you.
+
+---
+
+## OWNER RULING, 2026-08-31: (b). The tokens sync.
+
+Nick, asked directly to choose between (a) the account list syncing with a
+per-device Google consent, and (b) the credentials syncing so one sign-in
+brings the mail with it: **"yeah i like b"**.
+
+He was shown the gate before ruling — that the objection is not
+cryptography but build integrity and operator asymmetry, that one person
+ships the client and runs the server, and that an abandoned token vault is
+an unattended vulnerability rather than an outage. The ruling stands. Maru
+becomes a **custodian**, and the sealed-envelope design's reserved
+`credentials` slot is now a v1 requirement rather than a schema
+placeholder.
+
+This does not change the sequencing: it is still map 4, still after the
+Google submission. What it changes is what must be true *before* that
+build starts, and what must be said *during* the submission.
+
+### Four public claims this ruling makes false, and the one that is urgent
+
+These are all TRUE TODAY and stay true until the vault ships. They are
+listed because shipping (b) without changing them in the same release is
+how a privacy promise becomes a lie by omission.
+
+| Where | Claim | Under (b) |
+|---|---|---|
+| `README.md:5-6` | "local-first, no third-party servers, talks only to Google" | false |
+| `README.md:17` | "talks only to Google" | false |
+| `site/index.html:46` | "Maru phones home to no one. The only network peer for your mail is Google." | false |
+| `docs/security/google-oauth-verification-answers.md:79` | "OAuth tokens also stay in the keychain" | false |
+
+The dossier's opening claim — "Maru operates no server that receives Gmail
+**content**" — survives literally, because tokens are not content. It
+should still be rewritten rather than leaned on. A sentence that is true
+only on a technicality is worse than one that is plainly false, because it
+reads as evasion when someone works it out.
+
+**The urgent one is the dossier**, because a verification submission is in
+flight. Two consequences, in order:
+
+1. **Ask Google now, not later.** The repo has never contained a Google
+   sentence on whether a stored refresh token counts as restricted data
+   under their policy — the design verdict flagged the absence. Under (a)
+   that question was optional. Under (b) it is load-bearing, and it is far
+   cheaper to ask inside an open review than to ship a vault and discover
+   the answer through an enforcement action. The dossier already asks one
+   open question ("we request confirmation whether this architecture
+   requires a security assessment"); this belongs beside it.
+2. **Do not silently amend the reviewed architecture.** If the submission
+   is approved describing local-only tokens and the vault ships after,
+   that is a material change to what was reviewed. Either disclose the
+   roadmap in the submission or plan a re-review.
+
+### Prerequisites the ruling creates
+
+- **P2 signed and reproducible builds move from "nice" to blocking.** The
+  entire safety of a client-side-encrypted vault is the claim that the
+  client the user runs is the client whose source they can read. Without
+  reproducible builds, "end-to-end encrypted" is an assertion by the one
+  person who also operates the server. This is now on map 4's critical
+  path, not map 3's polish list.
+- **The shared-fate landmine gets worse.** Deleting an OAuth client
+  invalidates every token it ever issued, and a replacement client does
+  not repair them (`shared-client-implementation-plan.md:249-251`). With a
+  hosted vault, one server mistake takes out the free local-only install
+  base too. Needs an explicit blast-radius answer before build.
+- **A recovery story is now mandatory.** The design's 12-word recovery key
+  stops being an option: with (b), losing every paired device means losing
+  access to the vault, and the vault is the only way onto a new machine.
+- **Grants still never sync.** Grill 3's constraint is untouched by this
+  ruling — a grant is a trust decision made on one machine.
+
+### Still open, and now sharper
+
+`mail never syncs` survives: each device still resyncs from Gmail. Worth
+confirming that stays true under (b), because once credentials are on a
+server the temptation to cache "just the headers" is exactly how a
+local-first client stops being one.

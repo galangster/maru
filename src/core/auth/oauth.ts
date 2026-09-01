@@ -411,7 +411,28 @@ export async function runAuthFlow(
   platform: Platform,
   clientId: string,
   clientSecret?: string,
-  opts: { random?: () => number; now?: number } = {},
+  opts: {
+    random?: () => number
+    now?: number
+    /**
+     * Which address this flow is FOR — passed to Google as `login_hint`, and
+     * then asserted against the account that actually came back.
+     *
+     * Two different jobs, and the second is the one that matters. As a hint it
+     * pre-selects the right row in the account picker, which is most of the
+     * felt friction when re-connecting a known account or restoring a machine.
+     * As an assertion it closes a real hole: `prompt: 'select_account'` puts a
+     * human in front of a picker, and a person restoring four accounts in a
+     * row can pick the wrong one. Without this check Maru would store the
+     * wrong mailbox's tokens under the intended account's id and sync someone
+     * else's mail into that row.
+     *
+     * A hint is only ever a hint — Google is free to ignore it, and the user
+     * is free to pick another account. That is exactly why the answer is
+     * verified rather than assumed.
+     */
+    expectEmail?: string
+  } = {},
 ): Promise<AuthFlowResult> {
   const port = pickLoopbackPort(opts.random)
   const redirectUri = redirectUriFor(port)
@@ -424,7 +445,15 @@ export async function runAuthFlow(
   // throws before we await the listener.
   callback.catch(() => undefined)
 
-  await platform.openExternal(buildAuthUrl({ clientId, redirectUri, state, codeChallenge: challenge }))
+  await platform.openExternal(
+    buildAuthUrl({
+      clientId,
+      redirectUri,
+      state,
+      codeChallenge: challenge,
+      loginHint: opts.expectEmail,
+    }),
+  )
 
   const params = parseCallback(await callback)
   const error = params.get('error')
@@ -453,6 +482,26 @@ export async function runAuthFlow(
   if (!res.ok) throw new OAuthError('profile_failed', 'Signed in, but Gmail refused the profile request')
   const profile = (await res.json()) as { emailAddress?: string; historyId?: string }
   if (!profile.emailAddress) throw new OAuthError('profile_failed', 'Gmail returned no address for this account')
+
+  // The assertion. A caller that named an address gets that address or an
+  // error — never a different mailbox's tokens filed under it. `login_hint` is
+  // advisory, `select_account` shows a picker, and a person reconnecting four
+  // accounts in a row can pick the wrong row; discarding the grant is the only
+  // safe answer, because the alternative is silently syncing the wrong mail
+  // into that account and there is no later signal that it happened.
+  //
+  // Compared case-insensitively on the whole address: Gmail normalises the
+  // local part in ways this code should not try to model, so anything beyond
+  // a case fold would be guessing at Google's rules.
+  if (
+    opts.expectEmail &&
+    profile.emailAddress.toLowerCase() !== opts.expectEmail.toLowerCase()
+  ) {
+    throw new OAuthError(
+      'wrong_account',
+      `Signed in as ${profile.emailAddress}, but this was for ${opts.expectEmail}. Nothing was saved — try again and pick ${opts.expectEmail}.`,
+    )
+  }
 
   return { email: profile.emailAddress, historyId: profile.historyId, tokens }
 }

@@ -225,7 +225,15 @@ export interface GetThreadOptions {
 export interface MailService {
   listAccounts(): Promise<Account[]>
   /** Runs the OAuth flow (real) or adds the next fixture account (demo). */
-  addAccount(): Promise<Account>
+  /**
+   * Add an account, or re-link one that already exists.
+   *
+   * `expectEmail` names the account the flow is for: Google pre-selects that
+   * address, and the flow then VERIFIES that the account which came back is
+   * the one asked for, failing rather than filing the wrong mailbox's tokens
+   * under it. Omit it for an open "Add account".
+   */
+  addAccount(expectEmail?: string): Promise<Account>
   removeAccount(accountId: string): Promise<void>
 
   listThreads(view: MailView, opts?: ListThreadsOptions): Promise<Thread[]>

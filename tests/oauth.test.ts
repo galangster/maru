@@ -422,6 +422,73 @@ describe('runAuthFlow', () => {
     expect(authUrl.startsWith('https://accounts.google.com/o/oauth2/v2/auth?')).toBe(true)
   })
 
+  // `login_hint` was declared in AuthUrlParams and written into the authorize
+  // URL, and no caller ever passed it — finished plumbing with no consumer.
+  // Threading it through is the cheap half; the assertion below is the half
+  // that matters.
+  describe('expectEmail', () => {
+    async function run(expectEmail: string | undefined, returns: string) {
+      const p = new NodePlatform()
+      p.handler = (req) => {
+        if (req.url === TOKEN_ENDPOINT) {
+          return jsonResponse({
+            access_token: 'at-1',
+            refresh_token: 'rt-1',
+            expires_in: 3600,
+            scope: GMAIL_MODIFY_SCOPE,
+          })
+        }
+        if (req.url.includes('/gmail/v1/users/me/profile')) {
+          return jsonResponse({ emailAddress: returns, historyId: '5150' })
+        }
+        return errorResponse(404, `unexpected ${req.url}`)
+      }
+      let authUrl = ''
+      p.oauthResponder = async () => {
+        authUrl = p.opened[0] ?? ''
+        const state = new URL(authUrl).searchParams.get('state')
+        return `/callback?code=auth-1&state=${state}`
+      }
+      const promise = runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { expectEmail })
+      return { promise, url: () => authUrl }
+    }
+
+    it('passes the address to Google as login_hint', async () => {
+      const { promise, url } = await run('nick@metadao.fi', 'nick@metadao.fi')
+      await promise
+      expect(new URL(url()).searchParams.get('login_hint')).toBe('nick@metadao.fi')
+    })
+
+    it('sends no login_hint for an open Add account', async () => {
+      const { promise, url } = await run(undefined, 'nick@gmail.com')
+      await promise
+      expect(new URL(url()).searchParams.has('login_hint')).toBe(false)
+    })
+
+    it('DISCARDS a grant for the wrong account', async () => {
+      // The hole this closes: `prompt: select_account` puts a human in front
+      // of a picker, and someone reconnecting four accounts in a row can pick
+      // the wrong one. Without this the caller would store that mailbox's
+      // tokens under the intended account's id and sync the wrong mail into
+      // the row — with no later signal that it happened.
+      const { promise } = await run('nick@metadao.fi', 'someone.else@gmail.com')
+      const err = await promise.catch((e: Error) => e)
+      expect(err).toBeInstanceOf(OAuthError)
+      expect((err as OAuthError).code).toBe('wrong_account')
+      // The message has to name both, or the person cannot tell what went
+      // wrong from a toast.
+      expect((err as Error).message).toContain('someone.else@gmail.com')
+      expect((err as Error).message).toContain('nick@metadao.fi')
+    })
+
+    it('accepts the right account whatever its case', async () => {
+      // Google echoes the address in its own casing. A case-sensitive compare
+      // would reject a correct sign-in, which is worse than not checking.
+      const { promise } = await run('Nick@MetaDAO.fi', 'nick@metadao.fi')
+      await expect(promise).resolves.toMatchObject({ email: 'nick@metadao.fi' })
+    })
+  })
+
   it('rejects a callback whose state does not match', async () => {
     const p = new NodePlatform()
     goodHandler(p)

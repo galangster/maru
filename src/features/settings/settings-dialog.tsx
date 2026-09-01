@@ -283,7 +283,14 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
 
   const statuses = useSyncStatus()
 
-  const add = async () => {
+  /**
+   * `expectEmail` is set when this is a RE-LINK of a known account — the
+   * "Sign in again" button beside a signed-out row. Google then pre-selects
+   * that address, and the flow refuses a grant for anyone else rather than
+   * storing the wrong mailbox's tokens under this row. An open "Add account"
+   * passes nothing and behaves exactly as before.
+   */
+  const add = async (expectEmail?: string) => {
     if (!demo && !settings.data?.googleClientId) {
       onNeedsClient()
       return
@@ -291,7 +298,7 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
     setBusy(true)
     try {
       const known = new Set((accounts.data ?? []).map((a) => a.id))
-      const account = await service.addAccount()
+      const account = await service.addAccount(expectEmail)
       // Same email again is a re-link (fresh tokens for an existing account,
       // the recovery path for an expired grant) — say that, not "added".
       const relinked = known.has(account.id)
@@ -344,8 +351,12 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
               status={statuses[account.id]}
               // "Sign in again" IS the add flow — same OAuth run, same busy
               // guard, same relink-aware toast — reaching it from the row
-              // that needs it.
-              onReauth={() => void add()}
+              // that needs it. It names the account, so Google pre-selects
+              // that address and the flow refuses a grant for anyone else:
+              // this button sits beside a specific row, so picking the wrong
+              // one in the account chooser must not file that mailbox's
+              // tokens under this row.
+              onReauth={() => void add(account.email)}
               onNeedsClient={onNeedsClient}
               reauthBusy={busy}
             />

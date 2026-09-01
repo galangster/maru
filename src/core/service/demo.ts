@@ -139,7 +139,9 @@ export class DemoMailService implements MailService {
     return this.accounts.map((a) => ({ ...a }))
   }
 
-  async addAccount(): Promise<Account> {
+  // The hint is accepted and unused: the demo service has no consent screen
+  // to pre-select in and no wrong account to guard against.
+  async addAccount(_expectEmail?: string): Promise<Account> {
     if (this.extraAdded) throw new Error('Demo mode ships three accounts; all of them are already added.')
     this.extraAdded = true
     const extra = buildExtraAccount(this.now)

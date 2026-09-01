@@ -75,7 +75,12 @@ export interface RealMailServiceOptions {
   store: Store
   /** Overridable so tests can drive the service without a network. */
   createClient?: (accountId: string, clientId: string, clientSecret?: string) => MailGmailClient
-  runAuthFlow?: (platform: Platform, clientId: string, clientSecret?: string) => Promise<AuthFlowResult>
+  runAuthFlow?: (
+    platform: Platform,
+    clientId: string,
+    clientSecret?: string,
+    opts?: { expectEmail?: string },
+  ) => Promise<AuthFlowResult>
   /** False in tests: skip the backfill and the poll timer. */
   autoStart?: boolean
   newId?: () => string
@@ -96,7 +101,12 @@ export class RealMailService implements MailService {
   private readonly listeners = new Set<(e: MailEvent) => void>()
   private readonly runtimes = new Map<string, AccountRuntime>()
   private readonly createClient: (accountId: string, clientId: string, clientSecret?: string) => MailGmailClient
-  private readonly authFlow: (platform: Platform, clientId: string, clientSecret?: string) => Promise<AuthFlowResult>
+  private readonly authFlow: (
+    platform: Platform,
+    clientId: string,
+    clientSecret?: string,
+    opts?: { expectEmail?: string },
+  ) => Promise<AuthFlowResult>
   private readonly autoStart: boolean
   private readonly newId: () => string
   private readonly now: () => number
@@ -276,7 +286,21 @@ export class RealMailService implements MailService {
     return this.store.listAccounts()
   }
 
-  async addAccount(): Promise<Account> {
+  /**
+   * Add an account, or re-link one Maru already holds.
+   *
+   * `expectEmail` names the account this flow is FOR. Passing it does two
+   * things: Google pre-selects that address in the picker, which is most of
+   * the felt friction in the re-auth path (P4) — and the flow then asserts
+   * that the account which came back is the one asked for, discarding the
+   * grant if it is not. Without that assertion a person re-linking the wrong
+   * row in a four-account picker would file one mailbox's tokens under
+   * another account's id, and nothing downstream would ever notice.
+   *
+   * Called with no argument it is an open "Add account" and behaves exactly
+   * as before.
+   */
+  async addAccount(expectEmail?: string): Promise<Account> {
     const settings = await this.store.getSettings()
     const oauthClient = resolveOAuthClient({ settings })
     if (!oauthClient) throw new MissingOAuthClientError()
@@ -285,6 +309,7 @@ export class RealMailService implements MailService {
       this.platform,
       oauthClient.clientId,
       oauthClient.clientSecret,
+      { expectEmail },
     )
 
     const existing = await this.store.listAccounts()
