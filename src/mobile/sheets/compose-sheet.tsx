@@ -1,14 +1,23 @@
-import { useEffect, useState } from 'react'
-import { Paperclip, Trash2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
-import { toComposeDraft, useComposer, type DraftAttachment } from '@/features/compose/compose-store'
-import { useAccountsById } from '@/features/mail/queries'
+import {
+  toComposeDraft,
+  useComposer,
+  type Draft,
+  type DraftAttachment,
+} from '@/features/compose/compose-store'
+import { useAccountsById, useCorrespondents } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
-import { formatAddress, parseAddresses } from '@/lib/compose'
+import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
+import { MobileIcon } from '../components/mobile-icon'
+import { useModalFocus } from '../use-modal-focus'
 
-export function ComposeSheet() {
+const RECIPIENT_KINDS = ['to', 'cc', 'bcc'] as const
+type RecipientKind = (typeof RECIPIENT_KINDS)[number]
+
+export function ComposeSheet({ onSent }: { onSent: () => void }) {
   const service = useMailService()
-  const { accounts } = useAccountsById()
+  const { accounts, selfEmails } = useAccountsById()
   const draft = useComposer((state) => state.draft)
   const dirty = useComposer((state) => state.dirty)
   const showCopies = useComposer((state) => state.showCc)
@@ -19,9 +28,22 @@ export function ComposeSheet() {
   const remember = useComposer((state) => state.remember)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const [toText, setToText] = useState(() => draft.to.map(formatAddress).join(', '))
-  const [ccText, setCcText] = useState(() => draft.cc.map(formatAddress).join(', '))
-  const [bccText, setBccText] = useState(() => draft.bcc.map(formatAddress).join(', '))
+  const participants = useCorrespondents(draft.accountId || accounts[0]?.id)
+  const recipientRefs = useRef<Record<RecipientKind, RecipientFieldHandle | null>>({
+    to: null,
+    cc: null,
+    bcc: null,
+  })
+  const recipientFields: Record<RecipientKind, { label: string; value: Draft[RecipientKind] }> = {
+    to: { label: 'To', value: draft.to },
+    cc: { label: 'Cc', value: draft.cc },
+    bcc: { label: 'Bcc', value: draft.bcc },
+  }
+  const recipientEntries = Object.entries(recipientFields) as [
+    RecipientKind,
+    { label: string; value: Draft[RecipientKind] },
+  ][]
+  const copiesVisible = showCopies || draft.cc.length > 0 || draft.bcc.length > 0
 
   useEffect(() => {
     if (!draft.accountId && accounts[0]) set({ accountId: accounts[0].id })
@@ -31,20 +53,20 @@ export function ComposeSheet() {
     if (dirty && !window.confirm('Discard this draft? Your message will be lost.')) return
     closeStore()
   }
+  const dialogRef = useModalFocus<HTMLElement>(close)
   const send = async () => {
-    const to = parseAddresses(toText)
-    const cc = parseAddresses(ccText)
-    const bcc = parseAddresses(bccText)
-    if ([...to.invalid, ...cc.invalid, ...bcc.invalid].length > 0) {
+    const committed = recipientEntries.map(([kind]) => recipientRefs.current[kind]?.commit())
+    if (committed.some((result) => result?.state.invalid)) {
       return setError('Check the recipient addresses.')
     }
-    if (to.addresses.length === 0) return setError('Add at least one recipient.')
-    const outgoing = { ...draft, to: to.addresses, cc: cc.addresses, bcc: bcc.addresses }
+    const outgoing = useComposer.getState().draft
+    if (outgoing.to.length === 0) return setError('Add at least one recipient.')
     setSending(true)
     setError('')
     try {
       await service.send(toComposeDraft(outgoing))
-      remember(draft.accountId)
+      remember(outgoing.accountId)
+      onSent()
       closeStore()
     } catch (cause) {
       setSending(false)
@@ -59,7 +81,7 @@ export function ComposeSheet() {
 
   return (
     <div className="mobile-sheet-layer" role="presentation">
-      <section className="mobile-compose-sheet" role="dialog" aria-modal="true" aria-label="Compose message">
+      <section ref={dialogRef} className="mobile-compose-sheet" role="dialog" aria-modal="true" aria-label="Compose message" tabIndex={-1}>
         <header className="mobile-sheet-nav">
           <button type="button" className="mobile-nav-text" onClick={close}>Cancel</button>
           <h2>{draft.reply ? 'Reply' : 'New Message'}</h2>
@@ -67,21 +89,33 @@ export function ComposeSheet() {
         </header>
         <form className="mobile-compose-form" onSubmit={(event) => { event.preventDefault(); void send() }}>
           <label className="mobile-compose-field"><span>From</span><select value={draft.accountId} onChange={(event) => edit({ accountId: event.target.value })}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.email}</option>)}</select></label>
-          <div className="mobile-compose-field mobile-compose-to-field">
-            <label><span>To</span><input type="email" inputMode="email" multiple value={toText} onChange={(event) => { setToText(event.target.value); edit({ to: parseAddresses(event.target.value).addresses }) }} autoComplete="off" /></label>
-            <button type="button" onClick={() => setShowCopies(!showCopies)}>Cc/Bcc</button>
-          </div>
-          {showCopies && <>
-            <label className="mobile-compose-field"><span>Cc</span><input type="email" inputMode="email" multiple value={ccText} onChange={(event) => { setCcText(event.target.value); edit({ cc: parseAddresses(event.target.value).addresses }) }} autoComplete="off" /></label>
-            <label className="mobile-compose-field"><span>Bcc</span><input type="email" inputMode="email" multiple value={bccText} onChange={(event) => { setBccText(event.target.value); edit({ bcc: parseAddresses(event.target.value).addresses }) }} autoComplete="off" /></label>
-          </>}
+          {recipientEntries.map(([kind, field]) => {
+            if (kind !== 'to' && !copiesVisible) return null
+            const recipientField = (
+              <RecipientField
+                key={kind}
+                ref={(handle) => { recipientRefs.current[kind] = handle }}
+                label={field.label}
+                value={field.value}
+                participants={participants}
+                selfEmails={selfEmails}
+                onChange={(recipients) => edit({ [kind]: recipients } as Pick<Draft, RecipientKind>)}
+              />
+            )
+            return kind === 'to' ? (
+              <div className="mobile-compose-to-field" key={kind}>
+                {recipientField}
+                {!copiesVisible && <button type="button" aria-expanded="false" onClick={() => setShowCopies(true)}>Cc/Bcc</button>}
+              </div>
+            ) : recipientField
+          })}
           <label className="mobile-compose-field"><span>Subject</span><input type="text" value={draft.subject} onChange={(event) => edit({ subject: event.target.value })} /></label>
           <label className="mobile-compose-body"><span className="sr-only">Message</span><textarea value={draft.bodyText} onChange={(event) => edit({ bodyText: event.target.value })} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void send() }} placeholder="Write a message…" /></label>
-          {draft.attachments.length > 0 && <div className="mobile-draft-attachments">{draft.attachments.map((attachment) => <span key={attachment.id}><Paperclip size={15} />{attachment.filename}<button type="button" aria-label={`Remove ${attachment.filename}`} onClick={() => edit({ attachments: draft.attachments.filter((item) => item.id !== attachment.id) })}><X size={15} /></button></span>)}</div>}
+          {draft.attachments.length > 0 && <div className="mobile-draft-attachments">{draft.attachments.map((attachment) => <span key={attachment.id}><MobileIcon name="attachment" scale="small" />{attachment.filename}<button type="button" aria-label={`Remove ${attachment.filename}`} onClick={() => edit({ attachments: draft.attachments.filter((item) => item.id !== attachment.id) })}><MobileIcon name="close" scale="small" /></button></span>)}</div>}
           {error && <p className="mobile-form-error" role="alert">{error}</p>}
           <div className="mobile-compose-footer">
-            <label className="mobile-attach-button"><Paperclip size={19} /><span>Add attachment</span><input type="file" multiple onChange={(event) => void addFiles(event.target.files)} /></label>
-            <button type="button" className="mobile-discard-button mobile-press" onClick={close} aria-label="Discard draft"><Trash2 size={19} /></button>
+            <label className="mobile-attach-button"><MobileIcon name="attachment" scale="action" /><span>Add attachment</span><input type="file" multiple onChange={(event) => void addFiles(event.target.files)} /></label>
+            <button type="button" className="mobile-discard-button mobile-press" onClick={close} aria-label="Discard draft"><MobileIcon name="trash" scale="action" /></button>
           </div>
         </form>
       </section>

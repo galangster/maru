@@ -8,7 +8,13 @@ import { useId, useRef, useState } from 'react'
 import { Icon } from '@/components/ui/icon'
 import { SECTION_LABEL } from '@/components/wren-controls'
 import type { EmailAddress } from '@/core/types'
-import { dedupeAddresses, formatAddress, parseAddresses } from '@/lib/compose'
+import {
+  isRecipientCommitKey,
+  recipientChipState,
+  reduceRecipientChips,
+  type RecipientChipAction,
+} from '@/features/compose/recipient-chips'
+import { formatAddress } from '@/lib/compose'
 import { cn } from '@/lib/utils'
 
 /**
@@ -27,31 +33,29 @@ export interface ChipInputProps {
 }
 
 export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipInputProps) {
-  const [text, setText] = useState('')
-  const [invalid, setInvalid] = useState(false)
+  const [state, setState] = useState(recipientChipState)
   const inputRef = useRef<HTMLInputElement>(null)
   const id = useId()
 
-  const commit = (raw: string): boolean => {
-    const { addresses, invalid: bad } = parseAddresses(raw)
-    if (addresses.length > 0) onChange(dedupeAddresses([...value, ...addresses]))
-    setInvalid(bad.length > 0)
-    setText(bad.join(', '))
-    return bad.length === 0
+  const dispatch = (action: RecipientChipAction) => {
+    const next = reduceRecipientChips(state, value, action)
+    setState(next.state)
+    if (next.recipients !== value) onChange(next.recipients)
+    return next
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === ',' || event.key === ';' || event.key === 'Enter' || event.key === 'Tab') {
-      if (text.trim() === '') return
+    if (isRecipientCommitKey(event.key, state.input)) {
+      if (state.input.trim() === '') return
       // Tab still moves on when the fragment was a valid address.
       if (event.key !== 'Tab') event.preventDefault()
-      const ok = commit(text)
-      if (event.key === 'Tab' && !ok) event.preventDefault()
+      const next = dispatch({ type: 'commit' })
+      if (event.key === 'Tab' && next.state.invalid) event.preventDefault()
       return
     }
-    if (event.key === 'Backspace' && text === '' && value.length > 0) {
+    if (event.key === 'Backspace' && state.input === '' && value.length > 0) {
       event.preventDefault()
-      onChange(value.slice(0, -1))
+      dispatch({ type: 'backspace' })
     }
   }
 
@@ -88,7 +92,7 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
               aria-label={`Remove ${formatAddress(address)}`}
               onClick={(event) => {
                 event.stopPropagation()
-                onChange(value.filter((a) => a.email !== address.email))
+                dispatch({ type: 'remove', email: address.email })
               }}
               className="focus-ring text-ink-3 hover:text-ink relative inline-flex size-4 shrink-0 items-center justify-center rounded-xs after:absolute after:-inset-x-2 after:-inset-y-1 after:content-['']"
             >
@@ -104,23 +108,20 @@ export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipI
           autoComplete="off"
           spellCheck={false}
           aria-label={label}
-          aria-invalid={invalid || undefined}
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value)
-            if (invalid) setInvalid(false)
-          }}
+          aria-invalid={state.invalid || undefined}
+          value={state.input}
+          onChange={(event) => dispatch({ type: 'input', value: event.target.value })}
           onKeyDown={onKeyDown}
-          onBlur={() => text.trim() !== '' && commit(text)}
+          onBlur={() => state.input.trim() !== '' && dispatch({ type: 'commit' })}
           onPaste={(event) => {
             const pasted = event.clipboardData.getData('text')
             if (!/[,;\n]/.test(pasted)) return
             event.preventDefault()
-            commit(`${text}${pasted}`)
+            dispatch({ type: 'paste', value: pasted })
           }}
           className={cn(
             'text-ink placeholder:text-ink-3 h-6 min-w-32 flex-1 bg-transparent text-base outline-none',
-            invalid && 'text-destructive',
+            state.invalid && 'text-destructive',
           )}
         />
       </div>

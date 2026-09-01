@@ -14,7 +14,7 @@ export function EmptyInbox() {
 }
 
 export function MobileListSkeleton({ className = '' }: { className?: string }) {
-  return <div className={`mobile-list-skeleton${className ? ` ${className}` : ''}`} aria-label="Loading"><span /><span /><span /><span /><span /></div>
+  return <div className={`mobile-list-skeleton${className ? ` ${className}` : ''}`} role="status" aria-label="Loading"><span /><span /><span /><span /><span /></div>
 }
 
 export function MobilePrompt({ icon, title, copy, className = '', children }: { icon: ReactNode; title: string; copy: string; className?: string; children?: ReactNode }) {

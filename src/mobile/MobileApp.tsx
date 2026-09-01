@@ -1,6 +1,6 @@
-import { lazy, useReducer, type ReactNode } from 'react'
-import { Inbox, Search, Settings as SettingsIcon } from 'lucide-react'
+import { lazy, useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 
+import type { IconName } from '@/components/ui/icon'
 import type { MailActionType } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
@@ -9,9 +9,12 @@ import {
   useDefer,
   useMailEvents,
   usePerformAction,
+  useAccountsById,
+  useSyncStatus,
   useWakeSweep,
 } from '@/features/mail/queries'
 import { useThemeEffect } from '@/features/shell/use-theme'
+import { MobileIcon } from './components/mobile-icon'
 import { InboxScreen } from './screens/inbox-screen'
 import { SearchScreen } from './screens/search-screen'
 import { SettingsScreen } from './screens/settings-screen'
@@ -30,6 +33,12 @@ const AccountScreen = lazy(() =>
   import('./screens/account/account-screen').then((module) => ({ default: module.AccountScreen })),
 )
 
+const TAB_ITEMS: { id: MobileTab; label: string; icon: IconName }[] = [
+  { id: 'inbox', label: 'Inbox', icon: 'inbox' },
+  { id: 'search', label: 'Search', icon: 'search' },
+  { id: 'settings', label: 'Settings', icon: 'settings' },
+]
+
 export function MobileApp() {
   useThemeEffect()
   useMailEvents()
@@ -39,20 +48,38 @@ export function MobileApp() {
   const perform = usePerformAction()
   const defer = useDefer()
   const composerOpen = useComposer((state) => state.open)
+  const { accounts } = useAccountsById()
+  const syncStatuses = useSyncStatus()
+  const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
   const sheet = navigation.sheet
+  const globalModalOpen = composerOpen || (sheet !== null && route.kind !== 'account')
+  const syncAnnouncement = useMemo(() => {
+    const states = accounts.map((account) => syncStatuses[account.id]?.state).filter(Boolean)
+    if (states.includes('error')) return 'Mail sync needs attention'
+    if (states.includes('syncing')) return 'Syncing mail'
+    if (states.length === accounts.length && states.length > 0 && states.every((state) => state === 'idle')) return 'Mail is up to date'
+    return ''
+  }, [accounts, syncStatuses])
+  const announce = useCallback((text: string) => {
+    setAnnouncement((current) => ({ text, alternate: !current.alternate }))
+  }, [])
+  useEffect(() => {
+    if (syncAnnouncement) announce(syncAnnouncement)
+  }, [announce, syncAnnouncement])
 
   const act = (threadKey: string, type: MailActionType) => {
     const action = { threadKey, type }
     registerUndoable((next) => perform.mutate(next), action)
     perform.mutate(action)
+    if (type === 'archive') announce('Archived')
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
 
   return (
     <div className="mobile-app" data-testid="mobile-app">
-      <main className="mobile-stage">
+      <main className="mobile-stage" inert={globalModalOpen}>
         {route.kind === 'account' ? (
           <AccountScreen
             onBack={() => dispatch({ type: 'back' })}
@@ -84,8 +111,8 @@ export function MobileApp() {
         ) : <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />}
       </main>
 
-      {route.kind === 'inbox' && <TabBar active={navigation.tab} onChange={(tab) => dispatch({ type: 'changeTab', tab })} />}
-      {composerOpen && <ComposeSheet />}
+      {route.kind === 'inbox' && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={(tab) => dispatch({ type: 'changeTab', tab })} />}
+      {composerOpen && <ComposeSheet onSent={() => announce('Sent')} />}
       {sheet?.kind === 'later' && (
         <LaterSheet
           count={sheet.threadKeys.length}
@@ -106,19 +133,17 @@ export function MobileApp() {
         />
       )}
       {sheet?.kind === 'move' && <MoveSheet onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {announcement.text}{announcement.alternate ? '\u200B' : ''}
+      </div>
     </div>
   )
 }
 
-function TabBar({ active, onChange }: { active: MobileTab; onChange: (tab: MobileTab) => void }) {
-  const items: { id: MobileTab; label: string; icon: ReactNode }[] = [
-    { id: 'inbox', label: 'Inbox', icon: <Inbox size={22} /> },
-    { id: 'search', label: 'Search', icon: <Search size={22} /> },
-    { id: 'settings', label: 'Settings', icon: <SettingsIcon size={22} /> },
-  ]
+function TabBar({ active, inert, onChange }: { active: MobileTab; inert: boolean; onChange: (tab: MobileTab) => void }) {
   return (
-    <nav className="mobile-tab-bar" aria-label="Primary navigation">
-      {items.map((item) => <button key={item.id} type="button" className={active === item.id ? 'is-active' : ''} onClick={() => onChange(item.id)} aria-current={active === item.id ? 'page' : undefined}>{item.icon}<span>{item.label}</span></button>)}
+    <nav className="mobile-tab-bar" aria-label="Primary navigation" inert={inert}>
+      {TAB_ITEMS.map((item) => <button key={item.id} type="button" className={active === item.id ? 'is-active' : ''} onClick={() => onChange(item.id)} aria-current={active === item.id ? 'page' : undefined}><MobileIcon name={item.icon} scale="large" /><span>{item.label}</span></button>)}
     </nav>
   )
 }

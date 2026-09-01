@@ -111,6 +111,37 @@ The following behavior uses demo fixtures:
 - Demo account data resets after process restart.
 - Background Gmail sync and remote notifications do not run.
 
+## Phone accessibility verification
+
+The I2 polish pass was checked on an iPhone 16 simulator on 2026-09-01.
+FlowDeck drove the inbox, thread, compose, and account routes by touch.
+
+- Inbox controls have names and state attributes. Swipe actions remain available from the labeled long-press menu.
+- Thread controls have names. Expanded messages report their state. The toolbar has a named toolbar role.
+- Compose controls have names. Recipient chips expose the full address. Sheets trap focus and restore it after close.
+- Account controls have names. Authentication tabs report selection. Account sheets and recovery trap focus.
+- Sent, Archived, and sync changes use polite live regions.
+
+The Accessibility Inspector audit did not complete against the Tauri WebView.
+It remained at `Auditing...` and returned no child findings.
+Source review verified roles, labels, and focus order.
+The FlowDeck run verified the same control path by touch in the simulator.
+A VoiceOver pass on a physical iPhone is still owed.
+Queue item for Nick: complete and record that physical-device VoiceOver pass.
+
+## Dynamic Type verification
+
+The phone root uses the iOS body font size.
+All mobile type sizes derive from that root with relative units.
+FlowDeck tested the default `large` category and `extra-extra-extra-large`.
+Inbox rows remeasure their content. Compose rows, chips, tab bars, and toolbars grow without clipping.
+
+Large-text proof files are:
+
+- `inbox-large-text-light.png`
+- `thread-large-text-light.png`
+- `compose-large-text-light.png`
+
 ## iOS OAuth follow-up
 
 Real Gmail sign-in needs a separate iOS OAuth client and these integration steps:

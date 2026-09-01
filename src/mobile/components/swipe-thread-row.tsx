@@ -1,7 +1,7 @@
 import { memo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Archive, Check, Clock3, Star } from 'lucide-react'
 
 import type { Thread } from '@/core/types'
+import { MobileIcon } from './mobile-icon'
 import {
   LONG_PRESS_DELAY_MS,
   LONG_PRESS_MOVE_THRESHOLD,
@@ -79,9 +79,10 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
 
   return (
     <div className="mobile-swipe-row">
-      <div className="mobile-swipe-action is-archive"><Archive size={21} /><span>Archive</span></div>
-      <div className="mobile-swipe-action is-later"><Clock3 size={21} /><span>Later</span></div>
-      <div
+      <div className="mobile-swipe-action is-archive"><MobileIcon name="archive" scale="large" /><span>Archive</span></div>
+      <div className="mobile-swipe-action is-later"><MobileIcon name="calendar" scale="large" /><span>Later</span></div>
+      <button
+        type="button"
         className={`mobile-thread-row${model.unread ? ' is-unread' : ''}${selected ? ' is-selected' : ''}${settling ? ' is-settling' : ''}`}
         style={{ transform: `translateX(${offset}px)` }}
         {...drag}
@@ -94,16 +95,12 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
           }
           editing ? onSelect() : onOpen()
         }}
-        role="button"
-        tabIndex={0}
         aria-label={`${model.sender}, ${model.subject}`}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') editing ? onSelect() : onOpen()
-        }}
+        aria-pressed={editing ? selected : undefined}
       >
         {editing ? (
           <span className={`mobile-select-dot${selected ? ' is-checked' : ''}`} aria-hidden>
-            {selected && <Check size={14} />}
+            {selected && <MobileIcon name="check" scale="small" />}
           </span>
         ) : (
           <span className="mobile-unread-slot" aria-hidden>{model.unread && <span />}</span>
@@ -113,15 +110,16 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
           <div className="mobile-row-subject"><span>{model.subject}</span>{model.messageCount > 1 && <small>{model.messageCount}</small>}</div>
           <p>{model.snippet}</p>
         </div>
-        <button
-          className={`mobile-star-button mobile-press${model.starred ? ' is-starred' : ''}`}
-          type="button"
-          aria-label={model.starred ? 'Unstar thread' : 'Star thread'}
-          onClick={(event) => { event.stopPropagation(); onStar() }}
-        >
-          <Star size={17} fill={model.starred ? 'currentColor' : 'none'} />
-        </button>
-      </div>
+        <span />
+      </button>
+      <button
+        className={`mobile-star-button${model.starred ? ' is-starred' : ''}`}
+        type="button"
+        aria-label={model.starred ? 'Unstar thread' : 'Star thread'}
+        onClick={onStar}
+      >
+        <MobileIcon name="star" filled={model.starred} />
+      </button>
     </div>
   )
 })

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Archive, ArrowLeft, Clock3, Ellipsis, Forward, Reply, ReplyAll } from 'lucide-react'
 
 import type { Message, Thread } from '@/core/types'
 import { usePerformAction, useSettings, useThread } from '@/features/mail/queries'
@@ -7,6 +6,7 @@ import { expandedIds, toggleExpanded } from '@/features/reading/conversation'
 import type { ReplyMode } from '@/lib/compose'
 import { useNow } from '@/lib/use-now'
 import { MobileMessageCard } from '../components/message-card'
+import { MobileIcon } from '../components/mobile-icon'
 import { MobileListSkeleton } from '../components/placeholders'
 import { useEdgeBack } from '../use-edge-back'
 import './thread-screen.css'
@@ -50,11 +50,11 @@ export function ThreadScreen({
       aria-label={`Thread: ${thread.subject}`}
     >
       <header className="mobile-nav mobile-thread-nav">
-        <button className="mobile-nav-back" type="button" onClick={onBack} aria-label="Back to inbox"><ArrowLeft size={22} /><span>Inbox</span></button>
+        <button className="mobile-nav-back" type="button" onClick={onBack} aria-label="Back to inbox"><MobileIcon name="chevronRight" className="mobile-icon-back" scale="large" /><span>Inbox</span></button>
         <div className="mobile-nav-actions">
-          <button type="button" aria-label="Archive" onClick={() => onArchive(thread.key)}><Archive size={20} /></button>
-          <button type="button" aria-label="Save for later" onClick={() => onLater(thread.key)}><Clock3 size={20} /></button>
-          <button type="button" aria-label="More actions" onClick={() => onMore(thread)}><Ellipsis size={21} /></button>
+          <button type="button" aria-label="Archive" onClick={() => onArchive(thread.key)}><MobileIcon name="archive" scale="action" /></button>
+          <button type="button" aria-label="Save for later" onClick={() => onLater(thread.key)}><MobileIcon name="calendar" scale="action" /></button>
+          <button type="button" aria-label="More actions" onClick={() => onMore(thread)}><MobileIcon name="sliders" scale="action" /></button>
         </div>
       </header>
       <div className="mobile-scroll mobile-thread-scroll">
@@ -74,13 +74,13 @@ export function ThreadScreen({
           ))}
         </div>
       </div>
-      <div className="mobile-thread-toolbar" aria-label="Thread actions">
-        <ToolbarButton label="Reply" icon={<Reply size={20} />} onClick={() => onReply(detail.data, 'reply')} />
-        <ToolbarButton label="Reply all" icon={<ReplyAll size={20} />} onClick={() => onReply(detail.data, 'replyAll')} />
-        <ToolbarButton label="Forward" icon={<Forward size={20} />} onClick={() => onReply(detail.data, 'forward')} />
-        <ToolbarButton label="Archive" icon={<Archive size={20} />} onClick={() => onArchive(thread.key)} />
-        <ToolbarButton label="Later" icon={<Clock3 size={20} />} onClick={() => onLater(thread.key)} />
-        <ToolbarButton label="More" icon={<Ellipsis size={20} />} onClick={() => onMore(thread)} />
+      <div className="mobile-thread-toolbar" role="toolbar" aria-label="Thread actions">
+        <ToolbarButton label="Reply" icon={<MobileIcon name="reply" scale="action" />} onClick={() => onReply(detail.data, 'reply')} />
+        <ToolbarButton label="Reply all" icon={<MobileIcon name="replyAll" scale="action" />} onClick={() => onReply(detail.data, 'replyAll')} />
+        <ToolbarButton label="Forward" icon={<MobileIcon name="forward" scale="action" />} onClick={() => onReply(detail.data, 'forward')} />
+        <ToolbarButton label="Archive" icon={<MobileIcon name="archive" scale="action" />} onClick={() => onArchive(thread.key)} />
+        <ToolbarButton label="Later" icon={<MobileIcon name="calendar" scale="action" />} onClick={() => onLater(thread.key)} />
+        <ToolbarButton label="More" icon={<MobileIcon name="sliders" scale="action" />} onClick={() => onMore(thread)} />
       </div>
     </section>
   )

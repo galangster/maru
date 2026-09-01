@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ChevronRight, Paperclip } from 'lucide-react'
 
 import type { Attachment, Message } from '@/core/types'
 import { useMessageBodyFrame } from '@/features/reading/message-body'
 import { usePhotoData } from '@/features/reading/photo-grid'
 import { displayName, formatBytes, isPreviewableImage, relativeTime } from '@/lib/format'
+import { MobileIcon } from './mobile-icon'
 
 export function MobileMessageCard({
   threadKey,
@@ -32,7 +32,7 @@ export function MobileMessageCard({
           <span>{expanded ? `to ${message.to.map(displayName).join(', ') || 'me'}` : message.snippet}</span>
         </span>
         <time>{relativeTime(message.date, now)}</time>
-        <ChevronRight className="mobile-message-chevron" size={17} />
+        <MobileIcon name="chevronRight" className="mobile-message-chevron" />
       </button>
       {expanded && (
         <div className="mobile-message-content">
@@ -74,7 +74,7 @@ function MobileAttachments({ threadKey, message }: { threadKey: string; message:
       {images.length > 0 && <div className="mobile-image-grid">{images.map((attachment) => <AttachmentImage key={attachment.id} threadKey={threadKey} attachment={attachment} />)}</div>}
       {files.map((attachment) => (
         <div className="mobile-attachment-chip" key={attachment.id}>
-          <Paperclip size={16} /><span>{attachment.filename}</span><small>{formatBytes(attachment.sizeBytes)}</small>
+          <MobileIcon name="attachment" scale="small" /><span>{attachment.filename}</span><small>{formatBytes(attachment.sizeBytes)}</small>
         </div>
       ))}
     </div>

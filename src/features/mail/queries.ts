@@ -5,11 +5,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
-import { threadMatchesView } from '@/core/defaults'
+import { FOLDERS, threadMatchesView } from '@/core/defaults'
 import { applyActionToThread, reverseAction } from '@/core/service/actions'
 import type {
   LabelChanges,
   Account,
+  EmailAddress,
   MailAction,
   MailActionType,
   MailView,
@@ -21,6 +22,8 @@ import type {
 import { toast } from 'sonner'
 
 import { playSound } from '@/lib/sound'
+import { dedupeAddresses } from '@/lib/compose'
+import { correspondents } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
 import { UNDO_TOAST_ID } from '@/lib/undo'
 
@@ -43,6 +46,8 @@ export const keys = {
   deferred: ['deferred'] as const,
   settings: ['settings'] as const,
   search: (q: string) => ['search', q] as const,
+  correspondents: (accountId: string | undefined, selfEmails: string[]) =>
+    ['correspondents', accountId ?? 'all', selfEmails.join('\0')] as const,
 }
 
 export function useAccounts() {
@@ -86,6 +91,45 @@ export function useLabels(accountId: string | undefined) {
 export function useThreads(view: MailView) {
   const service = useMailService()
   return useQuery({ queryKey: keys.threads(view), queryFn: () => service.listThreads(view) })
+}
+
+const NO_CORRESPONDENTS: EmailAddress[] = []
+const CORRESPONDENT_LIMIT = 200
+
+/** Recent people from every mailbox folder, normalized once in the query cache. */
+export function useCorrespondents(accountId?: string): EmailAddress[] {
+  const service = useMailService()
+  const { selfEmails } = useAccountsById()
+  const query = useQuery({
+    queryKey: keys.correspondents(accountId, selfEmails),
+    enabled: selfEmails.length > 0,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const lists = await Promise.all(FOLDERS.map(({ folder, label }) => service.listThreads(
+        accountId
+          ? { kind: 'account', accountId, labelId: label }
+          : { kind: 'unified', folder },
+        { limit: CORRESPONDENT_LIMIT },
+      )))
+      const seenThreads = new Set<string>()
+      const addresses: EmailAddress[] = []
+      for (const thread of lists.flat()) {
+        if (seenThreads.has(thread.key)) continue
+        seenThreads.add(thread.key)
+        for (const address of thread.participants) {
+          const email = address.email.trim().toLowerCase()
+          if (!email) continue
+          const name = address.name?.trim()
+          addresses.push(name ? { email, name } : { email })
+        }
+      }
+      const self = new Set(selfEmails)
+      return correspondents(dedupeAddresses(addresses), selfEmails)
+        .filter((address) => !self.has(address.email))
+        .slice(0, CORRESPONDENT_LIMIT)
+    },
+  })
+  return query.data ?? NO_CORRESPONDENTS
 }
 
 export function useThread(threadKey: string | null) {
@@ -175,6 +219,7 @@ export function useMailEvents() {
           // A reply, an archive and a trash all end a deferral, so the Later
           // count moves on events that never mention Later.
           void client.invalidateQueries({ queryKey: keys.deferred })
+          void client.invalidateQueries({ queryKey: ['correspondents'] })
           // Open threads are a different matter: when the emitter names the
           // threads it moved, only those reload. Starring one thread used to
           // refetch every thread the cache held, bodies and all.
@@ -189,6 +234,7 @@ export function useMailEvents() {
         case 'accountsChanged':
           void client.invalidateQueries({ queryKey: keys.accounts })
           void client.invalidateQueries({ queryKey: ['labels'] })
+          void client.invalidateQueries({ queryKey: ['correspondents'] })
           break
         case 'settingsChanged':
           void client.invalidateQueries({ queryKey: keys.settings })
