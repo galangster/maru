@@ -280,6 +280,21 @@ export class SyncEngine {
     const present = new Set(fetched.map((t) => t.id))
     await this.removeThreads(ids.filter((id) => !present.has(id)).map((id) => threadKey(this.accountId, id)))
 
+    // Later (P21): a reply wakes a deferred thread now rather than at its time.
+    //
+    // `newMailThreads` is already exactly the right set — the threads that
+    // gained a message carrying INBOX **and** UNREAD, which excludes the
+    // person's own sent replies by construction. You saved it because "not
+    // now"; an inbound message means the world changed, and hiding a live
+    // conversation you are party to is worse than the mild surprise of it
+    // coming back early.
+    //
+    // Owner's call, and it is one line: deleting this restores "Monday means
+    // Monday" and nothing else in the feature moves.
+    await this.store.clearDeferral(
+      [...newMailThreads.keys()].map((id) => threadKey(this.accountId, id)),
+    )
+
     // History names exactly which threads moved, so say so: a listener can
     // then refresh those and leave every other open thread alone.
     this.emit({
@@ -321,8 +336,15 @@ export class SyncEngine {
     const remoteIds = await this.listWindowThreadIds()
     const remoteKeys = new Set(remoteIds.map((id) => threadKey(this.accountId, id)))
 
+    // A thread holding a live deferral is never evicted here. Belt and braces
+    // with the 30-day cap on Later: a thread whose last message is already 60
+    // days old, saved 30 days out, would otherwise fall out of the 90-day
+    // window on the day it was due and take its deferral with it. This is a
+    // RETENTION divergence from Gmail, not a label one — the invariant above
+    // migration 6 is intact.
+    const deferred = new Set(await this.store.deferredKeys())
     const localKeys = await this.store.listThreadKeys(this.accountId)
-    await this.removeThreads(localKeys.filter((key) => !remoteKeys.has(key)))
+    await this.removeThreads(localKeys.filter((key) => !remoteKeys.has(key) && !deferred.has(key)))
 
     await this.hydrateThreads(remoteIds)
     await this.store.setSyncState({ accountId: this.accountId, historyId: profile.historyId })

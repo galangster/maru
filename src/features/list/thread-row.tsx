@@ -49,6 +49,12 @@ export interface ThreadRowProps {
    */
   onSelect: (thread: Thread, shiftKey: boolean) => void
   onAction: (thread: Thread, type: MailActionType) => void
+  /**
+   * Later, which is NOT a MailActionType and therefore cannot ride `onAction`.
+   * It opens the picker rather than committing: a mouse has no digits, so the
+   * division the keyboard makes (`h`, then a number) is not available here.
+   */
+  onLater: (thread: Thread) => void
   onCheck: (thread: Thread) => void
 }
 
@@ -69,6 +75,7 @@ export const ThreadRow = memo(function ThreadRow({
   ticking = false,
   onSelect,
   onAction,
+  onLater,
   onCheck,
 }: ThreadRowProps) {
   // The row owns its own clock. Held by the list, the minute tick re-rendered
@@ -78,6 +85,7 @@ export const ThreadRow = memo(function ThreadRow({
   const sender = participantLine(people)
   const lead = people[0] ?? { email: sender }
   const act = useCallback((type: MailActionType) => onAction(thread, type), [onAction, thread])
+  const later = useCallback(() => onLater(thread), [onLater, thread])
 
   return (
     <div
@@ -223,7 +231,7 @@ export const ThreadRow = memo(function ThreadRow({
         </div>
       </div>
 
-      {!ticking && <QuickActions thread={thread} onAction={act} />}
+      {!ticking && <QuickActions thread={thread} onAction={act} onLater={later} />}
     </div>
   )
 })
@@ -306,9 +314,11 @@ function ArchiveTick() {
 function QuickActions({
   thread,
   onAction,
+  onLater,
 }: {
   thread: Thread
   onAction: (type: MailActionType) => void
+  onLater: () => void
 }) {
   const actions = threadActions(thread)
   // The star's press pop — MAGIC §3.4. Counting presses rather than holding a
@@ -340,7 +350,10 @@ function QuickActions({
             disabled={spec.disabled}
             onClick={() => {
               if (spec.pop) setPresses((n) => n + 1)
-              onAction(spec.type)
+              // The `kind` tag, doing its job: the compiler will not let this
+              // surface send Later through the label-action path.
+              if (spec.kind === 'later') onLater()
+              else onAction(spec.type)
             }}
             className={iconButtonClass(spec.tone)}
           >

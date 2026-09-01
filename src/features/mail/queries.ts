@@ -3,7 +3,7 @@
 // calls the service directly.
 
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
 import { threadMatchesView } from '@/core/defaults'
 import { applyActionToThread, reverseAction } from '@/core/service/actions'
@@ -21,6 +21,7 @@ import type {
 import { toast } from 'sonner'
 
 import { playSound } from '@/lib/sound'
+import { useNow } from '@/lib/use-now'
 import { UNDO_TOAST_ID } from '@/lib/undo'
 
 import { useMailService } from './service'
@@ -38,6 +39,8 @@ export const keys = {
   threads: (view: MailView) => ['threads', viewKey(view), view] as const,
   thread: (threadKey: string) => ['thread', threadKey] as const,
   unread: (view: MailView) => ['unread', viewKey(view)] as const,
+  /** Threads waiting in Later. Not view-keyed: there is exactly one Later. */
+  deferred: ['deferred'] as const,
   settings: ['settings'] as const,
   search: (q: string) => ['search', q] as const,
 }
@@ -103,6 +106,12 @@ export function useUnreadCount(view: MailView) {
   return useQuery({ queryKey: keys.unread(view), queryFn: () => service.unreadCount(view) })
 }
 
+/** How many threads are waiting in Later — the sidebar row's count. */
+export function useDeferredCount() {
+  const service = useMailService()
+  return useQuery({ queryKey: keys.deferred, queryFn: () => service.deferredCount() })
+}
+
 export function useSettings() {
   const service = useMailService()
   return useQuery({ queryKey: keys.settings, queryFn: () => service.getSettings() })
@@ -163,6 +172,9 @@ export function useMailEvents() {
           // Folder membership can change for any list, so those always refetch.
           void client.invalidateQueries({ queryKey: ['threads'] })
           void client.invalidateQueries({ queryKey: ['unread'] })
+          // A reply, an archive and a trash all end a deferral, so the Later
+          // count moves on events that never mention Later.
+          void client.invalidateQueries({ queryKey: keys.deferred })
           // Open threads are a different matter: when the emitter names the
           // threads it moved, only those reload. Starring one thread used to
           // refetch every thread the cache held, bodies and all.
@@ -225,6 +237,39 @@ interface ActionContext {
   detail: { thread: Thread; messages: Message[] } | undefined
 }
 
+/**
+ * Patch one thread in every cached list, and drop it from any list it no longer
+ * belongs to. Returns the lists AS THEY WERE, which is what the rollback needs.
+ *
+ * Shared by the two optimistic mutations. "Does this thread still belong in
+ * this list" has exactly one answer — `threadMatchesView` — and asking it from
+ * two near-identical loops is how the archive rule and the Later rule would
+ * eventually disagree about the same list.
+ */
+function patchLists(
+  client: QueryClient,
+  threadKey: string,
+  transform: (thread: Thread) => Thread,
+  now: number,
+): [readonly unknown[], Thread[] | undefined][] {
+  const lists = client.getQueriesData<Thread[]>({ queryKey: ['threads'] })
+  for (const [queryKey, threads] of lists) {
+    if (!threads) continue
+    const view = queryKey[2] as MailView | undefined
+    const updated = threads
+      .map((t) => (t.key === threadKey ? transform(t) : t))
+      .filter((t) => t.key !== threadKey || !view || threadMatchesView(t, view, now))
+    client.setQueryData(queryKey, updated)
+  }
+  return lists
+}
+
+/** Put back exactly what `patchLists` and the detail read found. */
+function restore(client: QueryClient, threadKey: string, context: ActionContext | undefined): void {
+  for (const [queryKey, threads] of context?.lists ?? []) client.setQueryData(queryKey, threads)
+  if (context?.detail) client.setQueryData(keys.thread(threadKey), context.detail)
+}
+
 /** Past tense, because it is what the confirmation says happened. */
 export const UNDO_LABELS: Record<MailActionType, string> = {
   archive: 'Archived',
@@ -270,6 +315,90 @@ export function registerActionUndo(
   })
 }
 
+/**
+ * Save a thread for later, or take the deferral off with `null`.
+ *
+ * Modelled on `usePerformAction`'s optimistic half, and separate from it for
+ * the same reason `defer` is not a `MailActionType`: this changes no labels.
+ * There is no sound — `complete` is reserved for archive and trash, and
+ * deferring is an intent rather than a completion.
+ */
+interface DeferInput {
+  threadKey: string
+  wakeAt: number | null
+}
+
+export function useDefer() {
+  const service = useMailService()
+  const client = useQueryClient()
+
+  return useMutation<void, Error, DeferInput, ActionContext>({
+    mutationFn: ({ threadKey, wakeAt }) => service.defer(threadKey, wakeAt),
+    onMutate: async ({ threadKey: key, wakeAt }) => {
+      await client.cancelQueries({ queryKey: ['threads'] })
+      const detail = client.getQueryData<{ thread: Thread; messages: Message[] }>(keys.thread(key))
+
+      // The row has to leave the inbox list before the service answers, and it
+      // has to APPEAR in Later's list for the same reason — both fall out of
+      // `threadMatchesView` once `deferredUntil` is patched, so neither view
+      // needs a rule of its own here.
+      const lists = patchLists(
+        client,
+        key,
+        (t) => ({ ...t, deferredUntil: wakeAt ?? undefined }),
+        Date.now(),
+      )
+
+      if (detail) {
+        client.setQueryData(keys.thread(key), {
+          ...detail,
+          thread: { ...detail.thread, deferredUntil: wakeAt ?? undefined },
+        })
+      }
+
+      return { lists, detail }
+    },
+    onError: (_error, { threadKey: key }, context) => {
+      playSound('error')
+      restore(client, key, context)
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: ['threads'] })
+      void client.invalidateQueries({ queryKey: ['unread'] })
+      void client.invalidateQueries({ queryKey: keys.deferred })
+    },
+  })
+}
+
+/**
+ * Bring due deferrals back, on the clock the whole UI already shares.
+ *
+ * It rides `useNow`'s single 60-second interval rather than adding a timer of
+ * its own — standing order, and this repo's own lazy-sweep doctrine: a timer
+ * would be a persistent monitor for a queue that is usually empty, and
+ * `wake_at > now` cannot be wrong at the moment somebody looks. Under
+ * `?screenshot=1` the clock is frozen, so captures get this for free.
+ *
+ * It invalidates only when the sweep reports something actually moved.
+ */
+export function useWakeSweep(): void {
+  const service = useMailService()
+  const client = useQueryClient()
+  const now = useNow()
+  useEffect(() => {
+    let cancelled = false
+    void service.wakeDeferred(now).then((woken) => {
+      if (cancelled || woken === 0) return
+      void client.invalidateQueries({ queryKey: ['threads'] })
+      void client.invalidateQueries({ queryKey: ['unread'] })
+      void client.invalidateQueries({ queryKey: keys.deferred })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [service, client, now])
+}
+
 export function usePerformAction() {
   const service = useMailService()
   const client = useQueryClient()
@@ -287,19 +416,16 @@ export function usePerformAction() {
       // down a mailbox is one tick rather than forty (sound-policy.ts).
       if (action.type === 'archive' || action.type === 'trash') playSound('complete')
       await client.cancelQueries({ queryKey: ['threads'] })
-      const lists = client.getQueriesData<Thread[]>({ queryKey: ['threads'] })
       const detail = client.getQueryData<{ thread: Thread; messages: Message[] }>(
         keys.thread(action.threadKey),
       )
 
-      for (const [queryKey, threads] of lists) {
-        if (!threads) continue
-        const view = queryKey[2] as MailView | undefined
-        const updated = threads
-          .map((t) => (t.key === action.threadKey ? applyActionToThread(t, action.type) : t))
-          .filter((t) => t.key !== action.threadKey || !view || threadMatchesView(t, view))
-        client.setQueryData(queryKey, updated)
-      }
+      const lists = patchLists(
+        client,
+        action.threadKey,
+        (t) => applyActionToThread(t, action.type),
+        Date.now(),
+      )
 
       if (detail) {
         const thread = applyActionToThread(detail.thread, action.type)
@@ -319,8 +445,7 @@ export function usePerformAction() {
       // The optimistic change is being taken back on screen; the cue says so
       // without a dialog. Low and short — it states "no" without alarming.
       playSound('error')
-      for (const [queryKey, threads] of context?.lists ?? []) client.setQueryData(queryKey, threads)
-      if (context?.detail) client.setQueryData(keys.thread(action.threadKey), context.detail)
+      restore(client, action.threadKey, context)
     },
     onSettled: () => {
       void client.invalidateQueries({ queryKey: ['threads'] })

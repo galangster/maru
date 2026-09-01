@@ -164,11 +164,20 @@ installs rather than merely failing to help them.
   My judgement is **yes, wake it** — hiding a live conversation you are party
   to is worse than an early return, and it is one line in a set the history
   sync already computes. But it will occasionally read as a bug ("I said
-  Monday"), so it is a taste call and it is yours. Nothing is blocked on it;
-  say the word and it flips either way.
+  Monday"), so it is a taste call and it is yours.
+  **BUILT AS YES, 2026-09-01, on your instruction to assume it.** It is one
+  line in `src/core/sync/engine.ts` (`applyHistory`, the `clearDeferral` call)
+  plus one test in `tests/later.test.ts` named "wakes a deferred thread when a
+  reply lands". Deleting both restores "Monday means Monday" and nothing else
+  in the feature moves. Say the word if you want it flipped after using it.
 
 - **Run this and tell me the three numbers** (P21 lane 2, the swipe gesture).
-  Ten seconds, and it decides whether the gesture is built at all. In a
+  Ten seconds, and it decides whether the gesture is built at all.
+  **Now the only thing standing between Later and the swipe: lane 1 shipped
+  2026-09-01, so the gesture is the whole of what is left in P21.** Later is
+  complete without it — `h`/`b`, the hover-cluster button and the palette are
+  all live, and the keyboard path is strictly more capable than the gesture
+  could be. In a
   `npm run tauri dev` window, open devtools and paste:
   ```js
   window.addEventListener('wheel', e => console.log(e.deltaX.toFixed(1), e.deltaY.toFixed(1), e.deltaMode, Math.round(performance.now())), {passive: true})

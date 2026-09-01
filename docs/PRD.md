@@ -15,7 +15,7 @@ through a third-party server. Wren talks only to Google.
 | In | Out (post-MVP) |
 | --- | --- |
 | Multi-account Gmail sign-in (OAuth loopback + PKCE, BYO client ID) | Non-Gmail providers (IMAP) |
-| Unified inbox + per-account views; Starred, Sent, Trash, per-label views | Smart-inbox categorization, snooze, send-later |
+| Unified inbox + per-account views; Starred, Sent, Trash, Later, per-label views | Smart-inbox categorization, send-later, cross-device snooze |
 | 90-day local sync, incremental history polling, offline reading | Full-history backfill, Gmail push (Pub/Sub) |
 | Thread view: sanitized HTML, inline images, attachment download | Drafts sync to Gmail (local drafts only) |
 | Actions: archive, trash, star, read/unread | Multi-select bulk actions |

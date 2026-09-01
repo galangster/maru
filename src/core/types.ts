@@ -65,11 +65,36 @@ export interface Thread {
   starred: boolean
   messageCount: number
   hasAttachments: boolean
+  /**
+   * Later (P21): when this thread comes back to the inbox, or absent if it was
+   * never saved for later. Local to this Mac and NOT a Gmail fact — it lives in
+   * its own `thread_defer` table and is hydrated by a LEFT JOIN on the read
+   * path. It must never appear in `upsertThreads`' column list: that method
+   * rewrites twelve named columns from a Thread, so a stale in-memory copy
+   * round-tripping through a sync pass would silently erase the deferral.
+   */
+  deferredUntil?: number
+  /**
+   * When a deferral last came due. The list's sort key is
+   * `max(lastMessageAt, wokeAt)`, which is what puts a thread from three weeks
+   * ago at the top of Today on the morning it returns instead of at list
+   * position ninety, where nobody would ever see it. Garbage-collected 24 h
+   * after the wake, which is what ends the back-at-the-top treatment.
+   */
+  wokeAt?: number
 }
 
 export type UnifiedFolder = 'inbox' | 'starred' | 'sent' | 'trash'
 
 export type MailView =
+  /**
+   * Later — the threads saved for later that have not come back yet.
+   *
+   * Deliberately NOT a fifth UnifiedFolder: `FolderSpec.label` is "the Gmail
+   * system label this folder *is*", and Later is not one. A synthetic label
+   * there is what would force a reserved namespace into `upsertThreads`.
+   */
+  | { kind: 'later' }
   | { kind: 'unified'; folder: UnifiedFolder }
   | { kind: 'account'; accountId: string; labelId: string }
 
@@ -219,7 +244,17 @@ export interface Settings {
 
 export interface ListThreadsOptions {
   limit?: number // default 100
-  before?: number // lastMessageAt cursor for paging
+  /**
+   * Paging cursor, compared against the same expression the list is ORDERED by
+   * — the deferral-aware sort key, not `lastMessageAt` raw. A cursor that reads
+   * a different column than the sort walks a different list.
+   */
+  before?: number
+  /**
+   * The clock the deferral predicate is evaluated against. Defaults to now;
+   * named so tests and captures can ask what the list looked like at a time.
+   */
+  now?: number
 }
 
 export interface GetThreadOptions {
@@ -266,6 +301,39 @@ export interface MailService {
    * rolled back verbatim on failure.
    */
   modifyLabels(threadKey: string, changes: LabelChanges): Promise<void>
+  /**
+   * Save a thread for later, or take the deferral off it with `null`.
+   *
+   * A sibling seam beside `modifyLabels`, and deliberately NOT a ninth
+   * `MailActionType`: service/actions.ts exists so "an optimistic local update
+   * and a Gmail modify agree exactly", and `labelDelta('later')` returning an
+   * empty delta would assert "this action changes no labels" when the truth is
+   * "this is not a label action at all". It would also break `reverseAction`'s
+   * involution property and force a branch in `performAction` that skips the
+   * network.
+   *
+   * Local to this machine on both implementations. No Gmail method is called.
+   */
+  defer(threadKey: string, wakeAt: number | null): Promise<void>
+  /**
+   * Bring every deferral that has come due back into the inbox, and report how
+   * many moved. The lazy sweep, exposed — there is no timer anywhere and
+   * nothing has to run at wake time. A laptop shut for a week wakes a week of
+   * deferrals in one indexed UPDATE the next time somebody looks.
+   *
+   * It is a MailService method rather than a store call because the UI only
+   * ever holds a MailService, and the stamp it writes (`wokeAt`) is what keeps
+   * a woken thread from returning buried.
+   */
+  wakeDeferred(now: number): Promise<number>
+  /**
+   * How many threads are waiting in Later — the sidebar row's count.
+   *
+   * Its own method rather than the length of `listThreads({kind:'later'})`,
+   * because that list is capped at a page and a badge that stops counting at
+   * 100 is a badge that lies quietly.
+   */
+  deferredCount(): Promise<number>
   send(draft: ComposeDraft): Promise<void>
 
   search(q: string): Promise<Thread[]>

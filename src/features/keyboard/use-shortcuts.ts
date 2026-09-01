@@ -135,6 +135,25 @@ export function useShortcuts() {
       // row, the toolbar and the palette render, so `#` on a trashed thread
       // restores it for exactly the reason the button says it will.
       archive: () => live.current.act('archive'),
+      // `h` opens the PICKER rather than taking a default, and that is the
+      // correct division rather than a consolation prize: the keyboard has
+      // digits, so `h` `2` is two keystrokes and chooses. With threads checked
+      // it opens on the batch, exactly as `e` archives the batch.
+      later: () => {
+        const ui = useUi.getState()
+        const visible = live.current.threads()
+        const checked = visible.filter((t) => ui.checked.has(t.key))
+        if (checked.length > 0) {
+          useSurfaces.getState().openLater(checked.map((t) => t.key), true)
+          return
+        }
+        // Disabled means there is nothing to defer — a trashed thread, or one
+        // already out of the inbox. Silently doing nothing is the honest answer;
+        // the picker would be a menu with no effect.
+        withThread((t) => {
+          if (!threadActions(t).later.disabled) useSurfaces.getState().openLater([t.key])
+        })
+      },
       select: () => withThread((t) => useUi.getState().toggleChecked(t.key)),
       trash: () => withThread((t) => live.current.act(threadActions(t).trash.type)),
       star: () => withThread((t) => live.current.act(threadActions(t).star.type)),
@@ -268,6 +287,14 @@ export function useShortcuts() {
         if (Number.isInteger(index) && index >= 0 && index < UNIFIED_ORDER.length) {
           event.preventDefault()
           useUi.getState().setView({ kind: 'unified', folder: UNIFIED_ORDER[index] })
+          return
+        }
+        // ⌘5 — Later, immediately after the four folders. It is handled as its
+        // own destination rather than by growing UNIFIED_ORDER, because that
+        // table is the Gmail system labels and Later is not one of them.
+        if (index === UNIFIED_ORDER.length) {
+          event.preventDefault()
+          useUi.getState().setView({ kind: 'later' })
         }
         return
       }

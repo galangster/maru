@@ -50,7 +50,10 @@ OAuth client, full demo mode, docs and handoff committed.
 
 ## Out of scope
 
-- Snooze, send-later, templates, signatures, smart-inbox categorization, AI
-  features, IMAP/other providers, multi-select, Gmail drafts sync, calendar,
-  >90-day backfill — ruled out in [Q17](../docs/DECISIONS.md); returns only
-  with a redrawn destination.
+- Send-later, templates, signatures, smart-inbox categorization, AI features,
+  IMAP/other providers, multi-select, Gmail drafts sync, calendar, >90-day
+  backfill — ruled out in [Q17](../docs/DECISIONS.md); returns only with a
+  redrawn destination.
+- Deferral came BACK in, 2026-09-01, as **Later** — local-only, its own table,
+  no new Gmail method. Not the cross-device snooze Q17 ruled out; see the
+  amendment there and [P21](tickets/P21-later-and-swipe.md).

@@ -43,6 +43,7 @@ import {
 } from '@/components/wren-controls'
 import type { Account, Settings, SyncStatus } from '@/core/types'
 import { AgentsSection } from '@/features/agents/agents-settings'
+import { LATER_DISCLOSURE } from '@/features/list/later-picker'
 import { useAccounts, useSaveSettings, useSettings, useSyncStatus } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import {
@@ -846,7 +847,30 @@ function SyncSection() {
           </SelectContent>
         </Select>
       </div>
+      <LaterBlock />
       <TransferBlock />
+    </div>
+  )
+}
+
+/**
+ * Disclosure site 3 of 3 — P21. Permanent, and it lives in Sync because Sync is
+ * the section that answers "what does this Mac know that my other devices do
+ * not", which is precisely the question Later raises.
+ *
+ * There is no switch here, deliberately: Later has no setting to turn off, and
+ * a control would imply the limitation were one. The section states the fact
+ * and the cost, once, where somebody looking for it would look.
+ */
+function LaterBlock() {
+  return (
+    <div className="flex flex-col gap-1">
+      <FieldLabel htmlFor="wren-later">Later</FieldLabel>
+      <p id="wren-later" className="text-ink-3 text-sm text-pretty">
+        {LATER_DISCLOSURE} Deferrals live in this Mac's database and are never
+        sent to Google, so Maru's inbox count and Gmail's will disagree by
+        however many threads you have saved.
+      </p>
     </div>
   )
 }

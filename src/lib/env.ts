@@ -114,6 +114,7 @@ export function themeOverride(): 'light' | 'dark' | null {
 export function viewOverride(): MailView | null {
   const value = params.get('view')
   if (!value) return null
+  if (value === 'later') return { kind: 'later' }
   if (isUnifiedFolder(value)) return { kind: 'unified', folder: value }
   const [kind, accountId, ...rest] = value.split(':')
   if (kind === 'account' && accountId && rest.length > 0) {

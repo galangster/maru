@@ -49,6 +49,7 @@ export type SelectionSource = 'keyboard' | 'pointer'
 
 /** Stable string for a view — query keys, selection resets, DOM hooks. */
 export function viewKey(view: MailView): string {
+  if (view.kind === 'later') return 'later'
   return view.kind === 'unified' ? view.folder : `account:${view.accountId}:${view.labelId}`
 }
 

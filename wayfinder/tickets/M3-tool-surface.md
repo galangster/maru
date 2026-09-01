@@ -106,3 +106,23 @@ Follow-on: user labels and outgoing attachments both need a `MailService`
 change, which M3 was scoped out of. `list_pending` writes an audit row per
 call like every other tool, so an agent that polls it will fill the timeline —
 worth a look if M4's triage loop polls.
+## Later is deliberately NOT a tool (P21, 2026-09-01)
+
+`MailService.defer` exists and no MCP tool wraps it. This is a decision, not a
+gap, and it is written here because the alternative is a future agent finding
+a service method with no tool and "fixing" it.
+
+**An agent hiding mail from you is precisely the trust failure
+`docs/PERMISSION-MODEL.md` exists to prevent.** Archive is recoverable and
+visible — the thread is in All Mail, the toast said so, and ⌘Z was offered for
+ten seconds. A deferral is neither: the person never saw the thread, so there
+is no moment at which they could have objected, and no undo affordance can be
+attached to something that was never on screen. It fails silently by
+construction, which is the one failure mode this surface must not have.
+
+The read side is fine and stays open: an agent can already see a deferred
+thread through `read_thread`, because `thread_defer` changes what the INBOX
+VIEW lists and not what the mailbox contains.
+
+Revisit only with a real answer to "how does the person find out", and not
+before.

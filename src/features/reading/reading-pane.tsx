@@ -23,6 +23,7 @@ import {
   useModifyLabels,
 } from '@/features/mail/queries'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
+import { useSurfaces } from '@/features/shell/surface-store'
 import { useUi } from '@/features/mail/ui-store'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 
@@ -154,7 +155,9 @@ export function ReadingPane() {
   // order differs here, because the toolbar reads left to right as triage then
   // state rather than as the row's four-in-a-cluster.
   const actions = threadActions(thread)
-  const toolbar: ThreadActionId[] = ['archive', 'trash', 'star', 'read']
+  // Later sits beside Archive, as it does in the row's cluster: the two answer
+  // the same question, "not now" and "not ever".
+  const toolbar: ThreadActionId[] = ['archive', 'later', 'trash', 'star', 'read']
 
   return (
     <section
@@ -187,6 +190,13 @@ export function ReadingPane() {
                 pop={spec.pop}
                 disabled={spec.disabled}
                 onClick={() => {
+                  // Later is not a label action, so it cannot go through
+                  // `performAction` — it opens the picker, and the list owns
+                  // the commit, the advance and the undo from there.
+                  if (spec.kind === 'later') {
+                    useSurfaces.getState().openLater([thread.key])
+                    return
+                  }
                   // Same advance rule as the keys: removing the open thread
                   // shows the next one, so triage stays one press per message.
                   if (spec.type === 'archive' || spec.type === 'trash') {

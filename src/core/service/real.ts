@@ -165,6 +165,14 @@ export class RealMailService implements MailService {
       this.store.getSettings(),
       this.store.listAccounts(),
     ])
+    // The launch pass of Later's lazy sweep, and it belongs HERE rather than
+    // only in React. A laptop closed for a week has wake times a week in the
+    // past; if the first list render happens before the sweep stamps `woke_at`,
+    // those threads render at list position ninety and then visibly jump to the
+    // top a moment later. It is one indexed UPDATE over a table that is usually
+    // empty — not the `allThreads()` mistake this method's comment above
+    // records.
+    await this.store.sweepDeferrals(this.now())
     for (const account of accounts) await this.bringUp(account, settings)
     this.indexReady = this.buildIndex()
     // Tests and captures run with autoStart false and want a service that is
@@ -508,6 +516,48 @@ export class RealMailService implements MailService {
       // a network problem — and hold it until the next poll tick.
       throw err
     }
+
+    // Leaving the inbox for any reason ends the deferral. Otherwise a thread
+    // archived and then un-archived mysteriously hides itself again, with
+    // nothing on screen to explain it.
+    //
+    // After the try/catch, not inside the optimistic block: the catch above
+    // rethrows, so reaching this line means Gmail accepted the change. A
+    // refused archive must never silently cancel a Later the person set, and
+    // writing it here is what makes that true without a rollback to maintain.
+    if (before.deferredUntil !== undefined && labelDelta(action.type).remove.includes('INBOX')) {
+      await this.store.clearDeferral([action.threadKey])
+      this.emit({ type: 'threadsChanged', accountId, threadKeys: [action.threadKey] })
+    }
+  }
+
+  // -- Later ------------------------------------------------------------------
+
+  /**
+   * Save a thread for later, or take the deferral off with `null`.
+   *
+   * No Gmail call, deliberately and structurally: `thread_defer` is the only
+   * table this touches, so the invariant above migration 6 holds by
+   * construction rather than by care. It is also why Later touches no method in
+   * the OAuth scope matrix.
+   */
+  async defer(key: string, wakeAt: number | null): Promise<void> {
+    const { accountId } = parseThreadKey(key)
+    if (wakeAt === null) await this.store.clearDeferral([key])
+    else await this.store.setDeferral(key, accountId, wakeAt, this.now())
+    this.emit({ type: 'threadsChanged', accountId, threadKeys: [key] })
+  }
+
+  async wakeDeferred(now: number): Promise<number> {
+    const { woken } = await this.store.sweepDeferrals(now)
+    // Only when something actually moved. A sweep that wakes nothing is the
+    // usual case and must not invalidate a list every minute forever.
+    if (woken > 0) this.emit({ type: 'threadsChanged' })
+    return woken
+  }
+
+  deferredCount(): Promise<number> {
+    return this.store.countDeferred(this.now())
   }
 
   async modifyLabels(threadKey: string, changes: LabelChanges): Promise<void> {
@@ -601,6 +651,8 @@ export class RealMailService implements MailService {
 
     await this.store.upsertMessages([message])
     await this.store.upsertThreads([thread])
+    // Replying is the loudest possible statement that you are done deferring.
+    if (draft.reply) await this.store.clearDeferral([draft.reply.threadKey])
     this.index.upsert(thread, bodyTextOf(messages))
     this.emit({ type: 'threadsChanged', accountId: account.id, threadKeys: [key] })
   }

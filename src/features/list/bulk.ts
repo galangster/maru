@@ -9,6 +9,7 @@ import { reverseAction } from '@/core/service/actions'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
 import { UNDO_LABELS, showUndoToast } from '@/features/mail/queries'
 import { useUi } from '@/features/mail/ui-store'
+import { wakeTime } from '@/lib/format'
 
 import { nextAfterRemoval } from './list-prefs'
 
@@ -77,4 +78,57 @@ export function bulkAction(
   ui.clearChecked()
   showUndoToast(label)
   return targets.length
+}
+
+/**
+ * Save the checked threads for later — a SIBLING of `bulkAction`, not a member.
+ *
+ * `BULK_TYPES` is typed off `MailActionType` and `bulkAction` reverses through
+ * `reverseAction(type)`, which is total over that union and has no Later case.
+ * Routing Later through it would compile and would ship an undo that silently
+ * does nothing, which is the worst of the three possible outcomes.
+ *
+ * The shape is mirrored exactly: checked-in-view, the follow selection computed
+ * before the rows go, ONE undoable for the whole batch, the checkmarks cleared,
+ * one toast. Returns how many it acted on, so the keymap knows whether to fall
+ * through to the single-thread path.
+ *
+ * The prior wake times are captured rather than assumed, so undoing "bring them
+ * back now" puts each thread back on its own schedule instead of on one shared
+ * guess.
+ */
+export function bulkDefer(
+  defer: (threadKey: string, wakeAt: number | null) => void,
+  visible: Thread[],
+  wakeAt: number | null,
+  now: number,
+): number {
+  const targets = checkedInView(visible)
+  if (targets.length === 0) return 0
+  const before = new Map(targets.map((t) => [t.key, t.deferredUntil ?? null]))
+  const keys = new Set(before.keys())
+
+  const ui = useUi.getState()
+  // Both directions remove rows from the list on screen: saving takes them out
+  // of the inbox, and bringing them back takes them out of Later.
+  if (ui.selected && keys.has(ui.selected)) {
+    ui.setSelected(nextAfterRemoval(visible, keys), 'keyboard')
+  }
+
+  for (const key of keys) defer(key, wakeAt)
+
+  const count = targets.length
+  const plural = `${count} thread${count === 1 ? '' : 's'}`
+  const label =
+    wakeAt === null ? `${plural} back in the inbox` : `${plural} saved for ${wakeTime(wakeAt, now)}`
+  ui.registerUndo({
+    id: 'bulk:later',
+    label,
+    run: () => {
+      for (const [key, prior] of before) defer(key, prior)
+    },
+  })
+  ui.clearChecked()
+  showUndoToast(label)
+  return count
 }

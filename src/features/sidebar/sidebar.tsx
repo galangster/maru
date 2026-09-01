@@ -19,7 +19,13 @@ import { FOLDERS, FOLDER_BY_LABEL } from '@/core/defaults'
 import type { Account, MailView } from '@/core/types'
 import { usePendingApprovals } from '@/features/agents/queries'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
-import { useAccounts, useLabels, useSyncStatus, useUnreadCount } from '@/features/mail/queries'
+import {
+  useAccounts,
+  useDeferredCount,
+  useLabels,
+  useSyncStatus,
+  useUnreadCount,
+} from '@/features/mail/queries'
 import { useMailMode } from '@/features/mail/service'
 import { useUi, viewKey } from '@/features/mail/ui-store'
 import { SHELL_CARD } from '@/features/shell/app-shell'
@@ -42,6 +48,7 @@ const DISCLOSURE_ROW =
 const SYSTEM_ORDER = FOLDERS.map((f) => f.label)
 
 const INBOX_VIEW: MailView = { kind: 'unified', folder: 'inbox' }
+const LATER_VIEW: MailView = { kind: 'later' }
 
 export function Sidebar() {
   const collapsed = useUi((s) => s.sidebarCollapsed)
@@ -49,6 +56,10 @@ export function Sidebar() {
   // Only the inbox shows a count, so only the inbox is subscribed to one. The
   // sidebar used to run a countUnread query per folder and render one of them.
   const inboxUnread = useUnreadCount(INBOX_VIEW).data ?? 0
+  // Threads WAITING in Later, which is a different question from unread and
+  // therefore a different query. Its own method rather than the length of the
+  // Later list, because that list is capped at a page.
+  const laterCount = useDeferredCount().data ?? 0
 
   return (
       <nav aria-label="Mailboxes" className={SHELL_CARD}>
@@ -90,9 +101,29 @@ export function Sidebar() {
                 label={item.name}
                 icon={item.icon}
                 collapsed={collapsed}
-                unread={item.folder === 'inbox' && inboxUnread > 0 ? inboxUnread : undefined}
+                count={
+                  item.folder === 'inbox' && inboxUnread > 0
+                    ? { value: inboxUnread, noun: 'unread' }
+                    : undefined
+                }
               />
             ))}
+            {/* Later — BELOW the FOLDERS.map, not inside it. `FOLDERS` is the
+                Gmail-system-label table and Later is not one; a fake entry
+                there would break `viewLabel` and `viewClause` and would put a
+                synthetic string where the type says a Gmail label id goes.
+                `SYSTEM_ORDER` is untouched for the same reason.
+
+                The count is threads WAITING, not unread ones — Later's question
+                is "how much did I put off", and it is the only number in the
+                sidebar that is not an unread count. */}
+            <NavRow
+              view={LATER_VIEW}
+              label="Later"
+              icon="calendar"
+              collapsed={collapsed}
+              count={laterCount > 0 ? { value: laterCount, noun: 'waiting' } : undefined}
+            />
           </ul>
 
           {/* Collapsed, the accounts are one group of jump targets, so they sit
@@ -152,7 +183,7 @@ function NavRow({
   label,
   icon,
   collapsed,
-  unread,
+  count,
   indent = false,
   hue,
 }: {
@@ -160,10 +191,16 @@ function NavRow({
   label: string
   icon?: IconName
   collapsed: boolean
-  /** Unread threads in this mailbox. The sidebar is the only place a mail
-   *  count is shown, so the number never has to be disambiguated against a
-   *  second one in the list header. */
-  unread?: number
+  /**
+   * The row's number, and the word that makes it mean something.
+   *
+   * The noun is not decoration: the Inbox's number is threads UNREAD and
+   * Later's is threads WAITING, and a screen reader announcing "Later, 3
+   * unread" would be stating something false about mail nobody has to read
+   * yet. The sidebar is the only place a mail count is shown, so the number
+   * never has to be disambiguated against a second one in the list header.
+   */
+  count?: { value: number; noun: string }
   indent?: boolean
   /** An account row's category hue, in place of an icon. */
   hue?: Hue
@@ -171,7 +208,7 @@ function NavRow({
   const current = useUi((s) => s.view)
   const setView = useUi((s) => s.setView)
   const active = viewKey(current) === viewKey(view)
-  const name = unread === undefined ? label : `${label}, ${unread} unread`
+  const name = count === undefined ? label : `${label}, ${count.value} ${count.noun}`
 
   const buttonProps = {
     type: 'button' as const,
@@ -233,7 +270,7 @@ function NavRow({
         // and there are none.
         <span aria-hidden className="flex min-w-0 flex-1 items-baseline gap-2 text-left">
           <span className="truncate">{label}</span>
-          {unread !== undefined && <UnreadCount value={unread} active={active} />}
+          {count !== undefined && <UnreadCount value={count.value} active={active} />}
         </span>
       )}
     </>

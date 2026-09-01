@@ -9,7 +9,7 @@ import { decodeBase64Url } from '../mime'
 import { searchWithOperators } from '../search/operators'
 import { ThreadSearchIndex } from '../search/index'
 import { buildDemoData, buildExtraAccount, labelsFor } from '../demo/fixtures'
-import { applyLabelChanges, applyActionToMessage, applyActionToThread } from './actions'
+import { applyLabelChanges, applyActionToMessage, applyActionToThread, labelDelta } from './actions'
 import { bodyTextOf, sentRowsFor } from './sent'
 import type {
   LabelChanges,
@@ -28,7 +28,13 @@ import type {
   ListThreadsOptions,
 } from '../types'
 import { threadKey } from '../types'
-import { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, threadMatchesView } from '../defaults'
+import {
+  DEFAULT_PAGE_SIZE,
+  DEFAULT_SETTINGS,
+  WOKE_RETENTION_MS,
+  deferSortKey,
+  threadMatchesView,
+} from '../defaults'
 
 export class DemoMailService implements MailService {
   private readonly accounts: Account[]
@@ -37,6 +43,13 @@ export class DemoMailService implements MailService {
   private readonly labels = new Map<string, Label[]>()
   private readonly listeners = new Set<(e: MailEvent) => void>()
   private readonly index = new ThreadSearchIndex()
+  /**
+   * Later, in memory — the demo's `thread_defer`. A separate map rather than a
+   * field on the Thread, for the same reason the store uses a separate table:
+   * every write path here replaces the whole Thread object, and a field would
+   * be erased by the next `performAction` that touched the row.
+   */
+  private readonly deferrals = new Map<string, { wakeAt: number; setAt: number; wokeAt?: number }>()
   // `?images=block` is the capture door onto the blocking surface — see
   // imagePreview in lib/env. Demo-only, so it can never reach real mail.
   private settings: Settings = { ...DEFAULT_SETTINGS, ...(imagePreview ? { imagePolicy: imagePreview } : {}) }
@@ -175,12 +188,34 @@ export class DemoMailService implements MailService {
   // -- reads ----------------------------------------------------------------
 
   async listThreads(view: MailView, opts: ListThreadsOptions = {}): Promise<Thread[]> {
-    return [...this.threads.values()]
-      .filter((t) => threadMatchesView(t, view))
-      .filter((t) => opts.before === undefined || t.lastMessageAt < opts.before)
-      .sort((a, b) => b.lastMessageAt - a.lastMessageAt || a.key.localeCompare(b.key))
+    // Later sorts by when each thread comes BACK — next to return, first —
+    // and pages forward through that. Every other view sorts by the same
+    // deferral-aware key the store's SQL uses, newest first. One expression per
+    // view, read by both the sort and the cursor, so paging cannot walk a
+    // different order than the one it sorts by.
+    const later = view.kind === 'later'
+    const rank = later ? (t: Thread) => t.deferredUntil ?? 0 : deferSortKey
+    const direction = later ? 1 : -1
+    return this.matching(view, opts.now ?? Date.now())
+      .filter((t) => opts.before === undefined || direction * (rank(t) - opts.before) > 0)
+      .sort((a, b) => direction * (rank(a) - rank(b)) || a.key.localeCompare(b.key))
       .slice(0, opts.limit ?? DEFAULT_PAGE_SIZE)
       .map((t) => ({ ...t }))
+  }
+
+  /**
+   * Every thread this view contains at `now`, hydrated with whatever Later
+   * knows about it — the demo's LEFT JOIN and view clause in one place, so the
+   * list, the unread count and the Later count cannot disagree about what a
+   * view holds.
+   */
+  private matching(view: MailView, now: number): Thread[] {
+    return [...this.threads.values()]
+      .map((thread) => {
+        const row = this.deferrals.get(thread.key)
+        return row ? { ...thread, deferredUntil: row.wakeAt, wokeAt: row.wokeAt } : thread
+      })
+      .filter((t) => threadMatchesView(t, view, now))
   }
 
   private require(key: string): Thread {
@@ -225,7 +260,11 @@ export class DemoMailService implements MailService {
   }
 
   async unreadCount(view: MailView): Promise<number> {
-    return [...this.threads.values()].filter((t) => threadMatchesView(t, view) && t.unread).length
+    return this.matching(view, Date.now()).filter((t) => t.unread).length
+  }
+
+  async deferredCount(): Promise<number> {
+    return this.matching({ kind: 'later' }, Date.now()).length
   }
 
   async search(q: string): Promise<Thread[]> {
@@ -244,6 +283,9 @@ export class DemoMailService implements MailService {
   async performAction(action: MailAction): Promise<void> {
     const thread = this.require(action.threadKey)
     const next = applyActionToThread(thread, action.type)
+    // Leaving the inbox ends the deferral, so an archived-then-unarchived
+    // thread does not mysteriously hide itself again.
+    if (labelDelta(action.type).remove.includes('INBOX')) this.deferrals.delete(action.threadKey)
     this.threads.set(next.key, next)
     this.messages.set(
       next.key,
@@ -267,6 +309,34 @@ export class DemoMailService implements MailService {
     )
     this.index.upsert(next)
     this.emit({ type: 'threadsChanged', accountId: next.accountId, threadKeys: [next.key] })
+  }
+
+  // -- Later ------------------------------------------------------------------
+
+  async defer(key: string, wakeAt: number | null): Promise<void> {
+    const thread = this.require(key)
+    if (wakeAt === null) this.deferrals.delete(key)
+    // `woke_at` is deliberately absent on the way in: re-saving a thread that
+    // already came back once starts a fresh deferral rather than inheriting the
+    // old wake stamp and its place at the top of Today.
+    else this.deferrals.set(key, { wakeAt, setAt: Date.now() })
+    this.emit({ type: 'threadsChanged', accountId: thread.accountId, threadKeys: [key] })
+  }
+
+  /** The demo's twin of `Store.sweepDeferrals` — same two steps, no SQL. */
+  async wakeDeferred(now: number): Promise<number> {
+    let woken = 0
+    for (const [key, row] of [...this.deferrals]) {
+      if (row.wokeAt === undefined && row.wakeAt <= now) {
+        this.deferrals.set(key, { ...row, wokeAt: now })
+        woken += 1
+        continue
+      }
+      // The 24 h garbage collection that ends the back-at-the-top treatment.
+      if (row.wokeAt !== undefined && row.wokeAt <= now - WOKE_RETENTION_MS) this.deferrals.delete(key)
+    }
+    if (woken > 0) this.emit({ type: 'threadsChanged' })
+    return woken
   }
 
   async send(draft: ComposeDraft): Promise<void> {
@@ -298,6 +368,8 @@ export class DemoMailService implements MailService {
 
     this.messages.set(key, messages)
     this.threads.set(key, thread)
+    // Replying is the loudest possible statement that you are done deferring.
+    if (draft.reply) this.deferrals.delete(draft.reply.threadKey)
     this.index.upsert(thread, bodyTextOf(messages))
     this.emit({ type: 'threadsChanged', accountId: account.id, threadKeys: [key] })
   }

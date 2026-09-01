@@ -26,6 +26,16 @@ export const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: 'about', label: 'About' },
 ]
 
+/**
+ * What the Later picker is about: the threads it will save, and whether this
+ * came from a batch — which decides the toast's wording and the undo's id, and
+ * is not derivable from `keys.length` because a batch of one is still a batch.
+ */
+export interface LaterTarget {
+  keys: string[]
+  bulk: boolean
+}
+
 interface SurfaceState {
   palette: boolean
   /** The open section, or null when Settings is closed. */
@@ -40,6 +50,12 @@ interface SurfaceState {
    * this agent" is a single call and cannot half-apply.
    */
   audit: string | null
+  /**
+   * The Later picker — P21. Held here rather than in the list because three
+   * doors open it (`h`, the row's hover cluster, the palette) and one of them
+   * is a global key handler with no component to hang state on.
+   */
+  later: LaterTarget | null
   /** The list header's inline search field, and what is in it. */
   searchOpen: boolean
   searchQuery: string
@@ -52,6 +68,8 @@ interface SurfaceState {
   setApprovals: (open: boolean) => void
   openAudit: (agentId?: string) => void
   closeAudit: () => void
+  openLater: (keys: string[], bulk?: boolean) => void
+  closeLater: () => void
   openSearch: () => void
   closeSearch: () => void
   setSearchQuery: (q: string) => void
@@ -64,6 +82,7 @@ export const useSurfaces = create<SurfaceState>((set) => ({
   onboarding: false,
   approvals: false,
   audit: null,
+  later: null,
   searchOpen: false,
   searchQuery: '',
 
@@ -78,6 +97,11 @@ export const useSurfaces = create<SurfaceState>((set) => ({
   // than stacking a third dialog on top of them.
   openAudit: (agentId = 'all') => set({ audit: agentId, approvals: false, settings: null }),
   closeAudit: () => set({ audit: null }),
+  // Opening it closes the palette, which is one of the three doors onto it: a
+  // picker floating over a palette would be the third glass layer DIRECTION §7
+  // rule 1 calls a bug.
+  openLater: (keys, bulk = false) => set(keys.length ? { later: { keys, bulk }, palette: false } : {}),
+  closeLater: () => set({ later: null }),
   openSearch: () => set({ searchOpen: true }),
   closeSearch: () => set({ searchOpen: false, searchQuery: '' }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -89,7 +113,13 @@ export const useSurfaces = create<SurfaceState>((set) => ({
  * the answer changes — it drops its blur so glass never stacks three deep.
  */
 export const selectAnyDialogOpen = (s: SurfaceState): boolean =>
-  s.palette || s.settings !== null || s.shortcuts || s.onboarding || s.approvals || s.audit !== null
+  s.palette ||
+  s.settings !== null ||
+  s.shortcuts ||
+  s.onboarding ||
+  s.approvals ||
+  s.audit !== null ||
+  s.later !== null
 
 export function anyDialogOpen(): boolean {
   return selectAnyDialogOpen(useSurfaces.getState())

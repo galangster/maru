@@ -55,8 +55,14 @@ bar, ranked by how hard it bites and who it bites.
    system's mail app yet; clicking an email link opens the wrong thing.
 10. **Undo-send window is fixed at 4 s** — should be a setting (0/4/10/30).
 11. **No signature block.**
-12. **Snooze / send-later** — table stakes in every peer; genuinely new
-    engine surface, likely map 4.
+12. ~~**Snooze / send-later**~~ — deferral CLOSED 2026-09-01 as **Later**
+    (P21 lane 1): local-only, its own `thread_defer` table, a lazy wake
+    predicate rather than a timer, three keyboard doors, and no new Gmail
+    method. It is deliberately not called Snooze — that word is a
+    cross-device promise and this is one Mac, so one disclosure sentence
+    rides permanently with the feature in three places. **Send-later is
+    still open** and is a genuinely different problem: it is an outbound
+    action in an app whose pitch is that you approve every send.
 13. **Notification taps** — new-mail notifications should land on the
     thread, not just the app.
 14. **Trash never empties** — no manual "empty trash", relying on

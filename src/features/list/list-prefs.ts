@@ -8,6 +8,7 @@
 // page, silent about the archive. Pushing the order into `listThreads` is the
 // deeper fix and is recorded in the M7 ticket, not smuggled in here.
 
+import { deferSortKey } from '@/core/defaults'
 import type { Thread } from '@/core/types'
 import type { EmptyCopy } from '@/components/empty-state'
 import {
@@ -36,9 +37,15 @@ export const FILTER_LABELS: Record<ListFilter, string> = {
 }
 
 /**
- * Apply the lens. Sorting is by `lastMessageAt` with the thread key as the
+ * Apply the lens. Sorting is by `deferSortKey` with the thread key as the
  * tiebreak, matching the service's own ordering rule, so `newest` returns the
  * service's order rather than a rival implementation of it.
+ *
+ * It is `deferSortKey` and not `lastMessageAt` because the store's ORDER BY is
+ * `MAX(last_message_at, COALESCE(woke_at, 0))`: a thread from three weeks ago
+ * that has just come back from Later belongs at the top, and a lens that
+ * re-sorted on the raw timestamp would silently bury it again the moment
+ * anybody chose "oldest first".
  */
 export function applyListPrefs(threads: Thread[], prefs: ListPrefs): Thread[] {
   // The default lens is the service's own order: hand the array back rather
@@ -48,7 +55,7 @@ export function applyListPrefs(threads: Thread[], prefs: ListPrefs): Thread[] {
   const direction = prefs.sort === 'newest' ? -1 : 1
   return shown.sort(
     (a, b) =>
-      direction * (a.lastMessageAt - b.lastMessageAt) || a.key.localeCompare(b.key),
+      direction * (deferSortKey(a) - deferSortKey(b)) || a.key.localeCompare(b.key),
   )
 }
 

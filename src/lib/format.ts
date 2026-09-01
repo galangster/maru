@@ -92,6 +92,57 @@ export function fullTimestamp(ts: number): string {
   return fullFmt.format(ts)
 }
 
+/**
+ * When a saved thread comes back, in the words the toast and the Later view
+ * both use: "this evening, 18:00", "tomorrow, 9:00", "Monday, 9:00",
+ * "Sep 24, 9:00".
+ *
+ * The toast states what MARU will do, which is both the honest claim and the
+ * one the person actually wants to check — not "Saved", which says nothing
+ * about when. It reads the same clock every other relative date reads, so a
+ * frozen capture and a live window say the same thing.
+ */
+/**
+ * The Later view's group headers.
+ *
+ * A separate closed set from `DateGroup` because that one buckets the PAST and
+ * has no upper bound — every future timestamp satisfies its first branch, so
+ * reusing it would put a whole month of deferrals under one "Today". Later's
+ * list is ordered by when each thread comes back, and a header must agree with
+ * the order it sits in or it stops being a header and becomes noise.
+ *
+ * The set is closed at a month because `MAX_DEFER_DAYS` is 30: nothing can be
+ * saved past it, so there is no sixth bucket to write.
+ */
+export type WakeGroup = 'Today' | 'Tomorrow' | 'This week' | 'Next week' | 'Later this month'
+
+export function wakeGroup(ts: number, now: number): WakeGroup {
+  const days = Math.round((startOfDay(ts) - startOfDay(now)) / DAY)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Tomorrow'
+  if (days < 7) return 'This week'
+  if (days < 14) return 'Next week'
+  return 'Later this month'
+}
+
+export function wakeTime(ts: number, now: number): string {
+  const clock = timeFmt.format(ts).replace(/^0/, '')
+  // Deliberately NOT `dateGroup`. That function buckets a timestamp in the
+  // PAST and has no upper bound, so every future time satisfies its first
+  // branch and reads as "Today" — which is how "tomorrow, 9:00" came out as
+  // "this evening, 9:00" the first time this was written.
+  //
+  // Whole days apart, measured between local midnights so a DST day (23 or 25
+  // hours) still counts as one day rather than rounding into the next bucket.
+  const days = Math.round((startOfDay(ts) - startOfDay(now)) / DAY)
+  if (days <= 0) return `this evening, ${clock}`
+  if (days === 1) return `tomorrow, ${clock}`
+  // Inside the coming week the weekday is the useful word; past it, a date is,
+  // because "Monday" three weeks out is a thing nobody can place.
+  if (days < 7) return `${weekdayFmt.format(ts)}, ${clock}`
+  return `${dateFmt.format(ts)}, ${clock}`
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`

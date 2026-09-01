@@ -10,6 +10,16 @@ import type { MailView } from '@/core/types'
 import { claimCelebration } from '@/lib/celebrate'
 
 export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
+  // Later, empty, is the ordinary state and not an achievement — nothing was
+  // cleared, there was simply nothing put off. The subtitle carries the
+  // one-line why DIRECTION §2 Family 2 requires: an empty view has to say what
+  // WOULD be here, or it reads as a broken one.
+  if (view.kind === 'later') {
+    return {
+      title: 'Nothing waiting',
+      subtitle: 'Threads you save for later come back here, then to your inbox.',
+    }
+  }
   if (view.kind === 'unified') {
     switch (view.folder) {
       // "Inbox zero" belongs to the EARNED tier alone (empty-state.tsx). An

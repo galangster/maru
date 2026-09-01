@@ -29,6 +29,7 @@ export type ShortcutId =
   | 'folders'
   | 'select'
   | 'archive'
+  | 'later'
   | 'trash'
   | 'star'
   | 'read'
@@ -69,12 +70,21 @@ export const SHORTCUTS: ShortcutSpec[] = [
   { id: 'open', keys: ['↵'], label: 'Open the selection', group: 'Move', key: 'Enter' },
   { id: 'scan', keys: ['space'], label: 'Scroll, then next thread', group: 'Move' },
   { id: 'expandAll', keys: ['O'], label: 'Expand or collapse all messages', group: 'Move', key: 'o' },
-  { id: 'folders', keys: [`${MOD}1`, `${MOD}4`], label: 'Inbox … Trash', group: 'Move' },
+  // ⌘5 is Later, which is not one of the four folders — so the printed range
+  // runs to 5 while UNIFIED_ORDER stays four long, and the handler treats the
+  // fifth as its own destination rather than indexing past the end of a table.
+  { id: 'folders', keys: [`${MOD}1`, `${MOD}5`], label: 'Inbox … Later', group: 'Move' },
 
   // `x`, Gmail's select. Checked threads turn e/#/u into batch verbs; the
   // bulk bar above the list offers the same verbs to the mouse.
   { id: 'select', keys: ['X'], label: 'Select for a batch', group: 'Triage', key: 'x' },
   { id: 'archive', keys: ['E'], label: 'Archive', group: 'Triage', key: 'e', aliases: ['Backspace', 'Delete'] },
+  // `h` because AMIE-STUDY.md already wrote `Snooze H` into this repo's own
+  // bulk-bar spec, so binding `b` alone would create a contradiction somebody
+  // has to reconcile later. `b` rides as an unprinted alias because it is
+  // Gmail's snooze key — the same precedent `z` takes below: one canonical
+  // chord, one muscle-memory alias.
+  { id: 'later', keys: ['H'], label: 'Save for later', group: 'Triage', key: 'h', aliases: ['b'] },
   { id: 'trash', keys: ['#'], label: 'Trash or restore', group: 'Triage', key: '#' },
   { id: 'star', keys: ['S'], label: 'Star', group: 'Triage', key: 's' },
   { id: 'read', keys: ['U'], label: 'Read / unread', group: 'Triage', key: 'u' },

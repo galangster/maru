@@ -26,7 +26,7 @@ import type {
 } from '../types'
 import { parseThreadKey } from '../types'
 import type { LabelDelta } from '../service/actions'
-import { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, viewLabel } from '../defaults'
+import { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, WOKE_RETENTION_MS, viewLabel } from '../defaults'
 import { CIPHERTEXT_PREFIX, type Keyring, keyringFor } from '../crypto/keyring'
 
 export { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, FOLDER_LABELS } from '../defaults'
@@ -267,6 +267,51 @@ export const MIGRATIONS: string[] = [
   UPDATE settings SET json = json_remove(json, '$.imagePolicy')
   WHERE json_extract(json, '$.imagePolicy') = 'block';
   `,
+  // 6 — Later (P21), in its own table.
+  //
+  // THE INVARIANT, and it is the whole design:
+  //
+  //     Maru never disagrees with Gmail about what a thread's labels are.
+  //     It only decides what to show you.
+  //
+  // A deferred thread still carries INBOX in `thread_labels`; archiving it
+  // later still removes INBOX correctly; there is no conflict to arbitrate and
+  // no precedence rule to write. Deferral is a predicate over a stored
+  // timestamp, evaluated when the query runs.
+  //
+  // The enforcement is STRUCTURAL rather than a rule anyone has to remember.
+  // `upsertThreads` rewrites `threads.label_ids` and deletes and re-inserts
+  // `thread_labels` wholesale on every sync pass — so any local state expressed
+  // as a label is destroyed within one poll interval. But it names those two
+  // tables and nothing else, so a separate table cannot be clobbered by a
+  // method that does not know it exists. A COLUMN on `threads` would NOT have
+  // this property: `upsertThreads` rewrites twelve named columns from a Thread,
+  // so a stale in-memory Thread round-tripping through any sync path would
+  // silently erase the deferral.
+  //
+  // Why local-only rather than a Gmail label, in one line: a label-based snooze
+  // removes INBOX at Google and needs a network write at wake time that only
+  // happens if this Mac runs, so a laptop shut Monday to Friday hides mail on
+  // every device, past its time, with no timer anywhere that will fix it.
+  // Label-based fails unsafe. Local-only fails safe.
+  //
+  // No ALTER on any existing table, so the encryption sweep and
+  // ENCRYPTED_THREAD_COLUMNS are untouched. No keyring encryption either:
+  // `thread_key` is already plaintext as `threads.key`, and two timestamps are
+  // not message content.
+  //
+  // Idempotent, unlike entry 5.
+  `
+  CREATE TABLE IF NOT EXISTS thread_defer (
+    thread_key TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    wake_at    INTEGER NOT NULL,
+    set_at     INTEGER NOT NULL,
+    woke_at    INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_thread_defer_wake ON thread_defer (wake_at);
+  CREATE INDEX IF NOT EXISTS idx_thread_defer_account ON thread_defer (account_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -306,6 +351,9 @@ interface ThreadRow {
   starred: number
   message_count: number
   has_attachments: number
+  /** From the LEFT JOIN on `thread_defer`, never from a column on `threads`. */
+  defer_wake_at?: number | null
+  defer_woke_at?: number | null
 }
 
 interface MessageRow {
@@ -395,6 +443,8 @@ function rowToThread(r: ThreadRow): Thread {
     starred: r.starred === 1,
     messageCount: r.message_count,
     hasAttachments: r.has_attachments === 1,
+    deferredUntil: r.defer_wake_at ?? undefined,
+    wokeAt: r.defer_woke_at ?? undefined,
   }
 }
 
@@ -744,7 +794,10 @@ export class Store {
        WHERE account_id = $2 AND status = 'pending'`,
       [now, accountId],
     )
-    for (const table of ['messages', 'thread_labels', 'threads', 'labels', 'sync_state']) {
+    // `thread_defer` belongs in this loop, not beside it: leaving deferral rows
+    // behind after a "delete my data" is exactly the promise the `keyring.destroy`
+    // below is careful to keep.
+    for (const table of ['messages', 'thread_labels', 'threads', 'thread_defer', 'labels', 'sync_state']) {
       await this.db.execute(`DELETE FROM ${table} WHERE account_id = $1`, [accountId])
     }
     await this.db.execute('DELETE FROM accounts WHERE id = $1', [accountId])
@@ -824,13 +877,31 @@ export class Store {
     }
   }
 
+  /**
+   * The read path's one spelling of "and whatever Later knows about it".
+   *
+   * A LEFT JOIN rather than a column, because `upsertThreads` must never be
+   * able to write these back — see the invariant above migration 6.
+   */
+  private static readonly DEFER_JOIN =
+    'LEFT JOIN thread_defer d ON d.thread_key = t.key'
+  private static readonly DEFER_COLUMNS =
+    'd.wake_at AS defer_wake_at, d.woke_at AS defer_woke_at'
+
   async getThread(key: string): Promise<Thread | null> {
-    const rows = await this.db.select<ThreadRow>('SELECT * FROM threads WHERE key = $1', [key])
+    const rows = await this.db.select<ThreadRow>(
+      `SELECT t.*, ${Store.DEFER_COLUMNS} FROM threads t ${Store.DEFER_JOIN} WHERE t.key = $1`,
+      [key],
+    )
     return rows.length ? rowToThread(await this.decryptThreadRow(rows[0])) : null
   }
 
+  /** Feeds the search index, which is why it carries the defer columns too. */
   async allThreads(): Promise<Thread[]> {
-    const rows = await this.db.select<ThreadRow>('SELECT * FROM threads ORDER BY last_message_at DESC')
+    const rows = await this.db.select<ThreadRow>(
+      `SELECT t.*, ${Store.DEFER_COLUMNS} FROM threads t ${Store.DEFER_JOIN}
+       ORDER BY t.last_message_at DESC`,
+    )
     return Promise.all(rows.map(async (row) => rowToThread(await this.decryptThreadRow(row))))
   }
 
@@ -840,8 +911,81 @@ export class Store {
       const list = placeholderList(group.length)
       await this.db.execute(`DELETE FROM messages WHERE thread_key IN (${list})`, group)
       await this.db.execute(`DELETE FROM thread_labels WHERE thread_key IN (${list})`, group)
+      // Without this a thread that falls out of the 90-day window orphans its
+      // deferral row, and the row would then match a later thread that happened
+      // to reuse the key.
+      await this.db.execute(`DELETE FROM thread_defer WHERE thread_key IN (${list})`, group)
       await this.db.execute(`DELETE FROM threads WHERE key IN (${list})`, group)
     }
+  }
+
+  // -- Later ------------------------------------------------------------------
+
+  /**
+   * Save a thread for later. `woke_at` is cleared on the way in, so re-saving a
+   * thread that already came back once starts a fresh deferral rather than
+   * inheriting the old wake stamp and its position at the top of Today.
+   */
+  async setDeferral(threadKey: string, accountId: string, wakeAt: number, now: number): Promise<void> {
+    await this.db.execute(
+      `INSERT OR REPLACE INTO thread_defer (thread_key, account_id, wake_at, set_at, woke_at)
+       VALUES ($1, $2, $3, $4, NULL)`,
+      [threadKey, accountId, wakeAt, now],
+    )
+  }
+
+  /** Take the deferral off — an undo, a reply, an archive, or an explicit cancel. */
+  async clearDeferral(keys: string[]): Promise<void> {
+    if (keys.length === 0) return
+    for (const group of chunkRows(keys, 1)) {
+      await this.db.execute(
+        `DELETE FROM thread_defer WHERE thread_key IN (${placeholderList(group.length)})`,
+        group,
+      )
+    }
+  }
+
+  /**
+   * The lazy sweep. Two indexed statements, no timer, nothing to miss.
+   *
+   * The UPDATE stamps every deferral that has come due, which is what puts the
+   * thread at the top of Today rather than wherever its last message would have
+   * placed it. The DELETE is the garbage collection that ENDS that treatment 24
+   * hours later — without it a thread woken in March would still be sorting by
+   * its wake time in June.
+   *
+   * Returns how many threads actually moved, so a caller can invalidate only
+   * when something changed rather than on every tick of a clock.
+   */
+  async sweepDeferrals(now: number): Promise<{ woken: number }> {
+    const due = await this.db.select<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM thread_defer WHERE wake_at <= $1 AND woke_at IS NULL',
+      [now],
+    )
+    const woken = due[0]?.n ?? 0
+    if (woken > 0) {
+      await this.db.execute(
+        'UPDATE thread_defer SET woke_at = $1 WHERE wake_at <= $1 AND woke_at IS NULL',
+        [now],
+      )
+    }
+    await this.db.execute(
+      'DELETE FROM thread_defer WHERE woke_at IS NOT NULL AND woke_at <= $1',
+      [now - WOKE_RETENTION_MS],
+    )
+    return { woken }
+  }
+
+  /**
+   * Every thread holding a LIVE deferral, for `resyncWindow`'s eviction guard.
+   * A thread whose last message is already 60 days old, saved 30 days out,
+   * would otherwise be deleted at day 90 and take its deferral with it.
+   */
+  async deferredKeys(): Promise<string[]> {
+    const rows = await this.db.select<{ thread_key: string }>(
+      'SELECT thread_key FROM thread_defer WHERE woke_at IS NULL',
+    )
+    return rows.map((r) => r.thread_key)
   }
 
   async listThreadKeys(accountId: string): Promise<string[]> {
@@ -849,8 +993,14 @@ export class Store {
     return rows.map((r) => r.key)
   }
 
-  /** SQL twin of threadMatchesView; both read the label rule from defaults.ts. */
-  private viewClause(view: MailView): { where: string; params: unknown[] } {
+  /**
+   * SQL twin of threadMatchesView; both read the label rule from defaults.ts.
+   *
+   * `now` is what the deferral half is evaluated against. One clause covers the
+   * unified inbox AND every per-account inbox, and `countUnread` gets the
+   * sidebar badge right for free because it shares this method.
+   */
+  private viewClause(view: MailView, now: number): { where: string; params: unknown[] } {
     const label = viewLabel(view)
     const params: unknown[] = [label]
     let where = `t.key IN (SELECT thread_key FROM thread_labels WHERE label_id = $1)`
@@ -861,27 +1011,56 @@ export class Store {
     if (label !== 'TRASH') {
       where += ` AND t.key NOT IN (SELECT thread_key FROM thread_labels WHERE label_id = 'TRASH')`
     }
+    // INBOX only, and Later is the same subquery read the other way round. A
+    // deferred thread that is also starred still appears under Starred:
+    // deferral is about the inbox, not about the mailbox.
+    if (view.kind === 'later' || label === 'INBOX') {
+      params.push(now)
+      const subquery = `(SELECT thread_key FROM thread_defer WHERE wake_at > $${params.length})`
+      where += view.kind === 'later' ? ` AND t.key IN ${subquery}` : ` AND t.key NOT IN ${subquery}`
+    }
     return { where, params }
   }
 
   async listThreads(view: MailView, opts: ListThreadsOptions = {}): Promise<Thread[]> {
-    const { where, params } = this.viewClause(view)
+    const now = opts.now ?? Date.now()
+    const { where, params } = this.viewClause(view, now)
     const args = [...params]
-    let sql = `SELECT t.* FROM threads t WHERE ${where}`
+    // Later orders by when each thread comes BACK — next to return, first.
+    // Every other view orders by the sort key, which is `last_message_at`
+    // except for a thread that has just woken: without the `woke_at` term a
+    // thread from three weeks ago saved until this morning returns at list
+    // position ninety and is never seen. The cursor compares against the SAME
+    // expression, or paging would walk a different order than the one it sorts
+    // by. (Nothing in src/ passes `before` today, so that half is a correctness
+    // fix on a dormant path rather than a live break.)
+    const later = view.kind === 'later'
+    const order = later ? 'd.wake_at' : 'MAX(t.last_message_at, COALESCE(d.woke_at, 0))'
+    let sql = `SELECT t.*, ${Store.DEFER_COLUMNS} FROM threads t ${Store.DEFER_JOIN} WHERE ${where}`
     if (opts.before !== undefined) {
       args.push(opts.before)
-      sql += ` AND t.last_message_at < $${args.length}`
+      sql += ` AND ${order} ${later ? '>' : '<'} $${args.length}`
     }
     args.push(opts.limit ?? DEFAULT_PAGE_SIZE)
-    sql += ` ORDER BY t.last_message_at DESC, t.key ASC LIMIT $${args.length}`
+    sql += ` ORDER BY ${order} ${later ? 'ASC' : 'DESC'}, t.key ASC LIMIT $${args.length}`
     const rows = await this.db.select<ThreadRow>(sql, args)
     return Promise.all(rows.map(async (row) => rowToThread(await this.decryptThreadRow(row))))
   }
 
-  async countUnread(view: MailView): Promise<number> {
-    const { where, params } = this.viewClause(view)
+  async countUnread(view: MailView, now: number = Date.now()): Promise<number> {
+    const { where, params } = this.viewClause(view, now)
     const rows = await this.db.select<{ n: number }>(
       `SELECT COUNT(*) AS n FROM threads t WHERE ${where} AND t.unread = 1`,
+      params,
+    )
+    return rows[0]?.n ?? 0
+  }
+
+  /** How many threads are waiting in Later — the sidebar row's count. */
+  async countDeferred(now: number = Date.now()): Promise<number> {
+    const { where, params } = this.viewClause({ kind: 'later' }, now)
+    const rows = await this.db.select<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM threads t WHERE ${where}`,
       params,
     )
     return rows[0]?.n ?? 0

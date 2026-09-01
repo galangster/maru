@@ -131,6 +131,38 @@ smart-inbox categorization, AI features, IMAP/other providers, multi-select,
 Gmail drafts sync (local draft persistence only), calendar, unified
 "load older than 90d".
 
+> **Q17 amended 2026-09-01 — deferral is IN, and it is called Later.**
+> Nick asked for Spark's save-for-later on 2026-08-31 ("nice, fun little
+> interactions"), and P21 shipped it the next day. The original answer stands
+> for everything else on that list.
+>
+> It is **not** the snooze Q17 ruled out, and the difference is the whole
+> design. Gmail exposes no snooze API, so Maru would have had to hold the
+> timer — and a timer held by a laptop that is shut on Tuesday morning
+> removes INBOX at Google on Monday and never puts it back. That fails
+> unsafe: mail the person asked to see on Tuesday is gone from *every*
+> device, past its time, with nothing anywhere that will fix it.
+>
+> Later is a local predicate instead — `wake_at > now`, in its own
+> `thread_defer` table, evaluated when the query runs. Nothing has to happen
+> at wake time, so nothing can be missed; a week with the laptop shut costs
+> nothing and the thread is simply there. It calls **no new Gmail method**,
+> so the open verification submission and
+> `docs/security/google-oauth-method-scope-matrix.md` are untouched.
+>
+> The name is load-bearing. "Snooze" is a cross-device promise in Gmail,
+> Spark and Superhuman alike, and Maru's is one Mac — so the word would turn
+> an honest local feature into a lie. It is **Later**, and one sentence rides
+> permanently with it in three places (the picker, the Later view's header,
+> and Settings → Sync): *"Later is on this Mac. Gmail on your phone still
+> shows these in your inbox."*
+>
+> The cost, stated: Maru's inbox count and Gmail's iOS badge disagree by
+> however many threads are saved. There is no mitigation short of a sync
+> service (map 4, G2), and `thread_defer` is exactly the shape that syncs on
+> that spine when it arrives. Full reasoning in
+> [P21](../wayfinder/tickets/P21-later-and-swipe.md).
+
 **Q18 — Build SOP:** sequential single-writer lanes (scaffold → engine →
 shell → features → polish), Opus-floor agents for component-writing lanes,
 one verification gate per boundary, simplify pass before seal. Detail in

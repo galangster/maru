@@ -288,6 +288,80 @@ describe('optimistic actions', () => {
   })
 })
 
+describe('Later, in the real service', () => {
+  let ctx: Awaited<ReturnType<typeof harness>>
+  beforeEach(async () => {
+    ctx = await harness()
+  })
+
+  it('saves and cancels without calling Gmail at all', async () => {
+    const { client, store, svc, events } = ctx
+    const wakeAt = Date.now() + 86_400_000
+
+    await svc.defer('acct-1/t-1', wakeAt)
+    expect((await store.getThread('acct-1/t-1'))?.deferredUntil).toBe(wakeAt)
+    // The whole point of local-only: no Gmail method is reached, so the
+    // scope matrix and the open verification submission are untouched.
+    expect(client.modifyCalls).toEqual([])
+    expect(events.filter((e) => e.type === 'threadsChanged')).toHaveLength(1)
+
+    await svc.defer('acct-1/t-1', null)
+    expect((await store.getThread('acct-1/t-1'))?.deferredUntil).toBeUndefined()
+    expect(client.modifyCalls).toEqual([])
+  })
+
+  it('ends the deferral when the thread leaves the inbox', async () => {
+    const { store, svc } = ctx
+    await svc.defer('acct-1/t-1', Date.now() + 86_400_000)
+    await svc.performAction({ type: 'archive', threadKey: 'acct-1/t-1' })
+    expect((await store.getThread('acct-1/t-1'))?.deferredUntil).toBeUndefined()
+  })
+
+  it('leaves the deferral alone when Gmail REFUSES the archive', async () => {
+    const { client, store, svc } = ctx
+    const wakeAt = Date.now() + 86_400_000
+    await svc.defer('acct-1/t-1', wakeAt)
+    client.failWith = new HttpError(403, 'Forbidden', 'insufficientPermissions', 'https://x')
+
+    await expect(svc.performAction({ type: 'archive', threadKey: 'acct-1/t-1' })).rejects.toBeInstanceOf(HttpError)
+    // A refused archive must never silently cancel a Later the person set.
+    expect((await store.getThread('acct-1/t-1'))?.deferredUntil).toBe(wakeAt)
+  })
+
+  it('leaves a star alone — only leaving the INBOX ends a deferral', async () => {
+    const { store, svc } = ctx
+    const wakeAt = Date.now() + 86_400_000
+    await svc.defer('acct-1/t-1', wakeAt)
+    await svc.performAction({ type: 'star', threadKey: 'acct-1/t-1' })
+    expect((await store.getThread('acct-1/t-1'))?.deferredUntil).toBe(wakeAt)
+  })
+
+  it('ends the deferral on a reply, because replying is the loudest possible answer', async () => {
+    const { store, svc } = ctx
+    await svc.defer('acct-1/t-1', Date.now() + 86_400_000)
+    await svc.send({
+      accountId: 'acct-1',
+      to: [{ email: 'maya@fernwood.dev' }],
+      cc: [],
+      bcc: [],
+      subject: 'Re: Tuesday walkthrough',
+      bodyHtml: '<p>ok</p>',
+      attachments: [],
+      reply: { threadKey: 'acct-1/t-1', messageId: 'm-1', mode: 'reply' },
+    })
+    expect((await store.getThread('acct-1/t-1'))?.deferredUntil).toBeUndefined()
+  })
+
+  it('counts what is waiting, and sweeps what is due', async () => {
+    const { store, svc } = ctx
+    await svc.defer('acct-1/t-1', Date.now() + 86_400_000)
+    expect(await svc.deferredCount()).toBe(1)
+    expect(await svc.wakeDeferred(Date.now())).toBe(0)
+    expect(await svc.wakeDeferred(Date.now() + 86_400_001)).toBe(1)
+    expect(await store.countDeferred(Date.now() + 86_400_001)).toBe(0)
+  })
+})
+
 describe('send', () => {
   it('builds MIME, sends it, and inserts the message locally under SENT', async () => {
     const { client, store, svc, events } = await harness()

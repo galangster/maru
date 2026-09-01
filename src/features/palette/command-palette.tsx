@@ -30,7 +30,7 @@ import { MOD } from '@/features/keyboard/keymap'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 
 /** The palette lists state changes after triage, unlike the row's cluster. */
-const PALETTE_ACTIONS: ThreadActionId[] = ['archive', 'trash', 'star', 'read']
+const PALETTE_ACTIONS: ThreadActionId[] = ['archive', 'later', 'trash', 'star', 'read']
 import { useMailService } from '@/features/mail/service'
 import { DEFAULT_LIST_PREFS, useUi, type ListPrefs } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/components/thread-result'
@@ -101,6 +101,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const results = useSearch(debounced)
   const openSettings = useSurfaces((s) => s.openSettings)
   const setApprovals = useSurfaces((s) => s.setApprovals)
+  const openLater = useSurfaces((s) => s.openLater)
   const openAudit = useSurfaces((s) => s.openAudit)
   const { compose } = useComposeActions()
   const theme = useThemeToggle()
@@ -165,7 +166,14 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                   label={spec.label}
                   hint={spec.hint}
                   onSelect={() =>
-                    run(() => action.mutate({ type: spec.type, threadKey: current.key }))
+                    // The `kind` tag, doing its job. This is also the
+                    // genuinely accessible route to Later: the row's hover
+                    // cluster is `aria-hidden` and `tabIndex={-1}` by design,
+                    // so the palette and `h` are the two doors a keyboard or a
+                    // screen reader can actually use.
+                    spec.kind === 'later'
+                      ? run(() => openLater([current.key]))
+                      : run(() => action.mutate({ type: spec.type, threadKey: current.key }))
                   }
                 />
               )
@@ -263,6 +271,14 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
               onSelect={() => goTo({ kind: 'unified', folder: folder.folder })}
             />
           ))}
+          {/* Later sits after the four folders and before the accounts, which
+              is where ⌘5 puts it. */}
+          <Row
+            icon="calendar"
+            label="Later"
+            hint={`${MOD}5`}
+            onSelect={() => goTo({ kind: 'later' })}
+          />
           {accountList.map((account) => (
             <Row
               key={account.id}

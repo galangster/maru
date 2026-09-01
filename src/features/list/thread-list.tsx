@@ -12,6 +12,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Icon } from '@/components/ui/icon'
 import { IconButton } from '@/components/wren-controls'
+import { deferSortKey, isDeferred } from '@/core/defaults'
 import { SEARCH_WINDOW_DAYS } from '@/core/sync/engine'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
@@ -19,10 +20,12 @@ import {
   registerActionUndo,
   showUndoToast,
   useAccountsById,
+  useDefer,
   useLabels,
   usePerformAction,
   useSearch,
   useThreads,
+  useWakeSweep,
 } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { DEFAULT_LIST_PREFS, isDefaultPrefs, useListPrefs, useUi } from '@/features/mail/ui-store'
@@ -30,14 +33,15 @@ import { ThreadResult } from '@/components/thread-result'
 import { SHELL_CARD } from '@/features/shell/app-shell'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { HeldMutations } from '@/lib/deferred'
-import { dateGroup, type DateGroup } from '@/lib/format'
+import { dateGroup, wakeGroup, wakeTime, type DateGroup, type WakeGroup } from '@/lib/format'
 import { DUR } from '@/lib/motion'
 import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 import { EmptyState } from '@/components/empty-state'
-import { bulkAction, type BulkActionType } from './bulk'
+import { bulkAction, bulkDefer, type BulkActionType } from './bulk'
+import { LATER_DISCLOSURE, LaterPicker } from './later-picker'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
 import { ListControls } from './list-controls'
 import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
@@ -58,14 +62,33 @@ const ROW_H = 68
 const TICK_MS = Math.round((DUR.fast + DUR.base) * 1000)
 
 type Row =
-  | { kind: 'group'; key: string; label: DateGroup }
+  | { kind: 'group'; key: string; label: DateGroup | WakeGroup }
   | { kind: 'thread'; key: string; thread: Thread }
 
-function buildRows(threads: Thread[], now: number): Row[] {
+/**
+ * `later` groups by when each thread comes BACK, because that is the order its
+ * list is in. Every other view groups by the sort key, which is the message's
+ * own date except for a thread that has just woken.
+ *
+ * They are two closed sets and not one: `dateGroup` buckets the past and has no
+ * upper bound, so a month of deferrals would all land under "Today".
+ */
+function buildRows(threads: Thread[], now: number, later: boolean): Row[] {
   const rows: Row[] = []
-  let current: DateGroup | null = null
+  let current: DateGroup | WakeGroup | null = null
   for (const thread of threads) {
-    const group = dateGroup(thread.lastMessageAt, now)
+    // Outside Later: `deferSortKey`, not `lastMessageAt` — the same expression
+    // the query ordered by. A thread that came back this morning lands at the
+    // top of TODAY while its timestamp column still honestly reads "Mon", and
+    // that grouping IS the wake cue. There is deliberately no toast (threads
+    // wake in batches at 09:00 when nobody is looking, and a toast for
+    // something you scheduled yourself is nagging), no row decoration
+    // (DIRECTION §10.2), and no synthetic "Back" group — position already
+    // delivers the signal, and a header that appears and expires on a
+    // 24-hour timer is a second thing to reason about.
+    const group = later
+      ? wakeGroup(thread.deferredUntil ?? now, now)
+      : dateGroup(deferSortKey(thread), now)
     if (group !== current) {
       current = group
       rows.push({ kind: 'group', key: `group:${group}`, label: group })
@@ -93,6 +116,11 @@ export function ThreadList() {
   const { accounts, byId: accountsById, selfEmails } = useAccountsById()
   const labels = useLabels(view.kind === 'account' ? view.accountId : undefined)
   const action = usePerformAction()
+  const defer = useDefer()
+  // Later's lazy wake, riding the same 60-second clock every relative date on
+  // screen already reads. Mounted here because the list is the surface a woken
+  // thread returns TO — see queries.ts for why there is no timer.
+  useWakeSweep()
 
   // The lens between the mailbox and the rows: per-view sort and filter.
   // Applied here, after fetch, so j/k, selection and the virtualizer all see
@@ -102,8 +130,8 @@ export function ThreadList() {
   const lensed = !isDefaultPrefs(prefs)
 
   const rows = useMemo(
-    () => buildRows(applyListPrefs(threads.data ?? [], prefs), now),
-    [threads.data, prefs, now],
+    () => buildRows(applyListPrefs(threads.data ?? [], prefs), now, view.kind === 'later'),
+    [threads.data, prefs, now, view.kind],
   )
   const threadCount = useMemo(() => rows.filter((r) => r.kind === 'thread').length, [rows])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -134,6 +162,8 @@ export function ThreadList() {
   // below have to stay referentially stable or memo(ThreadRow) never holds.
   const actionRef = useRef(action)
   actionRef.current = action
+  const deferRef = useRef(defer)
+  deferRef.current = defer
 
   // The row currently showing its archive tick, and the archives waiting out
   // their animations. AMIE-STUDY §7(c).1: the row has to still be in the data
@@ -182,6 +212,23 @@ export function ThreadList() {
 
   const onBulk = useCallback((type: BulkActionType) => {
     bulkAction((a) => actionRef.current.mutate(a), visibleRef.current, type)
+  }, [])
+
+  /** The bulk bar's Later: the picker, then one batch, then one undo. */
+  const onBulkLater = useCallback(() => {
+    const keys = visibleRef.current
+      .filter((t) => useUi.getState().checked.has(t.key))
+      .map((t) => t.key)
+    useSurfaces.getState().openLater(keys, true)
+  }, [])
+
+  /**
+   * The row's Later button. It opens the PICKER rather than taking a default,
+   * because a mouse has no digits and wants the menu — the division the
+   * keyboard makes (`h` then `1`-`5`) is not available here.
+   */
+  const onLaterOne = useCallback((thread: Thread) => {
+    useSurfaces.getState().openLater([thread.key])
   }, [])
 
   const onAction = useCallback(
@@ -244,15 +291,65 @@ export function ThreadList() {
     [held],
   )
 
+  /**
+   * Save one thread for later, or bring it back with `null`.
+   *
+   * The archive machinery verbatim, and deliberately so: the advance rule, the
+   * hold that lets the row survive its own exit animation, and the two-halved
+   * undo are all `onAction`'s, reused rather than grown a second time. Nothing
+   * in lib/undo.ts changes — it is one slot, and Later takes it like any other
+   * action.
+   *
+   * There is no archive TICK here. The tick is a completion cue with a green
+   * check, and deferring is an intent rather than a completion — the repo's own
+   * sentence, above `CheckedChip`. The row simply leaves.
+   */
+  const onDefer = useCallback(
+    (thread: Thread, wakeAt: number | null, at: number) => {
+      if (useUi.getState().selected === thread.key) {
+        useUi.getState().setSelected(nextAfterRemoval(visibleRef.current, thread.key), 'keyboard')
+      }
+      const before = thread.deferredUntil ?? null
+      const commit = (next: number | null) =>
+        deferRef.current.mutate({ threadKey: thread.key, wakeAt: next })
+
+      const label =
+        wakeAt === null ? 'Back in the inbox' : `Back ${wakeTime(wakeAt, at)}`
+      const cancel = held.hold(thread.key, () => commit(wakeAt), TICK_MS)
+
+      // The same two halves archive has, and which one runs is a question of
+      // *when*. Inside the hold the mutation has not been dispatched, so undo
+      // cancels it and the row simply stays. After it flushes, undo puts the
+      // previous deferral back — `null` when there was none, which is the
+      // ordinary case, and the old wake time when this was a re-schedule.
+      useUi.getState().registerUndo({
+        id: `later:${thread.key}`,
+        label,
+        run: () => {
+          if (held.has(thread.key)) {
+            cancel()
+            return
+          }
+          commit(before)
+        },
+      })
+
+      showUndoToast(label, thread.subject || '(no subject)')
+    },
+    [held],
+  )
+
   const labelName =
     view.kind === 'account'
       ? (labels.data ?? []).find((l) => l.id === view.labelId)?.name
       : undefined
 
   const title =
-    view.kind === 'unified'
-      ? view.folder[0].toUpperCase() + view.folder.slice(1)
-      : (labelName ?? 'Label')
+    view.kind === 'later'
+      ? 'Later'
+      : view.kind === 'unified'
+        ? view.folder[0].toUpperCase() + view.folder.slice(1)
+        : (labelName ?? 'Label')
   const subtitle =
     view.kind === 'account' ? accountsById.get(view.accountId)?.email : undefined
 
@@ -332,6 +429,17 @@ export function ThreadList() {
 
       <SyncNotice />
 
+      {/* Disclosure site 2 of 3, permanent and directly under the word
+          "Later". It is its own strip rather than the header's inline
+          subtitle because the sentence is 73 characters and the header
+          truncates — and a truncated disclosure is not a disclosure. Nothing
+          dismisses it: dismissible means misremembered six months later. */}
+      {view.kind === 'later' && !searching && (
+        <p className="border-hairline text-ink-3 shrink-0 border-b px-4 py-2 text-xs text-pretty">
+          {LATER_DISCLOSURE}
+        </p>
+      )}
+
       {searching && (
         <div className="border-hairline text-ink-3 flex h-8 shrink-0 items-center gap-1 border-b px-4 text-xs">
           <span className="tabular-nums">
@@ -345,9 +453,25 @@ export function ThreadList() {
       {/* The bulk bar: the batch's verbs, in the same strip the lens and the
           search count use. It exists only while something is checked, and it
           outranks the lens bar — a pending batch is the more urgent fact
-          about the list. */}
+          about the list.
+
+          Tighter than the other strips (`gap-1.5 px-3`, not `gap-3 px-4`), and
+          measured rather than guessed. At the old spacing, six verbs plus the
+          count plus select-all came to 444 px in the pane's default 400, which
+          pushed `Clear` clean off the end the moment Later was added.
+
+          The case that sets the number is not "2 selected · All 37" but
+          "99 selected · All 100", which is 407 px here. That is 7 px into the
+          12 px right padding and nothing clips — Clear's right edge lands 5 px
+          inside the pane — so the worst this degrades to is a slightly tighter
+          margin on a rare state. Nothing hides behind an overflow and nothing
+          truncates: a batch verb the person cannot see is a batch verb that
+          does not exist.
+
+          There is no room left. A seventh verb needs a real answer — a wrap,
+          or one fewer verb — not another 2 px. */}
       {!searching && checkedCount > 0 && (
-        <div className="border-hairline flex h-8 shrink-0 items-center gap-3 border-b px-4 text-xs">
+        <div className="border-hairline flex h-8 shrink-0 items-center gap-1.5 border-b px-3 text-xs">
           <span className="text-ink font-medium whitespace-nowrap tabular-nums">
             {checkedCount} selected
           </span>
@@ -363,6 +487,9 @@ export function ThreadList() {
           ) : (
             <>
               <StripButton label="Archive" onClick={() => onBulk('archive')} />
+              {/* Between Archive and Trash, because the three answer the same
+                  question in ascending finality: not ever, not now, gone. */}
+              <StripButton label="Later" onClick={onBulkLater} />
               <StripButton label="Trash" onClick={() => onBulk('trash')} />
             </>
           )}
@@ -520,6 +647,7 @@ export function ThreadList() {
                       ticking={ticking === row.thread.key}
                       onSelect={onSelect}
                       onAction={onAction}
+                      onLater={onLaterOne}
                       onCheck={onCheck}
                     />
                   )}
@@ -529,6 +657,34 @@ export function ThreadList() {
           </div>
         )}
       </div>
+
+      {/* The picker is mounted HERE, not in the shell, because the commit needs
+          this component's advance rule, its held mutations and its undo slot —
+          the same three the archive path uses. It portals, so where it is
+          declared has nothing to do with where it appears. */}
+      <LaterPicker
+        isDeferred={(keys) =>
+          keys.length > 0 &&
+          keys.every((key) => {
+            const thread = visibleRef.current.find((t) => t.key === key)
+            return thread !== undefined && isDeferred(thread, Date.now())
+          })
+        }
+        onCommit={(wakeAt, target) => {
+          const at = Date.now()
+          if (target.bulk) {
+            bulkDefer(
+              (key, next) => deferRef.current.mutate({ threadKey: key, wakeAt: next }),
+              visibleRef.current,
+              wakeAt,
+              at,
+            )
+            return
+          }
+          const thread = visibleRef.current.find((t) => t.key === target.keys[0])
+          if (thread) onDefer(thread, wakeAt, at)
+        }}
+      />
     </section>
   )
 }
@@ -607,7 +763,7 @@ function SearchField() {
  * Sentence case, not the new all-caps eyebrow: these are date words, and
  * "YESTERDAY" reads as a shout where "ACCOUNTS" reads as a section.
  */
-function GroupHeader({ label }: { label: DateGroup }) {
+function GroupHeader({ label }: { label: DateGroup | WakeGroup }) {
   return (
     <div className="font-ui text-ink-3 flex h-full w-full items-end self-stretch px-4 pb-2 text-xs">
       {label}

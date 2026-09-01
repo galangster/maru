@@ -1,6 +1,10 @@
 # P21 — Later (save for later) and the swipe gesture  `wayfinder:task`
 
-status: DESIGNED (2026-08-31) · two lanes · lane 2 gated on a 10-second owner experiment
+status: **LANE 1 SHIPPED (2026-09-01)** · lane 2 still gated on a 10-second owner experiment
+
+Lane 1 — Later — is built, tested and verified. Lane 2 — the swipe gesture —
+is untouched and stays gated: see the build log at the bottom of this file for
+what shipped, what changed against the spec below, and what is left.
 
 ## The ask
 
@@ -261,3 +265,101 @@ bug. The judgement in this design is that it is clearly the lesser evil against
 hiding a live conversation you are party to — and it is one line in a set
 `applyHistory` already computes. But it is a taste call, so it goes to
 `NICK-QUEUE.md` rather than into a commit message.
+
+
+---
+
+# BUILD LOG — lane 1, 2026-09-01
+
+Shipped whole. 621 tests pass (577 before, +44). `tsc --noEmit` clean.
+`/simplify` ran before the seal. **Lane 2 was not built and not started.**
+
+## What is in the app
+
+`thread_defer` (migration 6, `SCHEMA_VERSION` 6) with the invariant written
+above it. `Thread.deferredUntil` / `wokeAt` hydrated by a LEFT JOIN and never
+in `upsertThreads`' twelve columns. `MailView.later`. The `viewClause`
+branches, the sort key, the four store methods, `deleteAccount` and
+`deleteThreads`. `applyHistory` wake-on-reply and the `resyncWindow` guard.
+`start()`'s launch sweep, `performAction`'s clear on leaving the INBOX, and
+`send()`'s clear. `MailService.defer` on both implementations. The picker,
+`h`/`b`, ⌘5, the hover-cluster button, the reading toolbar button, the palette
+rows, the sidebar row, `bulkDefer`, the undo wiring, and the three permanent
+disclosure sites.
+
+Verified by hand in the running app, not only by test: the picker from `h` and
+from a batch, `1`-`5`, the toast wording, the row leaving the inbox, the Later
+view and its groups, the sidebar count, undo from the toast, and both themes.
+
+## Five places the build differs from the spec above, and why
+
+1. **`MailService` gained THREE methods, not one.** The spec has `defer`, and
+   says `useWakeSweep` calls `store.sweepDeferrals(now)` — but the UI layer
+   only ever holds a `MailService` and cannot reach the store. So the sweep is
+   `wakeDeferred(now): Promise<number>` on the seam, and the sidebar's count is
+   `deferredCount()`. The count is its own method rather than
+   `listThreads({kind:'later'}).length` because that list is capped at a page,
+   and a badge that stops counting at 100 is a badge that lies quietly.
+
+2. **The Later view groups by WAKE time, not by the sort key.** The spec did
+   not say, and grouping by `deferSortKey` in a list ordered by `wake_at`
+   produced headers that disagreed with the order they sat in — visibly, on the
+   first screenshot: two threads returning tomorrow and Monday both filed under
+   "Yesterday". `wakeGroup` in `lib/format.ts` is a second closed set —
+   Today / Tomorrow / This week / Next week / Later this month — closed at a
+   month because `MAX_DEFER_DAYS` is 30. `dateGroup` could not be reused: it
+   buckets the PAST and has no upper bound, so every future time is "Today".
+
+3. **The Later view's disclosure is a strip under the header, not the header's
+   inline subtitle.** The existing subtitle slot is `truncate` beside the
+   title, and the sentence is 73 characters in a 400 px pane. A truncated
+   disclosure is not a disclosure. It is still permanent and still
+   undismissible.
+
+4. **The bulk bar was re-spaced.** A sixth verb overflowed it: measured 444 px
+   in the pane's default 400, which pushed `Clear` clean off the end. `gap-1.5
+   px-3` fixes it with the worst case ("99 selected · All 100") at 407 px, 7 px
+   into the 12 px right padding and nothing clipping. There is no room left for
+   a seventh verb — that needs a wrap or one fewer verb, and the comment in
+   `thread-list.tsx` says so.
+
+5. **`ThreadActionSpecs` is a per-key interface, not
+   `Record<ThreadActionId, ThreadActionSpec>`.** The spec's shape would have
+   made `threadActions(t).trash.type` a type error at every existing call site,
+   because `.type` is absent on the Later variant. The per-key record keeps
+   those valid without a narrow AND still forces every surface that iterates
+   `THREAD_ACTION_ORDER` to say what it does with a Later. Four surfaces now
+   branch on `spec.kind`.
+
+## One bug the tests caught, worth recording
+
+`wakeTime` first reused `dateGroup` and reported "tomorrow, 9:00" as "this
+evening, 9:00". `dateGroup` is a past-tense bucketer with no upper bound, so
+its first branch (`ts >= startOfDay(now)`) swallows every future timestamp. It
+now measures whole days between local midnights, which also makes it correct
+across a DST day. Same root cause as difference 2 above; both are fixed.
+
+## The owner decision, built as YES
+
+**A reply wakes a deferred thread early.** One line in
+`engine.ts`'s `applyHistory`, on the set it already computes, with a test that
+names it (`tests/later.test.ts` → "wakes a deferred thread when a reply
+lands"). Deleting that line and its test restores "Monday means Monday" and
+nothing else in the feature moves.
+
+## Still not built, on purpose
+
+Lane 2 in its entirety — the `wheel` listener, the rAF transform, the
+`data-wren-swipe` crossfade, `wren-row-out-right`, and the `?swipe=` capture
+flag. It stays gated on the ten-second trackpad experiment in
+`wayfinder/NICK-QUEUE.md`. Later is complete without it: every single thing the
+gesture would do has a keyboard path, and the keyboard path is strictly more
+capable — the gesture takes the default time, the keyboard chooses.
+
+**DIRECTION §9's reduced-motion amendment was NOT made**, and deliberately: it
+is a statement about the gesture's tracking transform, and there is no gesture.
+It belongs in lane 2's commit, not this one.
+
+**No `defer` MCP tool**, recorded in `M3-tool-surface.md` and
+`M5-permission-spec.md` so a future agent reads it as a decision rather than
+finding a service method with no tool and "fixing" it.
