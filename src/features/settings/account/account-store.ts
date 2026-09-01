@@ -113,14 +113,8 @@ function currentRuntime(): AccountRuntime {
   return runtime
 }
 
-function device() {
-  const identity = accountDeviceIdentity()
-  return {
-    name: navigator.platform || 'Desktop',
-    platform: identity.platform,
-    // AccountClient's v1 input type still narrows this wire value to desktop.
-    family: identity.family as 'desktop',
-  }
+async function device() {
+  return accountDeviceIdentity()
 }
 
 function stopRuntime(): void {
@@ -212,7 +206,7 @@ async function signUp(rawEmail: string, password: string): Promise<void> {
     kdf,
     wrappedByPassword: await wrapByPassword(keys.encKey, accountKey),
     wrappedByRecovery: await wrapByRecovery(recovery.encKey, accountKey),
-    device: device(),
+    device: await device(),
   })
   active.client.setToken(response.token)
   useMaruAccount.setState({ pending: { phrase, session: { ...response, email }, accountKey } })
@@ -226,7 +220,7 @@ async function signIn(rawEmail: string, password: string): Promise<void> {
   const response = await active.client.login({
     email,
     authKey: base64UrlEncodeBytes(keys.authKey),
-    device: device(),
+    device: await device(),
   })
   const accountKey = await unwrapByPassword(keys.encKey, response.wrappedByPassword)
   const session = { ...response, email }
@@ -253,7 +247,7 @@ async function recover(rawEmail: string, phrase: string, password: string): Prom
     newWrappedByPassword: await wrapByPassword(passwordKeys.encKey, accountKey),
     newRecAuthKey: base64UrlEncodeBytes(nextRecovery.authKey),
     newWrappedByRecovery: await wrapByRecovery(nextRecovery.encKey, accountKey),
-    device: device(),
+    device: await device(),
   })
   active.client.setToken(response.token)
   useMaruAccount.setState({

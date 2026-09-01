@@ -1,3 +1,4 @@
+import type { VaultHistoryEntry } from '@/core/account'
 import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
 
@@ -10,6 +11,9 @@ export type MobileSheet =
   | { kind: 'later'; threadKeys: string[] }
   | { kind: 'threadActions'; thread: Thread }
   | { kind: 'move'; thread: Thread }
+  | { kind: 'accountRestore'; entry: VaultHistoryEntry }
+  | { kind: 'accountPassword' }
+  | { kind: 'accountDelete' }
 
 export interface MobileRoute {
   tab: MobileTab
@@ -25,8 +29,7 @@ export const initialMobileRoute: MobileRoute = {
 
 export type MobileRouteAction =
   | { type: 'changeTab'; tab: MobileTab }
-  | { type: 'pushThread'; threadKey: string }
-  | { type: 'pushAccount' }
+  | { type: 'push'; entry: MobileStackEntry }
   | { type: 'openSheet'; sheet: MobileSheet }
   | { type: 'closeSheet' }
   | { type: 'back' }
@@ -35,10 +38,8 @@ export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction
   switch (action.type) {
     case 'changeTab':
       return { tab: action.tab, stack: [{ kind: 'inbox' }], sheet: null }
-    case 'pushThread':
-      return { ...state, stack: [...state.stack, { kind: 'thread', threadKey: action.threadKey }] }
-    case 'pushAccount':
-      return { ...state, stack: [...state.stack, { kind: 'account' }], sheet: null }
+    case 'push':
+      return { ...state, stack: [...state.stack, action.entry], sheet: null }
     case 'openSheet':
       return { ...state, sheet: action.sheet }
     case 'closeSheet':

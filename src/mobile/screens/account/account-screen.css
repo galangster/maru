@@ -1,7 +1,12 @@
 .mobile-account-screen {
   position: relative;
   z-index: 3;
-  animation: mobile-account-push-in var(--wren-dur-slow) var(--wren-ease-out) both;
+  animation: mobile-push-in var(--wren-dur-slow) var(--wren-ease-out) both;
+  touch-action: pan-y;
+}
+
+.mobile-account-screen.is-settling {
+  transition: transform var(--wren-dur-base) var(--wren-ease-out);
 }
 
 .mobile-account-nav {
@@ -26,14 +31,6 @@
   width: 88px;
 }
 
-.mobile-account-loading {
-  display: grid;
-  flex: 1;
-  place-items: center;
-  color: var(--wren-text-3);
-  font-size: 14px;
-}
-
 .mobile-account-scroll {
   padding: 20px max(env(safe-area-inset-right), 16px) calc(28px + env(safe-area-inset-bottom)) max(env(safe-area-inset-left), 16px);
 }
@@ -45,13 +42,11 @@
 }
 
 .mobile-account-intro {
-  padding-block-start: 10px;
-  text-align: center;
+  min-height: 0;
+  padding: 10px 0 0;
 }
 
-.mobile-account-mark,
-.mobile-account-row-icon,
-.mobile-account-status-icon {
+.mobile-account-mark {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
@@ -64,6 +59,12 @@
   height: 52px;
   margin: 0 auto 13px;
   border-radius: var(--wren-radius-xl);
+}
+
+.mobile-account-intro > span {
+  width: 52px;
+  height: 52px;
+  margin-block-end: 13px;
 }
 
 .mobile-account-intro h2,
@@ -175,10 +176,13 @@
 
 .mobile-account-meter i {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: inherit;
   background: var(--wren-accent);
-  transition: width var(--wren-dur-base) var(--wren-ease-out);
+  transform: scaleX(var(--fill));
+  transform-origin: left;
+  transition: transform var(--wren-dur-base) var(--wren-ease-out);
 }
 
 .mobile-account-meter small {
@@ -277,7 +281,7 @@
   display: flex;
   flex-direction: column;
   background: var(--wren-surface-base);
-  animation: mobile-account-sheet-in var(--wren-dur-celebrate) var(--wren-ease-spring) both;
+  animation: mobile-sheet-in var(--wren-dur-celebrate) var(--wren-ease-spring) both;
 }
 
 .mobile-account-ceremony-nav {
@@ -447,47 +451,6 @@
   margin: -10px 0 20px;
 }
 
-.mobile-account-group {
-  margin-block-end: 24px;
-}
-
-.mobile-account-group h3 {
-  margin: 0 0 7px 12px;
-  color: var(--wren-text-3);
-  font: 600 12px/16px var(--wren-font-ui);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.mobile-account-group > div {
-  overflow: hidden;
-  border-radius: var(--wren-radius-inset);
-  background: var(--wren-surface);
-  box-shadow: var(--wren-shadow-xs);
-}
-
-.mobile-account-row,
-.mobile-account-status-row,
-.mobile-account-device-form,
-.mobile-account-empty-row {
-  width: 100%;
-  min-height: 58px;
-}
-
-.mobile-account-row,
-.mobile-account-status-row,
-.mobile-account-device-form {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 7px 11px;
-}
-
-.mobile-account-row + .mobile-account-row,
-.mobile-account-device-form + .mobile-account-row {
-  box-shadow: inset 51px 1px 0 var(--wren-hairline);
-}
-
 .mobile-account-action-row {
   border: 0;
   background: transparent;
@@ -502,39 +465,8 @@
   color: var(--wren-destructive);
 }
 
-.mobile-account-row-icon,
-.mobile-account-status-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--wren-radius-row);
-}
-
-.mobile-account-row > span:nth-child(2),
-.mobile-account-status-row > span:nth-child(2) {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-}
-
-.mobile-account-row strong,
-.mobile-account-status-row strong {
-  overflow: hidden;
-  font: 500 15px/20px var(--wren-font-ui);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mobile-account-row small,
-.mobile-account-status-row small {
-  color: var(--wren-text-3);
-  font-size: 12px;
-  line-height: 17px;
-  font-variant-numeric: tabular-nums;
-}
-
 .mobile-account-status-icon.is-syncing svg {
-  animation: mobile-account-spin 1s linear infinite;
+  animation: mobile-spin 1s linear infinite;
 }
 
 .mobile-account-status-icon.is-paused {
@@ -562,9 +494,6 @@
 }
 
 .mobile-account-empty-row {
-  display: flex;
-  align-items: center;
-  padding-inline: 12px;
   color: var(--wren-text-3);
   font-size: 14px;
 }
@@ -601,32 +530,6 @@
 
 .mobile-account-sheet-body > .mobile-account-destructive-copy {
   color: var(--wren-destructive);
-}
-
-@keyframes mobile-account-push-in {
-  from { opacity: 0.8; transform: translateX(14%); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes mobile-account-sheet-in {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-@keyframes mobile-account-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mobile-account-screen,
-  .mobile-account-ceremony-layer,
-  .mobile-account-status-icon.is-syncing svg {
-    animation: none;
-  }
-
-  .mobile-account-meter i {
-    transition: none;
-  }
 }
 
 @media (hover: hover) and (pointer: fine) {

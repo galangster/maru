@@ -31,18 +31,18 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
 }
 
 function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="mobile-settings-group"><h2>{title}</h2><div>{children}</div></section>
+  return <section className="mobile-group"><h2>{title}</h2><div>{children}</div></section>
 }
 function SettingsRow({ icon, title, detail, onClick }: { icon: ReactNode; title: string; detail: string; onClick?: () => void }) {
-  const content = <><span className="mobile-settings-icon">{icon}</span><span><strong>{title}</strong><small>{detail}</small></span>{onClick && <ChevronRight size={17} aria-hidden />}</>
+  const content = <><span className="mobile-row-icon">{icon}</span><span><strong>{title}</strong><small>{detail}</small></span>{onClick && <ChevronRight size={17} aria-hidden />}</>
   return onClick
-    ? <button type="button" className="mobile-settings-row mobile-settings-link mobile-press" onClick={onClick} aria-label={`${title}. ${detail}`}>{content}</button>
-    : <div className="mobile-settings-row">{content}</div>
+    ? <button type="button" className="mobile-row mobile-settings-link mobile-press" onClick={onClick} aria-label={`${title}. ${detail}`}>{content}</button>
+    : <div className="mobile-row">{content}</div>
 }
 function SettingsToggle({ icon, title, checked, onChange }: { icon: ReactNode; title: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="mobile-settings-row mobile-toggle-row">
-      <span className="mobile-settings-icon">{icon}</span><span><strong>{title}</strong></span>
+    <label className="mobile-row mobile-toggle-row">
+      <span className="mobile-row-icon">{icon}</span><span><strong>{title}</strong></span>
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span className="mobile-switch" aria-hidden><span /></span>
     </label>

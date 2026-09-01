@@ -1,4 +1,4 @@
-import { useReducer, type ReactNode } from 'react'
+import { lazy, useReducer, type ReactNode } from 'react'
 import { Inbox, Search, Settings as SettingsIcon } from 'lucide-react'
 
 import type { MailActionType } from '@/core/types'
@@ -16,7 +16,6 @@ import { InboxScreen } from './screens/inbox-screen'
 import { SearchScreen } from './screens/search-screen'
 import { SettingsScreen } from './screens/settings-screen'
 import { ThreadScreen } from './screens/thread-screen'
-import { AccountScreen } from './screens/account/account-screen'
 import { ComposeSheet } from './sheets/compose-sheet'
 import { LaterSheet } from './sheets/later-sheet'
 import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
@@ -26,6 +25,10 @@ import {
   type MobileTab,
 } from './state'
 import './mobile.css'
+
+const AccountScreen = lazy(() =>
+  import('./screens/account/account-screen').then((module) => ({ default: module.AccountScreen })),
+)
 
 export function MobileApp() {
   useThemeEffect()
@@ -51,7 +54,12 @@ export function MobileApp() {
     <div className="mobile-app" data-testid="mobile-app">
       <main className="mobile-stage">
         {route.kind === 'account' ? (
-          <AccountScreen onBack={() => dispatch({ type: 'back' })} />
+          <AccountScreen
+            onBack={() => dispatch({ type: 'back' })}
+            sheet={sheet}
+            openSheet={(next) => dispatch({ type: 'openSheet', sheet: next })}
+            closeSheet={closeSheet}
+          />
         ) : route.kind === 'thread' ? (
           <ThreadScreen
             threadKey={route.threadKey}
@@ -63,7 +71,7 @@ export function MobileApp() {
           />
         ) : navigation.tab === 'inbox' ? (
           <InboxScreen
-            onOpen={(threadKey) => dispatch({ type: 'pushThread', threadKey })}
+            onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
             onCompose={compose}
             onSearch={() => dispatch({ type: 'changeTab', tab: 'search' })}
             onArchive={(keys) => keys.forEach((key) => act(key, 'archive'))}
@@ -72,8 +80,8 @@ export function MobileApp() {
             onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
           />
         ) : navigation.tab === 'search' ? (
-          <SearchScreen onOpen={(threadKey) => dispatch({ type: 'pushThread', threadKey })} />
-        ) : <SettingsScreen onAccount={() => dispatch({ type: 'pushAccount' })} />}
+          <SearchScreen onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })} />
+        ) : <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />}
       </main>
 
       {route.kind === 'inbox' && <TabBar active={navigation.tab} onChange={(tab) => dispatch({ type: 'changeTab', tab })} />}

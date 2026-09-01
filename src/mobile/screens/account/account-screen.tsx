@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowLeft,
   ChevronRight,
@@ -14,30 +14,51 @@ import {
   Trash2,
 } from 'lucide-react'
 
-import type { AccountDevice, VaultHistoryEntry } from '@/core/account'
-import { normalizeEmail } from '@/core/account'
-import { useMaruAccount, type MaruAccountState } from '@/features/settings/account/account-store'
+import { normalizeEmail, type VaultHistoryEntry } from '@/core/account'
+import { useMaruAccount } from '@/features/settings/account/account-store'
+import {
+  accountDate,
+  entitlementCopy,
+  passwordMeter,
+  type PasswordMeterValue,
+} from '@/features/settings/account/entitlement-copy'
+import { useBusyAction } from '@/features/settings/account/use-busy-action'
 import { useUi } from '@/features/mail/ui-store'
 import { elapsedTime } from '@/lib/format'
 import { openExternalUrl } from '@/lib/env'
+import { useNow } from '@/lib/use-now'
 import { BottomSheet } from '@/mobile/components/bottom-sheet'
-import { entitlementLabel, passwordMeter, syncLabel } from './account-logic'
+import { MobileListSkeleton, MobilePrompt } from '@/mobile/components/placeholders'
+import type { MobileSheet } from '@/mobile/state'
+import { useEdgeBack } from '@/mobile/use-edge-back'
+import { syncLabel, syncTitle } from './account-logic'
 import './account-screen.css'
 
 type AuthMode = 'signIn' | 'signUp' | 'recover'
-type AccountSheet =
-  | { kind: 'restore'; entry: VaultHistoryEntry }
-  | { kind: 'password' }
-  | { kind: 'delete' }
-  | null
 
-const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
-
-export function AccountScreen({ onBack }: { onBack: () => void }) {
-  const account = useMaruAccount()
+export function AccountScreen({
+  onBack,
+  sheet,
+  openSheet,
+  closeSheet,
+}: {
+  onBack: () => void
+  sheet: MobileSheet | null
+  openSheet: (sheet: MobileSheet) => void
+  closeSheet: () => void
+}) {
+  const loading = useMaruAccount((state) => state.loading)
+  const pending = useMaruAccount((state) => state.pending)
+  const email = useMaruAccount((state) => state.email)
+  const edge = useEdgeBack(onBack)
 
   return (
-    <section className="mobile-screen mobile-account-screen" aria-label="Maru account">
+    <section
+      className={`mobile-screen mobile-account-screen${edge.settling ? ' is-settling' : ''}`}
+      style={{ transform: `translateX(${edge.offset}px)` }}
+      {...edge.handlers}
+      aria-label="Maru account"
+    >
       <header className="mobile-nav mobile-account-nav">
         <button className="mobile-nav-back" type="button" onClick={onBack} aria-label="Back to Settings">
           <ArrowLeft size={22} aria-hidden />
@@ -47,20 +68,24 @@ export function AccountScreen({ onBack }: { onBack: () => void }) {
         <span className="mobile-account-nav-spacer" aria-hidden />
       </header>
 
-      {account.loading ? (
-        <div className="mobile-account-loading" role="status">Loading Maru account…</div>
-      ) : account.pending ? (
-        <RecoveryCeremony account={account} />
-      ) : account.email ? (
-        <SignedIn account={account} />
+      {loading ? (
+        <MobileListSkeleton />
+      ) : pending ? (
+        <RecoveryCeremony />
+      ) : email ? (
+        <SignedIn sheet={sheet} openSheet={openSheet} closeSheet={closeSheet} />
       ) : (
-        <SignedOut account={account} />
+        <SignedOut />
       )}
     </section>
   )
 }
 
-function SignedOut({ account }: { account: MaruAccountState }) {
+function SignedOut() {
+  const explanation = useMaruAccount((state) => state.explanation)
+  const signUp = useMaruAccount((state) => state.signUp)
+  const signIn = useMaruAccount((state) => state.signIn)
+  const recover = useMaruAccount((state) => state.recover)
   const [mode, setMode] = useState<AuthMode>('signIn')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -85,9 +110,9 @@ function SignedOut({ account }: { account: MaruAccountState }) {
     setBusy(true)
     setError(null)
     try {
-      if (mode === 'signUp') await account.signUp(email, password)
-      else if (mode === 'recover') await account.recover(email, phrase, password)
-      else await account.signIn(email, password)
+      if (mode === 'signUp') await signUp(email, password)
+      else if (mode === 'recover') await recover(email, phrase, password)
+      else await signIn(email, password)
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
@@ -99,12 +124,14 @@ function SignedOut({ account }: { account: MaruAccountState }) {
 
   return (
     <div className="mobile-scroll mobile-account-scroll mobile-account-auth">
-      <div className="mobile-account-intro">
-        <span className="mobile-account-mark" aria-hidden><Cloud size={24} /></span>
-        <h2>Take Maru with you</h2>
-        <p>Restore your settings and Gmail account list on this iPhone.</p>
-        {account.explanation && <p className="mobile-account-note" role="status">{account.explanation}</p>}
-      </div>
+      <MobilePrompt
+        className="mobile-account-intro"
+        icon={<Cloud size={24} />}
+        title="Take Maru with you"
+        copy="Restore your settings and Gmail account list on this iPhone."
+      >
+        {explanation && <p className="mobile-account-note" role="status">{explanation}</p>}
+      </MobilePrompt>
 
       <div className="mobile-account-segments" role="tablist" aria-label="Maru account action">
         {([
@@ -173,7 +200,7 @@ function SignedOut({ account }: { account: MaruAccountState }) {
           />
         </AccountField>
 
-        {mode !== 'signIn' && <PasswordMeter password={password} />}
+        {mode !== 'signIn' && <PasswordMeter meter={meter} />}
         {error && <p className="mobile-account-error" role="alert">{error}</p>}
 
         <button className="mobile-account-primary mobile-press" type="submit" disabled={busy}>
@@ -184,12 +211,14 @@ function SignedOut({ account }: { account: MaruAccountState }) {
   )
 }
 
-function RecoveryCeremony({ account }: { account: MaruAccountState }) {
+function RecoveryCeremony() {
+  const pending = useMaruAccount((state) => state.pending)
+  const confirmRecoverySaved = useMaruAccount((state) => state.confirmRecoverySaved)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const phrase = account.pending?.phrase ?? ''
+  const phrase = pending?.phrase ?? ''
   const words = phrase.split(' ')
 
   const copy = async () => {
@@ -205,7 +234,7 @@ function RecoveryCeremony({ account }: { account: MaruAccountState }) {
     setBusy(true)
     setError(null)
     try {
-      await account.confirmRecoverySaved()
+      await confirmRecoverySaved()
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
@@ -248,25 +277,28 @@ function RecoveryCeremony({ account }: { account: MaruAccountState }) {
   )
 }
 
-function SignedIn({ account }: { account: MaruAccountState }) {
+function SignedIn({
+  sheet,
+  openSheet,
+  closeSheet,
+}: {
+  sheet: MobileSheet | null
+  openSheet: (sheet: MobileSheet) => void
+  closeSheet: () => void
+}) {
+  const email = useMaruAccount((state) => state.email)
+  const entitlement = useMaruAccount((state) => state.entitlement)
+  const explanation = useMaruAccount((state) => state.explanation)
+  const history = useMaruAccount((state) => state.history)
+  const restoreVersion = useMaruAccount((state) => state.restoreVersion)
+  const changePassword = useMaruAccount((state) => state.changePassword)
+  const signOut = useMaruAccount((state) => state.signOut)
+  const deleteAccount = useMaruAccount((state) => state.deleteAccount)
   const pendingAccounts = useUi((state) => state.pendingAccounts)
-  const [sheet, setSheet] = useState<AccountSheet>(null)
-  const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  const run = async (key: string, action: () => Promise<void>): Promise<boolean> => {
-    setBusy(key)
-    setError(null)
-    try {
-      await action()
-      return true
-    } catch (cause) {
-      setError(errorMessage(cause))
-      return false
-    } finally {
-      setBusy(null)
-    }
-  }
+  const now = useNow()
+  const onError = useCallback((cause: Error) => setError(errorMessage(cause)), [])
+  const { isBusy, run } = useBusyAction(onError)
 
   return (
     <>
@@ -274,47 +306,33 @@ function SignedIn({ account }: { account: MaruAccountState }) {
         <section className="mobile-account-profile" aria-label="Account summary">
           <span className="mobile-account-mark" aria-hidden><Cloud size={24} /></span>
           <div>
-            <h2>{account.email}</h2>
-            {account.entitlement && <p>{entitlementLabel(account.entitlement)}</p>}
+            <h2>{email}</h2>
+            {entitlement && <p>{entitlementCopy(entitlement, now)}</p>}
           </div>
         </section>
 
-        {account.explanation && <p className="mobile-account-note" role="status">{account.explanation}</p>}
+        {explanation && <p className="mobile-account-note" role="status">{explanation}</p>}
         {error && <p className="mobile-account-error mobile-account-page-error" role="alert">{error}</p>}
 
-        <AccountGroup title="Sync">
-          <div className="mobile-account-status-row" aria-live="polite">
-            <span className={`mobile-account-status-icon is-${account.syncState.kind}`} aria-hidden>
-              {account.syncState.kind === 'syncing' ? <RefreshCw size={18} /> : <Cloud size={18} />}
-            </span>
-            <span>
-              <strong>{account.syncState.kind === 'paused' ? 'Sync paused' : account.syncState.kind === 'syncing' ? 'Syncing' : 'Sync state'}</strong>
-              <small>{syncLabel(account.syncState)}</small>
-            </span>
-            {account.syncState.kind === 'paused' && (
-              <button type="button" className="mobile-account-inline-button mobile-press" disabled={busy !== null} onClick={() => void run('retry', account.retrySync)}>
-                {busy === 'retry' ? 'Retrying…' : 'Retry'}
-              </button>
-            )}
-          </div>
-        </AccountGroup>
+        <SyncRow onError={onError} />
 
         <AccountGroup title="Subscription">
           <AccountRow
             icon={<ExternalLink size={18} />}
             title="Manage on getmaru.app"
             detail="Opens in your browser"
-            onClick={() => void run('manage', () => openExternalUrl('https://getmaru.app/account'))}
+            // The phone has no purchase control, so it opens the web account instead of manageSubscription().
+            onClick={() => void openExternalUrl('https://getmaru.app/account').catch(onError)}
           />
         </AccountGroup>
 
-        <Devices devices={account.devices} busy={busy} run={run} onRename={account.renameDevice} onRevoke={account.revokeDevice} />
+        <Devices now={now} onError={onError} />
 
         {pendingAccounts.length > 0 && (
           <AccountGroup title="Gmail accounts" footer="Available when Gmail sign-in reaches the phone (I3)">
             {pendingAccounts.map((email) => (
-              <div className="mobile-account-row mobile-account-disabled-row" key={email} aria-label={`${email}. Sign in on this iPhone. Disabled`}>
-                <span className="mobile-account-row-icon" aria-hidden><Mail size={18} /></span>
+              <div className="mobile-row mobile-account-row mobile-account-disabled-row" key={email} aria-label={`${email}. Sign in on this iPhone. Disabled`}>
+                <span className="mobile-row-icon mobile-account-row-icon" aria-hidden><Mail size={18} /></span>
                 <span><strong>{email}</strong><small>Restored from your Maru account</small></span>
                 <button type="button" disabled aria-label={`Sign in to ${email} on this iPhone, unavailable until I3`}>Sign in on this iPhone</button>
               </div>
@@ -323,78 +341,103 @@ function SignedIn({ account }: { account: MaruAccountState }) {
         )}
 
         <AccountGroup title="Restore an earlier version">
-          {account.history.length === 0 ? (
-            <div className="mobile-account-empty-row">No earlier versions yet.</div>
-          ) : account.history.map((entry) => (
+          {history.length === 0 ? (
+            <div className="mobile-row mobile-account-empty-row">No earlier versions yet.</div>
+          ) : history.map((entry) => (
             <AccountRow
               key={entry.version}
               icon={<RotateCcw size={18} />}
-              title={dateFormatter.format(entry.updatedAt)}
+              title={accountDate(entry.updatedAt)}
               detail={`Version ${entry.version}`}
-              onClick={() => setSheet({ kind: 'restore', entry })}
+              onClick={() => openSheet({ kind: 'accountRestore', entry })}
             />
           ))}
         </AccountGroup>
 
         <AccountGroup title="Account controls">
-          <AccountRow icon={<KeyRound size={18} />} title="Change password" onClick={() => setSheet({ kind: 'password' })} />
+          <AccountRow icon={<KeyRound size={18} />} title="Change password" onClick={() => openSheet({ kind: 'accountPassword' })} />
           <AccountRow
             icon={<Smartphone size={18} />}
-            title={busy === 'signout' ? 'Signing out…' : 'Sign out'}
-            disabled={busy !== null}
-            onClick={() => void run('signout', account.signOut)}
+            title={isBusy('signout') ? 'Signing out…' : 'Sign out'}
+            disabled={isBusy('signout')}
+            onClick={() => void run('signout', signOut)}
           />
-          <AccountRow icon={<Trash2 size={18} />} title="Delete account" destructive onClick={() => setSheet({ kind: 'delete' })} />
+          <AccountRow icon={<Trash2 size={18} />} title="Delete account" destructive onClick={() => openSheet({ kind: 'accountDelete' })} />
         </AccountGroup>
       </div>
 
-      {sheet?.kind === 'restore' && (
+      {sheet?.kind === 'accountRestore' && (
         <RestoreSheet
           entry={sheet.entry}
-          busy={busy === `restore-${sheet.entry.version}`}
-          onClose={() => setSheet(null)}
+          busy={isBusy(`restore-${sheet.entry.version}`)}
+          onClose={closeSheet}
           onRestore={async () => {
-            const ok = await run(`restore-${sheet.entry.version}`, () => account.restoreVersion(sheet.entry.version))
-            if (ok) setSheet(null)
+            const ok = await run(`restore-${sheet.entry.version}`, () => restoreVersion(sheet.entry.version))
+            if (ok) closeSheet()
           }}
         />
       )}
-      {sheet?.kind === 'password' && (
+      {sheet?.kind === 'accountPassword' && (
         <PasswordSheet
-          busy={busy === 'password'}
-          onClose={() => setSheet(null)}
+          busy={isBusy('password')}
+          onClose={closeSheet}
           onChange={async (current, next) => {
-            const ok = await run('password', () => account.changePassword(current, next))
-            if (ok) setSheet(null)
+            const ok = await run('password', () => changePassword(current, next))
+            if (ok) closeSheet()
             return ok
           }}
         />
       )}
-      {sheet?.kind === 'delete' && (
+      {sheet?.kind === 'accountDelete' && (
         <DeleteSheet
-          email={account.email!}
-          busy={busy === 'delete'}
-          onClose={() => setSheet(null)}
-          onDelete={(password) => run('delete', () => account.deleteAccount(password))}
+          email={email!}
+          busy={isBusy('delete')}
+          onClose={closeSheet}
+          onDelete={(password) => run('delete', () => deleteAccount(password))}
         />
       )}
     </>
   )
 }
 
+function SyncRow({ onError }: { onError: (error: Error) => void }) {
+  const syncState = useMaruAccount((state) => state.syncState)
+  const { isBusy, run } = useBusyAction(onError)
+
+  return (
+    <AccountGroup title="Sync">
+      <div className="mobile-row mobile-account-status-row" aria-live="polite">
+        <span className={`mobile-row-icon mobile-account-status-icon is-${syncState.kind}`} aria-hidden>
+          {syncState.kind === 'syncing' ? <RefreshCw size={18} /> : <Cloud size={18} />}
+        </span>
+        <span>
+          <strong>{syncTitle(syncState)}</strong>
+          <small>{syncLabel(syncState)}</small>
+        </span>
+        {syncState.kind === 'paused' && (
+          <button
+            type="button"
+            className="mobile-account-inline-button mobile-press"
+            disabled={isBusy('retry')}
+            onClick={() => void run('retry', useMaruAccount.getState().retrySync)}
+          >
+            {isBusy('retry') ? 'Retrying…' : 'Retry'}
+          </button>
+        )}
+      </div>
+    </AccountGroup>
+  )
+}
+
 function Devices({
-  devices,
-  busy,
-  run,
-  onRename,
-  onRevoke,
+  now,
+  onError,
 }: {
-  devices: AccountDevice[]
-  busy: string | null
-  run(key: string, action: () => Promise<void>): Promise<boolean>
-  onRename(id: string, name: string): Promise<void>
-  onRevoke(id: string): Promise<void>
+  now: number
+  onError: (error: Error) => void
 }) {
+  const devices = useMaruAccount((state) => state.devices)
+  const { isBusy, run } = useBusyAction(onError)
   const current = devices.find((device) => device.current)
   const others = devices.filter((device) => !device.current)
 
@@ -402,34 +445,36 @@ function Devices({
     <AccountGroup title="Devices">
       {current && (
         <form
-          className="mobile-account-device-form"
+          className="mobile-row mobile-account-device-form"
           onSubmit={(event) => {
             event.preventDefault()
             const name = String(new FormData(event.currentTarget).get('device-name') ?? '').trim()
-            if (name && name !== current.name) void run(`device-${current.id}`, () => onRename(current.id, name))
+            if (name && name !== current.name) {
+              void run(`device-${current.id}`, () => useMaruAccount.getState().renameDevice(current.id, name))
+            }
           }}
         >
           <label htmlFor="mobile-device-name">
             <span>This device</span>
             <input id="mobile-device-name" name="device-name" type="text" defaultValue={current.name} autoCapitalize="words" autoComplete="off" spellCheck={false} />
           </label>
-          <button className="mobile-account-inline-button mobile-press" type="submit" disabled={busy !== null}>
-            {busy === `device-${current.id}` ? 'Saving…' : 'Save'}
+          <button className="mobile-account-inline-button mobile-press" type="submit" disabled={isBusy(`device-${current.id}`)}>
+            {isBusy(`device-${current.id}`) ? 'Saving…' : 'Save'}
           </button>
         </form>
       )}
       {others.map((device) => (
-        <div className="mobile-account-row mobile-account-device-row" key={device.id}>
-          <span className="mobile-account-row-icon" aria-hidden><Smartphone size={18} /></span>
-          <span><strong>{device.name}</strong><small>Seen {elapsedTime(device.lastSeenAt, Date.now())}</small></span>
+        <div className="mobile-row mobile-account-row mobile-account-device-row" key={device.id}>
+          <span className="mobile-row-icon mobile-account-row-icon" aria-hidden><Smartphone size={18} /></span>
+          <span><strong>{device.name}</strong><small>Seen {elapsedTime(device.lastSeenAt, now)}</small></span>
           <button
             type="button"
             className="mobile-account-danger-button mobile-press"
-            disabled={busy !== null}
+            disabled={isBusy(`device-${device.id}`)}
             aria-label={`Sign out ${device.name}`}
-            onClick={() => void run(`device-${device.id}`, () => onRevoke(device.id))}
+            onClick={() => void run(`device-${device.id}`, () => useMaruAccount.getState().revokeDevice(device.id))}
           >
-            {busy === `device-${device.id}` ? 'Signing out…' : 'Sign out'}
+            {isBusy(`device-${device.id}`) ? 'Signing out…' : 'Sign out'}
           </button>
         </div>
       ))}
@@ -441,7 +486,7 @@ function RestoreSheet({ entry, busy, onClose, onRestore }: { entry: VaultHistory
   return (
     <BottomSheet title="Restore this version?" onClose={onClose}>
       <div className="mobile-account-sheet-body">
-        <p>This copies the vault from {dateFormatter.format(entry.updatedAt)} forward as the newest version.</p>
+        <p>This copies the vault from {accountDate(entry.updatedAt)} forward as the newest version.</p>
         <button className="mobile-account-primary mobile-press" type="button" disabled={busy} onClick={() => void onRestore()}>
           {busy ? 'Restoring…' : 'Restore earlier version'}
         </button>
@@ -476,7 +521,7 @@ function PasswordSheet({ busy, onClose, onChange }: { busy: boolean; onClose: ()
         <AccountField label="New password" htmlFor="mobile-new-password">
           <input id="mobile-new-password" type="password" autoCapitalize="none" autoCorrect="off" autoComplete="new-password" minLength={12} required value={next} onChange={(event) => { setNext(event.target.value); if (error) setError(null) }} />
         </AccountField>
-        <PasswordMeter password={next} />
+        <PasswordMeter meter={meter} />
         {error && <p className="mobile-account-error" role="alert">{error}</p>}
         <button className="mobile-account-primary mobile-press" type="submit" disabled={busy}>{busy ? 'Changing password…' : 'Change password'}</button>
       </form>
@@ -521,7 +566,7 @@ function DeleteSheet({ email, busy, onClose, onDelete }: { email: string; busy: 
 
 function AccountGroup({ title, footer, children }: { title: string; footer?: string; children: ReactNode }) {
   return (
-    <section className="mobile-account-group">
+    <section className="mobile-group mobile-account-group">
       <h3>{title}</h3>
       <div>{children}</div>
       {footer && <p className="mobile-account-group-footer">{footer}</p>}
@@ -532,13 +577,13 @@ function AccountGroup({ title, footer, children }: { title: string; footer?: str
 function AccountRow({ icon, title, detail, destructive = false, disabled = false, onClick }: { icon: ReactNode; title: string; detail?: string; destructive?: boolean; disabled?: boolean; onClick: () => void }) {
   return (
     <button
-      className={`mobile-account-row mobile-account-action-row mobile-press${destructive ? ' is-destructive' : ''}`}
+      className={`mobile-row mobile-account-row mobile-account-action-row mobile-press${destructive ? ' is-destructive' : ''}`}
       type="button"
       disabled={disabled}
       onClick={onClick}
       aria-label={detail ? `${title}. ${detail}` : title}
     >
-      <span className="mobile-account-row-icon" aria-hidden>{icon}</span>
+      <span className="mobile-row-icon mobile-account-row-icon" aria-hidden>{icon}</span>
       <span><strong>{title}</strong>{detail && <small>{detail}</small>}</span>
       <ChevronRight size={17} aria-hidden />
     </button>
@@ -549,11 +594,10 @@ function AccountField({ label, htmlFor, children }: { label: string; htmlFor: st
   return <label className="mobile-account-field" htmlFor={htmlFor}><span>{label}</span>{children}</label>
 }
 
-function PasswordMeter({ password }: { password: string }) {
-  const meter = passwordMeter(password)
+function PasswordMeter({ meter }: { meter: PasswordMeterValue }) {
   return (
     <div className="mobile-account-meter" aria-live="polite">
-      <span><i style={{ width: `${meter.percent}%` }} /></span>
+      <span><i style={{ '--fill': meter.percent / 100 } as CSSProperties} /></span>
       <small>{meter.label}</small>
     </div>
   )

@@ -4,7 +4,7 @@ import type { KdfParams } from './crypto'
 export type Plan = 'monthly' | 'yearly'
 export type EntitlementState = 'trialing' | 'active' | 'past_due' | 'expired' | 'comped'
 
-export interface DeviceInput { name: string; platform: string; family: 'desktop' }
+export interface DeviceInput { name: string; platform: string; family: 'desktop' | 'ios' }
 export interface AuthSession { token: string; deviceId: string; accountId: string }
 export interface PreloginResponse { kdf: KdfParams; salt: string }
 export interface RecoverStartResponse { wrappedByRecovery: string; kdf: KdfParams }

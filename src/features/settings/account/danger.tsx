@@ -21,7 +21,7 @@ export function Danger({
   const [confirm, setConfirm] = useState('')
   const [deletePassword, setDeletePassword] = useState('')
   const [message, setMessage] = useState<string | null>(null)
-  const { busy, run } = useBusyAction()
+  const { isBusy, run } = useBusyAction()
 
   return (
     <div className="border-hairline flex flex-col gap-3 border-t pt-4">
@@ -32,11 +32,11 @@ export function Danger({
         </button>
         <button
           type="button"
-          disabled={busy !== null}
-          onClick={() => run('signout', onSignOut)}
+          disabled={isBusy('signout')}
+          onClick={() => void run('signout', onSignOut)}
           className={textButtonClass('default', 'min-h-10')}
         >
-          {busy === 'signout' ? 'Signing out…' : 'Sign out of Maru account'}
+          {isBusy('signout') ? 'Signing out…' : 'Sign out of Maru account'}
         </button>
       </div>
       {changing && (
@@ -46,7 +46,7 @@ export function Danger({
             event.preventDefault()
             if (next.length < 12) { setMessage('Choose a new password with at least 12 characters'); return }
             setMessage(null)
-            run('password', async () => {
+            void run('password', async () => {
               await onChangePassword(current, next)
               setChanging(false)
               setCurrent('')
@@ -57,7 +57,7 @@ export function Danger({
         >
           <TextField id="maru-current-password" label="Current password" type="password" autoComplete="current-password" required value={current} onValueChange={setCurrent} inputClassName="bg-raised h-10" />
           <TextField id="maru-new-password" label="New password" type="password" autoComplete="new-password" minLength={12} required value={next} onValueChange={setNext} inputClassName="bg-raised h-10" />
-          <PrimaryButton type="submit" disabled={busy !== null} className="h-10 w-fit px-3">{busy === 'password' ? 'Changing…' : 'Change password'}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={isBusy('password')} className="h-10 w-fit px-3">{isBusy('password') ? 'Changing…' : 'Change password'}</PrimaryButton>
         </form>
       )}
       {message && <p className="text-ink-2 text-sm" role="status">{message}</p>}
@@ -71,11 +71,11 @@ export function Danger({
         <TextField id="maru-delete-password" label="Password" type="password" autoComplete="current-password" value={deletePassword} onValueChange={setDeletePassword} inputClassName="h-10" />
         <button
           type="button"
-          disabled={normalizeEmail(confirm) !== normalizeEmail(email) || !deletePassword || busy !== null}
-          onClick={() => run('delete', () => onDelete(deletePassword))}
+          disabled={normalizeEmail(confirm) !== normalizeEmail(email) || !deletePassword || isBusy('delete')}
+          onClick={() => void run('delete', () => onDelete(deletePassword))}
           className={textButtonClass('danger', 'min-h-10 w-fit disabled:pointer-events-none disabled:opacity-40')}
         >
-          {busy === 'delete' ? 'Deleting…' : 'Delete Maru account'}
+          {isBusy('delete') ? 'Deleting…' : 'Delete Maru account'}
         </button>
       </div>
     </div>

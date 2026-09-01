@@ -2,16 +2,9 @@ import { useState } from 'react'
 
 import { FieldLabel, PrimaryButton, SegmentedGroup, TextField } from '@/components/wren-controls'
 import { cn } from '@/lib/utils'
+import { passwordMeter, type PasswordMeterValue } from './entitlement-copy'
 
 type Mode = 'signIn' | 'signUp' | 'recover'
-
-function strength(password: string): { label: string; value: number } {
-  const remaining = Math.max(0, 12 - password.length)
-  return {
-    label: remaining ? `${remaining} more characters` : 'Minimum reached',
-    value: Math.min(100, (password.length / 12) * 100),
-  }
-}
 
 export function SignIn({
   explanation,
@@ -30,7 +23,7 @@ export function SignIn({
   const [phrase, setPhrase] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const meter = strength(password)
+  const meter = passwordMeter(password)
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -99,22 +92,26 @@ export function SignIn({
           onValueChange={(value) => { setPassword(value); if (error) setError(null) }}
           inputClassName="h-10"
         />
-        {mode !== 'signIn' && (
-          <div className="flex items-center gap-2" aria-live="polite">
-            <div className="bg-fill-hover h-1.5 flex-1 overflow-hidden rounded-full">
-              <div
-                className={cn('h-full rounded-full transition-[width,background-color] duration-150', meter.value >= 100 ? 'bg-success' : 'bg-brand')}
-                style={{ width: `${meter.value}%` }}
-              />
-            </div>
-            <span className="text-ink-3 min-w-28 text-right text-xs tabular-nums">{meter.label}</span>
-          </div>
-        )}
+        {mode !== 'signIn' && <PasswordMeter meter={meter} />}
         {error && <p className="text-destructive text-sm text-pretty" role="alert">{error}</p>}
         <PrimaryButton type="submit" disabled={busy} className="h-10 w-fit px-4">
           {busy ? 'Working…' : mode === 'signUp' ? 'Create account' : mode === 'recover' ? 'Recover account' : 'Sign in'}
         </PrimaryButton>
       </form>
+    </div>
+  )
+}
+
+function PasswordMeter({ meter }: { meter: PasswordMeterValue }) {
+  return (
+    <div className="flex items-center gap-2" aria-live="polite">
+      <div className="bg-fill-hover h-1.5 flex-1 overflow-hidden rounded-full">
+        <div
+          className={cn('h-full rounded-full transition-[width,background-color] duration-150', meter.valid ? 'bg-success' : 'bg-brand')}
+          style={{ width: `${meter.percent}%` }}
+        />
+      </div>
+      <span className="text-ink-3 min-w-28 text-right text-xs tabular-nums">{meter.label}</span>
     </div>
   )
 }
