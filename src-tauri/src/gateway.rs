@@ -74,11 +74,16 @@ const AUTH_VERDICT_TIMEOUT: Duration = Duration::from_secs(20);
 /// anyone, with nothing on screen to say so.
 ///
 /// Same reasoning as `KEYRING_SERVICE` in lib.rs, which splits for the same
-/// shared-identifier reason. Note what is still NOT split: agent credentials,
-/// grants and the audit log live in the shared `wren.db`, so a credential
-/// issued by one build is still accepted by the other. Closing that depends on
-/// the open question of whether dev should share the database at all
-/// (wayfinder/NICK-QUEUE.md) and is a bigger change than a name.
+/// shared-identifier reason — and as `DB_URL` in src/platform/tauri.ts, which
+/// now gives a dev build its own database. All three exist because dev and
+/// release share one bundle identifier and therefore one app-data directory.
+///
+/// With the database split, agent credentials, grants and the audit log are no
+/// longer shared either, so a credential issued by a dev build is not accepted
+/// by the installed app. That holds only while a dev build uses its own
+/// database: `VITE_MARU_REAL_DB=1` opts back onto the real one and shares the
+/// registry again, which is part of why that escape hatch is an env var rather
+/// than a setting.
 #[cfg(debug_assertions)]
 const SOCKET_FILE: &str = "gateway.dev.sock";
 #[cfg(not(debug_assertions))]

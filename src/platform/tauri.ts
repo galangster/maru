@@ -9,7 +9,37 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import type { Platform, SqlDb } from '../core/platform'
 
-export const DB_URL = 'sqlite:wren.db'
+/**
+ * A dev build gets its OWN database, and that is the safe default.
+ *
+ * Dev and release share one bundle identifier and therefore one app-data
+ * directory, so until this split a `tauri dev` opened the person's real
+ * mailbox — 3,607 threads on this machine — and **ran migrations against it**.
+ * Two migrations were written on 2026-08-31 alone, one of them a repair that
+ * rewrites label rows across every thread. A mistake in one of those, run from
+ * a half-finished working tree, would have landed on real mail. The keychain
+ * split already stops a dev build syncing or sending; it does nothing to stop
+ * it writing.
+ *
+ * It also closes what the gateway socket split could not: agent credentials,
+ * grants and the audit log live in this database, so a credential issued by one
+ * build was accepted by the other.
+ *
+ * The escape hatch is deliberate and explicit, because reading real mail is
+ * exactly what makes design work possible — a night of visual review against 20
+ * synthetic demo threads is not the same job:
+ *
+ *     VITE_MARU_REAL_DB=1 npm run tauri dev
+ *
+ * That opts a dev build back onto the real database, migrations and all. It is
+ * an env var rather than a UI toggle on purpose: the dangerous case should cost
+ * a deliberate keystroke every time, and never be a setting someone leaves on.
+ *
+ * A packaged build ignores all of this and always opens `wren.db`.
+ */
+const DEV_DB = import.meta.env.DEV && import.meta.env.VITE_MARU_REAL_DB !== '1'
+
+export const DB_URL = DEV_DB ? 'sqlite:wren.dev.db' : 'sqlite:wren.db'
 
 class TauriSqlDb implements SqlDb {
   constructor(private readonly db: Database) {}

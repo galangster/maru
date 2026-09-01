@@ -107,6 +107,55 @@ Concentrations: verification-answers (project id, client id, trademark
 receipt, frozen release, demo package), QUOTA (dashboards + alerts),
 CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
+## Publishing a release — the checklist, because it is currently half-done
+
+**The website's download button is seven versions stale, and the auto-updater
+is confidently wrong.** Verified 2026-08-31:
+
+- `site/index.html` links to `/releases/latest`, which 302s to **v0.1.0**
+  (2026-08-30). Its assets are still named `Wren`. So anyone downloading from
+  getmaru.app today gets the build from before the missing-mail fix, before the
+  dead Show button was fixed, and before P18/P19/P20.
+- 0.1.1 through 0.1.7 were **never published as GitHub Releases**. Those DMGs
+  exist only on this Mac.
+- `latest.json` at that endpoint returns HTTP 200 and is the **0.1.0**
+  manifest. Every installed copy polls it, sees a version older than itself,
+  and correctly concludes there is nothing to do. It will never offer an
+  update, and it fails silently by design (`announceNoUpdate: false` on
+  launch, `src/lib/updates.ts`).
+
+The site's TEXT does update on its own — Pages deploys from `main` via
+`.github/workflows/pages.yml`, so prose fixes go live on push. Only the
+artifacts are stale.
+
+**Recommendation: publish once, at the freeze, with the exact build the demo is
+recorded against** — so the video, the dossier's "frozen reviewer build", the
+download and the updater manifest all name one version. Publishing mid-flight
+means doing it again tomorrow.
+
+### The checklist, in order. Half of it is easy to forget.
+
+1. `./scripts/release-macos.sh` with `APPLE_SIGNING_IDENTITY` set. It signs,
+   notarizes, staples, re-verifies with Apple's own tools, and writes
+   `latest.json` with the platform key **read off the binary**.
+2. Run `.github/workflows/windows-build.yml` (workflow_dispatch or a `v*` tag).
+   v0.1.0 carries an `.exe` and an `.msi`; without them the site's "Windows
+   preview available" line goes stale the same way the download did.
+3. `gh release create v<version>` and upload **four** macOS files:
+   the `.dmg`, `Maru.app.tar.gz`, `Maru.app.tar.gz.sig`, **and `latest.json`**.
+   The `.sig` and `latest.json` are the two that get forgotten, and without
+   either the auto-updater stays pointed at whatever came before.
+4. Confirm the redirect actually moved:
+   `curl -sI https://github.com/galangster/maru/releases/latest` should now
+   name the new tag, and
+   `curl -sL .../releases/latest/download/latest.json` should report the new
+   version.
+5. Only then update the dossier's frozen-build fields and record the demo.
+
+**Do not publish a release whose `latest.json` names a version you did not also
+upload a tarball for.** That is the one failure mode that breaks working
+installs rather than merely failing to help them.
+
 ## Decisions to ratify
 
 - **The shell card is now less rounded than the cards inside it**
