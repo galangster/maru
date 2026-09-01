@@ -10,3 +10,14 @@ Desktop-family credentials file without a consent screen on a second Mac.
 
 Acceptance: the test list in the lane brief; demo-mode walkthrough; existing
 638 tests still pass. Build log lands in G2-cross-device-sync.md.
+
+## Merged to main 2026-09-01 (`f3118ab`), walkthrough passed
+
+Lane B (`ca1e5cc`, `28296ae`, `e1a3513`) plus the B2 cleanup (`c7c90aa`,
+all 27 simplify findings applied, none skipped). 654 tests. The orchestrator
+drove the demo path in the browser: Settings → Maru account → Sign up →
+twelve-word ceremony with the activate button gated on the confirmation →
+signed-in state with the comped entitlement, this device's name, restore
+history, change password, sign out, and delete-with-typed-email. No console
+errors. Build log for the crypto and sync decisions is in
+`G2-cross-device-sync.md`.
