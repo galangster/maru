@@ -408,6 +408,52 @@ describe('settings', () => {
   })
 })
 
+describe('startup order', () => {
+  it('does not read every thread before bringing accounts up', async () => {
+    // P19. `allThreads()` shared a Promise.all with the two reads the account
+    // loop needs, so NO account began syncing until every thread had been read
+    // and decrypted — measured at 1.5s and 6.2s on a real 3607-thread mailbox,
+    // on every launch, before Maru asked Google for anything.
+    //
+    // The gate is ordering, not duration: assert that attach happens without
+    // allThreads having been called. A timing assertion would be flaky on CI
+    // and would not say what broke.
+    const platform = new NodePlatform()
+    const store = await Store.open(platform)
+    await store.upsertAccount(makeAccount())
+    await store.upsertThreads([makeThread({})])
+    await platform.secretSet(
+      'wren:account:acct-1',
+      JSON.stringify({ refreshToken: 'rt-1', accessToken: 'at-1', expiresAt: Date.now() + 3_600_000, clientId: 'cid' }),
+    )
+    await store.setSettings({ googleClientId: 'cid', googleClientSecret: 'csecret' })
+
+    const order: string[] = []
+    const realAllThreads = store.allThreads.bind(store)
+    store.allThreads = async () => {
+      order.push('allThreads')
+      return realAllThreads()
+    }
+
+    await RealMailService.create({
+      platform,
+      store,
+      // autoStart true is the production path — the one that used to block.
+      // The fake client keeps the engine from touching a network.
+      autoStart: true,
+      createClient: () => {
+        order.push('attach')
+        return new FakeClient()
+      },
+      runAuthFlow: async () => {
+        throw new Error('not used')
+      },
+    })
+
+    expect(order[0], `expected attach before allThreads, got ${order.join(' → ')}`).toBe('attach')
+  })
+})
+
 describe('sync status', () => {
   it('keeps lastSyncAt across a failure so the UI can say how stale mail is', async () => {
     // The engine writes lastSyncAt only on success. Merging it at the emitter

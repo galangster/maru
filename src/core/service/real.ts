@@ -147,15 +147,30 @@ export class RealMailService implements MailService {
   }
 
   private async start(): Promise<void> {
-    // Three independent reads of three tables: the window opens a full SQLite
-    // round trip sooner for doing them at once.
-    const [threads, settings, accounts] = await Promise.all([
-      this.store.allThreads(),
+    // Two small reads, batched. `allThreads()` used to be the third, and that
+    // was the bug: it is only needed by the search index on the LAST line, but
+    // sharing a `Promise.all` with the two reads the account loop genuinely
+    // needs meant **no account began syncing until every thread had been read
+    // and decrypted**.
+    //
+    // Measured on the owner's real mailbox, 3607 threads: 1.5s once and 6.2s
+    // on a second launch — logged by sqlx as a slow statement both times. That
+    // was not a slower search box, it was six seconds before Maru asked Google
+    // for mail, on every single launch, and it is the demo's opening shot.
+    //
+    // The comment that used to sit here said the batch existed so "the window
+    // opens a full SQLite round trip sooner". True of the two small reads, and
+    // exactly backwards for the big one.
+    const [settings, accounts] = await Promise.all([
       this.store.getSettings(),
       this.store.listAccounts(),
     ])
     for (const account of accounts) await this.bringUp(account, settings)
-    this.indexReady = this.buildIndex(threads)
+    this.indexReady = this.buildIndex()
+    // Tests and captures run with autoStart false and want a service that is
+    // fully settled when `create` resolves — the same contract they had when
+    // the index was built inline. Production does not wait.
+    if (!this.autoStart) await this.indexReady
   }
 
   /**
@@ -185,17 +200,34 @@ export class RealMailService implements MailService {
    * Threads the sync engine has already indexed are skipped: this snapshot is
    * the older of the two by then.
    */
-  private buildIndex(threads: Thread[]): Promise<void> {
-    const fill = () => this.index.upsertMany(threads.filter((t) => !this.index.has(t.key)))
-    if (!this.autoStart) {
-      fill()
-      return Promise.resolve()
+  private buildIndex(): Promise<void> {
+    // The READ moved in here with the indexing, and that is the point. Chaining
+    // `allThreads().then(fill)` would have taken the await off the critical
+    // path but still fired 3607 row decrypts the instant the service was
+    // constructed — competing with the first frame and with the sync passes
+    // that have just started. Inside the idle callback, the whole cost lands
+    // when the main thread has nothing better to do.
+    const fill = async () => {
+      const threads = await this.store.allThreads()
+      // Re-read the account list AFTER the threads, and index only what still
+      // belongs to a live account.
+      //
+      // Deferring the build opened a window that awaiting it did not have: a
+      // removeAccount landing between this read and the upsert would clear the
+      // index and then have its rows put straight back, because the snapshot
+      // in hand predates the deletion. The threads are gone from the store and
+      // the account is gone from the sidebar, but search still answers with
+      // them — the one place stale mail could outlive "delete my data".
+      // Reading accounts second is what makes the check sound: any removal
+      // that beat the thread read is also visible here.
+      const live = new Set((await this.store.listAccounts()).map((a) => a.id))
+      this.index.upsertMany(
+        threads.filter((t) => live.has(t.accountId) && !this.index.has(t.key)),
+      )
     }
+    if (!this.autoStart) return fill()
     return new Promise<void>((resolve) => {
-      const run = () => {
-        fill()
-        resolve()
-      }
+      const run = () => void fill().then(resolve, resolve)
       const idle = (globalThis as { requestIdleCallback?: (cb: () => void, o?: object) => number })
         .requestIdleCallback
       if (typeof idle === 'function') idle(run, { timeout: 2000 })

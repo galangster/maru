@@ -1,6 +1,6 @@
 # P19 — Sync waits six seconds for the search index  `wayfinder:task`
 
-status: open · claimed: — · found: 2026-08-31, measured on Nick's own mailbox
+status: DONE (2026-08-31) · found and fixed the same day, measured on Nick's own mailbox
 
 ## What was measured
 
@@ -96,3 +96,48 @@ Not a freeze blocker — it is a cold-start delay, not a defect in what the app
 shows. But it is on the demo path: a recording that opens the app and waits
 six seconds for mail to move is a bad first frame, so it is worth doing
 before the video rather than after.
+
+
+---
+
+## Shipped 2026-08-31
+
+`allThreads()` is out of the startup `Promise.all`. The account loop now runs
+on `getSettings` + `listAccounts` alone, so **sync begins in milliseconds
+instead of after the index**. The read itself moved *inside* the idle
+callback rather than being chained onto it — chaining would have taken the
+await off the critical path but still fired 3607 row decrypts the instant the
+service was constructed, competing with the first frame and with the sync
+passes that had just started.
+
+**The column-narrowing idea in the plan above is dead, and the reason is worth
+keeping.** The index needs `subject`, `participants` and `snippet` — which are
+exactly `ENCRYPTED_THREAD_COLUMNS`. There is no cheaper projection: every
+column the index wants is one that has to be decrypted, and `ThreadSearchIndex`
+retains the whole `Thread` besides. Narrowing the SELECT would save the
+transfer of a few plaintext columns and none of the cost. Do not re-derive
+this.
+
+### A bug the fix created, found by an existing test
+
+Deferring the build opened a window that awaiting it did not have. A
+`removeAccount` landing between the thread read and the upsert would clear the
+index and then have its rows put straight back, because the snapshot in hand
+predates the deletion — the account gone from the sidebar, the threads gone
+from the store, and search still answering with them. That is the one place
+stale mail could outlive "delete my data".
+
+`fill()` now re-reads the account list **after** the threads and indexes only
+what still belongs to a live account. Reading accounts second is what makes
+the check sound: any removal that beat the thread read is also visible in the
+account read. `autoStart: false` additionally awaits the build, so tests and
+captures get the settled service they had before.
+
+### The gate
+
+`tests/real.test.ts` → "does not read every thread before bringing accounts
+up". It asserts ORDER, not duration — a timing assertion would be flaky on CI
+and would not say what broke. Verified to fail against the old code
+(`allThreads → attach`) rather than merely passing against the new.
+
+558 tests pass.
