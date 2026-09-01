@@ -10,10 +10,14 @@ const options = {
   outputLen: 32,
 };
 
+// The proof is hashed as its base64url TEXT, not its raw bytes. The binding
+// treats a Buffer password as UTF-8, and a random 32-byte proof is not valid
+// UTF-8 more often than not, so verify() threw "invalid utf-8 sequence" on
+// the live service while hash() had happily accepted the same bytes.
 export function hashProof(value: string) {
-  return hash(Buffer.from(value, "base64url"), { ...options, salt: randomBytes(16) });
+  return hash(value, { ...options, salt: randomBytes(16) });
 }
 
 export function verifyProof(encodedHash: string, value: string) {
-  return verify(encodedHash, Buffer.from(value, "base64url"));
+  return verify(encodedHash, value);
 }

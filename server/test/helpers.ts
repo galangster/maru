@@ -9,10 +9,10 @@ import type { AppDeps, BillingClient, PubSubVerifier, PushSender } from "../src/
 import { createPgliteDb } from "./pglite-db.js";
 
 export const EMAIL = "test@example.com";
-export const AUTH_KEY = Buffer.alloc(32, 1).toString("base64url");
-export const REC_KEY = Buffer.alloc(32, 2).toString("base64url");
-export const NEW_AUTH_KEY = Buffer.alloc(32, 3).toString("base64url");
-export const NEW_REC_KEY = Buffer.alloc(32, 4).toString("base64url");
+export const AUTH_KEY = Buffer.alloc(32, 0xff).toString("base64url");
+export const REC_KEY = Buffer.from([0xff, ...Buffer.alloc(31, 2)]).toString("base64url");
+export const NEW_AUTH_KEY = Buffer.from([0xfe, ...Buffer.alloc(31, 3)]).toString("base64url");
+export const NEW_REC_KEY = Buffer.from([0xff, ...Buffer.alloc(31, 4)]).toString("base64url");
 
 export const device = (name = "Test Mac") => ({ name, platform: "macos", family: "desktop" });
 
