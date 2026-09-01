@@ -19,6 +19,7 @@ export function createStripeClient(secretKey: string): BillingClient {
       client_reference_id: accountId,
       line_items: [{ price: priceId, quantity: 1 }],
       automatic_tax: { enabled: true },
+      subscription_data: { metadata: { accountId } },
       success_url: SUCCESS_URL,
       cancel_url: CANCEL_URL,
     }),
@@ -72,6 +73,14 @@ function subscriptionPeriodEnd(object: Record<string, unknown>) {
   return timestampField(objectField(data[0])?.current_period_end);
 }
 
+function accountIdFromMetadata(object: Record<string, unknown>) {
+  const direct = stringField(objectField(object.metadata)?.accountId);
+  if (direct) return direct;
+  const parent = objectField(object.parent);
+  const details = objectField(parent?.subscription_details);
+  return stringField(objectField(details?.metadata)?.accountId);
+}
+
 function planFor(object: Record<string, unknown>, deps: AppDeps) {
   const price = subscriptionPrice(object);
   const id = stringField(price?.id);
@@ -97,15 +106,19 @@ async function handleStripeEvent(event: StripeEvent, deps: AppDeps) {
     const customerId = stringField(object.customer);
     const status = stringField(object.status);
     if (!subscriptionId || !customerId || !status) return;
-    const [user] = await deps.db.query<{ id: string }>(
-      "SELECT id FROM users WHERE stripe_customer_id = $1",
-      [customerId],
-    );
+    const accountId = accountIdFromMetadata(object);
+    const [user] = accountId
+      ? await deps.db.query<{ id: string }>("SELECT id FROM users WHERE id = $1", [accountId])
+      : await deps.db.query<{ id: string }>("SELECT id FROM users WHERE stripe_customer_id = $1", [customerId]);
     if (!user) return;
+    await deps.db.query(
+      "UPDATE users SET stripe_customer_id = COALESCE(stripe_customer_id, $2) WHERE id = $1",
+      [user.id, customerId],
+    );
     await deps.db.query(
       `INSERT INTO subscriptions
         (user_id, stripe_subscription_id, status, plan, current_period_end, cancel_at_period_end, past_due_since)
-       VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $3 = 'past_due' THEN $7 ELSE NULL END)
+       VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $3 = 'past_due' THEN $7::timestamptz ELSE NULL END)
        ON CONFLICT (user_id) DO UPDATE SET
          stripe_subscription_id = EXCLUDED.stripe_subscription_id,
          status = EXCLUDED.status,
@@ -125,6 +138,27 @@ async function handleStripeEvent(event: StripeEvent, deps: AppDeps) {
   if (event.type === "invoice.payment_failed" || event.type === "invoice.paid") {
     const subscriptionId = subscriptionIdFromInvoice(object);
     if (!subscriptionId) return;
+    const [existing] = await deps.db.query<Pick<SubscriptionRow, "user_id"> & Record<string, unknown>>(
+      "SELECT user_id FROM subscriptions WHERE stripe_subscription_id = $1",
+      [subscriptionId],
+    );
+    if (!existing) {
+      const accountId = accountIdFromMetadata(object);
+      const customerId = stringField(object.customer);
+      const [user] = accountId
+        ? await deps.db.query<{ id: string }>("SELECT id FROM users WHERE id = $1", [accountId])
+        : customerId
+          ? await deps.db.query<{ id: string }>("SELECT id FROM users WHERE stripe_customer_id = $1", [customerId])
+          : [];
+      if (!user) return;
+      await deps.db.query(
+        `INSERT INTO subscriptions
+          (user_id, stripe_subscription_id, status, plan, cancel_at_period_end, past_due_since)
+         VALUES ($1, $2, $3, NULL, false, $4)`,
+        [user.id, subscriptionId, event.type === "invoice.payment_failed" ? "past_due" : "active",
+          event.type === "invoice.payment_failed" ? deps.clock.now() : null],
+      );
+    }
     if (event.type === "invoice.payment_failed") {
       await deps.db.query(
         `UPDATE subscriptions SET status = 'past_due', past_due_since = COALESCE(past_due_since, $2)

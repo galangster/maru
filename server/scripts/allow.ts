@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { migrate, createPostgresDb } from "../src/db.js";
 import { normalizeEmail } from "../src/util.js";
 
@@ -11,7 +12,7 @@ if (!command || !valid.has(command) || (command !== "list" && !rawEmail)) {
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
   const db = createPostgresDb(databaseUrl);
   try {
-    await migrate(db);
+    await migrate(db, resolve(import.meta.dirname, "../migrations"));
     if (command === "list") {
       const rows = await db.query<{ email: string }>("SELECT email FROM allowed_emails ORDER BY email");
       console.log(JSON.stringify(rows.map((row) => row.email)));

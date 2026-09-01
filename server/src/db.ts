@@ -8,6 +8,7 @@ export interface Db {
     text: string,
     params?: readonly unknown[],
   ): Promise<T[]>;
+  exec(text: string): Promise<void>;
   transaction<T>(work: (db: Db) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
@@ -16,6 +17,9 @@ function postgresAdapter(sql: Sql, canClose = true): Db {
   return {
     async query<T extends Record<string, unknown>>(text: string, params: readonly unknown[] = []) {
       return (await sql.unsafe(text, [...params] as never[])) as unknown as T[];
+    },
+    async exec(text: string) {
+      await sql.unsafe(text).simple();
     },
     async transaction<T>(work: (db: Db) => Promise<T>) {
       return await sql.begin(async (transactionSql) => work(postgresAdapter(transactionSql as unknown as Sql, false))) as unknown as T;
@@ -31,10 +35,13 @@ export function createPostgresDb(databaseUrl: string): Db {
 }
 
 export function createPgliteDb(client: PGlite): Db {
-  const adapter = (connection: Pick<PGlite, "query">, root: PGlite | null): Db => ({
+  const adapter = (connection: Pick<PGlite, "query" | "exec">, root: PGlite | null): Db => ({
     async query<T extends Record<string, unknown>>(text: string, params: readonly unknown[] = []) {
       const result = await connection.query<T>(text, [...params]);
       return result.rows;
+    },
+    async exec(text: string) {
+      await connection.exec(text);
     },
     async transaction<T>(work: (db: Db) => Promise<T>) {
       if (!root) return work(adapter(connection, null));
@@ -67,7 +74,7 @@ export async function migrate(db: Db, migrationsDir = resolve(process.cwd(), "mi
     if (applied.length > 0) continue;
     const sql = await readFile(resolve(migrationsDir, name), "utf8");
     await db.transaction(async (tx) => {
-      await tx.query(sql);
+      await tx.exec(sql);
       await tx.query("INSERT INTO schema_migrations (name) VALUES ($1)", [name]);
     });
   }

@@ -18,7 +18,7 @@ export function createApp(deps: AppDeps) {
     deps.logger.info({
       code: "http_request",
       method: c.req.method,
-      path: c.req.routePath || c.req.path,
+      path: c.req.routePath || "unmatched",
       status: c.res.status,
       durationMs: Math.round(performance.now() - startedAt),
     }, "Request complete");
@@ -50,7 +50,7 @@ export function createApp(deps: AppDeps) {
   app.get("/healthz", (c) => c.json({ ok: true, version: deps.version }));
   app.notFound((c) => error(c, 404, "not_found", "The endpoint does not exist."));
   app.onError((cause, c) => {
-    deps.logger.error({ code: "internal_error", method: c.req.method, path: c.req.routePath || c.req.path }, "Request failed");
+    deps.logger.error({ code: "internal_error", method: c.req.method, path: c.req.routePath || "unmatched" }, "Request failed");
     return c.json({ error: "internal_error", message: "The server could not complete the request." }, 500);
   });
   return app;

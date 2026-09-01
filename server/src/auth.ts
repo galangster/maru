@@ -89,16 +89,19 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     const now = deps.clock.now();
     const [authHash, recAuthHash] = await Promise.all([hashProof(body.authKey), hashProof(body.recAuthKey)]);
     const created = await deps.db.transaction(async (tx) => {
-      await tx.query(
+      const inserted = await tx.query<{ id: string }>(
         `INSERT INTO users
           (id, email, auth_hash, rec_auth_hash, kdf_json, wrapped_by_password, wrapped_by_recovery,
            trial_ends_at, comped, created_at)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)`,
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
+         ON CONFLICT (email) DO NOTHING RETURNING id`,
         [id, email, authHash, recAuthHash, JSON.stringify(body.kdf), body.wrappedByPassword,
           body.wrappedByRecovery, addDays(now, TRIAL_DAYS), gate.allowed, now],
       );
+      if (inserted.length === 0) return null;
       return createDevice({ ...deps, db: tx }, id, device);
     });
+    if (!created) return error(c, 409, "exists", "An account already exists.");
     return c.json({ ...created, accountId: id }, 201);
   });
 

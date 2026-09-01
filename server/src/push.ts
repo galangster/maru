@@ -51,6 +51,7 @@ class ApnsSender {
       ? "https://api.push.apple.com"
       : "https://api.sandbox.push.apple.com";
     const session = connect(authority);
+    session.on("error", () => undefined);
     try {
       const providerToken = await this.providerToken();
       const statuses = await Promise.all(tokens.map((token) => this.sendOne(session, token, providerToken)));
@@ -112,6 +113,10 @@ export async function createPushService(env: NodeJS.ProcessEnv, logger: Logger):
         logger.info({ code: "apns_unconfigured", count: tokens.length }, "APNs send skipped");
       },
     };
+  }
+
+  if (env.APNS_ENV && env.APNS_ENV !== "sandbox" && env.APNS_ENV !== "production") {
+    throw new Error("APNS_ENV must be sandbox or production");
   }
 
   const privateKey = await importPKCS8(env.APNS_KEY_P8!.replaceAll("\\n", "\n"), "ES256");
