@@ -1,17 +1,24 @@
-import { defineRailway, github, postgres, project, service } from "railway/iac";
+import { defineRailway, github, postgres, project, service, volume } from "railway/iac";
 
 // Maru sync service. Spec: docs/spec/MARU-ACCOUNT.md. Ops: ops/, server/README.md.
 // The service builds server/Dockerfile from the server/ directory on every push
 // to main. Secrets (Stripe, APNs, Pub/Sub) are set in Railway by hand and are
 // not declared here; the allowlist and comp lists are literal because they are
-// the beta's door.
+// the beta's door. Omit means delete: every resource in the project is listed.
 export default defineRailway(() => {
-  const db = postgres("Postgres");
+  const db = postgres("Postgres", { region: "us-west2" });
+  const dbVolume = volume("postgres-volume", {
+    alerts: { usage: { "80": {}, "95": {}, "100": {} } },
+    allowOnlineResize: true,
+    region: "us-west2",
+    sizeMB: 50000,
+  });
 
   const sync = service("sync", {
     source: github("galangster/maru", { branch: "main", rootDirectory: "server" }),
     healthcheck: "/healthz",
     healthcheckTimeout: 60,
+    replicas: { "us-west2": 1 },
     domains: ["sync.getmaru.app"],
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
@@ -22,5 +29,5 @@ export default defineRailway(() => {
     },
   });
 
-  return project("maru-sync", { resources: [db, sync] });
+  return project("maru-sync", { resources: [sync, db, dbVolume] });
 });
