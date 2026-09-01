@@ -158,6 +158,34 @@ installs rather than merely failing to help them.
 
 ## Decisions to ratify
 
+- **Should a reply wake a deferred thread early?** (P21, save-for-later.) You
+  save a thread until Monday. On Saturday someone replies to it. Does it come
+  back now, or stay away until Monday?
+  My judgement is **yes, wake it** — hiding a live conversation you are party
+  to is worse than an early return, and it is one line in a set the history
+  sync already computes. But it will occasionally read as a bug ("I said
+  Monday"), so it is a taste call and it is yours. Nothing is blocked on it;
+  say the word and it flips either way.
+
+- **Run this and tell me the three numbers** (P21 lane 2, the swipe gesture).
+  Ten seconds, and it decides whether the gesture is built at all. In a
+  `npm run tauri dev` window, open devtools and paste:
+  ```js
+  window.addEventListener('wheel', e => console.log(e.deltaX.toFixed(1), e.deltaY.toFixed(1), e.deltaMode, Math.round(performance.now())), {passive: true})
+  ```
+  Then over a thread row: a slow two-finger swipe right, a fast flick right,
+  and a normal vertical scroll. I need (1) does non-zero `deltaX` arrive at
+  all, (2) is `deltaMode` 0, and (3) after your fingers lift, how many events
+  keep arriving and how fast does `|deltaX|` decay.
+  Why it cannot be answered from the code: **WebKit exposes no gesture phase to
+  JavaScript.** Apple Mail's swipe reads a native NSEvent that knows when your
+  fingers leave the trackpad; the web has no equivalent, and macOS keeps
+  sending decaying momentum events that are indistinguishable from real
+  movement. Any web implementation is a heuristic, and answer (3) is what says
+  whether the heuristic is safe on your hardware. If `deltaX` never arrives the
+  gesture is simply dead — and Later is complete without it either way.
+
+
 - **The shell card is now less rounded than the cards inside it**
   (pre-freeze sweep, 2026-08-31). You ruled the shell corner to 12
   ("this looks bad visually" at 18, then "no padding/margin" at flush),
