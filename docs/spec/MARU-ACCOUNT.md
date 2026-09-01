@@ -70,7 +70,9 @@ vaultCiphertext   = seal(accountKey, utf8(json(vault)), aad = "maru-vault-v1:" +
 The KDF parameters are stored server-side per user and returned by
 `prelogin`, so they can be raised later without a migration. The server stores
 `authKey` and `recAuthKey` only as slow hashes (Argon2id, server-side random
-salt, same parameters). It never sees masterKey, encKey, accountKey, or
+salt, **server parameters m = 19456 KiB, t = 2, p = 1** — the input is already
+32 uniformly random bytes, so the client's password-stretching cost buys
+nothing here and would only throttle logins). It never sees masterKey, encKey, accountKey, or
 recEncKey.
 
 Password change: derive the new encKey, re-wrap accountKey, send the new
@@ -134,12 +136,14 @@ beta, `http://127.0.0.1:8787` in development. JSON bodies. Errors are
 | `POST /v1/auth/prelogin` | none | `{email}` → `{kdf:{algo:"argon2id",m,t,p}, salt}` (salt = the client-side rule in §3 echoed; unknown email returns the same shape with default kdf so nothing leaks) |
 | `POST /v1/auth/signup` | none | `{email, authKey, recAuthKey, kdf, wrappedByPassword, wrappedByRecovery, device:{name, platform, family}}` → `{token, deviceId, accountId}`. **403 `not_allowed`** if email is not on the allowlist. 409 `exists`. |
 | `POST /v1/auth/login` | none | `{email, authKey, device}` → `{token, deviceId, accountId, kdf, wrappedByPassword}`. 401 `bad_credentials`. Rate limited per email and per IP. |
-| `POST /v1/auth/recover` | none | `{email, recAuthKey, newAuthKey, newWrappedByPassword, newRecAuthKey, newWrappedByRecovery, device}` → `{token, deviceId, accountId, wrappedByRecovery(old)}`. Revokes all other devices. |
+| `POST /v1/auth/recover-start` | none | `{email, recAuthKey}` → `{wrappedByRecovery, kdf}`. Proof-gated and rate limited, so a recovery-wrapped key is never handed to someone who only knows the email. (Added 2026-09-01: the client needs this *before* it can produce the new wrappings below.) |
+| `POST /v1/auth/recover` | none | `{email, recAuthKey, newAuthKey, newWrappedByPassword, newRecAuthKey, newWrappedByRecovery, device}` → `{token, deviceId, accountId}`. Revokes all other devices. |
 | `POST /v1/auth/password` | bearer | `{authKey, newAuthKey, newWrappedByPassword}` → `{ok:true}` |
 | `POST /v1/auth/logout` | bearer | → `{ok:true}` (revokes this device's token) |
 | `GET /v1/vault` | bearer | → `{version, ciphertext, updatedAt}` or 204 when empty |
 | `PUT /v1/vault` | bearer | `{baseVersion, ciphertext}` → `{version}`; **409 `conflict`** with the current `{version, ciphertext}` when baseVersion ≠ current |
 | `GET /v1/devices` | bearer | → `{devices:[{id, name, platform, family, createdAt, lastSeenAt, current}]}` |
+| `PATCH /v1/devices/:id` | bearer | `{name}` → `{ok:true}` — rename; own devices only. (Added 2026-09-01.) |
 | `DELETE /v1/devices/:id` | bearer | → `{ok:true}` (revokes; that device's next call gets 401 `revoked`) |
 | `DELETE /v1/account` | bearer | `{authKey}` → `{ok:true}`. Deletes user, devices, vault, push registrations. Irreversible. |
 | `POST /v1/push/register` | bearer | `{apnsToken}` or `{apnsToken:null}` → `{ok:true}` |
@@ -181,7 +185,7 @@ issued to that device by Google); "Delete local data" remains the local wipe.
 
 ## 8. Beta gating
 
-`allowed_emails` on the server is the only door. Signup returns 403
+`allowed_emails` on the server is the only door. It is a door, not a plan: signup never sets `comped`. Beta testers are comped explicitly (`allow.ts comp <email>`, or the `MARU_COMPED` env list at boot). Signup returns 403
 otherwise. Seeded from `MARU_ALLOWLIST` at boot (comma-separated) and
 editable with `server/scripts/allow.ts`. Opening the beta = clearing the
 table's enforcement flag, not a deploy.
