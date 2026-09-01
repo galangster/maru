@@ -68,8 +68,10 @@ the current state before you deploy the restore. Review Railway's
 [backup documentation](https://docs.railway.com/volumes/backups) before each
 restore because provider controls can change.
 
-Run the A5 restore drill before public launch. Use a scratch database for the
-drill. Record the restore duration and the age of the restored backup.
+The A5 restore drill ran on 2026-09-01 (logical dump and restore into a
+scratch database, one second, vault row identical). The record and the
+repeatable command are in `wayfinder/tickets/A5-deploy.md`. Rehearse the
+dashboard volume restore once real user data exists.
 
 ## Breach notification rule
 

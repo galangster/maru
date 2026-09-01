@@ -31,3 +31,34 @@ uploads the linked root whatever path it is given; Railway's builder wants
 cache-mount ids prefixed with a service cache key, so the Dockerfile uses a
 plain `npm ci`. Healthy: `{"ok":true,"version":"0.1.7"}`. Restore drill:
 not yet run.
+
+## Restore drill — done 2026-09-01T21:33Z (orchestrator)
+
+Method: logical dump and restore inside the Railway Postgres container over
+`railway ssh --service Postgres`, into a scratch database on the same
+instance, with a real vault row present (created by the live test in
+`setup` mode, deleted afterwards in `teardown` mode).
+
+| Step | Result |
+| --- | --- |
+| `pg_dump -Fc` of the live database | 17,678 bytes |
+| `CREATE DATABASE maru_drill` + `pg_restore --no-owner` | 1 second |
+| users / vaults / vault_history counts, live vs drill | 1 / 1 / 1 on both |
+| vault row `19b2e1b0…`, version 1, ciphertext prefix `m1.4T5fED7Blcg` | identical on both |
+| scratch database and dump file removed | confirmed |
+
+Recovery point age: seconds (a fresh dump). Recovery time: about one
+minute end to end including the ssh sessions. What this proves: the schema
+and data restore cleanly and a vault row survives as ciphertext. What it
+does not rehearse: Railway's dashboard volume-backup restore (documented in
+`ops/INCIDENT-RUNBOOK.md`, provider-controlled, not scriptable from the CLI);
+rehearse it once real user data exists and a maintenance window is
+announced.
+
+Repeatable command (from the repo root, drill account first):
+
+```bash
+MARU_LIVE_MODE=setup MARU_LIVE_SYNC_URL=… MARU_LIVE_EMAIL=… MARU_LIVE_PASSWORD=… npx vitest run tests/live
+railway ssh --service Postgres -- sh -c 'U="$DATABASE_URL"; D="${U%/*}/maru_drill"; pg_dump -Fc "$U" -f /tmp/maru.dump && psql -q "$U" -c "CREATE DATABASE maru_drill" && pg_restore --no-owner -d "$D" /tmp/maru.dump && psql -At "$D" -c "SELECT user_id, version, left(ciphertext,14) FROM vaults"; psql -q "$U" -c "DROP DATABASE maru_drill"; rm -f /tmp/maru.dump'
+MARU_LIVE_MODE=teardown … npx vitest run tests/live
+```
