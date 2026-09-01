@@ -60,7 +60,14 @@ export function createApp(deps: AppDeps) {
   app.get("/healthz", (c) => c.json({ ok: true, version: deps.version }));
   app.notFound((c) => error(c, 404, "not_found", "The endpoint does not exist."));
   app.onError((cause, c) => {
-    deps.logger.error({ code: "internal_error", method: c.req.method, path: c.req.routePath || "unmatched" }, "Request failed");
+    // The message names the failure; bodies, emails and tokens never reach it.
+    deps.logger.error({
+      code: "internal_error",
+      method: c.req.method,
+      path: c.req.routePath || "unmatched",
+      cause: cause instanceof Error ? cause.message : String(cause),
+      stack: cause instanceof Error ? cause.stack?.split("\n").slice(0, 4).join(" | ") : undefined,
+    }, "Request failed");
     return error(c, 500, "internal_error", "The server could not complete the request.");
   });
   return app;
