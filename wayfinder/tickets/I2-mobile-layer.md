@@ -1,6 +1,6 @@
 # I2 — The mobile layer  `wayfinder:task`
 
-status: **in flight (lane C, 2026-09-01)** · map 5
+status: **complete (I2 polish, 2026-09-01)** · map 5
 
 `src/mobile/`: inbox (unified, lens, pull to refresh, swipe archive / Later,
 long-press menu, multi-select, search with operators), thread (cards,
@@ -11,6 +11,17 @@ Acceptance: captures of six screens in both themes in
 `wayfinder/captures/ios/`; one touch-driven path recorded; the map-5 feel
 gates judged by the orchestrator from the captures and a hands-on run.
 Post-lane: VoiceOver labels and Dynamic Type pass.
+
+## I2 polish complete, 2026-09-01
+
+Recipient chips now parse names and addresses, support removal, paste, keyboard commit, validation, and correspondent suggestions.
+Cc and Bcc remain collapsed until used.
+Phone controls now expose accessible names and state.
+Modal sheets trap focus and restore it after close.
+Sent, Archived, and sync state use live regions.
+Mobile type derives from the iOS body size.
+The inbox virtualizer measures grown rows.
+XXXL captures prove the inbox, thread, compose sheet, tab bar, and toolbar without clipping.
 
 ## Feel-gate verdict, 2026-09-01 (orchestrator, from the twelve captures)
 
