@@ -30,11 +30,9 @@ export function RecipientField({
   const suggestions = recipientSuggestions(participants, state.input, state.recipients, selfEmails)
 
   const dispatch = (action: RecipientChipAction) => {
-    setState((current) => {
-      const next = reduceRecipientChips(current, action)
-      if (next.recipients !== current.recipients) onRecipientsChange(next.recipients)
-      return next
-    })
+    const next = reduceRecipientChips(state, action)
+    setState(next)
+    if (next.recipients !== state.recipients) onRecipientsChange(next.recipients)
   }
 
   return (
