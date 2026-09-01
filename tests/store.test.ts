@@ -305,3 +305,68 @@ describe('settings', () => {
     expect(db.raw.prepare('SELECT COUNT(*) AS n FROM settings').get()).toEqual({ n: 1 })
   })
 })
+
+// A single deleted reply used to hide a whole conversation from every view:
+// mapGmailThread unioned TRASH across the thread's messages, and every
+// non-trash view excludes TRASH. Fixing the mapping only helps a thread the
+// next sync happens to touch, and a thread nobody replies to is never touched
+// again — so migration 4 repairs what is already stored, from the messages
+// already stored, offline. Found on the owner's mailbox 2026-08-31: 58 threads.
+describe('migration 4 — the trash union repair', () => {
+  it('frees a thread whose older reply was trashed, and leaves a fully trashed one alone', async () => {
+    const platform = new NodePlatform()
+    const db = (await platform.sqlOpen()) as NodeSqlDb
+    // Migration 4 runs inside Store.open, so the rows have to predate it. Write
+    // them with the raw driver against the schema the earlier migrations built,
+    // then open the Store to trigger the repair.
+    await Store.open(platform)
+    const write = (sql: string) => db.raw.prepare(sql).run()
+
+    // t-mixed: an old trashed reply plus a live inbox message. The bug.
+    write(`INSERT INTO threads (key, account_id, gmail_thread_id, label_ids)
+           VALUES ('a/t-mixed','a','t-mixed','["INBOX","TRASH","IMPORTANT"]')`)
+    write(`INSERT INTO thread_labels (thread_key, account_id, label_id) VALUES
+           ('a/t-mixed','a','INBOX'), ('a/t-mixed','a','TRASH'), ('a/t-mixed','a','IMPORTANT')`)
+    write(`INSERT INTO messages (id, thread_key, thread_id, account_id, label_ids)
+           VALUES ('m1','a/t-mixed','t-mixed','a','["TRASH"]')`)
+    write(`INSERT INTO messages (id, thread_key, thread_id, account_id, label_ids)
+           VALUES ('m2','a/t-mixed','t-mixed','a','["INBOX","IMPORTANT"]')`)
+
+    // t-gone: genuinely deleted. Every message is trashed, so it must STAY in
+    // the trash — the repair must not resurrect real deletions.
+    write(`INSERT INTO threads (key, account_id, gmail_thread_id, label_ids)
+           VALUES ('a/t-gone','a','t-gone','["TRASH"]')`)
+    write(`INSERT INTO thread_labels (thread_key, account_id, label_id)
+           VALUES ('a/t-gone','a','TRASH')`)
+    write(`INSERT INTO messages (id, thread_key, thread_id, account_id, label_ids)
+           VALUES ('m3','a/t-gone','t-gone','a','["TRASH"]')`)
+
+    // t-bare: no stored messages. The repair must not invent an answer.
+    write(`INSERT INTO threads (key, account_id, gmail_thread_id, label_ids)
+           VALUES ('a/t-bare','a','t-bare','["TRASH"]')`)
+    write(`INSERT INTO thread_labels (thread_key, account_id, label_id)
+           VALUES ('a/t-bare','a','TRASH')`)
+
+    // Re-run the repair by hand: Store.open already stamped user_version, so a
+    // second open is a no-op. This is the migration's own SQL.
+    db.raw.exec(MIGRATIONS[3])
+
+    const labels = (key: string) =>
+      (db.raw.prepare('SELECT label_ids FROM threads WHERE key = ?').get(key) as { label_ids: string })
+        .label_ids
+    const joined = (key: string) =>
+      (db.raw.prepare('SELECT label_id FROM thread_labels WHERE thread_key = ?').all(key) as {
+        label_id: string
+      }[]).map((r) => r.label_id)
+
+    expect(labels('a/t-mixed'), 'the union artefact comes off').not.toContain('TRASH')
+    expect(labels('a/t-mixed')).toContain('INBOX')
+    expect(joined('a/t-mixed')).not.toContain('TRASH')
+    expect(joined('a/t-mixed')).toContain('INBOX')
+
+    expect(labels('a/t-gone'), 'a real deletion stays deleted').toContain('TRASH')
+    expect(joined('a/t-gone')).toContain('TRASH')
+
+    expect(labels('a/t-bare'), 'no messages means no opinion').toContain('TRASH')
+  })
+})

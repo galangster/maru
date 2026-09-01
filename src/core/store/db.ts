@@ -184,6 +184,56 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE approvals ADD COLUMN account_id TEXT;
   CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `,
+  // 4 — repair threads that a single deleted reply hid from every view.
+  //
+  // mapGmailThread unioned TRASH and SPAM across a thread's messages like any
+  // other label, so one trashed message anywhere in a conversation's history
+  // stamped TRASH on the thread — and every non-trash view excludes TRASH. The
+  // conversation vanished from the inbox while its newest message plainly sat
+  // there. Found on the owner's own mailbox, 2026-08-31: 58 threads across four
+  // accounts, including both messages he reported missing.
+  //
+  // The mapping is fixed, but that only helps a thread the next sync happens to
+  // touch, and a thread nobody replies to is never touched again. This repairs
+  // what is already stored, from the messages already stored, with no network.
+  //
+  // Both statements ask the same question: does this thread hold a message that
+  // does NOT carry the location label? If so the label was a union artefact and
+  // comes off. A thread with no stored messages is left alone — the EXISTS is
+  // false — which matches the mapping's own guard against inventing a label
+  // that none of its messages had.
+  `
+  DELETE FROM thread_labels
+  WHERE label_id IN ('TRASH','SPAM')
+    AND EXISTS (
+      SELECT 1 FROM messages m
+      WHERE m.thread_key = thread_labels.thread_key
+        AND NOT EXISTS (
+          SELECT 1 FROM json_each(m.label_ids) je WHERE je.value = thread_labels.label_id
+        )
+    );
+
+  UPDATE threads SET label_ids = (
+    SELECT json_group_array(je.value) FROM json_each(threads.label_ids) je
+    WHERE NOT (
+      je.value IN ('TRASH','SPAM')
+      AND EXISTS (
+        SELECT 1 FROM messages m
+        WHERE m.thread_key = threads.key
+          AND NOT EXISTS (SELECT 1 FROM json_each(m.label_ids) j2 WHERE j2.value = je.value)
+      )
+    )
+  )
+  WHERE EXISTS (
+    SELECT 1 FROM json_each(threads.label_ids) je
+    WHERE je.value IN ('TRASH','SPAM')
+      AND EXISTS (
+        SELECT 1 FROM messages m
+        WHERE m.thread_key = threads.key
+          AND NOT EXISTS (SELECT 1 FROM json_each(m.label_ids) j2 WHERE j2.value = je.value)
+      )
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

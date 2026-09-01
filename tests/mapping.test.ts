@@ -136,6 +136,79 @@ describe('mapGmailThread', () => {
     expect(t.labelIds.slice().sort()).toEqual(['IMPORTANT', 'INBOX', 'UNREAD'])
   })
 
+  // The bug that made real mail vanish, 2026-08-31. TRASH and SPAM were
+  // unioned across the thread like every other label, so one deleted reply
+  // stamped TRASH on the whole conversation — and every non-trash view
+  // excludes TRASH. Two of the owner's threads disappeared from his inbox
+  // while their newest messages plainly carried INBOX.
+  describe('TRASH and SPAM are locations, not descriptions', () => {
+    // The exact shape found in the owner's mailbox: an old deleted reply, a
+    // sent message, and a current message sitting in the inbox.
+    const mixed = (last: string[]) => [
+      { id: 'm1', threadId: 't-x', labelIds: ['IMPORTANT', 'TRASH', 'CATEGORY_PERSONAL'], internalDate: '1000' },
+      { id: 'm2', threadId: 't-x', labelIds: ['SENT'], internalDate: '2000' },
+      { id: 'm3', threadId: 't-x', labelIds: last, internalDate: '3000' },
+    ]
+    const thread = (raw: ReturnType<typeof mixed>) =>
+      mapGmailThread(
+        ACCOUNT,
+        { id: 't-x', messages: raw },
+        raw.map((m) => mapGmailMessage(ACCOUNT, m)),
+      )
+
+    it('keeps a thread in the inbox when only an older message is trashed', () => {
+      const t = thread(mixed(['IMPORTANT', 'CATEGORY_PERSONAL', 'INBOX']))
+      expect(t.labelIds).toContain('INBOX')
+      expect(
+        t.labelIds,
+        'one deleted reply must not drag the conversation out of the inbox',
+      ).not.toContain('TRASH')
+    })
+
+    it('trashes the thread only when every message is trashed', () => {
+      const all = [
+        { id: 'm1', threadId: 't-y', labelIds: ['TRASH'], internalDate: '1000' },
+        { id: 'm2', threadId: 't-y', labelIds: ['TRASH', 'SENT'], internalDate: '2000' },
+      ]
+      const t = mapGmailThread(
+        ACCOUNT,
+        { id: 't-y', messages: all },
+        all.map((m) => mapGmailMessage(ACCOUNT, m)),
+      )
+      expect(t.labelIds).toContain('TRASH')
+    })
+
+    it('applies the same rule to SPAM', () => {
+      const some = [
+        { id: 'm1', threadId: 't-z', labelIds: ['SPAM'], internalDate: '1000' },
+        { id: 'm2', threadId: 't-z', labelIds: ['INBOX'], internalDate: '2000' },
+      ]
+      const t = mapGmailThread(
+        ACCOUNT,
+        { id: 't-z', messages: some },
+        some.map((m) => mapGmailMessage(ACCOUNT, m)),
+      )
+      expect(t.labelIds).toContain('INBOX')
+      expect(t.labelIds).not.toContain('SPAM')
+    })
+
+    it('does not invent a label for a thread with no messages', () => {
+      // `every` on an empty array is vacuously true, which is why the delete is
+      // guarded on the label being present in the first place.
+      const t = mapGmailThread(ACCOUNT, { id: 't-empty', messages: [] }, [])
+      expect(t.labelIds).toEqual([])
+    })
+
+    it('leaves descriptive labels unioned', () => {
+      // The fix must not spread to labels that genuinely do describe the whole
+      // conversation: one important message makes the thread important.
+      const t = thread(mixed(['INBOX']))
+      expect(t.labelIds).toContain('IMPORTANT')
+      expect(t.labelIds).toContain('CATEGORY_PERSONAL')
+      expect(t.labelIds).toContain('SENT')
+    })
+  })
+
   it('collects deduplicated participants in first-seen order', () => {
     const messages = THREAD_THREE_MESSAGES.messages.map((m) => mapGmailMessage(ACCOUNT, m))
     const t = mapGmailThread(ACCOUNT, THREAD_THREE_MESSAGES, messages)

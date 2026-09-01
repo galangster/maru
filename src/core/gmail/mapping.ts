@@ -20,6 +20,9 @@ export {
 
 const LABEL_UNREAD = 'UNREAD'
 const LABEL_STARRED = 'STARRED'
+/** Location labels, not descriptive ones — see the union in mapGmailThread. */
+const LABEL_TRASH = 'TRASH'
+const LABEL_SPAM = 'SPAM'
 
 // ---------------------------------------------------------------------------
 // Payload walking
@@ -152,6 +155,29 @@ export function mapGmailThread(accountId: string, raw: GmailThread, messages: Me
     for (const id of m.labelIds) labels.add(id)
     mergeParticipants(participants, [m.from, ...m.to, ...m.cc])
     if (m.attachments.some((a) => !a.inline)) hasAttachments = true
+  }
+
+  // TRASH and SPAM are not additive, and unioning them like every other label
+  // made mail vanish.
+  //
+  // Every other Gmail label describes the thread as a whole: one important
+  // message makes the conversation important, one unread message makes it
+  // unread. These two describe a message's LOCATION, and a long conversation
+  // routinely holds a few deleted replies while still sitting in the inbox.
+  // Unioning them meant a single trashed message anywhere in the history
+  // stamped TRASH on the thread — and because every non-trash view excludes
+  // TRASH, the whole conversation disappeared from the inbox while its newest
+  // message was plainly still in it. Found 2026-08-31 on the owner's own
+  // mailbox: both messages he reported missing were threads whose newest
+  // message carried INBOX and no TRASH, buried under replies he had deleted
+  // weeks earlier.
+  //
+  // A thread is in the trash only when there is nothing left of it anywhere
+  // else. `every` on an empty message list is vacuously true, which is why the
+  // `labels.has` guard comes first — a thread with no messages must not
+  // acquire a label none of them had.
+  for (const id of [LABEL_TRASH, LABEL_SPAM]) {
+    if (labels.has(id) && !ordered.every((m) => m.labelIds.includes(id))) labels.delete(id)
   }
 
   return {

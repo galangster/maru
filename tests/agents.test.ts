@@ -106,8 +106,11 @@ async function gatewayOn(
 
 describe('migration 2', () => {
   it('appends rather than editing migration 1', () => {
-    expect(MIGRATIONS).toHaveLength(3)
-    expect(SCHEMA_VERSION).toBe(3)
+    // Bump both when you add one. The point of the assertion is the two lines
+    // below it: migration 1 must never be edited, because an existing install
+    // has already run it and will never run it again.
+    expect(MIGRATIONS).toHaveLength(4)
+    expect(SCHEMA_VERSION).toBe(4)
     expect(MIGRATIONS[0]).toContain('CREATE TABLE IF NOT EXISTS accounts')
     expect(MIGRATIONS[0]).not.toContain('agents')
   })
