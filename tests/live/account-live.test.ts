@@ -97,12 +97,27 @@ describe.skipIf(!url || !email)('Maru account against the live service', () => {
       await second.revokeDevice(other.id)
       await expect(first.devices()).rejects.toMatchObject({ status: 401 })
 
-      // Second device deletes the account with the password proof.
+      // Second device deletes the account with the password proof, and the
+      // address is free again immediately.
       await second.deleteAccount(base64UrlEncodeBytes(keys2.authKey))
       await expect(second.me()).rejects.toMatchObject({ status: 401 })
+      const again = new AccountClient(platform, url!)
+      const resignup = await again.signup({
+        email,
+        authKey: base64UrlEncodeBytes(keys.authKey),
+        recAuthKey: base64UrlEncodeBytes(recovery.authKey),
+        kdf: DEFAULT_KDF,
+        wrappedByPassword: await wrapByPassword(keys.encKey, accountKey),
+        wrappedByRecovery: await wrapByRecovery(recovery.encKey, accountKey),
+        device: { name: 'live-proof-3', platform: 'macos', family: 'desktop' },
+      })
+      again.setToken(resignup.token)
+      await again.deleteAccount(base64UrlEncodeBytes(keys.authKey))
     } catch (error) {
-      // Leave no account behind on failure either.
-      await first.deleteAccount(base64UrlEncodeBytes(keys.authKey)).catch(() => undefined)
+      // Leave no account behind on failure either, and say so if that fails.
+      await first.deleteAccount(base64UrlEncodeBytes(keys.authKey)).catch((cleanup: unknown) => {
+        console.error('cleanup delete failed:', cleanup)
+      })
       throw error
     }
   }, 120_000)

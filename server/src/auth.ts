@@ -54,6 +54,12 @@ function limited(deps: AppDeps, email: string, headers: { get(name: string): str
   return !deps.rateLimiter.consume(email, clientIp(headers));
 }
 
+/** The driver may hand jsonb back parsed or as text; the wire always gets an object. */
+function kdfOf(row: { kdf_json: unknown }): Kdf {
+  const value = row.kdf_json;
+  return (typeof value === "string" ? JSON.parse(value) : value) as Kdf;
+}
+
 export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
   app.post("/v1/auth/prelogin", async (c) => {
     const body = await jsonBody(c);
@@ -63,7 +69,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       "SELECT kdf_json FROM users WHERE email = $1 AND deleted_at IS NULL",
       [email],
     );
-    return c.json({ kdf: user?.kdf_json ?? DEFAULT_KDF, salt: clientSalt(email) });
+    return c.json({ kdf: user ? kdfOf(user) : DEFAULT_KDF, salt: clientSalt(email) });
   });
 
   app.post("/v1/auth/signup", async (c) => {
@@ -125,7 +131,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     return c.json({
       ...created,
       accountId: user.id,
-      kdf: user.kdf_json,
+      kdf: kdfOf(user),
       wrappedByPassword: user.wrapped_by_password,
     });
   });
@@ -145,7 +151,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     if (!user || !(await verifyProof(user.rec_auth_hash, body.recAuthKey))) {
       return error(c, 401, "bad_credentials", "The recovery key is incorrect.");
     }
-    return c.json({ wrappedByRecovery: user.wrapped_by_recovery, kdf: user.kdf_json });
+    return c.json({ wrappedByRecovery: user.wrapped_by_recovery, kdf: kdfOf(user) });
   });
 
   app.post("/v1/auth/recover", async (c) => {
