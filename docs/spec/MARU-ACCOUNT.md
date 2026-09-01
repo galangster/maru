@@ -219,3 +219,58 @@ allowed_emails   (email pk, added_at)
   is a new family key, not a client swap.
 - Password strength is the user's key strength. Minimum 12 characters,
   strength meter, no maximum, no composition rules.
+
+## 12. Billing (added 2026-09-01, owner ruling "make it happen")
+
+**Price: $5 a month or $50 a year.** Fourteen-day trial from signup, no card
+up front. The app stays free and AGPL; the account (sync, credentials vault,
+push, the phone) is what is paid for. Billing runs on Stripe on the web only.
+The iOS app never shows a purchase, so Apple's in-app-purchase rule does not
+apply; it shows "Manage on getmaru.app".
+
+Entitlement states, stored on the user, computed server-side:
+
+| state | meaning |
+| --- | --- |
+| `trialing` | `trial_ends_at` in the future, no subscription |
+| `active` | Stripe subscription `active` or `trialing` |
+| `past_due` | Stripe `past_due`; **7-day grace** from the first failed invoice |
+| `expired` | trial over with no subscription, or subscription ended, or grace over |
+| `comped` | `comped = true` on the user; set by `server/scripts/allow.ts comp <email>`; beta testers are comped |
+
+Enforcement: **reading is never locked.** `GET /v1/vault`, `GET /v1/devices`,
+`GET /v1/me`, logout and account deletion always work. `PUT /v1/vault`,
+`POST /v1/push/register` and `POST /v1/push/watch` return **402
+`payment_required`** when the state is `expired`.
+
+Endpoints (bearer):
+
+| Method, path | Body → Response |
+| --- | --- |
+| `GET /v1/me` | → `{email, accountId, entitlement:{state, plan, trialEndsAt, periodEndsAt, cancelAtPeriodEnd}}` |
+| `POST /v1/billing/checkout` | `{plan:"monthly"\|"yearly"}` → `{url}` — Stripe Checkout, subscription mode, `automatic_tax`, `client_reference_id = accountId`, customer created lazily and stored as `stripe_customer_id`; success and cancel URLs `https://getmaru.app/account?checkout=success` and `…=cancel` |
+| `POST /v1/billing/portal` | → `{url}` — Stripe Customer Portal (cancel, update card, switch plan) |
+| `POST /v1/billing/webhook` | Stripe-signed. Handles `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`. Idempotent by event id (`stripe_events` table). |
+
+Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MONTHLY`,
+`STRIPE_PRICE_YEARLY`. When absent, `/v1/billing/*` returns 503
+`billing_unavailable`; trials and comps still work, so the beta needs no
+Stripe. `server/scripts/stripe-setup.ts` creates the product "Maru Sync" and
+both prices idempotently (Stripe `lookup_key`s `maru_sync_monthly`,
+`maru_sync_yearly`) and prints the env lines to paste.
+
+Data: `users` gains `trial_ends_at, comped, stripe_customer_id`;
+`subscriptions (user_id pk, stripe_subscription_id, status, plan,
+current_period_end, cancel_at_period_end, past_due_since)`;
+`stripe_events (id pk, received_at)`.
+
+## 13. Vault history and session expiry (added 2026-09-01)
+
+The server keeps the last **10** vault versions in `vault_history (user_id,
+version, ciphertext, updated_at)`. `GET /v1/vault/history` lists versions;
+`POST /v1/vault/restore {version}` copies that ciphertext forward as a new
+current version. This is the answer to "a bad sync overwrote my settings"
+without the server ever reading a byte.
+
+Session tokens expire after 365 days idle (`last_seen_at`). The client treats
+that 401 exactly like `revoked`.
