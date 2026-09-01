@@ -2,10 +2,10 @@
 
 ## Reporting
 
-Email the maintainer (address on the GitHub profile) or open a GitHub
-security advisory on this repository. Please do not open a public issue
-for anything exploitable. You will get a human reply; there is no bounty
-program, only gratitude and a fast fix.
+Email [security@getmaru.app](mailto:security@getmaru.app) or open a GitHub
+security advisory on this repository. Do not open a public issue for an
+exploitable report. The security address delivers to a human. Maru does not
+offer a bounty program.
 
 ## What Maru trusts, in one page
 
