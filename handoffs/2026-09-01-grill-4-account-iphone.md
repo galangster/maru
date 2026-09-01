@@ -59,7 +59,7 @@ the audit (nothing retired; fourteen unraised items decided or queued).
 | `https://sync-production-c0b0.up.railway.app` | the sync service, healthy, allowlisted to Nick's three addresses, comped |
 | `sync.getmaru.app` | attached on Railway; DNS records in Nick's queue |
 | Installed Maru.app | 0.1.7 on this Mac; it will offer 0.1.8 on its next update check |
-| GitHub Releases / updater | **v0.1.8 published** (DMG, tarball, .sig, latest.json); `releases/latest` and `latest.json` both report 0.1.8; Windows installers pending the CI run |
+| GitHub Releases / updater | **v0.1.8 published** (DMG, tarball, .sig, latest.json); `releases/latest` and `latest.json` both report 0.1.8; Windows `.exe` and `.msi` attached from CI run 33559691464 |
 
 ## Open owner gates (all in `wayfinder/NICK-QUEUE.md`, top section)
 
@@ -85,8 +85,8 @@ across devices); second operator; beta device list.
   on A4. **I5** can start now: the phone's Settings row is a placeholder.
 - **0.1.8 is published** with the account inside, built with
   `VITE_MARU_SYNC_URL` pointing at the Railway domain until DNS lands.
-  Windows installers attach when the dispatched CI run finishes (check
-  `gh run view 33559691464`); `latest.json` deliberately lists macOS only.
+  Windows installers are attached (CI-built, unsigned, not hand-tested);
+  `latest.json` deliberately lists macOS only until the Windows hand-smoke.
 - **Polish left on I2**: recipient chips in compose, VoiceOver, Dynamic Type.
 
 ## Operational facts learned (also in memory `wren-push-and-railway-ops`)
@@ -98,12 +98,10 @@ worktree; use `git show rev:path > path`.
 
 ## Ordered next actions
 
-1. Attach the Windows installers to v0.1.8 if the CI run did not; hand-smoke
-   is still Nick's.
-2. Launch the installed 0.1.7 and accept the 0.1.8 update (proves the updater
+1. Launch the installed 0.1.7 and accept the 0.1.8 update (proves the updater
    end to end); then sign in to the Maru account from the real app.
-3. I5, then I3/I4 as the console items land.
-4. A5 restore drill; A9 once Nick decides. Dossier "frozen build" fields now
+2. I5, then I3/I4 as the console items land.
+3. A5 restore drill; A9 once Nick decides. Dossier "frozen build" fields now
    name 0.1.8 (Nick).
 
 ## Opener for the next session
@@ -111,7 +109,6 @@ worktree; use `git show rev:path > path`.
 ```
 Resume wren from handoffs/2026-09-01-grill-4-account-iphone.md. Main is at
 bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
-Check the Windows CI run attached its installers, then do I5 (the Maru
-account on the phone). Owner items stay in wayfinder/NICK-QUEUE.md. Standing
+Do I5 (the Maru account on the phone), then the A5 restore drill. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
 order: work autonomously.
 ```
