@@ -1,0 +1,160 @@
+name: macOS release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+jobs:
+  macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Check release version and architecture
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "arm64"
+          version=$(node -p "require('./package.json').version")
+          test "$GITHUB_REF_NAME" = "v$version"
+
+      - run: npm ci
+
+      - name: Require official Google client id
+        run: |
+          set -euo pipefail
+          if [ -z "${{ vars.WREN_OFFICIAL_GOOGLE_CLIENT_ID }}" ]; then
+            echo "WREN_OFFICIAL_GOOGLE_CLIENT_ID repository variable is not set"
+            exit 1
+          fi
+
+      - name: Build unsigned bundle and record its tree digest
+        env:
+          WREN_OFFICIAL_GOOGLE_CLIENT_ID: ${{ vars.WREN_OFFICIAL_GOOGLE_CLIENT_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          set -euo pipefail
+          npm run tauri build
+          unsigned_app=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$unsigned_app"
+          test "$(lipo -archs "$unsigned_app/Contents/MacOS/wren")" = "arm64"
+          if codesign --verify --deep --strict "$unsigned_app" >/dev/null 2>&1; then
+            echo "Expected an unsigned app bundle before the release build"
+            exit 1
+          fi
+
+          manifest="$RUNNER_TEMP/unsigned-app-tree.txt"
+          (
+            cd "$unsigned_app"
+            find . \( -type f -o -type l \) -print | LC_ALL=C sort |
+              while IFS= read -r path; do
+                if [ -L "$path" ]; then
+                  printf 'link  %s  %s\n' "$(readlink "$path")" "$path"
+                else
+                  shasum -a 256 "$path"
+                fi
+              done
+          ) > "$manifest"
+          digest=$(shasum -a 256 "$manifest" | awk '{print $1}')
+          mkdir -p release-artifacts
+          printf '# SHA-256 of the sorted file-and-link manifest for the unsigned app bundle.\n%s  %s.unsigned-tree\n' \
+            "$digest" "$(basename "$unsigned_app")" > release-artifacts/SHA256SUMS.txt
+
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          certificate_path="$RUNNER_TEMP/developer-id.p12"
+          keychain_path="$RUNNER_TEMP/release.keychain-db"
+          keychain_password=$(openssl rand -hex 24)
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -d user -s "$keychain_path"
+          security find-identity -v -p codesigning "$keychain_path" |
+            grep -F "$APPLE_SIGNING_IDENTITY"
+
+      - name: Prepare notarization and updater keys
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          notary_key="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          updater_key="$RUNNER_TEMP/updater.key"
+          printf '%s' "$APPLE_API_PRIVATE_KEY" > "$notary_key"
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$updater_key"
+          chmod 600 "$notary_key" "$updater_key"
+          echo "APPLE_API_KEY_PATH=$notary_key" >> "$GITHUB_ENV"
+          echo "WREN_UPDATER_KEY=$updater_key" >> "$GITHUB_ENV"
+
+      - name: Build, sign, notarize, and verify release
+        env:
+          WREN_OFFICIAL_GOOGLE_CLIENT_ID: ${{ vars.WREN_OFFICIAL_GOOGLE_CLIENT_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: ./scripts/release-macos.sh
+
+      - name: Collect release artifacts
+        run: |
+          set -euo pipefail
+          dmg=$(find src-tauri/target/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)
+          tarball=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          test -n "$dmg"
+          test -n "$tarball"
+          test -f "$tarball.sig"
+          test -f src-tauri/target/release/bundle/latest.json
+          cp "$dmg" "$tarball" "$tarball.sig" \
+            src-tauri/target/release/bundle/latest.json release-artifacts/
+          test "$(find release-artifacts -type f | wc -l | tr -d ' ')" = "5"
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            release-artifacts/*.dmg
+            release-artifacts/*.app.tar.gz
+            release-artifacts/*.app.tar.gz.sig
+            release-artifacts/latest.json
+
+      - name: Upload assets to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-artifacts/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release-artifacts/* \
+              --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          fi

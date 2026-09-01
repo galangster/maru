@@ -17,6 +17,7 @@
   p, li { color:var(--ink2); margin:10px 0; }
   strong { color:var(--ink); }
   a { color:var(--accent); }
+  .tag { color:var(--ink2); font-size:14px; }
   .badge { display:inline-flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 14px; margin:20px 0; color:var(--ink); }
   .dot { width:10px; height:10px; border-radius:50%; background:var(--ok); }
 </style>
@@ -24,16 +25,23 @@
 <body>
 <main>
   <h1>Status</h1>
-  <div class="badge"><span class="dot"></span><strong>All clear</strong>&nbsp;— no active incidents.</div>
-  <p>Maru Mail runs entirely on your device, so most problems are local to
-  one machine. This page reports the things that can affect everyone:
-  Google-side OAuth or API incidents involving Maru's shared client, and
-  anything requiring action on your part.</p>
+  <div class="badge"><span class="dot"></span><strong>No active incident</strong></div>
+  <p class="tag">Last updated September 1, 2026</p>
+  <p>Maru stores mail on your device, so most mail-cache problems affect one
+  machine. This page reports shared incidents involving Google's OAuth or API
+  services and the optional Maru account service.</p>
+
+  <h2>What degraded means</h2>
+  <p>Degraded means the account service cannot reliably read or accept
+  encrypted vault updates, device changes, push notices, or billing state.
+  Local mail and direct Gmail access can continue during a Maru account
+  incident.</p>
 
   <h2>If something happens</h2>
-  <p>An active incident is described here: what is affected, what we are
-  doing, and what (if anything) you should do. Past incidents remain listed
-  below for the record.</p>
+  <p>An active incident appears here with its start time, affected functions,
+  next update time, and any action you must take. An operator updates this
+  static page by hand. Service health is also checked through the Railway
+  deployment at <code>/healthz</code>.</p>
 
   <h2>Past incidents</h2>
   <p>None.</p>

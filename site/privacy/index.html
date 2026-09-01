@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy Policy — Maru Mail</title>
+<title>Privacy policy — Maru Mail</title>
 <style>
   :root { --ink:#1a1a1e; --ink2:#55555e; --bg:#fdfdfc; --accent:#5b5bd6; --line:#e6e6e2; }
   @media (prefers-color-scheme: dark) {
@@ -19,56 +19,77 @@
   ul { padding-left:22px; }
   strong { color:var(--ink); }
   a { color:var(--accent); }
-  .updated { color:var(--ink2); font-size:14px; margin-bottom:24px; }
+  .updated, footer { color:var(--ink2); font-size:14px; }
+  .updated { margin-bottom:24px; }
+  footer { margin-top:48px; padding-top:16px; border-top:1px solid var(--line); }
 </style>
 </head>
 <body>
 <main>
-  <h1>Maru Mail Privacy Policy</h1>
-  <p class="updated">Effective 2026-08-30 · Applies to the Maru Mail desktop application published at getmaru.app</p>
+  <h1>Maru Mail privacy policy</h1>
+  <p class="updated">Last updated September 1, 2026</p>
 
-  <p>Maru Mail ("Maru") is a desktop email client that runs on your computer. This policy describes exactly what data Maru touches, where it goes, and how you delete it. The short version: <strong>your mail stays on your device, optional sync stores only an encrypted vault, and Maru collects no telemetry.</strong></p>
+  <p>The Creative Co. Marketing Firm LLC operates Maru Mail and the optional Maru account service. This policy explains what Maru handles, where it goes, and how you can delete it. The app is free and AGPL.</p>
 
-  <h2>What Google data Maru accesses</h2>
-  <p>When you connect a Gmail account, Maru requests the <code>gmail.modify</code> permission from Google. Maru uses it to:</p>
+  <h2>Mail and Google data</h2>
+  <p>When you connect Gmail, Maru requests the <code>gmail.modify</code> permission. Maru uses it to:</p>
   <ul>
-    <li><strong>Read</strong> your threads, messages, headers, bodies, attachments, labels, and mailbox change history, to display and search your mail.</li>
-    <li><strong>Change</strong> labels — archive, star, mark read or unread, apply your own labels, and move messages to and from Trash. Maru never permanently deletes messages or bypasses Trash.</li>
-    <li><strong>Send</strong> messages that you compose, or that you explicitly approve after an agent requests them.</li>
+    <li>Read your threads, messages, headers, bodies, attachments, labels, and mailbox change history.</li>
+    <li>Change labels, including archive, star, read status, your labels, and Trash status.</li>
+    <li>Send messages that you compose or explicitly approve in Maru.</li>
+  </ul>
+  <p>Mail never reaches the Maru account service. Each device gets mail directly from Google. Maru does not permanently delete Gmail messages or bypass Trash.</p>
+
+  <h2>Data on your device</h2>
+  <ul>
+    <li>Maru stores messages, threads, and attachment metadata in an encrypted local database.</li>
+    <li>The operating system keychain stores OAuth tokens and local encryption keys.</li>
+    <li>Maru stores settings, search indexes, agent grants, approvals, and the audit log locally.</li>
+    <li>Maru fetches attachment contents from Gmail when you open or save them. It does not keep them in the database.</li>
   </ul>
 
-  <h2>Where your data is stored</h2>
-  <ul>
-    <li><strong>Messages, threads, and attachment metadata</strong> are stored in an encrypted local database on your device, one encryption key per account, held in your operating system's keychain. Attachment contents are fetched from Gmail when you open or save them, not kept in the database.</li>
-    <li><strong>OAuth tokens</strong> are stored in your operating system's keychain. If you use Maru Sync, desktop refresh tokens also enter an end-to-end encrypted vault that the sync service cannot open. Access tokens never enter the vault.</li>
-    <li><strong>Search indexes, settings, agent grants, send approvals, and the audit log</strong> are stored locally on your device. Audit entries that contain Google-derived content (such as message subjects) are encrypted with per-account keys.</li>
-  </ul>
-  <p>Your mail content is never transmitted to Maru Sync. Google remains the only network peer for mail. The optional sync service receives encrypted settings, account addresses, and refresh tokens, but it never receives the account key needed to open them.</p>
+  <h2>The optional Maru account</h2>
+  <p>The service stores only vault ciphertext it cannot read, your email, device names, and a Stripe customer id. The encrypted vault can include settings, account addresses, and Gmail refresh tokens. The service never receives the account key. Access tokens never enter the vault.</p>
+  <p>The service keeps ten versions of your vault so you can restore an earlier version. If you delete your Maru account in the app, we purge its service data within 30 days.</p>
 
-  <h2>Agents, and data that can leave your device</h2>
-  <p>Maru can optionally act as a gateway for AI agents you choose to connect. If — and only if — you create an agent credential, grant that agent capabilities, and consent to an agent session, Maru will return the mail data that agent requests to it over a local connection on your device.</p>
-  <p><strong>The agent you connect is a separate program, and it may send data to its own model provider for processing outside your device.</strong> Maru discloses this before you consent, and shows you which agent is asking and what it may access. Review your agent's and its provider's terms before granting access. Sending a message always requires your separate, explicit approval inside Maru, regardless of any grant.</p>
+  <h2>Agents and data outside your device</h2>
+  <p>Maru can connect to an AI agent through a local socket. Maru returns mail data only after you create the agent, grant access, and approve a time-limited session.</p>
+  <p>The agent is a separate program. It may send data to its model provider outside your device. Review the agent provider's terms before you grant access. Every send still needs your separate approval in Maru.</p>
 
-  <h2>What Maru does not do</h2>
+  <h2>What we do not do</h2>
   <ul>
-    <li>Maru collects <strong>no telemetry, analytics, or crash reports</strong>. The developer learns nothing when you use Maru.</li>
-    <li>Maru does <strong>not use your Google data to develop, improve, or train generalized artificial intelligence or machine-learning models</strong>.</li>
-    <li>Maru does not sell, rent, or share your data. The sync service stores only the encrypted account vault needed to provide sync.</li>
+    <li>Maru collects no telemetry, analytics, or automatic crash reports.</li>
+    <li>Maru does not sell or rent your data.</li>
+    <li>Maru does not use Google data for advertising or to train generalized AI or machine-learning models.</li>
   </ul>
 
-  <h2>Limited Use disclosure</h2>
-  <p>Maru's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Maru uses Google user data only to provide the user-facing mail features described in this policy, transfers it only as directed by you (to an agent you connected and consented to), and never uses it for advertising or for training generalized AI/ML models.</p>
-
-  <h2>Retention and deletion</h2>
+  <h2>Sub-processors</h2>
+  <p>We use these providers to operate the optional account service:</p>
   <ul>
-    <li>Mail is retained locally for as long as the account is connected, so the app works offline.</li>
-    <li><strong>Removing an account</strong> in Settings deletes its cached mail, search index entries, and tokens from your device, and destroys the encryption keys for its audit content.</li>
-    <li>You can additionally revoke Maru's access at Google any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
-    <li>A step-by-step guide is at <a href="/support/google-data">getmaru.app/support/google-data</a>.</li>
+    <li><strong>Railway</strong> hosts the service and its database.</li>
+    <li><strong>Stripe</strong> processes web billing and holds payment data.</li>
+    <li><strong>Apple</strong> delivers content-free push notifications.</li>
+    <li><strong>Google Cloud</strong> provides Pub/Sub for content-free change notices.</li>
   </ul>
+
+  <h2>Retention and your choices</h2>
+  <ul>
+    <li>Local mail data remains while its Gmail account is connected.</li>
+    <li>You can export your Maru account data through the app.</li>
+    <li>You can delete your Maru account through the app. We purge its service data within 30 days.</li>
+    <li>You can remove a Gmail account to delete its local cache, search entries, tokens, and encryption key.</li>
+    <li>You can revoke Maru's Google access at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+  </ul>
+  <p>You may also ask to access, correct, export, or delete your account information. Email <a href="mailto:support@getmaru.app">support@getmaru.app</a>. Your local controls remain the fastest way to export or delete data.</p>
+
+  <h2>Google Limited Use</h2>
+  <p>Maru's use and transfer of information from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements.</p>
 
   <h2>Changes and contact</h2>
-  <p>If this policy changes, the effective date above changes with it, and the history is public in <a href="https://github.com/galangster/maru">Maru's source repository</a>. Questions: <a href="mailto:support@getmaru.app">support@getmaru.app</a>.</p>
+  <p>We will update the date above when this policy changes. The source history is public in <a href="https://github.com/galangster/maru">Maru's repository</a>.</p>
+  <p>Privacy and support questions: <a href="mailto:support@getmaru.app">support@getmaru.app</a>. Security reports: <a href="mailto:security@getmaru.app">security@getmaru.app</a>.</p>
+
+  <footer>Draft, awaiting legal review</footer>
 </main>
 </body>
 </html>
