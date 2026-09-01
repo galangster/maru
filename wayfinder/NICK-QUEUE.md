@@ -4,6 +4,49 @@ Standing order 2026-08-30: the agent works the map autonomously and
 parks anything only Nick can do here, with exact steps, instead of
 asking in chat. Newest at the top of each section. Strike items done.
 
+## Map 4 and map 5 — the account and the phone (added 2026-09-01)
+
+Grill 4 is recorded in `GRILL-4-AGENDA.md`; the audit in `AUDIT-2026-09-01.md`.
+Three lanes are building the service, the desktop account and the iPhone app.
+These are the buttons only you can press, in the order they unblock work.
+
+1. **Stripe** (A3). Create the Stripe account under The Creative Co.
+   Marketing Firm LLC, turn on two-factor, then run
+   `cd server && STRIPE_SECRET_KEY=sk_live_… npm run stripe:setup` — it
+   prints four env lines. Paste them into the Railway service. Add a
+   webhook endpoint `https://sync.getmaru.app/v1/billing/webhook` for the
+   six events listed in `docs/spec/MARU-ACCOUNT.md` §12 and paste its signing
+   secret. Turn on Stripe Tax; register where Stripe says you must.
+   **Price is set: $5/month, $50/year, 14-day trial.** Say so if you want
+   it moved before a stranger sees it.
+2. **The domain** (A5). At GoDaddy add a CNAME `sync` → the Railway target
+   the deploy prints. Until then the beta uses the Railway domain.
+3. **Google Cloud, three items** (A4, I3), all in `maru-mail-prod`:
+   - Pub/Sub → Create topic `gmail-push`. On the topic, grant
+     `gmail-api-push@system.gserviceaccount.com` the role Pub/Sub Publisher.
+   - Create a push subscription on it: endpoint
+     `https://sync.getmaru.app/v1/push/gmail`, "Enable authentication" with a
+     new service account `maru-push`, audience `maru-sync`. Tell me the
+     service account email.
+   - Credentials → Create OAuth client → type **iOS**, bundle
+     `app.getmaru.ios`. Tell me the client id.
+4. **Apple, two items** (A4, I6): Certificates → Keys → create an APNs key
+   for team 2M8UE59WH7 and give me the `.p8` and its key id (put the file in
+   `ops/apple/` locally, never in git); in App Store Connect create the app
+   `Maru` with bundle `app.getmaru.ios` and a TestFlight internal group with
+   your iPhone.
+5. **Two accounts for App Review** (I6): a fresh Google account with two or
+   three seed threads, and its Maru account (I comp it). Both need a phone
+   number for signup, which is why they are yours.
+6. **A lawyer's read** (A6) of `site/privacy.html` and `site/terms.html`
+   once the drafts land. Until then they say "draft" in the footer.
+7. **Decide A9**: should Later sync across devices inside the encrypted
+   vault? My recommendation is yes; the reasoning is in the ticket.
+8. **Second operator** (A8): the IAM item below still stands, and now also
+   Railway (invite as member) and the registrar.
+9. **Which devices are in the beta** (Q24): I assumed one iPhone and this
+   Mac. Tell me if there is a Windows machine or a second Mac.
+
 ## Blocking the submission path
 
 1. **getmaru.app is the domain** (renamed Wren → Maru, 2026-08-30;
