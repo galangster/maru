@@ -19,8 +19,12 @@ These are the buttons only you can press, in the order they unblock work.
    secret. Turn on Stripe Tax; register where Stripe says you must.
    **Price is set: $5/month, $50/year, 14-day trial.** Say so if you want
    it moved before a stranger sees it.
-2. **The domain** (A5). At GoDaddy add a CNAME `sync` → the Railway target
-   the deploy prints. Until then the beta uses the Railway domain.
+2. **The domain** (A5). At GoDaddy add two records, then nothing else:
+   - CNAME, name `sync`, value `71w6pmej.up.railway.app`
+   - TXT, name `_railway-verify.sync`, value
+     `railway-verify=59aaf0a4962154688765b78d7e0065f31842840af28a616cf3a73dde3bafece0`
+   Railway issues the certificate when it sees them. Until then the beta
+   uses `https://sync-production-c0b0.up.railway.app`.
 3. **Google Cloud, three items** (A4, I3), all in `maru-mail-prod`:
    - Pub/Sub → Create topic `gmail-push`. On the topic, grant
      `gmail-api-push@system.gserviceaccount.com` the role Pub/Sub Publisher.
