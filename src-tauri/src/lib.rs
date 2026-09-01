@@ -229,8 +229,6 @@ async fn oauth_listen(port: u16) -> Result<String, String> {
 // App entry point
 // ---------------------------------------------------------------------------
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-
 /// Put the traffic lights where the design says they go.
 ///
 /// macOS 26 pins overlay window buttons at (20, 11) against every polite
@@ -316,7 +314,12 @@ fn place_traffic_lights(window: &tauri::Window) {
   }
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  // reqwest leaves the Rustls provider choice to the application on mobile.
+  // Install the provider before any plugin constructs an HTTP client.
+  let _ = rustls::crypto::ring::default_provider().install_default();
+
   tauri::Builder::default()
     .plugin(tauri_plugin_sql::Builder::default().build())
     .plugin(tauri_plugin_updater::Builder::new().build())
