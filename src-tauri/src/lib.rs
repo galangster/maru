@@ -325,6 +325,7 @@ pub fn run() {
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_os::init())
     // Message bodies render in a sandboxed iframe with no scripts. WebKit
     // never fires parent-attached listeners inside such a frame, so link
     // clicks surface here as `_top` navigations instead: anything that is
