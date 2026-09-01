@@ -2,11 +2,13 @@
 
 A lightweight, beautiful unified-Gmail desktop client — and an MCP
 gateway that lets your agents touch your mailbox on your terms. One quiet
-inbox for all your Gmail accounts: local-first mail with an optional encrypted sync service,
-no telemetry. Mail syncs only with Google — the one other thing that
-reaches the network is a picture in a message, because images load by
-default; switch that off in Settings and Google is the only host Maru
-ever contacts.
+inbox for all your Gmail accounts: local-first, no telemetry. Mail syncs
+only with Google. Two other things can reach the network, both optional:
+a picture in a message, because images load by default (switch that off in
+Settings), and the Maru account — a paid sync service that stores an
+encrypted vault it cannot read, so your settings, accounts and sign-ins
+follow you to another machine. With images off and no account, Google is
+the only host Maru ever contacts.
 
 > **Pre-1.0.** Maru works — five real accounts and a real agent gateway
 > run on it daily — but it is weeks old and macOS-verified. macOS builds
