@@ -1,5 +1,0 @@
-# Railway builds server/Dockerfile with the repository root as context.
-*
-!server/
-server/node_modules
-server/dist

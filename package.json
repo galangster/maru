@@ -61,6 +61,7 @@
     "dialkit": "^1.4.3",
     "jsdom": "^28.1.0",
     "playwright": "^1.62.1",
+    "railway": "^3.11.0",
     "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",
     "ttf2woff2": "^8.0.1",

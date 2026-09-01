@@ -101,14 +101,14 @@ Stripe webhook to send the events listed in spec section 12 to
 ## Deploy to Railway
 
 Create a Railway service whose root directory is `server/`. Add Postgres and
-set `DATABASE_URL` plus the required secrets. Railway reads `railway.json`,
+set `DATABASE_URL` plus the required secrets. Railway reads the project's `.railway/railway.ts`,
 builds the Dockerfile, and checks `/healthz`.
 
 You can test the image locally:
 
 ```bash
 cd server
-docker build -f server/Dockerfile -t maru-sync . (from the repository root)
+docker build -t maru-sync .
 docker run --rm -p 8787:8787 -e PORT=8787 -e DATABASE_URL=postgres://... maru-sync
 ```
 
