@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Paperclip, Trash2, X } from 'lucide-react'
 
 import { toComposeDraft, useComposer, type DraftAttachment } from '@/features/compose/compose-store'
-import { useAccountsById } from '@/features/mail/queries'
+import { useAccountsById, useThreads } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
-import { formatAddress, parseAddresses } from '@/lib/compose'
+import { RecipientField } from '../components/recipient-field'
+import {
+  commitRecipientInput,
+  recipientChipState,
+} from '../recipient-chips'
 
 export function ComposeSheet() {
   const service = useMailService()
-  const { accounts } = useAccountsById()
+  const { accounts, selfEmails } = useAccountsById()
+  const inbox = useThreads({ kind: 'unified', folder: 'inbox' })
   const draft = useComposer((state) => state.draft)
   const dirty = useComposer((state) => state.dirty)
   const showCopies = useComposer((state) => state.showCc)
@@ -19,9 +24,14 @@ export function ComposeSheet() {
   const remember = useComposer((state) => state.remember)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const [toText, setToText] = useState(() => draft.to.map(formatAddress).join(', '))
-  const [ccText, setCcText] = useState(() => draft.cc.map(formatAddress).join(', '))
-  const [bccText, setBccText] = useState(() => draft.bcc.map(formatAddress).join(', '))
+  const [toState, setToState] = useState(() => recipientChipState(draft.to))
+  const [ccState, setCcState] = useState(() => recipientChipState(draft.cc))
+  const [bccState, setBccState] = useState(() => recipientChipState(draft.bcc))
+  const participants = useMemo(
+    () => (inbox.data ?? []).flatMap((thread) => thread.participants),
+    [inbox.data],
+  )
+  const copiesVisible = showCopies || ccState.recipients.length > 0 || bccState.recipients.length > 0
 
   useEffect(() => {
     if (!draft.accountId && accounts[0]) set({ accountId: accounts[0].id })
@@ -32,14 +42,17 @@ export function ComposeSheet() {
     closeStore()
   }
   const send = async () => {
-    const to = parseAddresses(toText)
-    const cc = parseAddresses(ccText)
-    const bcc = parseAddresses(bccText)
+    const to = commitRecipientInput(toState)
+    const cc = commitRecipientInput(ccState)
+    const bcc = commitRecipientInput(bccState)
+    setToState(to)
+    setCcState(cc)
+    setBccState(bcc)
     if ([...to.invalid, ...cc.invalid, ...bcc.invalid].length > 0) {
       return setError('Check the recipient addresses.')
     }
-    if (to.addresses.length === 0) return setError('Add at least one recipient.')
-    const outgoing = { ...draft, to: to.addresses, cc: cc.addresses, bcc: bcc.addresses }
+    if (to.recipients.length === 0) return setError('Add at least one recipient.')
+    const outgoing = { ...draft, to: to.recipients, cc: cc.recipients, bcc: bcc.recipients }
     setSending(true)
     setError('')
     try {
@@ -67,13 +80,13 @@ export function ComposeSheet() {
         </header>
         <form className="mobile-compose-form" onSubmit={(event) => { event.preventDefault(); void send() }}>
           <label className="mobile-compose-field"><span>From</span><select value={draft.accountId} onChange={(event) => edit({ accountId: event.target.value })}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.email}</option>)}</select></label>
-          <div className="mobile-compose-field mobile-compose-to-field">
-            <label><span>To</span><input type="email" inputMode="email" multiple value={toText} onChange={(event) => { setToText(event.target.value); edit({ to: parseAddresses(event.target.value).addresses }) }} autoComplete="off" /></label>
-            <button type="button" onClick={() => setShowCopies(!showCopies)}>Cc/Bcc</button>
+          <div className="mobile-compose-to-field">
+            <RecipientField label="To" state={toState} setState={setToState} participants={participants} selfEmails={selfEmails} onRecipientsChange={(to) => edit({ to })} />
+            {!copiesVisible && <button type="button" aria-expanded="false" onClick={() => setShowCopies(true)}>Cc/Bcc</button>}
           </div>
-          {showCopies && <>
-            <label className="mobile-compose-field"><span>Cc</span><input type="email" inputMode="email" multiple value={ccText} onChange={(event) => { setCcText(event.target.value); edit({ cc: parseAddresses(event.target.value).addresses }) }} autoComplete="off" /></label>
-            <label className="mobile-compose-field"><span>Bcc</span><input type="email" inputMode="email" multiple value={bccText} onChange={(event) => { setBccText(event.target.value); edit({ bcc: parseAddresses(event.target.value).addresses }) }} autoComplete="off" /></label>
+          {copiesVisible && <>
+            <RecipientField label="Cc" state={ccState} setState={setCcState} participants={participants} selfEmails={selfEmails} onRecipientsChange={(cc) => edit({ cc })} />
+            <RecipientField label="Bcc" state={bccState} setState={setBccState} participants={participants} selfEmails={selfEmails} onRecipientsChange={(bcc) => edit({ bcc })} />
           </>}
           <label className="mobile-compose-field"><span>Subject</span><input type="text" value={draft.subject} onChange={(event) => edit({ subject: event.target.value })} /></label>
           <label className="mobile-compose-body"><span className="sr-only">Message</span><textarea value={draft.bodyText} onChange={(event) => edit({ bodyText: event.target.value })} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void send() }} placeholder="Write a message…" /></label>
