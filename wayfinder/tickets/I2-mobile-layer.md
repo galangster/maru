@@ -22,3 +22,14 @@ iPhone 16 simulator. One visible defect for the cleanup lane: the compose
 To field clips the address under the Cc/Bcc control. Scroll physics,
 edge-swipe and the keyboard still need a hands-on judgement on a physical
 iPhone (queue, Q24).
+
+## Merged to main 2026-09-01 (`50b1887`)
+
+Split into screens, sheets, components and two gesture hooks; the reducer is
+the navigation's source of truth; virtualized inbox; tokens instead of
+re-declared values; desktop helpers reused (message frame, compose actions,
+Later disclosure, operators, conversation expansion, motion mode, undo).
+Phone entry chunk 583 KB → 191 KB. FlowDeck re-proved the touch path; the
+twelve captures are current. 644 tests. Polish left for I2's next pass:
+recipient chips in compose (the To value truncates without an ellipsis),
+VoiceOver labels, Dynamic Type.
