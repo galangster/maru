@@ -1,0 +1,33 @@
+{
+  "name": "@maru/sync-server",
+  "version": "0.1.7",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/src/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@node-rs/argon2": "2.2.0",
+    "hono": "4.13.5",
+    "jose": "6.2.10",
+    "pino": "10.3.1",
+    "postgres": "3.4.9",
+    "stripe": "22.6.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/node": "26.4.0",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}
