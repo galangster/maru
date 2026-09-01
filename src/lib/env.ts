@@ -5,6 +5,7 @@
 
 import { isUnifiedFolder } from '@/core/defaults'
 import type { MailView } from '@/core/types'
+import { type as osType } from '@tauri-apps/plugin-os'
 
 const rawParams = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
 
@@ -41,8 +42,35 @@ const modeFlagsAllowed = !isTauri() || import.meta.env.DEV
 
 const params = modeFlagsAllowed ? rawParams : new URLSearchParams('')
 
-/** `?demo=1` forces demo mode; outside Tauri there is nothing else to run. */
-export const isDemo = params.get('demo') === '1' || !isTauri()
+/** The native platform, resolved once before either application shell mounts. */
+export const platformOS: 'ios' | 'mac' | 'windows' | 'other' = (() => {
+  if (isTauri()) {
+    try {
+      const native = osType()
+      if (native === 'ios') return 'ios'
+      if (native === 'macos') return 'mac'
+      if (native === 'windows') return 'windows'
+    } catch {
+      // Fall through to the browser user agent in development previews.
+    }
+  }
+  if (typeof navigator === 'undefined') return 'other'
+  const ua = navigator.userAgent
+  if (/iPhone|iPad/.test(ua)) return 'ios'
+  if (/Mac/.test(ua)) return 'mac'
+  if (/Win/.test(ua)) return 'windows'
+  return 'other'
+})()
+
+/** The iPhone shell, or the gated `?mobile=1` browser-development seam. */
+export const isMobileShell = platformOS === 'ios' || params.get('mobile') === '1'
+
+/** Build-time switch used by the iOS target until its OAuth client ships. */
+const buildForcesDemo = import.meta.env.VITE_MARU_DEMO === '1'
+
+/** `?demo=1` or `VITE_MARU_DEMO=1` forces demo; browsers only have demo. */
+export const isDemo =
+  platformOS === 'ios' || buildForcesDemo || params.get('demo') === '1' || !isTauri()
 
 /** `?screenshot=1` freezes the clock and removes motion. */
 export const isScreenshot = params.get('screenshot') === '1'
@@ -122,15 +150,6 @@ export function viewOverride(): MailView | null {
   }
   return null
 }
-
-/** macOS needs the traffic lights inset; Windows needs room for the overlay. */
-export const platformOS: 'mac' | 'windows' | 'other' = (() => {
-  if (typeof navigator === 'undefined') return 'other'
-  const ua = navigator.userAgent
-  if (/Mac|iPhone|iPad/.test(ua)) return 'mac'
-  if (/Win/.test(ua)) return 'windows'
-  return 'other'
-})()
 
 /** Opens a link outside the app: system browser in Tauri, new tab in a browser. */
 export async function openExternalUrl(url: string): Promise<void> {

@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "ios",
+  "description": "Capability for the Maru iOS webview.",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "iOS"
+  ],
+  "permissions": [
+    "core:default",
+    "os:default"
+  ],
+  "$comment": "I3 will add the minimum Gmail and OAuth HTTP allow-list with real iOS authentication."
+}

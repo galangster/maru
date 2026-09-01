@@ -31,7 +31,19 @@ import { cn } from '@/lib/utils'
  * is exactly how a limitation turns into a broken promise.
  */
 export const LATER_DISCLOSURE =
-  'Later is on this Mac. Gmail on your phone still shows these in your inbox.'
+  'Later is saved on this device. Gmail on other devices still shows these in your inbox.'
+
+export function isoDay(timestamp: number): string {
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+/** Parse an ISO day and enforce the Later window even when input bounds are ignored. */
+export function clampedDeferDay(value: string, now: number): number | null {
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return Math.min(deferAtDate(year, month - 1, day), maxDeferAt(now))
+}
 
 export interface LaterPickerProps {
   /**
@@ -225,12 +237,8 @@ function PickerRow({
  * reachable, and the sentence under it is why.
  */
 function CustomDate({ now, onPick }: { now: number; onPick: (wakeAt: number) => void }) {
-  const iso = (ts: number) => {
-    const d = new Date(ts)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-  const min = iso(now + 86_400_000)
-  const max = iso(maxDeferAt(now))
+  const min = isoDay(now + 86_400_000)
+  const max = isoDay(maxDeferAt(now))
 
   return (
     <div className="flex flex-col gap-1 px-2 py-1">
@@ -241,14 +249,8 @@ function CustomDate({ now, onPick }: { now: number; onPick: (wakeAt: number) => 
         max={max}
         aria-label="Bring it back on"
         onChange={(event) => {
-          const [year, month, day] = event.target.value.split('-').map(Number)
-          if (!year || !month || !day) return
-          const at = deferAtDate(year, month - 1, day)
-          // The input's own `max` is advisory in some browsers, so the cap is
-          // enforced here as well: a typed date past the window would otherwise
-          // set a deferral the sync layer is licensed to delete.
-          if (at > maxDeferAt(now)) return
-          onPick(at)
+          const at = clampedDeferDay(event.target.value, now)
+          if (at !== null) onPick(at)
         }}
         className="text-ink bg-sunken focus-ring h-9 w-full rounded-inset px-2 text-base outline-none"
       />

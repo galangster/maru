@@ -2,12 +2,11 @@ import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import App from "@/App";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/sonner";
 import { MailServiceProvider } from "@/features/mail/service";
 import { installTroubleHooks } from "@/lib/debug-report";
-import { isTune } from "@/lib/env";
+import { isMobileShell, isTune } from "@/lib/env";
 import "./index.css";
 
 // The character tuning stage (?tune=1, P13) replaces the app outright — no
@@ -15,6 +14,14 @@ import "./index.css";
 // is statically false in release builds, so Rollup drops the dynamic import
 // and dialkit never enters a shipped artifact.
 const WrenStage = import.meta.env.DEV ? lazy(() => import("@/dev/wren-stage")) : null;
+const App = lazy(() => import("@/App"));
+const MobileApp = lazy(() =>
+  import("@/mobile/MobileApp").then((module) => ({ default: module.MobileApp })),
+);
+
+function PlatformApp() {
+  return isMobileShell ? <MobileApp /> : <App />;
+}
 
 // Before render, so a crash during mount still lands in the debug report.
 installTroubleHooks();
@@ -48,7 +55,9 @@ createRoot(rootElement).render(
       ) : (
         <QueryClientProvider client={queryClient}>
           <MailServiceProvider>
-            <App />
+            <Suspense fallback={<div className="bg-canvas h-full" />}>
+              <PlatformApp />
+            </Suspense>
           </MailServiceProvider>
           <Toaster position="bottom-left" closeButton />
         </QueryClientProvider>

@@ -318,6 +318,16 @@ export function registerActionUndo(
   })
 }
 
+/** Register a deliberate action and show the shared one-slot undo toast. */
+export function registerUndoable(
+  mutate: (action: MailAction) => void,
+  action: MailAction,
+  description?: string,
+): void {
+  registerActionUndo(mutate, action)
+  showUndoToast(UNDO_LABELS[action.type], description)
+}
+
 /**
  * Save a thread for later, or take the deferral off with `null`.
  *

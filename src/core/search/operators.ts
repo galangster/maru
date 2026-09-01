@@ -17,6 +17,16 @@
 import type { Label, Thread } from '../types'
 import type { ThreadSearchIndex } from './index'
 
+/** Shared operator affordances for every search entry point. */
+export const SEARCH_OPERATOR_HINTS = [
+  'from:',
+  'to:',
+  'is:unread',
+  'is:starred',
+  'has:attachment',
+  'label:',
+] as const
+
 export interface SearchFilters {
   /** Lowercased needles matched against the thread's participant text. */
   people: string[]

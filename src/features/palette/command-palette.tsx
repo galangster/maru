@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { ICON_SLOT, Keycap } from '@/components/wren-controls'
 import { FOLDERS } from '@/core/defaults'
+import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
 import type { MailView, Thread } from '@/core/types'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import {
@@ -142,7 +143,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           autoFocus
           value={query}
           onValueChange={setQuery}
-          placeholder="Search threads (from: is:unread label:), or run a command…"
+          placeholder={`Search threads (${SEARCH_OPERATOR_HINTS[0]} ${SEARCH_OPERATOR_HINTS[2]} ${SEARCH_OPERATOR_HINTS[5]}), or run a command…`}
           className="text-ink placeholder:text-ink-3 h-8 min-w-0 flex-1 bg-transparent text-base outline-none"
         />
       </div>

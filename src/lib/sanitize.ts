@@ -27,6 +27,13 @@
 
 import DOMPurify from 'dompurify'
 
+/** A plain-text body, escaped and shaped for the sandboxed message frame. */
+export function escapeText(text: string): string {
+  const div = document.createElement('div')
+  div.textContent = text
+  return `<div style="white-space:pre-wrap">${div.innerHTML.replace(/\n/g, '<br>')}</div>`
+}
+
 export interface SanitizeOptions {
   allowRemoteImages: boolean
   /** Content-Id (angle brackets stripped) → data: URL. */
