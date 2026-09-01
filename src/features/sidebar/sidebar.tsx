@@ -470,12 +470,17 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
         // (N7). Below 13rem of content box it drops out entirely and the glyph
         // plus the tooltip carry the state, which is the same trade the long
         // form already lost once.
-        // `px-2` is the card's concentric inset (18 − 8 = 10 = the row radius),
-        // and it hands the @container box 8 px more than it had, so the
-        // `@[13rem]` gate below keeps its behaviour with more headroom. The top
-        // rule needs no inset of its own: the footer is 48 px tall, so it sits
-        // 48 px above the card's bottom edge and never enters the 18 px corner
-        // curve, and the nav's `overflow-hidden` clips it flush to the sides.
+        // `px-2` is the card's 8 px inset. It used to be justified as the
+        // concentric step (18 − 8 = 10 = the row radius); the card is
+        // `rounded-md` 12 now, so that arithmetic no longer produces the row
+        // radius — see SHELL_CARD in app-shell.tsx. The inset stays at 8
+        // because it is what the rows are drawn against, and it hands the
+        // @container box 8 px more than it had, so the `@[13rem]` gate below
+        // keeps its behaviour with more headroom. The top rule still needs no
+        // inset of its own: the footer is 48 px tall, so it sits 48 px above
+        // the card's bottom edge and never enters the corner curve at all —
+        // which was true at 18 and is more true at 12 — and the nav's
+        // `overflow-hidden` clips it flush to the sides.
         'border-hairline @container flex shrink-0 items-center border-t px-2 py-2',
         collapsed ? 'flex-col gap-1' : 'gap-2',
       )}

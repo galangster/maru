@@ -93,106 +93,146 @@ component. Columns line up across every row of a list, always.
 
 ## 3. Color
 
-OKLCH throughout. The neutral ramp is **achromatic** — hue 286 at chroma 0.002–0.005, which is
-a true neutral that still avoids a dead flat grey. It used to be periwinkle-tinted at hue 268;
-the Amie study (`AMIE-STUDY.md` §2.1) found that the tint fought every saturated element beside
-it, and it came out when the category hue family arrived. The greys now read *neutral and
-airy*; the cool comes from the accent, not from the canvas.
+> **Corrected 2026-09-01.** Everything below the reference notes used to
+> describe a palette the build has not had since P14 shipped on 2026-08-31: a
+> hue-286 neutral ramp and an indigo `oklch(0.545 0.185 268)` accent marked
+> "Held." Both were replaced by a warm hue-50 ramp and a coral hue-13 accent,
+> and the "verified contrast" table went on certifying ratios for the colours
+> that left. A stale table under a heading that says *computed not estimated*
+> is worse than no table, because this is the document somebody checks a colour
+> against. Every number below is now re-measured from
+> `src/styles/tokens.css` by `scripts/contrast-audit.mjs` — **run it after any
+> token change**, and `--check` fails the build on a regression.
 
-**Accent: periwinkle indigo, `oklch(0.545 0.185 268)` / `#4364DA`.** Held.
-Justification: violet-indigo is the shared territory of Phantom, Aave and Umbra, but pushed
-lighter and cooler toward sky so it reads *cloud*, not *crypto wallet*. The study offered a
-nudge to hue 258 (Amie's internet blue); the owner declined it — the accent is Wren's identity
-anchor and does not move.
+OKLCH throughout. The neutral ramp is **warm** — hue 50 at chroma 0.002–0.005,
+which keeps the greys off dead-flat without tinting them. It has been through two
+moves: periwinkle hue 268 originally, achromatic hue 286 after the Amie study
+found the tint fought every saturated element beside it, and hue 50 with P14's
+colour anchor. The warmth now agrees with the accent and the character instead of
+opposing them.
+
+**Accent: coral, `oklch(0.575 0.149 13)` / `#C04C5F`.** Chosen 2026-08-31 as P14
+option C — a shared parent hue of 13 from which the interface accent (both
+themes), the Maru character and its contact shadow all derive. It replaced the
+indigo this section used to call held; violet-indigo was the shared territory of
+Phantom, Aave and Umbra, and leaving it is what stopped Maru reading as a crypto
+wallet.
 
 ### Light
 
 | Role | OKLCH | Hex |
 |---|---|---|
-| base (app canvas, sidebar) | `0.968 0.002 286` | `#F4F4F5` |
-| sunken (wells, inset fields) | `0.949 0.003 286` | `#EDEDEF` |
-| surface (list, reading pane) | `1 0 0` | `#FFFFFF` |
+| base (the ground: app canvas, reading pane) | `0.968 0.002 50` | `#F6F4F3` |
+| sunken (wells, inset fields) | `0.949 0.003 50` | `#F0EDEC` |
+| surface (list card, sidebar card) | `1 0 0` | `#FFFFFF` |
 | raised (cards, popovers) | `1 0 0` | `#FFFFFF` |
-| hairline | `0.923 0.003 286` | `#E6E6E9` |
-| text-1 primary | `0.205 0.004 286` | `#171719` |
-| text-2 secondary | `0.470 0.004 286` | `#5A5A5D` |
-| text-3 meta | `0.535 0.004 286` | `#6D6D6F` |
-| accent | `0.545 0.185 268` | `#4364DA` |
-| accent-hover | `0.495 0.185 268` | `#3654C9` |
+| hairline | `0.923 0.003 50` | `#E7E5E4` |
+| text-1 primary | `0.205 0.004 50` | `#191716` |
+| text-2 secondary | `0.470 0.004 50` | `#5D5A59` |
+| text-3 meta | `0.535 0.004 50` | `#6F6D6B` |
+| accent | `0.575 0.149 13` | `#C04C5F` |
+| accent-hover | `0.525 0.149 13` | `#AF3C51` |
+| accent-fg (ink ON the accent) | `1 0 0` | `#FFFFFF` |
 | destructive | `0.560 0.210 25` | `#D4212D` |
 | success | `0.515 0.125 155` | `#087C46` |
-| star | `0.630 0.150 58` | `#CA6E03` |
+| star | `0.630 0.135 68` | `#BE770D` |
 
 ### Dark
 
 | Role | OKLCH | Hex |
 |---|---|---|
-| base | `0.160 0.003 286` | `#0C0C0E` |
-| sunken | `0.110 0.002 286` | `#050506` |
-| surface | `0.225 0.004 286` | `#1C1C1F` |
-| raised | `0.285 0.005 286` | `#28282C` |
+| base | `0.160 0.003 50` | `#0E0D0C` |
+| sunken | `0.110 0.002 50` | `#050404` |
+| surface | `0.225 0.004 50` | `#1D1B1A` |
+| raised | `0.285 0.005 50` | `#2C2928` |
 | hairline | `oklch(1 0 0 / 0.08)` | — |
-| text-1 | `0.968 0.002 286` | `#F4F4F6` |
-| text-2 | `0.742 0.004 286` | `#ABABAE` |
-| text-3 | `0.660 0.004 286` | `#929294` |
-| accent | `0.745 0.120 268` | `#8CA9F9` |
-| accent-hover | `0.815 0.090 268` | `#A9C1FE` |
+| text-1 | `0.968 0.002 50` | `#F6F4F3` |
+| text-2 | `0.742 0.004 50` | `#AEABA9` |
+| text-3 | `0.660 0.004 50` | `#949190` |
+| accent | `0.745 0.120 13` | `#EE8B97` |
+| accent-hover | `0.815 0.090 13` | `#F7AEB4` |
+| accent-fg (ink ON the accent) | `0.160 0.003 50` | `#0E0D0C` |
 | destructive | `0.705 0.175 22` | `#FA6B6D` |
 | success | `0.760 0.150 158` | `#48CD8C` |
 | star | `0.800 0.135 80` | `#EBB34B` |
 
-**text-2 and text-3 hold their lightness exactly in both themes.** Only chroma and hue moved,
-which is what carries the verified table below through the de-tinting unchanged. text-1 only
-ever got darker. Amie's own meta tier measures ≈2.8:1 and Wren declines it outright.
+**text-2 and text-3 hold their lightness exactly in both themes.** Only chroma and
+hue moved, which is what carried the verified table through both re-tintings. text-1
+only ever got darker. Amie's own meta tier measures ≈2.8:1 and Maru declines it outright.
+
+**`accent-fg` is not white in both themes, and assuming it is will produce a false
+alarm.** Light is white on coral; dark is the near-black `#0E0D0C` on a light coral,
+because the dark accent is a *tint* rather than a shade. White on the dark accent
+measures 2.39 and is never rendered.
 
 ### The category hue family
 
-Eight hues — green, teal, blue, violet, magenta, red, orange, yellow — each in three states:
-**solid** (rings, dots, tiles, filled marks), **ink** (text or a glyph on the matching wash;
-every one clears 4.5:1 on `surface` and on `base`), and **wash** (the solid at 12% light / 22%
-dark). Lightness is compensated per hue on purpose; a fixed-L rainbow is a myth. Every chroma
-is clamped to the sRGB boundary for its lightness, so nothing relies on browser gamut mapping.
+Eight hues — green, teal, blue, violet, magenta, red, orange, yellow — each in three
+states: **solid** (rings, dots, tiles, filled marks), **ink** (text or a glyph on the
+matching wash), and **wash** (the solid at 12% light / 22% dark). Lightness is
+compensated per hue on purpose; a fixed-L rainbow is a myth. Every chroma is clamped
+to the sRGB boundary for its lightness, so nothing relies on browser gamut mapping.
 
-**They bind to exactly two things: a real Gmail label, and a stable hash of a sender's address
-(`src/lib/hue.ts`).** Nothing else. The moment a hue decorates chrome, "one accent" becomes "no
-accent" and §1's near-monochrome-at-rest promise is gone. Settings-section tiles are the one
-assigned exception, and they are five fixed positions rather than decoration.
+**They bind to exactly two things: a real Gmail label, and a stable hash of a sender's
+address (`src/lib/hue.ts`).** Nothing else. The moment a hue decorates chrome, "one
+accent" becomes "no accent" and §1's near-monochrome-at-rest promise is gone.
+Settings-section tiles are the one assigned exception, and they are six fixed
+positions rather than decoration.
 
-`--wren-hue-fg` is the ink that sits *on* a hue solid — a fixed dark value in **both** themes.
-Amie sets white there; white measures 1.6–4.1 on these solids and fails the 3:1 a non-text
-glyph needs on four of the eight, so Wren does not.
+`--wren-hue-fg` is the ink that sits *on* a hue solid — a fixed dark value in **both**
+themes. Amie sets white there; white measures 1.6–4.1 on these solids and fails the
+3:1 a non-text glyph needs on four of the eight, so Maru does not.
 
 ### Verified contrast (WCAG 2.x, computed not estimated)
 
-Light, against `base` / `surface`: text-1 **16.33 / 17.92**, text-2 **6.23 / 6.83**,
-text-3 **4.71 / 5.17**, accent **4.71 / 5.17**, destructive **4.72 / 5.18**,
-success **4.83 / 5.30**. White on accent **5.17**.
-Star (non-text, needs 3.0) **3.34 / 3.66**.
+Re-measured 2026-09-01 by `scripts/contrast-audit.mjs`, against the tokens above.
+Values are computed from the 8-bit sRGB a screen actually receives — the browser
+clips out-of-gamut OKLCH, so a ratio taken before clipping would certify a colour
+nobody can see. **No value in either theme clips.**
 
-Dark, against `base` / `surface` / `raised`: text-1 **17.69 / 15.59 / 13.09**,
-text-2 **8.47 / 7.47 / 6.27**, text-3 **6.24 / 5.50 / 4.61**, accent **8.46 / 7.46 / 6.26**,
-destructive **6.84 / 6.03 / 5.06**, success **9.62 / 8.48 / 7.12**, star **10.26 / 9.04 / 7.59**.
+Light, against `base` / `surface`: text-1 **16.29 / 17.87**, text-2 **6.23 / 6.84**,
+text-3 **4.70 / 5.15**, destructive **4.72 / 5.18**, success **4.81 / 5.27**,
+accent **4.31 / 4.73**. accent-fg on accent **4.73**.
+Star (non-text, needs 3.0) **3.28 / 3.60**.
 
-Hue inks, light, on `surface`: green **6.16**, teal **6.03**, blue **6.14**, violet **7.38**,
-magenta **6.92**, red **6.88**, orange **5.53**, yellow **5.09**. Dark inks run 8.35–11.89.
-`--wren-hue-fg` on a hue solid: **5.13–13.22** across all sixteen solids.
+Dark, against `base` / `surface` / `raised`: text-1 **17.71 / 15.65 / 13.16**,
+text-2 **8.50 / 7.51 / 6.32**, text-3 **6.21 / 5.48 / 4.61**, accent **8.11 / 7.17 / 6.03**,
+destructive **6.83 / 6.04 / 5.08**, success **9.60 / 8.49 / 7.14**, star **10.25 / 9.05 / 7.62**.
+accent-fg on accent **8.11**.
 
-Every text tier clears AA (4.5) on every surface it is permitted to sit on. All values are in
-sRGB gamut — verified, no clipping.
+Hue inks on `surface` / `base`, light: green **6.15 / 5.61**, teal **6.01 / 5.48**,
+blue **6.17 / 5.63**, violet **7.36 / 6.71**, magenta **6.89 / 6.29**, red **6.87 / 6.26**,
+orange **5.50 / 5.02**, yellow **5.09 / 4.64**. Dark inks run **8.77–13.46**.
+Yellow on the light ground is the tightest in the family at 4.64 — it clears AA, and
+it is the one to re-measure first if the ground ever lightens.
 
-**One licensed exception.** The light solids for green, teal, orange and yellow measure
-2.6–2.9:1 against white. They are permitted only as marks sitting immediately beside their own
-text label, never as the sole carrier of meaning.
+`--wren-text-1` on `--wren-fill-selected` (the accent at 8% light / 14% dark,
+composited over its backdrop): **14.77 / 16.10** light, **14.43 / 12.26** dark.
 
-**Semantic mapping.** Unread = accent dot + sender at 600. Starred = star hue, **Style=Filled**
-glyph. Current mailbox = accent + **Style=Filled** glyph. Selected row =
-`--wren-fill-selected` (accent at 8% light / 14% dark), never a stroke.
-Hover = `--wren-fill-hover` (neutral, not accent).
+**One measured failure, and it is an open owner decision rather than a silent pass.**
+`accent` on `base` is **4.31**, under the 4.5 floor. On `surface` it is 4.73 and fine —
+the ground is the case nobody measured when P14 landed, and the reading region IS the
+ground. Nothing ships accent-as-body-text there today, so this is a latent trap and not
+a live defect. The three options are in `wayfinder/NICK-QUEUE.md`: darken the light
+accent slightly (costing a little of the coral), forbid accent text on the ground here
+in DIRECTION, or accept it as decorative-only. **Until it is ruled, do not put accent
+text on the ground.**
+
+**One licensed exception, unchanged.** The light solids for green, teal, orange and
+yellow measure 2.6–2.9:1 against white. They are permitted only as marks sitting
+immediately beside their own text label, never as the sole carrier of meaning.
+
+**Semantic mapping.** Unread = accent dot + sender at 600. Starred = star hue,
+**Style=Filled** glyph. Current mailbox = the folder's own semantic colour +
+**Style=Filled** glyph (owner ruling 2026-08-31: the inbox fills coral, the star gold,
+the trash red, sent sky-blue). Selected row = `--wren-fill-selected` (accent at 8%
+light / 14% dark), never a stroke. Hover = `--wren-fill-hover` (neutral, not accent).
 
 > **shadcn trap:** in shadcn, `--accent` is the *subtle hover fill*, not the brand colour.
-> Wren's brand accent maps to `--primary` and `--ring`. Do not use `bg-accent` for a brand element.
+> Maru's brand accent maps to `--primary` and `--ring`. Do not use `bg-accent` for a brand element.
 
 ---
+
 
 ## 4. Type
 
@@ -287,11 +327,24 @@ with a 12 px inset puts its wells at 12; a 24 palette with `p-2` puts its rows a
 ring is a `box-shadow` and follows its element's radius on its own, so getting the radius right
 is what gets the ring right — the composer's draft well is the worked example.
 
-The **floating sidebar card** is the second worked example, and the one that decided its own
-numbers. The card takes `-xl` **18** and insets its three bands by `px-2` **8**, so its rows
-land at 18 − 8 = **10** — `--wren-radius-row`, the radius every list and sidebar row already
-carries. No waiver, no new radius step, and `NavRow` is untouched. The rejected alternative
-(`-lg` 14 at a 12 px inset) demanded an inner radius of 2 against those same 10 px rows.
+The **floating sidebar card** used to be the second worked example, and this paragraph used to
+read: the card takes `-xl` **18**, insets its three bands by `px-2` **8**, and its rows land at
+18 − 8 = **10** — `--wren-radius-row`. **That is no longer what ships, and the derivation no
+longer holds.**
+
+`SHELL_CARD` takes `rounded-md` **12** (owner ruling, 2026-08-31: 18 "looks bad visually", and
+flush was rejected too). The rows are still **10**, so the concentric arithmetic now reads
+12 − 8 = 4 against a 10 px row — the rule is broken here, not merely restated with a new number.
+The rows were left alone deliberately: `--wren-radius-row` is what every list row and every
+sidebar row carries, and changing it to satisfy an equation would have moved the whole list to
+fix a card.
+
+**This is an open owner decision, not a settled rule** (see `wayfinder/NICK-QUEUE.md`). It has a
+visible consequence: message cards in the reading pane are `rounded-lg` **14**, so a four-inch
+shell card is now *less* rounded than the small cards floating on it, which inverts the usual
+hierarchy. The three options are to bring message cards down to 12 or 10, to leave it, or to
+revisit the shell. **Do not derive a new number from this paragraph until it is ruled** — write
+what ships and say it is unsettled, which is what this paragraph now does.
 
 **Buttons and badges are pills.** Amie uses one for every primary action and every chip at both
 densities. Keycaps are the exception and stay at `-xs`: a keycap has to read as a key.

@@ -73,9 +73,20 @@ const SNAP_SLACK = 8
  * on the ground. (The reading region is the ground, so it is not one.)
  *
  * No `ring-1` — every --wren-shadow-* carries `0 0 0 1px` as its first layer,
- * so `shadow-xs` IS the border (DIRECTION §6). The radius is 18 because a
- * card's 8px inset then leaves 10 inside, which is --wren-radius-row: the
- * thread rows have been drawing the inside of this card since they shipped.
+ * so `shadow-xs` IS the border (DIRECTION §6).
+ *
+ * The radius is `rounded-md` **12** — the owner's number, ruled twice on
+ * 2026-08-31 (18 "looks bad visually", and flush was rejected too). This
+ * comment used to say 18 and derive it from the rows: a card's 8 px inset
+ * leaves 10 inside, which is --wren-radius-row. **That derivation no longer
+ * holds** — 12 − 8 is 4, and the rows are still 10. The rows were left alone
+ * on purpose, because changing --wren-radius-row to satisfy an equation would
+ * move every list and sidebar row to fix one card.
+ *
+ * The consequence is live and is an open owner decision (NICK-QUEUE): message
+ * cards in the reading pane are `rounded-lg` 14, so this card is now LESS
+ * rounded than the small cards floating on it. Do not "fix" either number
+ * from here.
  */
 export const SHELL_CARD =
   'bg-surface rounded-md shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden'

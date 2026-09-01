@@ -205,10 +205,15 @@ installs rather than merely failing to help them.
   bring message cards down to 12 or 10 so the shell is the roundest
   thing; leave it (you may simply like it); or revisit the shell.
   I did not touch it because you ruled on that number twice and the
-  message cards were not in front of you either time. Related, and free
-  to fix once you decide: three code comments and DIRECTION §6 still
-  derive everything from the old 18, so the next person to touch sidebar
-  geometry will read the wrong number.
+  message cards were not in front of you either time.
+
+  ~~Related: three code comments and DIRECTION §6 still derive everything
+  from the old 18.~~ **DONE 2026-09-01** — all four now state the shipped
+  12 and say plainly that the concentric derivation no longer holds
+  (12 − 8 = 4 against a 10 px row), that the rows were left alone on
+  purpose, and that the inversion is YOUR open decision rather than a
+  settled rule. Nobody will read 18 as current now. The decision itself is
+  untouched and still yours.
 
 - **Accent-coloured text on the ground measures 4.31:1** (pre-freeze
   sweep, 2026-08-31 — computed OKLCH → sRGB → WCAG, not estimated).
@@ -219,10 +224,32 @@ installs rather than merely failing to help them.
   today, so this is a latent trap rather than a live defect. Your call:
   darken the light accent slightly (costs a little of the coral you
   picked), forbid accent text on the ground in DIRECTION, or accept it
-  as decorative-only. Separately and regardless: DIRECTION §3's
+  as decorative-only. ~~Separately and regardless: DIRECTION §3's
   contrast table still certifies an indigo accent on a hue-286 neutral
   ramp — a palette that no longer exists in the build — so the one
-  document anyone would check a colour against is currently wrong.
+  document anyone would check a colour against is currently wrong.~~
+
+  **DIRECTION §3 corrected 2026-09-01.** Rewritten against the shipped
+  tokens, with every ratio re-measured rather than re-typed. The tool
+  that did it is `scripts/contrast-audit.mjs` (`npm run contrast`); it
+  reads `src/styles/tokens.css` directly, so the table cannot go stale
+  again without the script saying so, and `npm run contrast:check` exits
+  non-zero on a regression. **It exits non-zero today, on this one
+  number and nothing else.**
+
+  The full measured picture, so your decision has all of it:
+  - **4.31 confirmed independently**, and it is the ONLY failure in
+    either theme. Light accent is 4.73 on `surface`, 4.31 on the ground.
+  - Every text tier, both themes, every surface it may sit on: passes.
+  - All eight hue inks pass on both surface and ground; yellow on the
+    ground is tightest at 4.64, so it is the one to re-check first if
+    the ground ever lightens.
+  - `accent-fg` on `accent` is 4.73 light / 8.11 dark. The dark
+    accent-fg is near-black rather than white, so primary buttons are
+    fine in both themes — worth knowing, because assuming white there
+    reports a 2.39 failure that does not exist.
+  - Nothing clips out of sRGB gamut, so DIRECTION's in-gamut claim
+    holds for the new palette too.
 
 - **Should a dev build share your real mail database?** (surfaced
   2026-08-31 by "none of the emails are syncing"; ticket P18 shipped the

@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "tauri": "tauri",
-    "poses:check": "node scripts/build-wren-poses.mjs --check"
+    "poses:check": "node scripts/build-wren-poses.mjs --check",
+    "contrast": "node scripts/contrast-audit.mjs",
+    "contrast:check": "node scripts/contrast-audit.mjs --check"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
