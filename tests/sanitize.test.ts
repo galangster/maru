@@ -379,3 +379,96 @@ describe('link handling', () => {
     expect(blocked('<a href="#footnote">jump</a>').html).toContain('href="#footnote"')
   })
 })
+
+describe('an image is not a box (P16 tail, 2026-09-01)', () => {
+  // `collapseEmptyBoxes` asks "does this element still hold anything" by
+  // looking at its text and its DESCENDANT images. An <img> has neither — so
+  // it satisfied every emptiness test and had its own height stripped, in any
+  // message that also happened to block a remote image. The cid: logo in a
+  // newsletter is exactly that case.
+  const hero = '<img src="https://t.example/hero.png" width="600" height="350">'
+
+  it('keeps the declared height of a cid: image beside a blocked one', () => {
+    const r = sanitizeBody(`${hero}<img src="cid:logo" width="120" height="60">`, {
+      allowRemoteImages: false,
+      inlineImages: new Map([['logo', 'data:image/png;base64,AAAA']]),
+    })
+    expect(r.html).toContain('height="60"')
+  })
+
+  it('keeps the declared height of a data: image beside a blocked one', () => {
+    const r = blocked(`${hero}<img src="data:image/gif;base64,R0lGOD" width="120" height="60">`)
+    expect(r.html).toContain('height="60"')
+  })
+
+  it('keeps a height-only image, which renders at natural size without it', () => {
+    const r = blocked(`${hero}<img src="data:image/gif;base64,R0lGOD" height="400">`)
+    expect(r.html).toContain('height="400"')
+  })
+
+  it('still collapses the BOX around a blocked image', () => {
+    // The guard must not cost the fix it sits beside.
+    const r = blocked(`<td height="350">${hero}</td>`)
+    expect(r.html).not.toMatch(/height="350"/)
+  })
+})
+
+describe('a vendor prefix does not weld two declarations (P16 tail)', () => {
+  // The same lesson CSS_SIZING already records, unlearned one regex over:
+  // CSS_FETCHING_PROPERTY had no declaration-boundary anchor, so it cut
+  // `mask-image:url(…);` out of the MIDDLE of `-webkit-mask-image` and left
+  // the prefix welded to whatever followed.
+  it('strips a prefixed fetching property without eating its neighbour', () => {
+    const r = blocked('<div style="color:red;-webkit-mask-image:url(https://t.example/m.png);border:0">x</div>')
+    expect(r.html).not.toContain('t.example')
+    expect(r.html).not.toContain('-webkit-border')
+    expect(r.html).toContain('border:0')
+    expect(r.html).toContain('color:red')
+  })
+
+  it('still strips the unprefixed spelling', () => {
+    const r = blocked('<div style="color:red;mask-image:url(https://t.example/m.png);border:0">x</div>')
+    expect(r.html).not.toContain('t.example')
+    expect(r.html).toContain('border:0')
+  })
+})
+
+describe('counted is stripped, and only images count (P16 tail)', () => {
+  // `remote` used to come from a regex over the WHOLE style attribute while
+  // the strip came from a property list, so anything the first saw and the
+  // second did not was counted as a remote image and left in place. Counted is
+  // what widens the CSP — so a body with no picture in it got
+  // `img-src data: https: http:`, opening the backstop for exactly the class of
+  // mail where the enumeration carries the load alone. Same structural mistake
+  // the beacon drop is hoisted above both counters to avoid.
+  it('does not count a filter url, which img-src does not govern', () => {
+    for (const allowRemoteImages of [false, true]) {
+      const r = sanitizeBody('<div style="filter:url(https://t.example/f.svg)">x</div>', {
+        allowRemoteImages,
+      })
+      expect(r.remoteImages, `allow=${allowRemoteImages}`).toBe(0)
+      expect(r.blockedImages, `allow=${allowRemoteImages}`).toBe(0)
+    }
+  })
+
+  it('keeps the CSP closed for a body whose only remote url is a filter', () => {
+    const r = allowed('<div style="filter:url(https://t.example/f.svg)">x</div>')
+    expect(buildSrcdoc(r.html, { allowRemoteImages: r.remoteImages > 0 })).toContain(
+      'img-src data:;',
+    )
+  })
+
+  it('DOES count a cursor url, because img-src governs it and it is stripped', () => {
+    // The pair has to agree in the other direction too: a property the strip
+    // handles must be counted, or Show would un-block it in the sanitizer and
+    // the CSP would re-block it one layer down.
+    const off = blocked('<div style="cursor:url(https://t.example/c.png),auto">x</div>')
+    const on = allowed('<div style="cursor:url(https://t.example/c.png),auto">x</div>')
+    expect(off.remoteImages).toBe(1)
+    expect(on.remoteImages).toBe(1)
+    expect(off.html).not.toContain('t.example')
+    // Still not the pill's number: the pill's sentence is about images the
+    // sender can use to see that you opened the mail.
+    expect(off.blockedImages).toBe(0)
+  })
+})

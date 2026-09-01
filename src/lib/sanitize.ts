@@ -149,9 +149,44 @@ function isBeacon(node: Element): boolean {
   return area !== null && area <= TRACKER_MAX_AREA_PX
 }
 
-/** Every CSS property that can fetch, not just `background`. */
+/**
+ * Every CSS property that can fetch an IMAGE, not just `background`.
+ *
+ * The leading `(^|[;\s])` boundary is the same lesson `CSS_SIZING` records
+ * below, and it was missing here — so the pattern matched INSIDE a vendor
+ * prefix. `color:red;-webkit-mask-image:url(x);border:0` had
+ * `mask-image:url(x);` cut out of the middle and came back as
+ * `-webkit-border:0`, a dead `border` declaration in any mail using a prefixed
+ * fetching property. **Every `.replace` with this pattern must put group 1
+ * back**, exactly as CSS_SIZING's do.
+ *
+ * `(?:-[a-z]+-)?` is what keeps the boundary from costing coverage: anchoring
+ * without it would have made `-webkit-mask-image` stop matching at all, which
+ * turns a cosmetic bug into a leak.
+ *
+ * `filter` and `clip-path` are deliberately ABSENT. Both can carry a `url()`,
+ * but both reference an SVG filter rather than load an image, `img-src` does
+ * not govern them, and `default-src 'none'` in the srcdoc CSP is what stops
+ * them. Adding them here would mean COUNTING them as remote images — see the
+ * hook below for why that is the expensive half of the mistake.
+ */
 const CSS_FETCHING_PROPERTY =
-  /(?:[a-z-]*background[a-z-]*|list-style(?:-image)?|mask(?:-image)?|border-image(?:-source)?|content|cursor|src)\s*:[^;]*url\([^)]*\)[^;]*;?/gi
+  /(^|[;\s])(?:-[a-z]+-)?(?:[a-z-]*background[a-z-]*|list-style(?:-image)?|mask(?:-image)?|border-image(?:-source)?|content|cursor|src)\s*:[^;]*url\([^)]*\)[^;]*;?/gi
+
+/**
+ * Does this declaration's `url()` reach the network?
+ *
+ * Applied to one declaration rather than to the whole style attribute, so a
+ * `background:url(data:…)` beside a remote `mask-image` is judged on its own
+ * and survives. A shorthand carrying BOTH a data: and a remote url is treated
+ * as remote and stripped whole — there is no safe way to partially rewrite a
+ * shorthand, and keeping the tracker is not the side to err on.
+ *
+ * This is the same POLICY as `isRemote` above — https?: or protocol-relative —
+ * against a different input, a whole declaration rather than a bare URL. If one
+ * of the two ever learns a new remote form, the other needs it too.
+ */
+const CSS_REMOTE_URL = /url\(\s*['"]?\s*(?:https?:)?\/\//i
 
 /**
  * Sizing left behind on a container whose only content was a blocked image.
@@ -268,26 +303,48 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   // never saw them.
   const style = node.getAttribute('style')
   if (style && /url\(/i.test(style)) {
-    const remote = /url\(\s*['"]?\s*(?:https?:)?\/\//i.test(style)
-    // Counted outside the withheld guard, because this is what the CSP is
-    // keyed on and it has to stay true after Show is clicked.
-    if (remote) state.remote++
-    // Only strip what is actually withheld. The strip used to run
-    // unconditionally, so clicking "Show" dropped the pill to zero and
-    // revealed NOTHING for a mail whose imagery is CSS backgrounds — and it
-    // destroyed safe data: backgrounds permanently, in both states.
-    if (remote && !state.allowRemoteImages) {
+    // ONE pass, and the count and the strip read the SAME match.
+    //
+    // They used to be two separate tests: `remote` came from a regex over the
+    // whole attribute, and the strip came from the property list. Anything the
+    // first saw and the second did not — `filter:url(https://…)` is the real
+    // case — was counted as a remote image and left in the output. Counted is
+    // what widens the CSP, so a body with no picture in it at all rendered
+    // under `img-src data: https: http:`, opening the backstop for exactly the
+    // class of mail where the enumeration is carrying the load alone.
+    //
+    // That is the same structural mistake the beacon drop above is hoisted over
+    // both counters to avoid, and it has the same fix: one decision, one place.
+    // Counted-but-not-stripped is now unreachable, because a declaration is
+    // counted only if this replace handled it.
+    let remote = false
+    let remoteBackground = false
+    const stripped = style.replace(CSS_FETCHING_PROPERTY, (declaration, separator: string) => {
+      if (!CSS_REMOTE_URL.test(declaration)) return declaration
+      remote = true
       // Only a BACKGROUND counts toward the pill. cursor/mask/border-image are
-      // stripped too, but the pill's sentence is about images the sender can
-      // use to see that you opened the mail — counting a `cursor:url()` makes
-      // the one number the privacy promise rests on say something untrue.
-      if (/[a-z-]*background[a-z-]*\s*:[^;]*url\(/i.test(style)) state.blocked++
-      let stripped = style.replace(CSS_FETCHING_PROPERTY, '')
+      // stripped and counted as remote too, but the pill's sentence is about
+      // images the sender can use to see that you opened the mail — counting a
+      // `cursor:url()` there makes the one number the privacy promise rests on
+      // say something untrue.
+      if (/background/i.test(declaration)) remoteBackground = true
+      // The separator goes back, or the neighbouring declarations weld.
+      return state.allowRemoteImages ? declaration : separator
+    })
+
+    // Outside the withheld guard, because this is what the CSP is keyed on and
+    // it has to stay true after Show is clicked.
+    if (remote) state.remote++
+    // Only WRITE what is actually withheld. The strip used to run
+    // unconditionally, so clicking "Show" dropped the pill to zero and revealed
+    // NOTHING for a mail whose imagery is CSS backgrounds — and it destroyed
+    // safe data: backgrounds permanently, in both states.
+    if (remote && !state.allowRemoteImages) {
+      if (remoteBackground) state.blocked++
       // The declaration that carried the image usually carried its height too
       // (`background-image:url(...);height:350px`), and dropping only the
       // former is exactly what leaves the hole.
-      if (stripped !== style) stripped = stripped.replace(CSS_SIZING, '$1')
-      node.setAttribute('style', stripped)
+      node.setAttribute('style', stripped.replace(CSS_SIZING, '$1'))
       state.needsPostPass = true
     }
   }
@@ -361,6 +418,15 @@ function chipBlockedImages(root: ParentNode): void {
  */
 function collapseEmptyBoxes(root: ParentNode): void {
   for (const el of Array.from(root.querySelectorAll('[height], [style]'))) {
+    // The element may BE an image rather than a box around one, and every test
+    // below is about containers. An <img> has no text and no DESCENDANT
+    // images, so it satisfied all of them and had its own height stripped —
+    // silently resizing a legitimate inline picture in any message that also
+    // happened to block a remote one. A cid: logo declared `height="60"` came
+    // back with no height at all, and one declared only a height rendered at
+    // its full natural size.
+    if (el.matches('img, image')) continue
+
     const style = el.getAttribute('style') ?? ''
     // Same anchored test as CSS_SIZING, so what is detected is exactly what
     // gets stripped. `line-height` is not a height.

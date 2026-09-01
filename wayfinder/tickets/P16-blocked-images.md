@@ -1,6 +1,12 @@
 # P16 — Blocked remote images: the void, the dead Show, the bypasses  `wayfinder:task`
 
-status: queued (2026-08-31, investigated) · claimed: — · blocked by: —
+status: **CLOSED (2026-09-01)** · claimed: autonomous run 7 · blocked by: —
+
+The three defects below were fixed on 2026-08-31 (run 6, commits `717707e`,
+`57a1947`, `64a3880`) — the ticket was written before that work and its line
+numbers are stale. Run 7 verified all three in the running app and closed the
+TAIL: three further defects in the same two mechanisms, found by probing the
+paths the 33 existing tests did not reach. Resolution at the bottom.
 
 ## The ask
 
@@ -100,3 +106,93 @@ most serious of the three.
 Defect 2 and the CSP half of defect 3 are small and worth doing with
 the current visual pass. The container-collapse work (defect 1) wants
 the DOM test harness first.
+
+
+---
+
+# RESOLUTION — 2026-09-01
+
+## The three original defects: fixed 2026-08-31, verified 2026-09-01
+
+Verified by driving the real app in `?images=block` against the Offhours
+fixture, which is one of the two demo threads that pulls a remote image.
+
+1. **The void.** Fixed by substitution rather than removal, plus
+   `collapseEmptyBoxes`. The hero now renders as a small `Image` chip and the
+   message frame measures **428 px** where the hole made it **970**.
+2. **Show is dead for CSS backgrounds.** Fixed: the strip is guarded on
+   `allowRemoteImages`, and the CSP is keyed on `remoteImages` rather than
+   `blockedImages` — the count that does not fall to zero the moment Show is
+   clicked. Clicking Show restores the real URL and widens the CSP to
+   `img-src data: https: http:` in the same render.
+3. **Tracking-pixel bypasses.** Fixed: `FORBID_TAGS` gained the media
+   elements, `FORBID_ATTR` gained `poster`/`srcset`/`background`, `isRemote`
+   handles protocol-relative and leading whitespace, SVG `<image href>` is
+   handled, and `CSS_FETCHING_PROPERTY` covers every image-loading property
+   rather than `background` alone. The srcdoc CSP is the backstop underneath
+   all of it.
+
+The ticket's two prerequisites are also done: **the DOM test harness exists**
+(jsdom, opted into per-file with `// @vitest-environment jsdom`), and
+`tests/sanitize.test.ts` now carries **60 tests** where the file had zero.
+
+## The tail: three defects run 7 found and fixed
+
+All three sat in the two mechanisms the original fix introduced. None was
+reachable by the existing tests, which is why they survived.
+
+**T1 — an `<img>` was treated as a box.** `collapseEmptyBoxes` asks "does this
+still hold anything" by looking at an element's text and its **descendant**
+images. An `<img>` has neither, so it satisfied every emptiness test and had
+its own `height` stripped — in any message that also blocked a remote image. A
+cid: logo declared `height="60"` came back with no height; one declared only a
+height rendered at full natural size. Fixed by skipping elements that are
+themselves images, with a test that the box AROUND a blocked image still
+collapses.
+
+**T2 — a vendor prefix welded two declarations.** `CSS_FETCHING_PROPERTY` had
+no declaration-boundary anchor, so it matched INSIDE a prefix:
+`color:red;-webkit-mask-image:url(x);border:0` came back as
+`color:red;-webkit-border:0`, killing a legitimate `border`. **This is the
+same lesson `CSS_SIZING` already records four lines below it**, unlearned one
+regex over. Fixed with the same anchor plus `(?:-[a-z]+-)?`, because anchoring
+alone would have made prefixed properties stop matching at all — turning a
+cosmetic bug into a leak.
+
+**T3 — counted but not stripped.** `remote` came from a regex over the whole
+style attribute while the strip came from the property list, so anything the
+first saw and the second did not — `filter:url(https://…)` is the real case —
+was counted as a remote image and left in the output. Counted is what widens
+the CSP, so **a body with no picture in it at all rendered under
+`img-src data: https: http:`**, opening the backstop for exactly the class of
+mail where the enumeration carries the load alone. That is the same structural
+mistake the beacon drop is hoisted above both counters to avoid. Fixed by one
+pass: a declaration is counted only if the replace handled it, so
+counted-but-not-stripped is now unreachable. `filter` and `clip-path` stay out
+of the list on purpose — `img-src` does not govern them and `default-src
+'none'` is what stops them.
+
+## What is NOT closed by this ticket
+
+- **The double layout shift on Show** could not be verified in demo mode: the
+  fixture hero points at a fake domain, so the image never loads and the frame
+  height does not move (428 before and after). It needs a real newsletter, so
+  it is a hand-check rather than something an agent can prove. The zoom loop
+  the ticket warned about is guarded — `measure()` resets `body.style.zoom`
+  before reading and only writes a real change.
+- **Session- and thread-scoped Show** is unchanged and is a product decision,
+  not a defect. It is in `NICK-QUEUE.md` as "Remembering Show images per
+  sender".
+- Remote images **load by default** since 2026-08-31, so everything above is
+  behind an opt-in setting. That lowers the frequency of the cosmetic defects
+  and does not lower the stakes of the privacy ones: the beacon drop and the
+  CSP run under BOTH policies.
+
+## Environment note, confirmed twice in one session
+
+The Vite dev server served a **stale `sanitize.ts`** while reporting a
+successful HMR update, and a full `preview_stop` + `preview_start` did not
+clear it — the first measurement said the chip was never applied and the frame
+was 970 px tall, which was simply the old module. A reload with a
+cache-busting query parameter fixed it. **If a browser measurement disagrees
+with a passing unit test, distrust the browser first.**

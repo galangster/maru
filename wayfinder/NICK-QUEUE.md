@@ -301,9 +301,17 @@ installs rather than merely failing to help them.
   and you re-click Show every time — quite possibly part of what
   "still" meant. Options: keep it as-is (max privacy), remember per
   sender for the session, or persist a per-sender allowlist. This is a
-  privacy-posture call, not a bug fix, so it is yours. (The actual
-  defects — the ~350px void, Show not working for CSS backgrounds, and
-  the tracking-pixel bypasses — are agent work, ticket P16.)
+  privacy-posture call, not a bug fix, so it is yours.
+
+  **The defects are done — this question is all that is left of P16.**
+  The ~350px void, the dead Show for CSS backgrounds and the
+  tracking-pixel bypasses were fixed 2026-08-31 and verified in the
+  running app 2026-09-01 (the Offhours fixture measures 428px where the
+  hole made it 970). Three more defects in the same code were found and
+  fixed on the way out; P16 is closed with a full resolution. So if you
+  still meet "this image blocking thing", it will be THIS — the same
+  newsletter asking again every session — and the answer is your call
+  between the three options above.
 
 - **Notification badge default + the iOS payload shape** (your ask,
   2026-08-31; ticket P15-notification-badges). Modes drafted: unread in
