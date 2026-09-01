@@ -189,6 +189,15 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'
   googleClientId?: string
   googleClientSecret?: string
+  /**
+   * Remote images. `allow` — the default since 2026-08-31, owner's call — loads
+   * pictures with the message; `block` withholds every remote image and offers a
+   * per-thread "Show".
+   *
+   * An image whose DECLARED size is at or below 8x8 is dropped under BOTH
+   * values and counted by neither: it carries no picture, only a report that
+   * the message was opened. Do not fold that drop back into the block branch.
+   */
   imagePolicy: 'block' | 'allow'
   pollIntervalSec: number // default 60
   /**

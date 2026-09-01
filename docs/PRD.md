@@ -71,8 +71,11 @@ lucide interim, tuned to match). No MetaDAO styling.
   hydration, lazy full bodies (2026-05 quota model: 6,000 units/min/user,
   messages.get = 20 units).
 - Security: contextIsolation, sanitized HTML in sandboxed iframes, remote
-  images blocked by default, tokens via safeStorage, no telemetry, no
-  third-party servers.
+  images loaded by default with a Settings switch to block them and a
+  declared-size drop for tracking pixels either way, tokens via safeStorage,
+  no telemetry, no Maru servers. With images on — the default — a message's
+  pictures are fetched from the sender's host; blocking them restores
+  Google as the only network peer.
 
 ## Architecture (summary)
 

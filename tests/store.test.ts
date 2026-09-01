@@ -370,3 +370,72 @@ describe('migration 4 — the trash union repair', () => {
     expect(labels('a/t-bare'), 'no messages means no opinion').toContain('TRASH')
   })
 })
+
+// Remote images now load by default (owner, 2026-08-31). Flipping
+// DEFAULT_SETTINGS alone reaches nobody who has ever saved a setting:
+// setSettings writes the WHOLE merged object, so an existing row literally
+// stores "imagePolicy":"block", and getSettings spreads that row OVER the
+// defaults. Migration 5 clears the key so the default applies again.
+describe('migration 5 — the image-policy default flip', () => {
+  const settingsRow = (db: NodeSqlDb) =>
+    (db.raw.prepare('SELECT json FROM settings WHERE id = 1').get() as { json: string } | undefined)
+      ?.json
+
+  it('clears a stored block, leaves a stored block chosen later alone, and keeps siblings', async () => {
+    const platform = new NodePlatform()
+    const db = (await platform.sqlOpen()) as NodeSqlDb
+    await Store.open(platform)
+
+    // A row as an existing install carries it: the dead 'block' plus real
+    // settings a person did choose.
+    db.raw
+      .prepare('INSERT OR REPLACE INTO settings (id, json) VALUES (1, ?)')
+      .run(
+        JSON.stringify({
+          theme: 'light',
+          imagePolicy: 'block',
+          sounds: true,
+          googleClientId: 'cid-123',
+        }),
+      )
+
+    db.raw.exec(MIGRATIONS[4])
+
+    const after = JSON.parse(settingsRow(db) as string) as Record<string, unknown>
+    expect(after, 'the key is REMOVED, not overwritten — defaults.ts stays the only copy').not.toHaveProperty(
+      'imagePolicy',
+    )
+    // Everything the person actually chose survives byte-intact.
+    expect(after.theme).toBe('light')
+    expect(after.sounds).toBe(true)
+    expect(after.googleClientId).toBe('cid-123')
+
+    // And with the key gone, the store reports the default.
+    const store = await Store.open(platform)
+    expect((await store.getSettings()).imagePolicy).toBe(DEFAULT_SETTINGS.imagePolicy)
+    expect(DEFAULT_SETTINGS.imagePolicy).toBe('allow')
+  })
+
+  it('does not touch a row that already reads allow', async () => {
+    const platform = new NodePlatform()
+    const db = (await platform.sqlOpen()) as NodeSqlDb
+    await Store.open(platform)
+    db.raw
+      .prepare('INSERT OR REPLACE INTO settings (id, json) VALUES (1, ?)')
+      .run(JSON.stringify({ theme: 'dark', imagePolicy: 'allow' }))
+
+    db.raw.exec(MIGRATIONS[4])
+
+    const after = JSON.parse(settingsRow(db) as string) as Record<string, unknown>
+    expect(after.imagePolicy, 'an explicit allow is not a dead value to clear').toBe('allow')
+    expect(after.theme).toBe('dark')
+  })
+
+  it('is a no-op on a fresh database with no settings row', async () => {
+    const platform = new NodePlatform()
+    const db = (await platform.sqlOpen()) as NodeSqlDb
+    const store = await Store.open(platform)
+    expect(settingsRow(db)).toBeUndefined()
+    expect((await store.getSettings()).imagePolicy).toBe('allow')
+  })
+})

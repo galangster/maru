@@ -4,7 +4,7 @@
 // reviewer sees before they have set up a Google OAuth client. It implements
 // the same MailService contract as the real one, including events.
 
-import { now, syncPreview } from '@/lib/env'
+import { imagePreview, now, syncPreview } from '@/lib/env'
 import { decodeBase64Url } from '../mime'
 import { searchWithOperators } from '../search/operators'
 import { ThreadSearchIndex } from '../search/index'
@@ -37,7 +37,9 @@ export class DemoMailService implements MailService {
   private readonly labels = new Map<string, Label[]>()
   private readonly listeners = new Set<(e: MailEvent) => void>()
   private readonly index = new ThreadSearchIndex()
-  private settings: Settings = { ...DEFAULT_SETTINGS }
+  // `?images=block` is the capture door onto the blocking surface — see
+  // imagePreview in lib/env. Demo-only, so it can never reach real mail.
+  private settings: Settings = { ...DEFAULT_SETTINGS, ...(imagePreview ? { imagePolicy: imagePreview } : {}) }
   private readonly now: number
   private extraAdded = false
   private sendCounter = 0

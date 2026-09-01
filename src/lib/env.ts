@@ -73,6 +73,20 @@ export const onboardingPreview = params.get('onboarding') === '1'
 export const syncPreview = params.get('sync')
 
 /**
+ * `?images=block` forces the blocking policy, for captures and review.
+ *
+ * Same reason as `onboarding` and `sync` above. Images load by default as of
+ * 2026-08-31, so the blocked-image surface — the banner, the `wren-blocked`
+ * chip, and the empty-box collapse — became a state a reviewer never reaches on
+ * purpose, in the mode all UI verification runs in. It is still live code with
+ * unit tests; without this it would simply never appear in a frame again.
+ *
+ * Read only by the demo service, like the others, so it can never colour real
+ * mail — and gated with them behind `modeFlagsAllowed`.
+ */
+export const imagePreview = params.get('images') === 'block' ? 'block' : null
+
+/**
  * The frozen clock for captures. Demo fixtures are generated relative to
  * `now`, so a real Date.now() would re-date every row on every run and no two
  * captures would compare. Chosen as a late local evening so the fixture set

@@ -45,9 +45,15 @@ describe('remote image blocking', () => {
     expect(r.html).not.toContain('tracker.example')
   })
 
-  it('drops a tracking pixel entirely rather than showing a chip for it', () => {
+  it('drops a tracking pixel and counts it as NOTHING — Show has nothing to reveal', () => {
+    // The count changed from 1 to 0 on purpose, 2026-08-31. A beacon is deleted
+    // outright, so counting it as "withheld" raised a "Remote images blocked ·
+    // Show" banner over a button that provably revealed nothing. The counters
+    // now mean exactly what their names say: `blockedImages` is pictures Show
+    // would bring back, `remoteImages` is images that will actually load.
     const r = blocked('<p>Hello</p><img src="https://tracker.example/o.gif" width="1" height="1">')
-    expect(r.blockedImages).toBe(1)
+    expect(r.blockedImages).toBe(0)
+    expect(r.remoteImages).toBe(0)
     expect(r.html).not.toContain('tracker.example')
     // A 1x1 beacon is not a picture; a chip for it would be noise.
     expect(r.html).not.toContain('wren-blocked')
@@ -212,6 +218,70 @@ describe('stripping a height leaves its neighbours intact', () => {
     expect(out).toContain('line-height:20px')
     expect(out).toContain('color:red')
     expect(out).not.toContain('line-color')
+  })
+})
+
+describe('a beacon is dropped whatever the policy says', () => {
+  // The privacy that survives images loading by default. It is narrow and the
+  // copy must stay narrow with it: this catches an image DECLARED too small to
+  // be a picture. It cannot catch an undeclared 1x1, and it cannot catch a
+  // per-recipient URL on a real photograph — the moment a hero loads, the
+  // sender has been told. Never let a string imply otherwise.
+  const beacons: [string, string][] = [
+    ['an attribute 1x1', '<img src="https://t.example/o.gif" width="1" height="1">'],
+    ['a CSS 1x1', '<img src="https://t.example/o.gif" style="width:1px;height:1px">'],
+    ['an 8x8, the ceiling', '<img src="https://t.example/o.gif" width="8" height="8">'],
+    ['an SVG image beacon', '<svg><image href="https://t.example/o.gif" width="1" height="1" /></svg>'],
+  ]
+
+  for (const [what, body] of beacons) {
+    it(`drops ${what} in BOTH policies`, () => {
+      for (const allowRemoteImages of [false, true]) {
+        const r = sanitizeBody(body, { allowRemoteImages })
+        expect(r.html, `${what} @ allow=${allowRemoteImages}`).not.toContain('t.example')
+        expect(r.blockedImages, `${what} @ allow=${allowRemoteImages}`).toBe(0)
+        expect(r.remoteImages, `${what} @ allow=${allowRemoteImages}`).toBe(0)
+      }
+    })
+  }
+
+  it('keeps the CSP CLOSED for a body whose only remote reference was a beacon', () => {
+    // The structural reason the drop is hoisted above both counters. Counted in
+    // `remoteImages`, a beacon made `wantsRemote` true, and the CSP widened to
+    // `img-src data: https: http:` for a document containing no picture at all
+    // — opening the backstop for exactly the mail where the enumeration is
+    // doing all the work alone.
+    const r = sanitizeBody('<p>Hi</p><img src="https://t.example/o.gif" width="1" height="1">', {
+      allowRemoteImages: true,
+    })
+    expect(r.remoteImages).toBe(0)
+    expect(buildSrcdoc(r.html, { allowRemoteImages: r.remoteImages > 0 })).toContain('img-src data:;')
+  })
+
+  it('does not mistake a real picture for a beacon', () => {
+    // `max-width:1px` is a layout instruction, not a claim about the picture.
+    // If the size test ever widens to catch it, real photographs vanish.
+    for (const body of [
+      '<img src="https://cdn.example/hero.png" width="600" height="300">',
+      '<img src="https://cdn.example/hero.png" style="max-width:1px;width:600px;height:300px">',
+      '<img src="https://cdn.example/hero.png" style="width:100%;height:auto">',
+    ]) {
+      const r = sanitizeBody(body, { allowRemoteImages: true })
+      expect(r.remoteImages, body).toBe(1)
+      expect(r.html, body).toContain('cdn.example')
+    }
+  })
+
+  it('still widens the CSP for a real picture under allow', () => {
+    // The dead-Show defect inverted: policy reaching sanitizeBody but not
+    // buildSrcdoc means the owner's new setting silently does nothing.
+    const r = sanitizeBody('<img src="https://cdn.example/hero.png" width="600" height="300">', {
+      allowRemoteImages: true,
+    })
+    expect(r.remoteImages).toBe(1)
+    expect(buildSrcdoc(r.html, { allowRemoteImages: r.remoteImages > 0 })).toContain(
+      'img-src data: https: http:;',
+    )
   })
 })
 

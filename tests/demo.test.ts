@@ -319,7 +319,7 @@ describe('accounts', () => {
 describe('settings and events', () => {
   it('returns defaults and merges a patch', async () => {
     const { svc } = service()
-    expect(await svc.getSettings()).toMatchObject({ theme: 'system', imagePolicy: 'block', pollIntervalSec: 60 })
+    expect(await svc.getSettings()).toMatchObject({ theme: 'system', imagePolicy: 'allow', pollIntervalSec: 60 })
     await svc.setSettings({ theme: 'dark' })
     expect((await svc.getSettings()).theme).toBe('dark')
   })

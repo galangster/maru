@@ -95,6 +95,29 @@ sandboxed iframe; remote images blocked by default with per-message allow;
 tokens encrypted at rest via Electron safeStorage (DPAPI on Windows,
 Keychain on macOS); no telemetry.
 
+**Overturned in part, 2026-08-31 (owner):** *"can we please not do this by
+default anymore? maybe it can be an option but it's annoying to have to click
+this every time."* Remote images now LOAD by default. `Settings.imagePolicy`
+defaults to `allow` and is finally read — it had been a dead setting, declared
+and defaulted and exported by settings transfer and never once consulted, so
+the blocking was hardcoded. Settings → Appearance → "Load images in messages"
+turns it off, and the per-thread Show affordance survives intact at `block`.
+
+An image whose DECLARED size is at or below 8×8 is dropped under BOTH values
+and counted by neither, so a beacon-only body keeps `img-src data:` and the CSP
+backstop stays fully closed for it. What this gives up is that backstop for the
+image class specifically: images are now enumeration-only, and enumeration is
+what leaked four times before P16. `default-src 'none'` is unchanged, so
+scripts, fetch, fonts, frames, media and form targets stay categorically
+impossible.
+
+Be precise about what the beacon drop is worth. It protects completely for a
+message with no pictures and one declared-tiny pixel. It protects nothing for a
+message with a visible picture: every major sender stamps a per-recipient token
+on content images, so the moment a hero loads the sender has been told the mail
+was opened. Never let a string in this app imply otherwise. Cost of reversal:
+one word in `src/core/defaults.ts`, plus a migration if installs are to follow.
+
 **Q15 — Demo mode:** `--demo` flag and an onboarding button seed two fixture
 accounts with realistic threads. All screenshots and UI verification run in
 demo mode.

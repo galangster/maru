@@ -234,6 +234,39 @@ export const MIGRATIONS: string[] = [
       )
   );
   `,
+  // 5 — remote images load by default (owner, 2026-08-31: "can we please not
+  // do this by default anymore? maybe it can be an option but it's annoying to
+  // have to click this every time").
+  //
+  // Flipping DEFAULT_SETTINGS alone would have shipped a change that does
+  // nothing on the machine that reported the problem. `setSettings` writes the
+  // WHOLE merged object rather than the patch, and `getSettings` spreads the
+  // stored row OVER the defaults — so every install that has ever saved any
+  // setting already carries a literal "imagePolicy":"block", and it wins.
+  //
+  // A stored 'block' cannot encode an intention here: until this release
+  // nothing read the value and no control could set it. It was a dead field.
+  // One-shot and keyed on user_version, so a `block` a person deliberately
+  // chooses AFTER this ships is never touched.
+  //
+  // It REMOVES the key rather than writing 'allow' over it, and that is the
+  // point: `getSettings` spreads the stored row over DEFAULT_SETTINGS, so an
+  // absent key means "whatever the default is". Writing the literal would have
+  // made defaults.ts the second of three copies and quietly falsified the
+  // reversal cost recorded in DECISIONS.md — flip that one word back and a
+  // migration hardcoding 'allow' would still overrule it on every install.
+  //
+  // NOT IDEMPOTENT, and the only entry in this array that is not. Re-running it
+  // would erase a `block` a person actually chose. It is safe only because
+  // `migrate()` stamps user_version past it on the first run, and the one crash
+  // window — between the execute and the PRAGMA — is a window in which
+  // Store.open never returned, so no UI existed in which to choose anything.
+  //
+  // A fresh database has no settings row at all, so this is a no-op there.
+  `
+  UPDATE settings SET json = json_remove(json, '$.imagePolicy')
+  WHERE json_extract(json, '$.imagePolicy') = 'block';
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

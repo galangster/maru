@@ -3,7 +3,10 @@
 A lightweight, beautiful unified-Gmail desktop client — and an MCP
 gateway that lets your agents touch your mailbox on your terms. One quiet
 inbox for all your Gmail accounts: local-first, no third-party servers,
-talks only to Google.
+no telemetry. Mail syncs only with Google — the one other thing that
+reaches the network is a picture in a message, because images load by
+default; switch that off in Settings and Google is the only host Maru
+ever contacts.
 
 > **Pre-1.0.** Maru works — five real accounts and a real agent gateway
 > run on it daily — but it is weeks old and macOS-verified. macOS builds
@@ -14,14 +17,16 @@ talks only to Google.
 > — the app never becomes the product's hostage.
 
 Built with Tauri 2 + React 19 + TypeScript + Tailwind v4 + shadcn/ui.
-Typeset in Open Runde and DM Sans. ~10 MB core, talks only to Google.
+Typeset in Open Runde and DM Sans. ~10 MB core.
 
 ## Features (MVP)
 
 - Multi-account Gmail via OAuth (your own Google Cloud client — see below)
 - Unified inbox, Starred / Sent / Trash, per-account views and labels
 - 90-day local sync with incremental history polling; offline reading
-- Sandboxed HTML rendering, remote images blocked by default
+- Sandboxed HTML rendering: no scripts, no fonts, no frames, no referrer
+- Images load by default and can be switched off; images declared too small to
+  be pictures are dropped either way
 - Compose / reply / reply-all / forward with rich text and attachments
 - Command palette (⌘/Ctrl K), full keyboard control, local full-text search
 - Light/dark, OS notifications, demo mode with fixture data

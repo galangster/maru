@@ -52,6 +52,7 @@ import {
   type SettingsSection,
 } from '@/features/shell/surface-store'
 import { useUi, type ThemeChoice } from '@/features/mail/ui-store'
+import { DEFAULT_SETTINGS } from '@/core/defaults'
 import { syncKind } from '@/core/sync/failure'
 import { elapsedTime } from '@/lib/format'
 import { hueFor, type Hue } from '@/lib/hue'
@@ -644,6 +645,45 @@ function AppearanceSection() {
           save.mutate({ sounds: next })
         }}
       />
+      {/* On by default since 2026-08-31 (owner: "it's annoying to have to click
+          this every time").
+          The fallback READS THE DEFAULT rather than restating it, and the two
+          fallbacks for this field are deliberately different questions. This
+          one asks "what does the switch show before settings load?", whose only
+          right answer is whatever defaults.ts says — hardcoding 'allow' here
+          would have made DECISIONS.md's recorded reversal cost ("one word in
+          defaults.ts") false on the day it was written. The reading pane asks
+          "may I fetch, not yet knowing?", and answers with a policy literal of
+          'block' that is independent of the default on purpose. */}
+      <RemoteImagesToggle
+        on={(settings.data?.imagePolicy ?? DEFAULT_SETTINGS.imagePolicy) === 'allow'}
+        onChange={(next) => save.mutate({ imagePolicy: next ? 'allow' : 'block' })}
+      />
+    </div>
+  )
+}
+
+function RemoteImagesToggle({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-3">
+        <Switch id="wren-images" checked={on} onCheckedChange={onChange} />
+        <label htmlFor="wren-images" className="font-ui text-ink cursor-pointer text-base">
+          Load images in messages
+        </label>
+      </div>
+      {/* Says what the mechanism does and nothing more. It must never read as
+          "blocks trackers": an image declared too small to be a picture is
+          dropped, and that is a narrow, honest claim. It cannot catch an
+          undeclared 1x1, and it cannot catch a per-recipient URL on a real
+          photograph — once a hero loads, the sender has been told. Widening
+          this sentence would make the feature a lie without a line of code
+          changing. */}
+      <Explainer>
+        Pictures come from the sender's server, so loading them tells the sender you opened the
+        message. Turn this off and each message holds its images behind a Show button. Either way,
+        Maru throws away images declared too small to be anything but a tracking pixel.
+      </Explainer>
     </div>
   )
 }

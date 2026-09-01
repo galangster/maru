@@ -109,8 +109,8 @@ describe('migration 2', () => {
     // Bump both when you add one. The point of the assertion is the two lines
     // below it: migration 1 must never be edited, because an existing install
     // has already run it and will never run it again.
-    expect(MIGRATIONS).toHaveLength(4)
-    expect(SCHEMA_VERSION).toBe(4)
+    expect(MIGRATIONS).toHaveLength(5)
+    expect(SCHEMA_VERSION).toBe(5)
     expect(MIGRATIONS[0]).toContain('CREATE TABLE IF NOT EXISTS accounts')
     expect(MIGRATIONS[0]).not.toContain('agents')
   })

@@ -7,11 +7,16 @@
 // Policy:
 //   - scripts, forms, <style>, framing, metadata and media elements are removed
 //   - inline `style` attributes survive, because that is how mail is designed
-//   - remote images are withheld by default and counted, so the reading pane
-//     can offer "Remote images blocked · Show". A withheld image becomes a
-//     text CHIP rather than being deleted, and any container it left empty has
-//     its declared height collapsed — deleting the pixels but not the box is
-//     what used to leave a hole in the middle of a message.
+//   - remote images LOAD by default (owner, 2026-08-31). Settings → Appearance
+//     → "Load images in messages" turns that off, and then a withheld image
+//     becomes a text CHIP rather than being deleted, the reading pane offers
+//     "Remote images blocked · Show", and any container the image left empty
+//     has its declared height collapsed — deleting the pixels but not the box
+//     is what used to leave a hole in the middle of a message.
+//   - an image whose DECLARED size is at or below 8x8 is dropped under BOTH
+//     policies and counted by NEITHER counter. It carries no picture, only a
+//     report that the mail was opened. Do not fold that back into the blocking
+//     branch: it is what keeps the CSP closed for a beacon-only body.
 //   - a remote CSS url() is stripped the same way, and ONLY while images are
 //     withheld, so Show actually reveals background imagery
 //   - cid: images resolve against the message's inline attachments
@@ -93,16 +98,56 @@ function isRemote(raw: string): boolean {
   return /^https?:/i.test(url) || url.startsWith('//')
 }
 
-/** Declared area in px², when the markup states one. Beacons are 1x1 to 8x8. */
+/** At or below 8x8 an image is a beacon, not a picture. */
+const TRACKER_MAX_AREA_PX = 8 * 8
+
+/**
+ * An absolute pixel size stated in a `style` attribute.
+ *
+ * Written out rather than built by interpolation: `prop` only ever took two
+ * literal values, so the dynamic form bought nothing and cost a layer of
+ * template escaping in the one function that decides whether a real photograph
+ * is deleted. The `(?:^|[;\s])` prefix is the same declaration-boundary anchor
+ * CSS_SIZING documents below, and it is what stops `max-width:1px` on a real
+ * picture reading as a 1px beacon. Only `px` matches — a percentage or an `em`
+ * is a layout instruction, not a claim about the image's size.
+ */
+const CSS_WIDTH_PX = /(?:^|[;\s])width\s*:\s*([\d.]+)px/i
+const CSS_HEIGHT_PX = /(?:^|[;\s])height\s*:\s*([\d.]+)px/i
+
+/**
+ * Declared area in px², when the markup states one. Beacons are 1x1 to 8x8.
+ *
+ * Attributes first, then the CSS spelling of the same intent: a beacon written
+ * `style="width:1px;height:1px"` is the same beacon and was invisible to an
+ * attribute-only test. Only absolute `px` counts — a percentage or an `em` is a
+ * layout instruction, not a claim about the picture's size, and `max-width:1px`
+ * on a real photograph must never trigger the drop, which is what the
+ * declaration-boundary anchor below is for.
+ */
 function declaredArea(node: Element): number | null {
   const w = Number.parseFloat(node.getAttribute('width') ?? '')
   const h = Number.parseFloat(node.getAttribute('height') ?? '')
-  if (!Number.isFinite(w) || !Number.isFinite(h)) return null
-  return w * h
+  if (Number.isFinite(w) && Number.isFinite(h)) return w * h
+
+  const style = node.getAttribute('style')
+  if (!style) return null
+  const cw = Number.parseFloat(CSS_WIDTH_PX.exec(style)?.[1] ?? '')
+  const ch = Number.parseFloat(CSS_HEIGHT_PX.exec(style)?.[1] ?? '')
+  return Number.isFinite(cw) && Number.isFinite(ch) ? cw * ch : null
 }
 
-/** At or below 8x8 an image is a beacon, not a picture: no chip, just the count. */
-const TRACKER_MAX_AREA_PX = 8 * 8
+/**
+ * A remote image too small to be a picture.
+ *
+ * It carries no content, only a report that the message was opened — so it is
+ * dropped whatever the policy says, and counted by NEITHER counter. The IMG
+ * branch explains why the position matters.
+ */
+function isBeacon(node: Element): boolean {
+  const area = declaredArea(node)
+  return area !== null && area <= TRACKER_MAX_AREA_PX
+}
 
 /** Every CSS property that can fetch, not just `background`. */
 const CSS_FETCHING_PROPERTY =
@@ -143,11 +188,21 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   // counting it would inflate the pill for a non-event.
   if (tag === 'IMAGE') {
     const href = node.getAttribute('href') ?? node.getAttribute('xlink:href') ?? ''
-    if (isRemote(href)) state.remote++
-    if (isRemote(href) && !state.allowRemoteImages) {
-      state.blocked++
-      node.remove()
-      return
+    if (isRemote(href)) {
+      // The same beacon rule as IMG, and it was missing here altogether — an
+      // `<svg><image width="1" height="1" href>` sailed straight through in
+      // allow mode, which would have made every claim about dropping tracking
+      // pixels false the moment images started loading by default.
+      if (isBeacon(node)) {
+        node.remove()
+        return
+      }
+      state.remote++
+      if (!state.allowRemoteImages) {
+        state.blocked++
+        node.remove()
+        return
+      }
     }
   }
 
@@ -159,34 +214,51 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       else node.remove()
       return
     }
-    if (isRemote(src)) state.remote++
-    if (isRemote(src) && !state.allowRemoteImages) {
-      state.blocked++
-      // SUBSTITUTE, do not remove. Removing the <img> killed the pixels but
-      // never the box: every layout-bearing ancestor kept its `height` attr,
-      // so a hero built as <td height="350"> left a 350px hole in the middle
-      // of the message — which is what the owner was actually looking at
-      // (P16, 2026-08-31). Keeping a blanked node lets the placeholder chip
-      // and the alt text occupy the space instead, and lets the collapse pass
-      // below recognise the container as empty.
-      const area = declaredArea(node)
-      if (area !== null && area <= TRACKER_MAX_AREA_PX) {
-        // A 1x1 beacon is not a picture. It feeds the count and nothing else;
-        // a chip for it would be noise where the sender wanted none.
+    // Deliberately not an early return when the src is local: an <img> with a
+    // data: or relative source can still carry a remote CSS url() in its style
+    // attribute, and the hook below this block is what catches that.
+    if (isRemote(src)) {
+      // THE BEACON DROP, above both counters and above the policy.
+      //
+      // `allow` never means allow THIS. A declared-tiny remote image carries no
+      // picture, only a report that the message was opened — nothing for a
+      // person to gain by loading it, and nothing for Show to reveal.
+      //
+      // Its POSITION is the point, and it is load-bearing twice. Counted in
+      // `blocked`, a beacon-only mail raised "Remote images blocked · Show"
+      // over a button that provably revealed nothing, because the node had
+      // already been deleted. Counted in `remote`, it made `wantsRemote` true
+      // for a body with no picture in it at all — so buildSrcdoc widened the
+      // CSP to `img-src data: https: http:` for a document with nothing to
+      // show, opening the backstop for exactly the class of mail where the
+      // enumeration is carrying the load alone. Dropped before either counter,
+      // that body keeps `img-src data:`.
+      if (isBeacon(node)) {
         node.remove()
         return
       }
-      // The original URL is deliberately NOT kept anywhere in the output.
-      // "Show" re-sanitizes from the raw message, so nothing downstream ever
-      // reads it back — parking a tracker URL in the rendered DOM would be
-      // storing the thing this function exists to withhold.
-      node.setAttribute('src', BLANK)
-      node.setAttribute('class', 'wren-blocked')
-      state.needsPostPass = true
-      for (const attr of ['width', 'height', 'hspace', 'vspace', 'align']) {
-        node.removeAttribute(attr)
+      state.remote++
+      if (!state.allowRemoteImages) {
+        state.blocked++
+        // SUBSTITUTE, do not remove. Removing the <img> killed the pixels but
+        // never the box: every layout-bearing ancestor kept its `height` attr,
+        // so a hero built as <td height="350"> left a 350px hole in the middle
+        // of the message — which is what the owner was actually looking at
+        // (P16, 2026-08-31). Keeping a blanked node lets the placeholder chip
+        // and the alt text occupy the space instead, and lets the collapse pass
+        // below recognise the container as empty.
+        // The original URL is deliberately NOT kept anywhere in the output.
+        // "Show" re-sanitizes from the raw message, so nothing downstream ever
+        // reads it back — parking a tracker URL in the rendered DOM would be
+        // storing the thing this function exists to withhold.
+        node.setAttribute('src', BLANK)
+        node.setAttribute('class', 'wren-blocked')
+        state.needsPostPass = true
+        for (const attr of ['width', 'height', 'hspace', 'vspace', 'align']) {
+          node.removeAttribute(attr)
+        }
+        return
       }
-      return
     }
   }
 

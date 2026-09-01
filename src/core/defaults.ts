@@ -5,7 +5,7 @@ import type { MailView, Settings, Thread, UnifiedFolder } from './types'
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
-  imagePolicy: 'block',
+  imagePolicy: 'allow',
   pollIntervalSec: 60,
   sounds: false,
   conversationOrder: 'chronological',

@@ -67,7 +67,14 @@ interface UiState {
   expandedAccounts: Record<string, boolean>
   /** The whole Accounts group, folded to one header row. */
   accountsGroupCollapsed: boolean
-  /** Thread keys the user has un-blocked images for. Session scoped, on purpose. */
+  /**
+   * Thread keys the user has un-blocked images for. Session scoped, on purpose.
+   *
+   * Only reachable while `Settings.imagePolicy` is `block` — under the default
+   * (`allow`, since 2026-08-31) images already load, the banner that populates
+   * this never renders, and `allowImages` is never called. It is the
+   * per-conversation override for the blocking mode, not dead code.
+   */
   imagesAllowed: Set<string>
   /**
    * Accounts whose "mail has stopped arriving" notice has been dismissed.
