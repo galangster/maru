@@ -1,6 +1,6 @@
 [package]
 name = "wren"
-version = "0.1.5"
+version = "0.1.6"
 description = "Maru mail app"
 authors = ["you"]
 license = ""
