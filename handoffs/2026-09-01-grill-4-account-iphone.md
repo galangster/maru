@@ -1,6 +1,6 @@
 # Handoff — 2026-09-01, grill 4: the account, the phone, and production
 
-Baseline `395608e` → **`65d7647`** on `main`, pushed to `galangster/maru`.
+Baseline `395608e` → **`bd4303a`** on `main`, pushed to `galangster/maru`.
 Working tree clean. **660 tests pass** (638 at the baseline), `tsc` clean,
 `vite build` clean; server: 34 tests, typecheck, build. Orchestrated by one
 Fable 5.1 session as planner and auditor; seven Codex `gpt-5.6-sol` lanes
@@ -58,8 +58,8 @@ the audit (nothing retired; fourteen unraised items decided or queued).
 | `getmaru.app` | Pages deploys from `main`; today's push put the draft privacy/terms/status pages and the README live |
 | `https://sync-production-c0b0.up.railway.app` | the sync service, healthy, allowlisted to Nick's three addresses, comped |
 | `sync.getmaru.app` | attached on Railway; DNS records in Nick's queue |
-| Installed Maru.app | still 0.1.7; no release cut today |
-| GitHub Releases / updater | still 0.1.0 (unchanged; queue item) |
+| Installed Maru.app | 0.1.7 on this Mac; it will offer 0.1.8 on its next update check |
+| GitHub Releases / updater | **v0.1.8 published** (DMG, tarball, .sig, latest.json); `releases/latest` and `latest.json` both report 0.1.8; Windows installers pending the CI run |
 
 ## Open owner gates (all in `wayfinder/NICK-QUEUE.md`, top section)
 
@@ -70,15 +70,23 @@ across devices); second operator; beta device list.
 
 ## Exact resume points
 
-- **Deploy proof**: `curl https://sync-production-c0b0.up.railway.app/healthz`
-  should return `{"ok":true,…}`. Then from a `npm run tauri dev` build with
-  `VITE_MARU_SYNC_URL` pointing there, sign up with one of the three
-  allowlisted addresses; the account should show "Complimentary".
+- **Live proof: done.** `tests/live/account-live.test.ts` runs the real
+  client code against the deployed service when `MARU_LIVE_SYNC_URL` and
+  `MARU_LIVE_EMAIL` are set, and passes: signup with a comped entitlement,
+  vault put, second-device login and open, device rename and revoke, delete,
+  re-signup. It found three defects the in-process test database could not:
+  the comp list only touched existing users (now a standing `comped_emails`
+  table, migration 003); the driver returned the KDF column as text (parsed
+  at every read); and `@node-rs/argon2` threw on non-UTF-8 Buffer proofs
+  (proofs are now hashed as base64url text; test keys carry 0xff so it cannot
+  recur). Leaves no account behind.
 - **A5 restore drill** is not done.
 - **I3** (Gmail sign-in on iOS) waits on the iOS OAuth client. **I4** waits
   on A4. **I5** can start now: the phone's Settings row is a placeholder.
-- **Desktop app release** (0.1.8) with the account inside is not cut. The
-  release checklist in the queue still applies; A7's workflow is the new way.
+- **0.1.8 is published** with the account inside, built with
+  `VITE_MARU_SYNC_URL` pointing at the Railway domain until DNS lands.
+  Windows installers attach when the dispatched CI run finishes (check
+  `gh run view 33559691464`); `latest.json` deliberately lists macOS only.
 - **Polish left on I2**: recipient chips in compose, VoiceOver, Dynamic Type.
 
 ## Operational facts learned (also in memory `wren-push-and-railway-ops`)
@@ -90,18 +98,20 @@ worktree; use `git show rev:path > path`.
 
 ## Ordered next actions
 
-1. Prove sign-up against the live service from a dev build (resume point 1).
-2. Cut 0.1.8 through A7's workflow (needs the signing secrets set on the repo)
-   or the old script; publish with all four assets; fix the stale updater.
+1. Attach the Windows installers to v0.1.8 if the CI run did not; hand-smoke
+   is still Nick's.
+2. Launch the installed 0.1.7 and accept the 0.1.8 update (proves the updater
+   end to end); then sign in to the Maru account from the real app.
 3. I5, then I3/I4 as the console items land.
-4. A5 restore drill; A9 once Nick decides.
+4. A5 restore drill; A9 once Nick decides. Dossier "frozen build" fields now
+   name 0.1.8 (Nick).
 
 ## Opener for the next session
 
 ```
 Resume wren from handoffs/2026-09-01-grill-4-account-iphone.md. Main is at
-65d7647, pushed; the sync service is live. Do resume point 1 (sign up against
-the live service from a dev build), then cut 0.1.8 with the account inside
-per the queue's release checklist, then I5. Owner items stay in
-wayfinder/NICK-QUEUE.md. Standing order: work autonomously.
+bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
+Check the Windows CI run attached its installers, then do I5 (the Maru
+account on the phone). Owner items stay in wayfinder/NICK-QUEUE.md. Standing
+order: work autonomously.
 ```

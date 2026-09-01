@@ -154,7 +154,15 @@ Concentrations: verification-answers (project id, client id, trademark
 receipt, frozen release, demo package), QUOTA (dashboards + alerts),
 CONTACTS (roster), INCIDENT (second owner), REVERIFICATION (calendar).
 
-## Publishing a release — the checklist, because it is currently half-done
+## Publishing a release — DONE for 0.1.8 (2026-09-01)
+
+v0.1.8 is on GitHub with the DMG, tarball, `.sig` and `latest.json`;
+`releases/latest` and the updater endpoint both report 0.1.8, so the site's
+download button and every installed copy are current. Your part: hand-smoke
+the Windows installer once CI attaches it, and update the dossier's frozen
+build fields to 0.1.8. The checklist below stays as the procedure.
+
+## Publishing a release — the checklist (procedure)
 
 **The website's download button is seven versions stale, and the auto-updater
 is confidently wrong.** Verified 2026-08-31:
