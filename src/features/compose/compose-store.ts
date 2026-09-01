@@ -22,13 +22,15 @@ export interface Draft {
   cc: EmailAddress[]
   bcc: EmailAddress[]
   subject: string
+  /** Plain text typed by the compact composer before its quoted HTML. */
+  bodyText: string
   bodyHtml: string
   attachments: DraftAttachment[]
   reply?: ComposeDraft['reply']
 }
 
 export function emptyDraft(): Draft {
-  return { accountId: '', to: [], cc: [], bcc: [], subject: '', bodyHtml: '', attachments: [] }
+  return { accountId: '', to: [], cc: [], bcc: [], subject: '', bodyText: '', bodyHtml: '', attachments: [] }
 }
 
 interface ComposeState {
@@ -163,7 +165,7 @@ export function toComposeDraft(draft: Draft): ComposeDraft {
     cc: draft.cc,
     bcc: draft.bcc,
     subject: draft.subject,
-    bodyHtml: draft.bodyHtml,
+    bodyHtml: `${draft.bodyText ? `<p>${draft.bodyText.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replace(/\n/g, '<br>')}</p>` : ''}${draft.bodyHtml}`,
     attachments: draft.attachments.map((a) => ({
       filename: a.filename,
       mimeType: a.mimeType,

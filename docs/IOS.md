@@ -39,13 +39,13 @@ The deployment target is iOS 17.0.
 
 ## Demo mode
 
-Set `VITE_MARU_DEMO=1` when building or running the iOS target.
-This variable forces `DemoMailService` even when Tauri APIs exist.
+The application selects demo mode for every iOS build until I3 lands.
+No build variable or human choice is required.
 
 The mobile shell also supports browser development at `?mobile=1`.
 Use a 390 by 844 point viewport for that path.
 
-Without the override, Maru uses `@tauri-apps/plugin-os` to detect iOS.
+Maru uses `@tauri-apps/plugin-os` to detect iOS.
 Desktop platforms continue to mount the existing desktop application.
 
 ## Build and run
@@ -54,21 +54,21 @@ Build a debug simulator application with the demo fixtures.
 
 ```sh
 export PATH="$HOME/.cargo/bin:$PATH"
-VITE_MARU_DEMO=1 npm run tauri -- ios build --debug --target aarch64-sim
+npm run tauri -- ios build --debug --target aarch64-sim
 ```
 
 Run and deploy to the named simulator.
 
 ```sh
 export PATH="$HOME/.cargo/bin:$PATH"
-VITE_MARU_DEMO=1 npm run tauri -- ios dev "iPhone 16"
+npm run tauri -- ios dev "iPhone 16"
 ```
 
 If port 1420 is occupied, give both Tauri and Vite another port.
 
 ```sh
 export PATH="$HOME/.cargo/bin:$PATH"
-VITE_MARU_DEMO=1 npm run tauri -- ios dev \
+npm run tauri -- ios dev \
   --config '{"build":{"devUrl":"http://localhost:1421","beforeDevCommand":"npm run dev -- --port 1421"}}' \
   "iPhone 16"
 ```

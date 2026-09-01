@@ -12,7 +12,7 @@ import type { AgentGateway } from '@/core/agents'
 import type { GatewayServer } from '@/core/gateway-server'
 import type { Platform } from '@/core/platform'
 import type { MailService } from '@/core/types'
-import { isDemo, isTauri, now, NOW } from '@/lib/env'
+import { isDemo, isMobileShell, isTauri, now, NOW } from '@/lib/env'
 
 const ServiceContext = createContext<MailService | null>(null)
 /**
@@ -64,7 +64,7 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
         // M2's socket. Additive on purpose: a gateway that cannot open must
         // not stop Maru being a mail client, so this failure is logged and
         // swallowed rather than raised into the error state above.
-        if (isTauri()) {
+        if (isTauri() && !isMobileShell) {
           try {
             gatewayServer = await startGatewayServer(agents, service)
           } catch (cause) {

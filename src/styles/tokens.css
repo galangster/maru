@@ -198,6 +198,7 @@
     /* --- Lines and fills --------------------------------------------------- */
     --wren-hairline: oklch(0.923 0.003 50); /* #E7E5E4                       */
     --wren-hairline-strong: oklch(0.872 0.004 50); /* #D6D6DA               */
+    --wren-image-outline: oklch(0 0 0 / 0.1);
     --wren-fill-hover: oklch(0.205 0.004 50 / 0.045);
     --wren-fill-active: oklch(0.205 0.004 50 / 0.075);
     /* DERIVED, not restated. This was `oklch(0.575 0.15 21 / 0.08)` — the
@@ -381,6 +382,7 @@
 
     --wren-hairline: oklch(1 0 0 / 0.08);
     --wren-hairline-strong: oklch(1 0 0 / 0.16);
+    --wren-image-outline: oklch(1 0 0 / 0.1);
     --wren-fill-hover: oklch(1 0 0 / 0.05);
     --wren-fill-active: oklch(1 0 0 / 0.09);
     /* Same derivation as light; see the note there. Was hue 35, the pre-P14

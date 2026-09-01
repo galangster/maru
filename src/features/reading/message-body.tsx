@@ -18,10 +18,9 @@ import { useQuery } from '@tanstack/react-query'
 
 import type { Message } from '@/core/types'
 import { useMailService } from '@/features/mail/service'
-import { escapeHtml } from '@/lib/compose'
 import { openExternalUrl } from '@/lib/env'
 import { toDataUrl } from '@/lib/format'
-import { buildSrcdoc, sanitizeBody } from '@/lib/sanitize'
+import { buildSrcdoc, escapeText, sanitizeBody } from '@/lib/sanitize'
 
 /**
  * A cache that forgets its oldest entry once it is full.
@@ -124,7 +123,7 @@ export interface MessageBodyProps {
   onBlockedImages: (count: number) => void
 }
 
-export function MessageBody({
+export function useMessageBodyFrame({
   threadKey,
   message,
   allowRemoteImages,
@@ -231,6 +230,12 @@ export function MessageBody({
     }
   }, [srcDoc, message.id])
 
+  return { frameRef, height, srcDoc }
+}
+
+export function MessageBody(props: MessageBodyProps) {
+  const { message } = props
+  const { frameRef, height, srcDoc } = useMessageBodyFrame(props)
   return (
     <iframe
       ref={frameRef}
@@ -238,23 +243,9 @@ export function MessageBody({
       sandbox="allow-same-origin allow-top-navigation-by-user-activation"
       referrerPolicy="no-referrer"
       srcDoc={srcDoc}
-      // An iframe is focusable by default, and this one had no focus indicator
-      // and — because keydown inside a same-origin frame never reaches the
-      // parent window — swallowed every shortcut in the app with no visible
-      // reason (N10). It is content, not a control.
       tabIndex={-1}
-      // The body always renders on paper — see buildSrcdoc(). `rounded-sm`,
-      // not `rounded-md`: the card is `rounded-lg` (16) at `p-4` (16), so
-      // DIRECTION §6's concentric rule (inner = outer − padding) puts the
-      // frame at 0 — but a hard-cornered white slab inside a cloud-soft card
-      // reads as a hole, so it takes the smallest step on the scale (N2).
       className="block w-full rounded-sm bg-white"
       style={{ height }}
     />
   )
-}
-
-/** A plain-text body, made safe to put in the frame. */
-function escapeText(text: string): string {
-  return `<div style="white-space:pre-wrap">${escapeHtml(text).replace(/\n/g, '<br>')}</div>`
 }

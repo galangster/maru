@@ -13,6 +13,7 @@ import { useComposer } from './compose-store'
 
 export interface ComposeActions {
   compose: () => void
+  replyTo: (detail: NonNullable<ReturnType<typeof useThread>['data']>, mode: ReplyMode) => void
   /** Opens a reply on the selected thread. A no-op when nothing is open. */
   replyToSelected: (mode: ReplyMode) => void
   canReply: boolean
@@ -29,17 +30,13 @@ export function useComposeActions(): ComposeActions {
 
   const compose = useCallback(() => openWith({}), [openWith])
 
-  const replyToSelected = useCallback(
-    (mode: ReplyMode) => {
-      if (!data) return
-      const { thread, messages } = data
-      // The newest message is what a reply answers, and what a forward carries.
+  const replyTo = useCallback(
+    (replyDetail: NonNullable<typeof data>, mode: ReplyMode) => {
+      const { thread, messages } = replyDetail
       const message = messages[messages.length - 1]
       if (!message) return
-
-      const selfEmails = (accountList ?? []).map((a) => a.email)
+      const selfEmails = (accountList ?? []).map((account) => account.email)
       const { to, cc } = deriveRecipients(message, mode, selfEmails)
-
       openWith({
         accountId: thread.accountId,
         to,
@@ -49,8 +46,16 @@ export function useComposeActions(): ComposeActions {
         reply: { threadKey: thread.key, messageId: message.id, mode },
       })
     },
-    [data, accountList, openWith],
+    [accountList, openWith],
   )
 
-  return { compose, replyToSelected, canReply: Boolean(data) }
+  const replyToSelected = useCallback(
+    (mode: ReplyMode) => {
+      if (!data) return
+      replyTo(data, mode)
+    },
+    [data, replyTo],
+  )
+
+  return { compose, replyTo, replyToSelected, canReply: Boolean(data) }
 }

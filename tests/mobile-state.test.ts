@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { Thread } from '@/core/types'
 import {
   buildMobileRowModel,
-  mobileNavigationReducer,
+  initialMobileRoute,
+  mobileRouteReducer,
   resolveSwipeIntent,
 } from '@/mobile/state'
 
@@ -28,22 +29,45 @@ function thread(overrides: Partial<Thread> = {}): Thread {
   }
 }
 
-describe('mobile navigation reducer', () => {
-  it('pushes a thread and pops back to the inbox', () => {
-    const pushed = mobileNavigationReducer(
-      [{ kind: 'inbox' }],
-      { type: 'pushThread', threadKey: 'account/thread-1' },
-    )
-    expect(pushed).toEqual([
+describe('mobile route reducer', () => {
+  it('changes tabs and resets the stack and sheet', () => {
+    const state = mobileRouteReducer(initialMobileRoute, {
+      type: 'openSheet',
+      sheet: { kind: 'later', threadKeys: ['account/thread-1'] },
+    })
+    expect(mobileRouteReducer(state, { type: 'changeTab', tab: 'search' })).toEqual({
+      tab: 'search',
+      stack: [{ kind: 'inbox' }],
+      sheet: null,
+    })
+  })
+
+  it('pushes a thread and pops back to the root', () => {
+    const pushed = mobileRouteReducer(initialMobileRoute, {
+      type: 'pushThread',
+      threadKey: 'account/thread-1',
+    })
+    expect(pushed.stack).toEqual([
       { kind: 'inbox' },
       { kind: 'thread', threadKey: 'account/thread-1' },
     ])
-    expect(mobileNavigationReducer(pushed, { type: 'pop' })).toEqual([{ kind: 'inbox' }])
+    expect(mobileRouteReducer(pushed, { type: 'back' }).stack).toEqual([{ kind: 'inbox' }])
   })
 
-  it('never pops the root route', () => {
-    const root = [{ kind: 'inbox' }] as const
-    expect(mobileNavigationReducer([...root], { type: 'pop' })).toEqual(root)
+  it('backs out through sheet, stack, then tab', () => {
+    const threadState = mobileRouteReducer(
+      mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'search' }),
+      { type: 'pushThread', threadKey: 'account/thread-1' },
+    )
+    const sheetState = mobileRouteReducer(threadState, {
+      type: 'openSheet',
+      sheet: { kind: 'threadActions', thread: thread() },
+    })
+    const withoutSheet = mobileRouteReducer(sheetState, { type: 'back' })
+    expect(withoutSheet.sheet).toBeNull()
+    const withoutThread = mobileRouteReducer(withoutSheet, { type: 'back' })
+    expect(withoutThread.stack).toEqual([{ kind: 'inbox' }])
+    expect(mobileRouteReducer(withoutThread, { type: 'back' }).tab).toBe('inbox')
   })
 })
 
@@ -53,7 +77,7 @@ describe('mobile swipe intent', () => {
     expect(resolveSwipeIntent(-90, 8)).toBe('later')
   })
 
-  it('ignores short and mostly vertical gestures', () => {
+  it('uses the real vertical delta to reject diagonal gestures', () => {
     expect(resolveSwipeIntent(60, 2)).toBeNull()
     expect(resolveSwipeIntent(90, 80)).toBeNull()
   })
@@ -67,6 +91,7 @@ describe('mobile row model', () => {
     expect(model.subject).toBe('Plans for Friday')
     expect(model.unread).toBe(true)
     expect(model.messageCount).toBe(2)
-    expect(model.hasAttachments).toBe(true)
+    expect(model).not.toHaveProperty('key')
+    expect(model).not.toHaveProperty('hasAttachments')
   })
 })

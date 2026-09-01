@@ -1,8 +1,13 @@
+#[cfg(desktop)]
 mod gateway;
 
+#[cfg(desktop)]
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+#[cfg(desktop)]
 use std::io::{BufRead, BufReader, ErrorKind, Write};
+#[cfg(desktop)]
 use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
+#[cfg(desktop)]
 use std::time::{Duration, Instant};
 
 /// Service name used for every Maru keychain entry.
@@ -17,13 +22,17 @@ const KEYRING_SERVICE: &str = "dev.wren.app.dev";
 const KEYRING_SERVICE: &str = "dev.wren.app";
 
 /// How long `oauth_listen` waits for the browser redirect before giving up.
+#[cfg(desktop)]
 const OAUTH_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// How long a single accepted connection may take to send its request line.
+#[cfg(desktop)]
 const OAUTH_SOCKET_TIMEOUT: Duration = Duration::from_secs(10);
 
+#[cfg(desktop)]
 const OAUTH_SUCCESS_BODY: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Maru</title></head><body style=\"font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#1e293b\"><p>Signed in &mdash; you can close this tab and return to Maru.</p></body></html>";
 
+#[cfg(desktop)]
 const OAUTH_NOT_FOUND_BODY: &str = "Not Found";
 
 // ---------------------------------------------------------------------------
@@ -86,6 +95,7 @@ async fn secret_delete(key: String) -> Result<(), String> {
 /// client renders hostile HTML, and a compromised page must not be able to
 /// aim a write at LaunchAgents. Returns false when the person cancelled.
 #[tauri::command]
+#[cfg(desktop)]
 async fn save_file(
   app: tauri::AppHandle,
   filename: String,
@@ -115,6 +125,7 @@ async fn save_file(
 // OAuth loopback listener
 // ---------------------------------------------------------------------------
 
+#[cfg(desktop)]
 fn write_http_response(stream: &mut TcpStream, status_line: &str, content_type: &str, body: &str) {
   let response = format!(
     "{status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -125,6 +136,7 @@ fn write_http_response(stream: &mut TcpStream, status_line: &str, content_type: 
 }
 
 /// Read the HTTP request line and return the request target (path plus query).
+#[cfg(desktop)]
 fn read_request_target(stream: &TcpStream) -> Option<String> {
   let mut request_line = String::new();
   let mut reader = BufReader::new(stream);
@@ -138,6 +150,7 @@ fn read_request_target(stream: &TcpStream) -> Option<String> {
   Some(target.to_string())
 }
 
+#[cfg(desktop)]
 const OAUTH_TIMEOUT_MESSAGE: &str = "timed out waiting for the OAuth redirect";
 
 /// Block on `accept()` until the browser arrives or the deadline passes.
@@ -147,6 +160,7 @@ const OAUTH_TIMEOUT_MESSAGE: &str = "timed out waiting for the OAuth redirect";
 /// redirect up to 100 ms late. A read timeout on the *listening* socket bounds
 /// the accept directly, so the thread sleeps in the kernel until there is
 /// something to do.
+#[cfg(desktop)]
 fn oauth_listen_blocking(port: u16) -> Result<String, String> {
   let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
   let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))
@@ -219,6 +233,7 @@ fn oauth_listen_blocking(port: u16) -> Result<String, String> {
 /// Listen on `127.0.0.1:port` until the OAuth provider redirects to `/callback`.
 /// Returns the full request target, for example `/callback?code=...&state=...`.
 #[tauri::command]
+#[cfg(desktop)]
 async fn oauth_listen(port: u16) -> Result<String, String> {
   tauri::async_runtime::spawn_blocking(move || oauth_listen_blocking(port))
     .await
@@ -320,10 +335,8 @@ pub fn run() {
   // Install the provider before any plugin constructs an HTTP client.
   let _ = rustls::crypto::ring::default_provider().install_default();
 
-  tauri::Builder::default()
+  let builder = tauri::Builder::default()
     .plugin(tauri_plugin_sql::Builder::default().build())
-    .plugin(tauri_plugin_updater::Builder::new().build())
-    .plugin(tauri_plugin_process::init())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_notification::init())
@@ -377,19 +390,35 @@ pub fn run() {
           }
         })
         .build(),
-    )
-    .manage(gateway::GatewayState::default())
-    .invoke_handler(tauri::generate_handler![
-      secret_set,
-      secret_get,
-      secret_delete,
-      oauth_listen,
-      save_file,
-      gateway::gateway_auth_result,
-      gateway::gateway_reply,
-      gateway::gateway_close,
-      gateway::gateway_info
-    ])
+    );
+
+  #[cfg(desktop)]
+  let builder = builder
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
+    .manage(gateway::GatewayState::default());
+
+  #[cfg(desktop)]
+  let builder = builder.invoke_handler(tauri::generate_handler![
+    secret_set,
+    secret_get,
+    secret_delete,
+    oauth_listen,
+    save_file,
+    gateway::gateway_auth_result,
+    gateway::gateway_reply,
+    gateway::gateway_close,
+    gateway::gateway_info
+  ]);
+
+  #[cfg(not(desktop))]
+  let builder = builder.invoke_handler(tauri::generate_handler![
+    secret_set,
+    secret_get,
+    secret_delete
+  ]);
+
+  builder
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -398,11 +427,14 @@ pub fn run() {
             .build(),
         )?;
       }
-      // The agent gateway. A failure here must not stop Maru from being a mail
-      // client — the socket is an extra surface, not a dependency of the app.
-      match gateway::start(app.handle()) {
-        Ok(path) => log::info!("gateway: listening on {path}"),
-        Err(e) => log::error!("gateway: {e}"),
+      #[cfg(desktop)]
+      {
+        // The agent gateway. A failure here must not stop Maru from being a mail
+        // client — the socket is an extra surface, not a dependency of the app.
+        match gateway::start(app.handle()) {
+          Ok(path) => log::info!("gateway: listening on {path}"),
+          Err(e) => log::error!("gateway: {e}"),
+        }
       }
       #[cfg(target_os = "macos")]
       {

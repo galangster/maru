@@ -1,0 +1,3 @@
+.mobile-inbox-scroll[data-pull-settling='true'] {
+  overscroll-behavior-y: none;
+}

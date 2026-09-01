@@ -1,42 +1,72 @@
 import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
 
-export type MobileRoute = { kind: 'inbox' } | { kind: 'thread'; threadKey: string }
+export type MobileTab = 'inbox' | 'search' | 'settings'
+export type MobileStackEntry = { kind: 'inbox' } | { kind: 'thread'; threadKey: string }
+export type MobileSheet =
+  | { kind: 'later'; threadKeys: string[] }
+  | { kind: 'threadActions'; thread: Thread }
+  | { kind: 'move'; thread: Thread }
 
-export type MobileNavigationAction =
+export interface MobileRoute {
+  tab: MobileTab
+  stack: MobileStackEntry[]
+  sheet: MobileSheet | null
+}
+
+export const initialMobileRoute: MobileRoute = {
+  tab: 'inbox',
+  stack: [{ kind: 'inbox' }],
+  sheet: null,
+}
+
+export type MobileRouteAction =
+  | { type: 'changeTab'; tab: MobileTab }
   | { type: 'pushThread'; threadKey: string }
-  | { type: 'pop' }
-  | { type: 'reset' }
+  | { type: 'openSheet'; sheet: MobileSheet }
+  | { type: 'closeSheet' }
+  | { type: 'back' }
 
-export function mobileNavigationReducer(
-  state: MobileRoute[],
-  action: MobileNavigationAction,
-): MobileRoute[] {
+export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction): MobileRoute {
   switch (action.type) {
+    case 'changeTab':
+      return { tab: action.tab, stack: [{ kind: 'inbox' }], sheet: null }
     case 'pushThread':
-      return [...state, { kind: 'thread', threadKey: action.threadKey }]
-    case 'pop':
-      return state.length > 1 ? state.slice(0, -1) : state
-    case 'reset':
-      return [{ kind: 'inbox' }]
+      return { ...state, stack: [...state.stack, { kind: 'thread', threadKey: action.threadKey }] }
+    case 'openSheet':
+      return { ...state, sheet: action.sheet }
+    case 'closeSheet':
+      return { ...state, sheet: null }
+    case 'back':
+      if (state.sheet) return { ...state, sheet: null }
+      if (state.stack.length > 1) return { ...state, stack: state.stack.slice(0, -1) }
+      if (state.tab !== 'inbox') return { ...state, tab: 'inbox' }
+      return state
   }
 }
 
+export const SWIPE_ACTION_THRESHOLD = 72
+export const SWIPE_AXIS_RATIO = 0.72
+export const SWIPE_OFFSET_LIMIT = 104
+export const LONG_PRESS_MOVE_THRESHOLD = 8
+export const LONG_PRESS_DELAY_MS = 480
+export const EDGE_BACK_START_PX = 28
+export const EDGE_BACK_THRESHOLD = 72
+export const PULL_MAX_OFFSET = 92
+export const PULL_DISTANCE_FACTOR = 0.52
+export const PULL_REFRESH_THRESHOLD = 64
+export const PULL_REFRESH_OFFSET = 52
+
 export type SwipeIntent = 'archive' | 'later' | null
 
-export function resolveSwipeIntent(
-  deltaX: number,
-  deltaY: number,
-  threshold = 72,
-): SwipeIntent {
-  if (Math.abs(deltaY) > Math.abs(deltaX) * 0.72) return null
-  if (deltaX >= threshold) return 'archive'
-  if (deltaX <= -threshold) return 'later'
+export function resolveSwipeIntent(deltaX: number, deltaY: number): SwipeIntent {
+  if (Math.abs(deltaY) > Math.abs(deltaX) * SWIPE_AXIS_RATIO) return null
+  if (deltaX >= SWIPE_ACTION_THRESHOLD) return 'archive'
+  if (deltaX <= -SWIPE_ACTION_THRESHOLD) return 'later'
   return null
 }
 
 export interface MobileRowModel {
-  key: string
   sender: string
   subject: string
   snippet: string
@@ -44,7 +74,6 @@ export interface MobileRowModel {
   unread: boolean
   starred: boolean
   messageCount: number
-  hasAttachments: boolean
 }
 
 export function buildMobileRowModel(
@@ -54,7 +83,6 @@ export function buildMobileRowModel(
 ): MobileRowModel {
   const self = selfEmails.map((email) => email.toLowerCase())
   return {
-    key: thread.key,
     sender: participantLine(correspondents(thread.participants, self)),
     subject: thread.subject || '(No subject)',
     snippet: thread.snippet,
@@ -62,6 +90,5 @@ export function buildMobileRowModel(
     unread: thread.unread,
     starred: thread.starred,
     messageCount: thread.messageCount,
-    hasAttachments: thread.hasAttachments,
   }
 }

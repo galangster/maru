@@ -10,26 +10,7 @@
   ],
   "permissions": [
     "core:default",
-    "os:default",
-    {
-      "identifier": "http:default",
-      "allow": [
-        {
-          "url": "https://gmail.googleapis.com/*"
-        },
-        {
-          "url": "https://oauth2.googleapis.com/*"
-        },
-        {
-          "url": "https://accounts.google.com/*"
-        },
-        {
-          "url": "https://www.googleapis.com/*"
-        },
-        {
-          "url": "https://openidconnect.googleapis.com/*"
-        }
-      ]
-    }
-  ]
+    "os:default"
+  ],
+  "$comment": "I3 will add the minimum Gmail and OAuth HTTP allow-list with real iOS authentication."
 }

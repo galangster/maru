@@ -1,0 +1,4 @@
+.mobile-toggle-row input:focus-visible + .mobile-switch {
+  outline: 2px solid var(--wren-text-1);
+  outline-offset: 2px;
+}

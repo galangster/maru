@@ -18,23 +18,35 @@ import { AnimatePresence, motion } from 'motion/react'
 import { META_TEXT, PRESS, textButtonClass } from '@/components/wren-controls'
 import type { Attachment } from '@/core/types'
 import { useMailService } from '@/features/mail/service'
-import { formatBytes, toDataUrl } from '@/lib/format'
+import { formatBytes } from '@/lib/format'
 import { DUR, EASE_OUT, EXIT_DUR, crossfadePreset, useMotionMode } from '@/lib/motion'
 import { saveWithToasts } from '@/lib/save-file'
 import { cn } from '@/lib/utils'
 
-function usePhotoData(threadKey: string, attachment: Attachment) {
+export function usePhotoData(threadKey: string, attachment: Attachment) {
   const service = useMailService()
   return useQuery({
     queryKey: ['photo', attachment.messageId, attachment.id],
     queryFn: async () => {
       const bytes = await service.getAttachment(threadKey, attachment.messageId, attachment.id)
-      // Only the data URL is cached: bytes exist for the rare Save click,
-      // which refetches rather than keeping every photo resident twice.
-      return toDataUrl(bytes, attachment.mimeType)
+      return new Blob([Uint8Array.from(bytes)], { type: attachment.mimeType })
     },
     staleTime: Infinity,
   })
+}
+
+function usePhotoUrl(blob: Blob | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!blob) {
+      setUrl(null)
+      return
+    }
+    const next = URL.createObjectURL(blob)
+    setUrl(next)
+    return () => URL.revokeObjectURL(next)
+  }, [blob])
+  return url
 }
 
 function PhotoThumb({
@@ -48,6 +60,7 @@ function PhotoThumb({
 }) {
   const service = useMailService()
   const photo = usePhotoData(threadKey, attachment)
+  const photoUrl = usePhotoUrl(photo.data)
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const overlay = useRef<HTMLDivElement>(null)
@@ -91,7 +104,7 @@ function PhotoThumb({
         ref={trigger}
         type="button"
         onClick={() => setOpen(true)}
-        disabled={!photo.data}
+        disabled={!photoUrl}
         aria-label={`Open ${attachment.filename}`}
         className={cn(
           // The hairline ring is the design system's image outline: it keeps a
@@ -102,14 +115,16 @@ function PhotoThumb({
           solo ? 'max-h-80 max-w-md' : 'size-40',
         )}
       >
-        {photo.data ? (
+        {photoUrl ? (
           <motion.img
             // `!open` is load-bearing: while the lightbox is up, the thumb
             // must NOT share the id, or Motion hides it as the non-lead of
             // the pair. Dropping the id re-targets the close morph home.
             layoutId={morph && !open ? morphId : undefined}
-            src={photo.data}
+            src={photoUrl}
             alt={attachment.filename}
+            loading="lazy"
+            decoding="async"
             style={{ borderRadius: 12 }}
             className={cn(
               'transition-[scale] duration-(--wren-dur-base) ease-(--wren-ease-out) motion-safe:group-hover:scale-[1.03]',
@@ -146,7 +161,7 @@ function PhotoThumb({
           lib/motion.ts's header and the composer). The price is the trap and
           scroll lock below, paid by hand. */}
       <AnimatePresence>
-        {open && photo.data && (
+        {open && photoUrl && (
           <motion.div
             ref={overlay}
             role="dialog"
@@ -171,7 +186,7 @@ function PhotoThumb({
             <motion.img
               layoutId={morph ? morphId : undefined}
               transition={{ duration: DUR.base, ease: EASE_OUT }}
-              src={photo.data}
+              src={photoUrl}
               alt={attachment.filename}
               style={{ borderRadius: 16 }}
               className="relative max-h-[82vh] max-w-[min(92vw,1100px)] object-contain"

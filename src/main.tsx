@@ -1,14 +1,12 @@
-import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { type as osType } from "@tauri-apps/plugin-os";
 
-import App from "@/App";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/sonner";
 import { MailServiceProvider } from "@/features/mail/service";
 import { installTroubleHooks } from "@/lib/debug-report";
-import { isTune } from "@/lib/env";
+import { isMobileShell, isTune } from "@/lib/env";
 import "./index.css";
 
 // The character tuning stage (?tune=1, P13) replaces the app outright — no
@@ -16,38 +14,13 @@ import "./index.css";
 // is statically false in release builds, so Rollup drops the dynamic import
 // and dialkit never enters a shipped artifact.
 const WrenStage = import.meta.env.DEV ? lazy(() => import("@/dev/wren-stage")) : null;
+const App = lazy(() => import("@/App"));
 const MobileApp = lazy(() =>
   import("@/mobile/MobileApp").then((module) => ({ default: module.MobileApp })),
 );
 
-function mobileOverride(): boolean {
-  return new URLSearchParams(window.location.search).get("mobile") === "1";
-}
-
-/** Resolve the native platform before mounting either shell, preventing a desktop flash. */
 function PlatformApp() {
-  const [mobile, setMobile] = useState<boolean | null>(() => {
-    if (mobileOverride()) return true;
-    return "__TAURI_INTERNALS__" in window ? null : false;
-  });
-
-  useEffect(() => {
-    if (mobile !== null) return;
-    try {
-      setMobile(osType() === "ios");
-    } catch {
-      setMobile(false);
-    }
-  }, [mobile]);
-
-  if (mobile === null) return <div className="bg-canvas h-full" />;
-  return mobile ? (
-    <Suspense fallback={<div className="bg-canvas h-full" />}>
-      <MobileApp />
-    </Suspense>
-  ) : (
-    <App />
-  );
+  return isMobileShell ? <MobileApp /> : <App />;
 }
 
 // Before render, so a crash during mount still lands in the debug report.
@@ -82,7 +55,9 @@ createRoot(rootElement).render(
       ) : (
         <QueryClientProvider client={queryClient}>
           <MailServiceProvider>
-            <PlatformApp />
+            <Suspense fallback={<div className="bg-canvas h-full" />}>
+              <PlatformApp />
+            </Suspense>
           </MailServiceProvider>
           <Toaster position="bottom-left" closeButton />
         </QueryClientProvider>
