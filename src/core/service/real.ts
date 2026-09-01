@@ -15,6 +15,8 @@ import { syncFailure } from '../sync/failure'
 import { ThreadSearchIndex } from '../search/index'
 import { TokenManager, TokenStore, runAuthFlow as defaultRunAuthFlow, type AuthFlowResult } from '../auth/oauth'
 import { resolveOAuthClient } from '../auth/client-config'
+import { isOfficialGoogleClientId } from '../auth/client-config'
+import type { VaultLocal } from '../account/vault'
 import { buildRawMessage } from '../mime'
 import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } from './actions'
 import { bodyTextOf, sentRowsFor } from './sent'
@@ -374,6 +376,7 @@ export class RealMailService implements MailService {
       expiresAt: result.tokens.expiresAt,
       clientId: oauthClient.clientId,
       source: oauthClient.source,
+      issuedAt: this.now(),
     })
     if (current) {
       this.runtimes.get(current.id)?.engine.stop()
@@ -667,6 +670,33 @@ export class RealMailService implements MailService {
     await this.store.setSettings(patch)
     if (patch.pollIntervalSec !== undefined) {
       for (const runtime of this.runtimes.values()) runtime.engine.startPolling(patch.pollIntervalSec)
+    }
+    this.emit({ type: 'settingsChanged' })
+  }
+
+  /** The narrow local seam used by the encrypted Maru account vault. */
+  accountVaultLocal(setDirectedConsent?: (emails: string[]) => void): VaultLocal {
+    return {
+      getSettings: () => this.store.getSettings(),
+      setSettings: (patch) => this.setSettings(patch),
+      listAccounts: () => this.store.listAccounts(),
+      upsertAccount: (account) => this.store.upsertAccount(account),
+      removeAccount: (accountId) => this.removeAccount(accountId),
+      loadCredential: async (accountId) => {
+        const token = await this.tokenStore.load(accountId)
+        return token ? { refreshToken: token.refreshToken, clientId: token.clientId, issuedAt: token.issuedAt } : null
+      },
+      saveCredential: (accountId, credential) => this.tokenStore.save(accountId, {
+        refreshToken: credential.refreshToken,
+        clientId: credential.clientId,
+        source: isOfficialGoogleClientId(credential.clientId) ? 'official' : 'custom',
+        issuedAt: credential.issuedAt,
+      }),
+      clearCredential: (accountId) => this.tokenStore.clear(accountId),
+      setDirectedConsent,
+      newAccountId: this.newId,
+      now: this.now,
+      refreshAfterApply: () => this.refresh(),
     }
   }
 

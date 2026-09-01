@@ -1,0 +1,92 @@
+import { describe, expect, it } from 'vitest'
+
+import type { Account, Settings } from '../src/core/types'
+import {
+  applyVault,
+  buildVault,
+  mergeVault,
+  type LocalCredential,
+  type VaultDocument,
+  type VaultLocal,
+} from '../src/core/account/vault'
+
+const settings: Settings = {
+  theme: 'dark', imagePolicy: 'allow', pollIntervalSec: 60, sounds: false,
+  conversationOrder: 'chronological', googleClientId: 'desktop-client', googleClientSecret: 'never-sync',
+}
+
+class FakeLocal implements VaultLocal {
+  settings = { ...settings }
+  accounts: Account[] = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', color: '#123', addedAt: 1 }]
+  credentials = new Map<string, LocalCredential>([['local-1', { clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10 }]])
+  consent: string[] = []
+  getSettings = async () => ({ ...this.settings })
+  setSettings = async (patch: Partial<Settings>) => { this.settings = { ...this.settings, ...patch } }
+  listAccounts = async () => [...this.accounts]
+  upsertAccount = async (account: Account) => { this.accounts.push(account) }
+  removeAccount = async (id: string) => { this.accounts = this.accounts.filter((account) => account.id !== id) }
+  loadCredential = async (id: string) => this.credentials.get(id) ?? null
+  saveCredential = async (id: string, credential: LocalCredential) => { this.credentials.set(id, credential) }
+  clearCredential = async (id: string) => { this.credentials.delete(id) }
+  setDirectedConsent = (emails: string[]) => { this.consent = emails }
+  newAccountId = () => `new-${this.accounts.length}`
+  now = () => 100
+}
+
+const document = (patch: Partial<VaultDocument> = {}): VaultDocument => ({
+  v: 1,
+  updatedAt: 10,
+  settings: { theme: 'light', imagePolicy: 'block', pollIntervalSec: 300, sounds: true, conversationOrder: 'newestFirst' },
+  accounts: [{ email: 'nick@example.com', label: 'Nick' }],
+  credentials: { desktop: {}, ios: {} },
+  ...patch,
+})
+
+describe('vault document', () => {
+  it('excludes googleClientSecret and includes desktop credentials', async () => {
+    const vault = await buildVault(new FakeLocal(), 20)
+    expect(vault.settings).not.toHaveProperty('googleClientSecret')
+    expect(vault.credentials.desktop['nick@example.com']).toMatchObject({
+      clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10,
+    })
+    expect(vault.credentials.ios).toEqual({})
+  })
+
+  it('merges settings by document time, accounts by union and credentials by issuedAt', () => {
+    const a = document({
+      updatedAt: 10,
+      accounts: [{ email: 'a@example.com', label: 'A' }],
+      credentials: { desktop: { 'a@example.com': { clientId: 'old', refreshToken: 'old', scope: 'scope', issuedAt: 1 } }, ios: {} },
+    })
+    const b = document({
+      updatedAt: 20,
+      settings: { ...document().settings, theme: 'dark' },
+      accounts: [{ email: 'b@example.com', label: 'B' }],
+      credentials: { desktop: { 'a@example.com': { clientId: 'new', refreshToken: 'new', scope: 'scope', issuedAt: 2 } }, ios: {} },
+    })
+    const merged = mergeVault(a, b)
+    expect(merged.settings.theme).toBe('dark')
+    expect(merged.accounts.map((account) => account.email)).toEqual(['b@example.com', 'a@example.com'])
+    expect(merged.credentials.desktop['a@example.com'].refreshToken).toBe('new')
+  })
+
+  it('files desktop tokens and sends iOS-only addresses to directed consent', async () => {
+    const local = new FakeLocal()
+    const vault = document({
+      accounts: [
+        { email: 'restored@example.com', label: 'Restored' },
+        { email: 'ios@example.com', label: 'iOS' },
+      ],
+      credentials: {
+        desktop: { 'restored@example.com': { clientId: 'desktop', refreshToken: 'token', scope: 'scope', issuedAt: 4 } },
+        ios: { 'ios@example.com': { clientId: 'ios', refreshToken: 'ios-token', scope: 'scope', issuedAt: 5 } },
+      },
+    })
+    const result = await applyVault(vault, local)
+    expect(local.accounts.map((account) => account.email)).toEqual(['restored@example.com', 'ios@example.com'])
+    expect([...local.credentials.values()]).toContainEqual({ clientId: 'desktop', refreshToken: 'token', issuedAt: 4 })
+    expect(local.consent).toEqual(['ios@example.com'])
+    expect(result).toMatchObject({ added: 2, removed: 1, tokensFiled: 1 })
+  })
+})
+

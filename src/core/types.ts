@@ -209,6 +209,7 @@ export type MailEvent =
       threads: number
     }
   | { type: 'accountsChanged' }
+  | { type: 'settingsChanged' }
 
 export interface Settings {
   theme: 'system' | 'light' | 'dark'
