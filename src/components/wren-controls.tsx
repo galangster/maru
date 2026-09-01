@@ -3,7 +3,7 @@
 // Kept together because they are the only places a saturated colour is allowed
 // to appear at rest.
 
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 
 import { Icon, type IconName, type IconSize } from '@/components/ui/icon'
 import { Tooltip, TooltipContent, TooltipHint, TooltipTrigger } from '@/components/ui/tooltip'
@@ -113,6 +113,58 @@ export const DATE_COLUMN = `${META_TEXT} w-16 text-right`
 
 /** The uppercase group label settings surfaces and the shortcut sheet share. */
 export const SECTION_LABEL = 'font-ui text-ink-3 text-xs font-semibold uppercase'
+
+export function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor: string }) {
+  return <label htmlFor={htmlFor} className={SECTION_LABEL}>{children}</label>
+}
+
+export function TextField({
+  id,
+  label,
+  value,
+  onCommit,
+  onValueChange,
+  onBlur,
+  className,
+  inputClassName,
+  ...props
+}: Omit<React.ComponentProps<'input'>, 'value' | 'onChange'> & {
+  id: string
+  label: string
+  value: string
+  onCommit?: (next: string) => void
+  onValueChange?: (next: string) => void
+  inputClassName?: string
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const displayed = onValueChange ? value : draft
+
+  return (
+    <div className={cn('flex flex-col gap-1', className)}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <input
+        id={id}
+        value={displayed}
+        onChange={(event) => {
+          if (onValueChange) onValueChange(event.target.value)
+          else setDraft(event.target.value)
+        }}
+        onBlur={(event) => {
+          onBlur?.(event)
+          if (!onValueChange && onCommit && draft !== value) onCommit(draft.trim())
+        }}
+        autoComplete="off"
+        spellCheck={false}
+        className={cn(
+          'bg-sunken text-ink placeholder:text-ink-3 focus-ring h-9 w-full rounded-sm px-3 text-base',
+          inputClassName,
+        )}
+        {...props}
+      />
+    </div>
+  )
+}
 
 /**
  * The fixed-width icon slot a repeated row leads with. Width comes from the

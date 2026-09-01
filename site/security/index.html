@@ -36,6 +36,7 @@ Maru process on your device
    │
    ├── encrypted local database  (mail, index, approvals, audit)
    ├── OS keychain               (OAuth tokens, encryption keys)
+   ├── optional: Maru Sync ─────► encrypted vault ciphertext only
    │
    └── optional: local socket (0600) ──► agent process you connected
                                             │
@@ -43,13 +44,13 @@ Maru process on your device
                                                 hosted model provider
                                                 (outside your device)
 </pre>
-  <p>There is no Maru server anywhere in this diagram, because none exists. The final hop — an agent forwarding data to its model provider — happens only for agents you created, granted, and consented to, and it is the agent's hop, disclosed by Maru before you consent.</p>
+  <p>Maru Sync is optional. It stores an encrypted vault containing settings, account addresses, and refresh tokens. The account key stays in your device's keychain, so the service cannot read the vault. The agent hop happens only for agents you created, granted, and consented to.</p>
 
   <h2>Sign-in</h2>
   <ul>
     <li>OAuth 2.0 for installed apps: your system browser, a loopback redirect bound to 127.0.0.1, and PKCE (S256). Maru never sees or asks for your Google password.</li>
     <li>Maru requests one Gmail scope, <code>gmail.modify</code> — the minimum that supports reading, labeling, and user-approved sending. Maru cannot permanently delete mail.</li>
-    <li>Refresh tokens live in the OS keychain, bound to the client that issued them.</li>
+    <li>Refresh tokens live in the OS keychain, bound to the client that issued them. Maru Sync can copy desktop-family refresh tokens inside the end-to-end encrypted vault.</li>
   </ul>
 
   <h2>Encryption</h2>

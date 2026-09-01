@@ -79,22 +79,22 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <AppShell />
-      <Latch when={composeOpen}>
-        <Composer />
-      </Latch>
-      <CommandPalette />
-      <Latch when={settingsOpen}>
-        <SettingsDialog />
-      </Latch>
-      <Latch when={approvalsOpen}>
-        <ApprovalQueue />
-      </Latch>
-      <Latch when={auditOpen}>
-        <AuditTimeline />
-      </Latch>
-      <ShortcutsOverlay />
-      <Onboarding />
+        <AppShell />
+        <Latch when={composeOpen}>
+          <Composer />
+        </Latch>
+        <CommandPalette />
+        <Latch when={settingsOpen}>
+          <SettingsDialog />
+        </Latch>
+        <Latch when={approvalsOpen}>
+          <ApprovalQueue />
+        </Latch>
+        <Latch when={auditOpen}>
+          <AuditTimeline />
+        </Latch>
+        <ShortcutsOverlay />
+        <Onboarding />
     </TooltipProvider>
   )
 }

@@ -2,7 +2,7 @@
 
 A lightweight, beautiful unified-Gmail desktop client — and an MCP
 gateway that lets your agents touch your mailbox on your terms. One quiet
-inbox for all your Gmail accounts: local-first, no third-party servers,
+inbox for all your Gmail accounts: local-first mail with an optional encrypted sync service,
 no telemetry. Mail syncs only with Google — the one other thing that
 reaches the network is a picture in a message, because images load by
 default; switch that off in Settings and Google is the only host Maru

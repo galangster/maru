@@ -209,6 +209,7 @@ export type MailEvent =
       threads: number
     }
   | { type: 'accountsChanged' }
+  | { type: 'settingsChanged' }
 
 export interface Settings {
   theme: 'system' | 'light' | 'dark'
@@ -265,6 +266,8 @@ export interface GetThreadOptions {
    */
   hydrate?: boolean
 }
+
+import type { VaultLocal } from './service/vault-port'
 
 export interface MailService {
   listAccounts(): Promise<Account[]>
@@ -341,6 +344,9 @@ export interface MailService {
 
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<void>
+
+  /** Optional local-data capability for Maru account vault sync. */
+  accountVaultLocal?(setDirectedConsent?: (emails: string[]) => void): VaultLocal
 
   /** Returns an unsubscribe function. */
   onEvent(cb: (e: MailEvent) => void): () => void

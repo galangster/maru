@@ -32,6 +32,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import {
   AccountAvatar,
+  FieldLabel,
   HueTile,
   IconButton,
   PRESS,
@@ -39,6 +40,7 @@ import {
   SECTION_LABEL,
   SegmentedGroup,
   SurfaceHeader,
+  TextField,
   textButtonClass,
 } from '@/components/wren-controls'
 import type { Account, Settings, SyncStatus } from '@/core/types'
@@ -79,8 +81,10 @@ import { openExternalUrl } from '@/lib/env'
 import { checkForUpdates } from '@/lib/updates'
 import { AGENT_DISCLOSURE } from '@/features/agents/disclosure'
 import pkg from '../../../package.json'
+import { AccountSection } from './account/account-section'
 
 const SECTION_ICONS: Record<SettingsSection, IconName> = {
+  maru: 'sync',
   accounts: 'participants',
   // Permissions are controls, and `sliders` is the controls glyph. `key`
   // belongs to Google API and an agent credential is not what that section is
@@ -101,6 +105,7 @@ const SECTION_ICONS: Record<SettingsSection, IconName> = {
  * right one: it is what an agent's grants read as when they are working.
  */
 const SECTION_HUES: Record<SettingsSection, Hue> = {
+  maru: 'magenta',
   accounts: 'orange',
   agents: 'green',
   appearance: 'violet',
@@ -143,7 +148,7 @@ export function SettingsDialog() {
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
-          Accounts, appearance, the Google API client, sync and version.
+          Maru account, Gmail accounts, appearance, the Google API client, sync and version.
         </DialogDescription>
         {section && <SettingsBody section={section} />}
       </DialogContent>
@@ -205,6 +210,7 @@ function SettingsBody({ section }: { section: SettingsSection }) {
             Agents — run past the fixed 440, and a field sliced flat against the
             dialog's bottom edge is the hard edge DIRECTION §1 rules out. */}
         <div className="scroll-fade min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {section === 'maru' && <AccountSection />}
           {section === 'accounts' && (
             <AccountsSection
               onNeedsClient={() => {
@@ -228,53 +234,6 @@ function SettingsBody({ section }: { section: SettingsSection }) {
 
 function Explainer({ children }: { children: React.ReactNode }) {
   return <p className="text-ink-3 text-sm text-pretty">{children}</p>
-}
-
-function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor: string }) {
-  return (
-    // The eyebrow — AMIE-STUDY §3. A field label is a word, so it takes the
-    // caps half of the role as well as the weight and the tracking, exactly
-    // like the grey labels above every field well in Amie's own sheets.
-    <label htmlFor={htmlFor} className={SECTION_LABEL}>
-      {children}
-    </label>
-  )
-}
-
-function TextField({
-  id,
-  label,
-  value,
-  onCommit,
-  type = 'text',
-  placeholder,
-}: {
-  id: string
-  label: string
-  value: string
-  onCommit: (next: string) => void
-  type?: 'text' | 'password'
-  placeholder?: string
-}) {
-  const [draft, setDraft] = useState(value)
-  useEffect(() => setDraft(value), [value])
-
-  return (
-    <div className="flex flex-col gap-1">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <input
-        id={id}
-        type={type}
-        value={draft}
-        placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => draft !== value && onCommit(draft.trim())}
-        className="bg-sunken text-ink placeholder:text-ink-3 focus-ring h-9 w-full rounded-sm px-3 text-base"
-      />
-    </div>
-  )
 }
 
 // -- accounts -----------------------------------------------------------------
@@ -1067,7 +1026,8 @@ function TransferBlock() {
           <Explainer>
             {toConnect.length} account{toConnect.length === 1 ? '' : 's'} to sign in to. Maru asks
             Google for each one in turn and pre-selects the address, so you approve rather than
-            choose. Nothing was copied — each device earns its own tokens.
+            choose. No compatible desktop token was available, so Google needs one approval per
+            address.
           </Explainer>
           <ul className="flex flex-col gap-1">
             {toConnect.map((email) => (
@@ -1141,7 +1101,9 @@ function AboutSection() {
       <div className="flex flex-col gap-2">
         <p className="font-ui text-ink text-xl font-semibold">Maru</p>
         <p className="text-ink-3 text-sm tabular-nums">Version {pkg.version}</p>
-        <p className="text-ink-2 text-sm text-pretty">Local-first. Talks only to Google.</p>
+        <p className="text-ink-2 text-sm text-pretty">
+          Mail stays local. Sync stores only encrypted account data.
+        </p>
       </div>
       <div className="flex flex-col gap-2">
         <Explainer>

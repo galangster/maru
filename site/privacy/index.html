@@ -27,7 +27,7 @@
   <h1>Maru Mail Privacy Policy</h1>
   <p class="updated">Effective 2026-08-30 · Applies to the Maru Mail desktop application published at getmaru.app</p>
 
-  <p>Maru Mail ("Maru") is a desktop email client that runs on your computer. This policy describes exactly what data Maru touches, where it goes, and how you delete it. The short version: <strong>your mail stays on your device, Maru operates no servers, and nothing is collected about you.</strong></p>
+  <p>Maru Mail ("Maru") is a desktop email client that runs on your computer. This policy describes exactly what data Maru touches, where it goes, and how you delete it. The short version: <strong>your mail stays on your device, optional sync stores only an encrypted vault, and Maru collects no telemetry.</strong></p>
 
   <h2>What Google data Maru accesses</h2>
   <p>When you connect a Gmail account, Maru requests the <code>gmail.modify</code> permission from Google. Maru uses it to:</p>
@@ -40,10 +40,10 @@
   <h2>Where your data is stored</h2>
   <ul>
     <li><strong>Messages, threads, and attachment metadata</strong> are stored in an encrypted local database on your device, one encryption key per account, held in your operating system's keychain. Attachment contents are fetched from Gmail when you open or save them, not kept in the database.</li>
-    <li><strong>OAuth tokens</strong> (the credentials Maru uses to talk to Gmail) are stored in your operating system's keychain.</li>
+    <li><strong>OAuth tokens</strong> are stored in your operating system's keychain. If you use Maru Sync, desktop refresh tokens also enter an end-to-end encrypted vault that the sync service cannot open. Access tokens never enter the vault.</li>
     <li><strong>Search indexes, settings, agent grants, send approvals, and the audit log</strong> are stored locally on your device. Audit entries that contain Google-derived content (such as message subjects) are encrypted with per-account keys.</li>
   </ul>
-  <p>Maru operates no server. Your mail data is never transmitted to the developer of Maru or to any Maru-operated service. The only network peer for your mail is Google.</p>
+  <p>Your mail content is never transmitted to Maru Sync. Google remains the only network peer for mail. The optional sync service receives encrypted settings, account addresses, and refresh tokens, but it never receives the account key needed to open them.</p>
 
   <h2>Agents, and data that can leave your device</h2>
   <p>Maru can optionally act as a gateway for AI agents you choose to connect. If — and only if — you create an agent credential, grant that agent capabilities, and consent to an agent session, Maru will return the mail data that agent requests to it over a local connection on your device.</p>
@@ -53,7 +53,7 @@
   <ul>
     <li>Maru collects <strong>no telemetry, analytics, or crash reports</strong>. The developer learns nothing when you use Maru.</li>
     <li>Maru does <strong>not use your Google data to develop, improve, or train generalized artificial intelligence or machine-learning models</strong>.</li>
-    <li>Maru does not sell, rent, or share your data with anyone. There is no one on the other end to share it with.</li>
+    <li>Maru does not sell, rent, or share your data. The sync service stores only the encrypted account vault needed to provide sync.</li>
   </ul>
 
   <h2>Limited Use disclosure</h2>

@@ -2,11 +2,11 @@
 
 ## Assessment determination request
 
-> Maru is an installed desktop email client. Maru fetches Gmail data directly from Google and stores it on the user's device. Maru operates no server that receives Gmail content. Maru also offers an optional local MCP socket. A user can create an agent credential and grant selected capabilities. Maru then returns requested mail data to that user-selected client. Some clients can use a hosted model provider. Maru discloses this path and requires contextual user consent. We request confirmation whether this architecture requires a security assessment.
+> Maru is an installed desktop email client. Maru fetches Gmail data directly from Google and stores it on the user's device. Optional Maru Sync stores an end-to-end encrypted vault containing settings, account addresses, and Gmail refresh tokens. The service receives ciphertext but no key that can open it, and it never receives Gmail message content. Maru also offers an optional local MCP socket. A user can create an agent credential and grant selected capabilities. Maru then returns requested mail data to that user-selected client. Some clients can use a hosted model provider. Maru discloses both paths and requires contextual user consent. We request confirmation whether ciphertext-only refresh-token custody or the optional hosted-agent path requires a security assessment.
 >
-> If Google determines that the optional hosted-agent path requires a security assessment, Maru will complete that assessment or disable shared-client agent access before public launch.
+> If Google determines that ciphertext-only refresh-token custody requires a security assessment, Maru will complete that assessment or disable Maru Sync before public launch. If Google determines that the optional hosted-agent path requires one, Maru will complete it or disable shared-client agent access before public launch.
 
-The architecture statement and final sentence above are copied verbatim from `docs/research/shared-client-implementation-plan.md` Part 1 §1 and Part 2 §7.
+This statement amends the earlier local-only determination request with the ratified encrypted-vault architecture in `docs/spec/MARU-ACCOUNT.md`.
 
 ## Reviewer form answers
 
@@ -76,7 +76,7 @@ The complete method mapping is in `docs/security/google-oauth-method-scope-matri
 
 ### Where does Maru store data?
 
-Maru stores its local cache in SQLite on the device. It encrypts content fields with per-account AES-256-GCM keys from the operating-system keychain. OAuth tokens also stay in the keychain. Sources: `src/core/store/db.ts:41-185`, `src/core/crypto/keyring.ts:16-25`, and `src/core/auth/oauth.ts:256-301`.
+Maru stores its local cache in SQLite on the device. It encrypts content fields with per-account AES-256-GCM keys from the operating-system keychain. OAuth tokens stay in the local keychain. If the user enables Maru Sync, the desktop refresh tokens also enter an end-to-end encrypted vault. The sync service stores only ciphertext and never receives its account key. Sources: `src/core/store/db.ts`, `src/core/crypto/keyring.ts`, `src/core/auth/oauth.ts`, and `src/core/account/`.
 
 The complete field inventory is in `docs/security/google-oauth-data-inventory.md`.
 

@@ -53,6 +53,7 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     let alive = true
     let gatewayServer: GatewayServer | null = null
+    let stopAccountSync: (() => void) | null = null
     void (async () => {
       try {
         const platform = !demo && isTauri() ? await loadTauriPlatform() : null
@@ -60,6 +61,21 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
         const agents = await createAgentGateway(platform, { demo, now: NOW, mail: service })
         if (!alive) return
         setRuntime({ service, agents, platform })
+
+        void (async () => {
+          const [{ startAccountSync }, demoAccount] = await Promise.all([
+            import('@/features/settings/account/account-store'),
+            demo ? import('@/core/demo/account-demo') : Promise.resolve(null),
+          ])
+          if (!alive) return
+          const stop = await startAccountSync({
+            service,
+            platform,
+            demoBackend: demoAccount ? new demoAccount.DemoAccountBackend() : null,
+          })
+          if (alive) stopAccountSync = stop
+          else stop()
+        })().catch((cause) => console.error('Maru account sync did not start:', cause))
 
         // M2's socket. Additive on purpose: a gateway that cannot open must
         // not stop Maru being a mail client, so this failure is logged and
@@ -81,6 +97,7 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
     })()
     return () => {
       alive = false
+      stopAccountSync?.()
       void gatewayServer?.stop()
     }
   }, [demo])

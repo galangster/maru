@@ -69,6 +69,8 @@ export interface StoredAccountTokens {
   expiresAt?: number
   clientId: string
   source: OAuthClientSource
+  /** When this refresh token was issued. The account vault uses it to merge. */
+  issuedAt?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -285,6 +287,7 @@ export class TokenStore {
         clientId: parsed.clientId,
         // Records written before client provenance existed were all BYO.
         source: parsed.source === 'official' ? 'official' : 'custom',
+        issuedAt: typeof parsed.issuedAt === 'number' ? parsed.issuedAt : undefined,
       }
     } catch {
       return null
@@ -381,6 +384,7 @@ export class TokenManager {
       expiresAt: tokens.expiresAt,
       clientId: stored.clientId,
       source: stored.source,
+      issuedAt: stored.issuedAt,
     }
     this.cached = next
     await this.opts.store.save(this.opts.accountId, next)

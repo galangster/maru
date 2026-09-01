@@ -9,8 +9,9 @@ program, only gratitude and a fast fix.
 
 ## What Maru trusts, in one page
 
-Maru is local-first: the app talks to Google's APIs and to nothing else.
-There is no Maru server, no telemetry, and no network listener. The full
+Maru is local-first. Mail traffic goes directly to Google's APIs. Optional
+Maru Sync stores an end-to-end encrypted account vault. There is no telemetry
+or network listener in the app. The full
 model is specified in [docs/PERMISSION-MODEL.md](docs/PERMISSION-MODEL.md);
 the load-bearing facts:
 
@@ -26,8 +27,9 @@ the load-bearing facts:
 - **No grant lets an agent send mail.** The widest grant queues a message
   for your approval; a human taps every send in Maru's own UI.
 - **Every call and every refusal is audited**, append-only, per agent.
-- **OAuth tokens** live in the OS keychain, never in the database, never
-  in exports.
+- **OAuth tokens** live in the OS keychain, never in the database or settings
+  exports. Optional Maru Sync copies refresh tokens inside a vault encrypted
+  with an account key that the service never receives. Access tokens never sync.
 - **Mail content is encrypted at rest.** Message bodies, subjects,
   snippets, addresses, attachment metadata, label names, queued agent
   send drafts, and the mail-derived fields of the audit log are

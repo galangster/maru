@@ -17,6 +17,7 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@scure/bip39": "^2.4.0",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-virtual": "^3.14.10",
     "@tauri-apps/api": "^2.11.1",
@@ -34,6 +35,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dompurify": "^3.4.14",
+    "hash-wasm": "^4.12.0",
     "lucide-react": "^1.35.0",
     "minisearch": "^7.2.0",
     "motion": "^13.1.1",
