@@ -57,6 +57,27 @@ tokens) and never written to the database or to exports.
   (who, when, which tool, outcome) while their content fields become
   undecryptable ciphertext.
 
+## Verify a release
+
+Install the [GitHub CLI](https://cli.github.com/). Download a release asset,
+then run this command from its directory:
+
+```bash
+gh attestation verify ./Maru_0.1.7_aarch64.dmg --repo galangster/maru
+```
+
+Replace the filename with the asset that you downloaded. The command also
+works for the `.app.tar.gz`, its `.sig`, and `latest.json`.
+
+A match proves that the file's SHA-256 digest matches a provenance statement
+that GitHub signed for this repository. The statement identifies the source
+commit and release workflow. It does not prove that the source is safe or that
+the program has passed an independent security audit.
+
+Each release also includes `SHA256SUMS.txt`. It records the unsigned `.app`
+bundle tree digest from the same tagged build. See
+[docs/RELEASING.md](docs/RELEASING.md) for the digest method.
+
 ## Scope notes for researchers
 
 The interesting surfaces are the gateway frame protocol
