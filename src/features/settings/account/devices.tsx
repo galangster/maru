@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
-
-import { PrimaryButton, textButtonClass } from '@/components/wren-controls'
+import { PrimaryButton, SECTION_LABEL, TextField, textButtonClass } from '@/components/wren-controls'
 import type { AccountDevice } from '@/core/account'
 import { elapsedTime } from '@/lib/format'
+import { useBusyAction } from './use-busy-action'
 
 export function Devices({
   devices,
@@ -14,36 +13,23 @@ export function Devices({
   onRevoke(id: string): Promise<void>
 }) {
   const current = devices.find((item) => item.current)
-  const [name, setName] = useState(current?.name ?? '')
-  const [busy, setBusy] = useState<string | null>(null)
-  useEffect(() => setName(current?.name ?? ''), [current?.name])
+  const { busy, run } = useBusyAction()
 
   return (
     <div className="border-hairline flex flex-col gap-3 border-t pt-4">
-      <p className="text-ink-3 text-xs font-medium tracking-wide uppercase">Devices</p>
+      <p className={SECTION_LABEL}>Devices</p>
       {current && (
         <form
           className="flex items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault()
-            const next = name.trim()
+            const next = String(new FormData(event.currentTarget).get('device-name') ?? '').trim()
             if (!next || next === current.name) return
-            setBusy(current.id)
-            void onRename(current.id, next).finally(() => setBusy(null))
+            run(current.id, () => onRename(current.id, next))
           }}
         >
-          <label className="flex min-w-0 flex-1 flex-col gap-1" htmlFor="maru-device-name">
-            <span className="text-ink-3 text-xs">This device</span>
-            <input
-              id="maru-device-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              className="bg-sunken text-ink focus-ring h-10 rounded-sm px-3 text-base"
-            />
-          </label>
-          <PrimaryButton type="submit" disabled={busy !== null || !name.trim()} className="h-10 px-3">
+          <TextField id="maru-device-name" name="device-name" label="This device" value={current.name} autoComplete="off" spellCheck={false} className="min-w-0 flex-1" inputClassName="h-10" />
+          <PrimaryButton type="submit" disabled={busy !== null} className="h-10 px-3">
             {busy === current.id ? 'Saving…' : 'Save name'}
           </PrimaryButton>
         </form>
@@ -58,7 +44,7 @@ export function Devices({
             <button
               type="button"
               disabled={busy !== null}
-              onClick={() => { setBusy(item.id); void onRevoke(item.id).finally(() => setBusy(null)) }}
+              onClick={() => run(item.id, () => onRevoke(item.id))}
               className={textButtonClass('danger', 'min-h-10')}
             >
               {busy === item.id ? 'Signing out…' : 'Sign out'}

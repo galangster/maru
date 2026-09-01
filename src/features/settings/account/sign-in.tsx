@@ -1,18 +1,16 @@
 import { useState } from 'react'
 
-import { PrimaryButton, SegmentedGroup } from '@/components/wren-controls'
+import { FieldLabel, PrimaryButton, SegmentedGroup, TextField } from '@/components/wren-controls'
 import { cn } from '@/lib/utils'
 
 type Mode = 'signIn' | 'signUp' | 'recover'
 
 function strength(password: string): { label: string; value: number } {
-  if (password.length < 12) return { label: `${12 - password.length} more characters`, value: Math.min(35, password.length * 3) }
-  let value = 55
-  if (password.length >= 16) value += 15
-  if (/[a-z]/u.test(password) && /[A-Z]/u.test(password)) value += 10
-  if (/\d/u.test(password)) value += 10
-  if (/[^\p{L}\p{N}]/u.test(password)) value += 10
-  return { label: value >= 80 ? 'Strong' : 'Good', value: Math.min(value, 100) }
+  const remaining = Math.max(0, 12 - password.length)
+  return {
+    label: remaining ? `${remaining} more characters` : 'Minimum reached',
+    value: Math.min(100, (password.length / 12) * 100),
+  }
 }
 
 export function SignIn({
@@ -73,22 +71,10 @@ export function SignIn({
       />
 
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1" htmlFor="maru-account-email">
-          <span className="text-ink-3 text-xs font-medium tracking-wide uppercase">Email</span>
-          <input
-            id="maru-account-email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="name@example.com"
-            className="bg-sunken text-ink placeholder:text-ink-3 focus-ring h-10 rounded-sm px-3 text-base"
-          />
-        </label>
+        <TextField id="maru-account-email" label="Email" type="email" required autoComplete="email" value={email} onValueChange={setEmail} placeholder="name@example.com" inputClassName="h-10" />
         {mode === 'recover' && (
-          <label className="flex flex-col gap-1" htmlFor="maru-recovery-phrase">
-            <span className="text-ink-3 text-xs font-medium tracking-wide uppercase">Recovery words</span>
+          <div className="flex flex-col gap-1">
+            <FieldLabel htmlFor="maru-recovery-phrase">Recovery words</FieldLabel>
             <textarea
               id="maru-recovery-phrase"
               required
@@ -100,28 +86,24 @@ export function SignIn({
               placeholder="Enter all 12 words in order"
               className="bg-sunken text-ink placeholder:text-ink-3 focus-ring rounded-sm px-3 py-2 text-base"
             />
-          </label>
+          </div>
         )}
-        <label className="flex flex-col gap-1" htmlFor="maru-account-password">
-          <span className="text-ink-3 text-xs font-medium tracking-wide uppercase">
-            {mode === 'recover' ? 'New password' : 'Password'}
-          </span>
-          <input
-            id="maru-account-password"
-            type="password"
-            required
-            minLength={mode === 'signIn' ? undefined : 12}
-            autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={(event) => { setPassword(event.target.value); if (error) setError(null) }}
-            className="bg-sunken text-ink focus-ring h-10 rounded-sm px-3 text-base"
-          />
-        </label>
+        <TextField
+          id="maru-account-password"
+          label={mode === 'recover' ? 'New password' : 'Password'}
+          type="password"
+          required
+          minLength={mode === 'signIn' ? undefined : 12}
+          autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+          value={password}
+          onValueChange={(value) => { setPassword(value); if (error) setError(null) }}
+          inputClassName="h-10"
+        />
         {mode !== 'signIn' && (
           <div className="flex items-center gap-2" aria-live="polite">
             <div className="bg-fill-hover h-1.5 flex-1 overflow-hidden rounded-full">
               <div
-                className={cn('h-full rounded-full transition-[width,background-color] duration-150', meter.value >= 80 ? 'bg-success' : 'bg-brand')}
+                className={cn('h-full rounded-full transition-[width,background-color] duration-150', meter.value >= 100 ? 'bg-success' : 'bg-brand')}
                 style={{ width: `${meter.value}%` }}
               />
             </div>

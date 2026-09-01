@@ -32,6 +32,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import {
   AccountAvatar,
+  FieldLabel,
   HueTile,
   IconButton,
   PRESS,
@@ -39,6 +40,7 @@ import {
   SECTION_LABEL,
   SegmentedGroup,
   SurfaceHeader,
+  TextField,
   textButtonClass,
 } from '@/components/wren-controls'
 import type { Account, Settings, SyncStatus } from '@/core/types'
@@ -232,53 +234,6 @@ function SettingsBody({ section }: { section: SettingsSection }) {
 
 function Explainer({ children }: { children: React.ReactNode }) {
   return <p className="text-ink-3 text-sm text-pretty">{children}</p>
-}
-
-function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor: string }) {
-  return (
-    // The eyebrow — AMIE-STUDY §3. A field label is a word, so it takes the
-    // caps half of the role as well as the weight and the tracking, exactly
-    // like the grey labels above every field well in Amie's own sheets.
-    <label htmlFor={htmlFor} className={SECTION_LABEL}>
-      {children}
-    </label>
-  )
-}
-
-function TextField({
-  id,
-  label,
-  value,
-  onCommit,
-  type = 'text',
-  placeholder,
-}: {
-  id: string
-  label: string
-  value: string
-  onCommit: (next: string) => void
-  type?: 'text' | 'password'
-  placeholder?: string
-}) {
-  const [draft, setDraft] = useState(value)
-  useEffect(() => setDraft(value), [value])
-
-  return (
-    <div className="flex flex-col gap-1">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <input
-        id={id}
-        type={type}
-        value={draft}
-        placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => draft !== value && onCommit(draft.trim())}
-        className="bg-sunken text-ink placeholder:text-ink-3 focus-ring h-9 w-full rounded-sm px-3 text-base"
-      />
-    </div>
-  )
 }
 
 // -- accounts -----------------------------------------------------------------

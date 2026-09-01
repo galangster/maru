@@ -1,5 +1,5 @@
 import type { Platform, SqlDb } from '../platform'
-import { decodeBase64Url, encodeBase64Url } from './crypto'
+import { base64UrlEncodeBytes, decodeBase64Url } from '../mime'
 
 export const ACCOUNT_SESSION_SECRET = 'maru-account-session'
 export const ACCOUNT_KEY_SECRET = 'maru-account-key'
@@ -12,7 +12,16 @@ export interface AccountSession {
   email: string
 }
 
-export class AccountSessionStore {
+export interface AccountSessionAccess {
+  load(): Promise<AccountSession | null>
+  save(session: AccountSession, accountKey: Uint8Array): Promise<void>
+  accountKey(): Promise<Uint8Array | null>
+  clear(): Promise<void>
+  getMeta(key: string): Promise<string | null>
+  setMeta(key: string, value: string): Promise<void>
+}
+
+export class AccountSessionStore implements AccountSessionAccess {
   private db: SqlDb | null = null
   constructor(private readonly platform: Pick<Platform, 'secretGet' | 'secretSet' | 'secretDelete' | 'sqlOpen'>) {}
 
@@ -33,7 +42,7 @@ export class AccountSessionStore {
   async save(session: AccountSession, accountKey: Uint8Array): Promise<void> {
     await Promise.all([
       this.platform.secretSet(ACCOUNT_SESSION_SECRET, JSON.stringify(session)),
-      this.platform.secretSet(ACCOUNT_KEY_SECRET, encodeBase64Url(accountKey)),
+      this.platform.secretSet(ACCOUNT_KEY_SECRET, base64UrlEncodeBytes(accountKey)),
     ])
   }
 
@@ -60,9 +69,5 @@ export class AccountSessionStore {
       'INSERT INTO meta (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       [`${META_PREFIX}${key}`, value],
     )
-  }
-
-  async deleteMeta(key: string): Promise<void> {
-    await (await this.database()).execute('DELETE FROM meta WHERE key = $1', [`${META_PREFIX}${key}`])
   }
 }

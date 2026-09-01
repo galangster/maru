@@ -14,7 +14,6 @@ import { useSurfaces } from '@/features/shell/surface-store'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { setSoundsEnabled } from '@/lib/sound'
 import { checkForUpdates } from '@/lib/updates'
-import { MaruAccountProvider } from '@/features/settings/account/account-context'
 
 // The heavy floating surfaces load on first open, not at startup (P8): the
 // composer carries the whole tiptap editor, and settings/agents carry their
@@ -79,8 +78,7 @@ export default function App() {
   const auditOpen = useSurfaces((s) => s.audit !== null)
 
   return (
-    <MaruAccountProvider>
-      <TooltipProvider>
+    <TooltipProvider>
         <AppShell />
         <Latch when={composeOpen}>
           <Composer />
@@ -97,7 +95,6 @@ export default function App() {
         </Latch>
         <ShortcutsOverlay />
         <Onboarding />
-      </TooltipProvider>
-    </MaruAccountProvider>
+    </TooltipProvider>
   )
 }

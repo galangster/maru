@@ -188,11 +188,10 @@ export function useMailEvents() {
         }
         case 'accountsChanged':
           void client.invalidateQueries({ queryKey: keys.accounts })
+          void client.invalidateQueries({ queryKey: ['labels'] })
           break
         case 'settingsChanged':
           void client.invalidateQueries({ queryKey: keys.settings })
-          break
-          void client.invalidateQueries({ queryKey: ['labels'] })
           break
         case 'syncStatus':
           break

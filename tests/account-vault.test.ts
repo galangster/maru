@@ -20,17 +20,21 @@ class FakeLocal implements VaultLocal {
   accounts: Account[] = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', color: '#123', addedAt: 1 }]
   credentials = new Map<string, LocalCredential>([['local-1', { clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10 }]])
   consent: string[] = []
+  settingsWrites = 0
+  credentialWrites = 0
+  refreshes = 0
   getSettings = async () => ({ ...this.settings })
-  setSettings = async (patch: Partial<Settings>) => { this.settings = { ...this.settings, ...patch } }
+  setSettings = async (patch: Partial<Settings>) => { this.settingsWrites += 1; this.settings = { ...this.settings, ...patch } }
   listAccounts = async () => [...this.accounts]
   upsertAccount = async (account: Account) => { this.accounts.push(account) }
   removeAccount = async (id: string) => { this.accounts = this.accounts.filter((account) => account.id !== id) }
   loadCredential = async (id: string) => this.credentials.get(id) ?? null
-  saveCredential = async (id: string, credential: LocalCredential) => { this.credentials.set(id, credential) }
+  saveCredential = async (id: string, credential: LocalCredential) => { this.credentialWrites += 1; this.credentials.set(id, credential) }
   clearCredential = async (id: string) => { this.credentials.delete(id) }
   setDirectedConsent = (emails: string[]) => { this.consent = emails }
   newAccountId = () => `new-${this.accounts.length}`
   now = () => 100
+  refreshAfterApply = async () => { this.refreshes += 1 }
 }
 
 const document = (patch: Partial<VaultDocument> = {}): VaultDocument => ({
@@ -87,6 +91,36 @@ describe('vault document', () => {
     expect([...local.credentials.values()]).toContainEqual({ clientId: 'desktop', refreshToken: 'token', issuedAt: 4 })
     expect(local.consent).toEqual(['ios@example.com'])
     expect(result).toMatchObject({ added: 2, removed: 1, tokensFiled: 1 })
+    expect(local.refreshes).toBe(1)
+  })
+
+  it('skips equal settings, current credentials and empty refresh work', async () => {
+    const local = new FakeLocal()
+    const vault = document({
+      settings: {
+        theme: local.settings.theme,
+        imagePolicy: local.settings.imagePolicy,
+        pollIntervalSec: local.settings.pollIntervalSec,
+        sounds: local.settings.sounds,
+        conversationOrder: local.settings.conversationOrder,
+        googleClientId: local.settings.googleClientId,
+      },
+      credentials: {
+        desktop: {
+          'nick@example.com': {
+            clientId: 'older-client',
+            refreshToken: 'older-token',
+            scope: 'scope',
+            issuedAt: 10,
+          },
+        },
+        ios: {},
+      },
+    })
+    const result = await applyVault(vault, local)
+    expect(result).toMatchObject({ added: 0, removed: 0, tokensFiled: 0 })
+    expect(local.settingsWrites).toBe(0)
+    expect(local.credentialWrites).toBe(0)
+    expect(local.refreshes).toBe(0)
   })
 })
-

@@ -9,6 +9,7 @@ describe('AccountClient', () => {
     platform.handler = (request) => {
       const path = new URL(request.url).pathname
       if (path === '/v1/auth/prelogin') return jsonResponse({ kdf: { algo: 'argon2id', m: 32, t: 1, p: 1 }, salt: 'salt' })
+      if (path === '/v1/auth/recover-start') return jsonResponse({ kdf: { algo: 'argon2id', m: 32, t: 1, p: 1 }, wrappedByRecovery: 'm1.a.b' })
       if (path === '/v1/auth/login') return jsonResponse({ token: 'token', deviceId: 'device', accountId: 'account', kdf: { algo: 'argon2id', m: 32, t: 1, p: 1 }, wrappedByPassword: 'm1.a.b' })
       if (path.startsWith('/v1/auth/') && ['signup', 'recover'].includes(path.split('/').at(-1) ?? '')) return jsonResponse({ token: 'token', deviceId: 'device', accountId: 'account' })
       if (path === '/v1/vault' && request.method === 'GET') return new Response(null, { status: 204 })
@@ -22,6 +23,7 @@ describe('AccountClient', () => {
     }
     const client = new AccountClient(platform, 'https://sync.test', 'token')
     await client.prelogin('nick@example.com')
+    await client.recoverStart({ email: 'nick@example.com', recAuthKey: 'proof' })
     await client.signup({})
     await client.login({})
     await client.recover({})
@@ -42,7 +44,9 @@ describe('AccountClient', () => {
     await client.vaultHistory()
     await client.vaultRestore(1)
 
-    expect(platform.requests).toHaveLength(20)
+    expect(platform.requests).toHaveLength(21)
+    expect(platform.requests.find((request) => request.url.endsWith('/v1/auth/recover-start'))?.body).toBe(JSON.stringify({ email: 'nick@example.com', recAuthKey: 'proof' }))
+    expect(platform.requests.find((request) => request.url.endsWith('/v1/devices/device'))?.method).toBe('PATCH')
     expect(platform.requests.every((request) => request.url.startsWith('https://sync.test/'))).toBe(true)
     expect(platform.requests.filter((request) => request.url.endsWith('/healthz'))[0].headers.authorization).toBeUndefined()
     expect(platform.requests.filter((request) => request.url.endsWith('/v1/me'))[0].headers.authorization).toBe('Bearer token')

@@ -267,6 +267,8 @@ export interface GetThreadOptions {
   hydrate?: boolean
 }
 
+import type { VaultLocal } from './service/vault-port'
+
 export interface MailService {
   listAccounts(): Promise<Account[]>
   /** Runs the OAuth flow (real) or adds the next fixture account (demo). */
@@ -342,6 +344,9 @@ export interface MailService {
 
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<void>
+
+  /** Optional local-data capability for Maru account vault sync. */
+  accountVaultLocal?(setDirectedConsent?: (emails: string[]) => void): VaultLocal
 
   /** Returns an unsubscribe function. */
   onEvent(cb: (e: MailEvent) => void): () => void

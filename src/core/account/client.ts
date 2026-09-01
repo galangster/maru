@@ -6,7 +6,8 @@ export type EntitlementState = 'trialing' | 'active' | 'past_due' | 'expired' | 
 
 export interface DeviceInput { name: string; platform: string; family: 'desktop' }
 export interface AuthSession { token: string; deviceId: string; accountId: string }
-export interface PreloginResponse { kdf: KdfParams; salt: string; wrappedByRecovery?: string }
+export interface PreloginResponse { kdf: KdfParams; salt: string }
+export interface RecoverStartResponse { wrappedByRecovery: string; kdf: KdfParams }
 export interface LoginResponse extends AuthSession { kdf: KdfParams; wrappedByPassword: string }
 export interface VaultResponse { version: number; ciphertext: string; updatedAt: number }
 export interface VaultConflict { version: number; ciphertext: string; updatedAt?: number }
@@ -69,9 +70,10 @@ export class AccountClient {
   }
 
   prelogin(email: string) { return this.request<PreloginResponse>('/v1/auth/prelogin', { method: 'POST', body: JSON.stringify({ email }) }, false) }
+  recoverStart(body: { email: string; recAuthKey: string }) { return this.request<RecoverStartResponse>('/v1/auth/recover-start', { method: 'POST', body: JSON.stringify(body) }, false) }
   signup(body: Record<string, unknown>) { return this.request<AuthSession>('/v1/auth/signup', { method: 'POST', body: JSON.stringify(body) }, false) }
   login(body: Record<string, unknown>) { return this.request<LoginResponse>('/v1/auth/login', { method: 'POST', body: JSON.stringify(body) }, false) }
-  recover(body: Record<string, unknown>) { return this.request<AuthSession & { wrappedByRecovery?: string }>('/v1/auth/recover', { method: 'POST', body: JSON.stringify(body) }, false) }
+  recover(body: Record<string, unknown>) { return this.request<AuthSession>('/v1/auth/recover', { method: 'POST', body: JSON.stringify(body) }, false) }
   changePassword(body: { authKey: string; newAuthKey: string; newWrappedByPassword: string }) { return this.request<{ ok: true }>('/v1/auth/password', { method: 'POST', body: JSON.stringify(body) }) }
   logout() { return this.request<{ ok: true }>('/v1/auth/logout', { method: 'POST' }) }
   vault() { return this.request<VaultResponse | null>('/v1/vault') }

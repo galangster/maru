@@ -56,17 +56,17 @@ describe('Maru account cryptography', () => {
 })
 
 describe('Maru recovery phrase', () => {
-  it('roundtrips 128-bit entropy through 12 words', () => {
-    const phrase = generateRecoveryPhrase()
+  it('roundtrips 128-bit entropy through 12 words', async () => {
+    const phrase = await generateRecoveryPhrase()
     expect(phrase.split(' ')).toHaveLength(12)
-    expect(validateRecoveryPhrase(phrase)).toBe(true)
-    expect(recoveryPhraseFromEntropy(recoveryEntropy(phrase))).toBe(phrase)
+    expect(await validateRecoveryPhrase(phrase)).toBe(true)
+    expect(await recoveryPhraseFromEntropy(await recoveryEntropy(phrase))).toBe(phrase)
   })
 
-  it('rejects a phrase with the wrong checksum', () => {
-    const words = generateRecoveryPhrase().split(' ')
+  it('rejects a phrase with the wrong checksum', async () => {
+    const words = (await generateRecoveryPhrase()).split(' ')
     words[11] = words[11] === 'zoo' ? 'abandon' : 'zoo'
-    expect(validateRecoveryPhrase(words.join(' '))).toBe(false)
-    expect(() => recoveryEntropy(words.join(' '))).toThrow(/12 recovery words/u)
+    expect(await validateRecoveryPhrase(words.join(' '))).toBe(false)
+    await expect(recoveryEntropy(words.join(' '))).rejects.toThrow(/12 recovery words/u)
   })
 })

@@ -28,6 +28,7 @@ import type {
   ListThreadsOptions,
 } from '../types'
 import { threadKey } from '../types'
+import type { LocalCredential, VaultLocal } from './vault-port'
 import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_SETTINGS,
@@ -50,6 +51,7 @@ export class DemoMailService implements MailService {
    * be erased by the next `performAction` that touched the row.
    */
   private readonly deferrals = new Map<string, { wakeAt: number; setAt: number; wokeAt?: number }>()
+  private readonly accountCredentials = new Map<string, LocalCredential>()
   // `?images=block` is the capture door onto the blocking surface — see
   // imagePreview in lib/env. Demo-only, so it can never reach real mail.
   private settings: Settings = { ...DEFAULT_SETTINGS, ...(imagePreview ? { imagePolicy: imagePreview } : {}) }
@@ -382,6 +384,29 @@ export class DemoMailService implements MailService {
 
   async setSettings(patch: Partial<Settings>): Promise<void> {
     this.settings = { ...this.settings, ...patch }
+    this.emit({ type: 'settingsChanged' })
+  }
+
+  accountVaultLocal(setDirectedConsent?: (emails: string[]) => void): VaultLocal {
+    return {
+      getSettings: () => this.getSettings(),
+      setSettings: (patch) => this.setSettings(patch),
+      listAccounts: () => this.listAccounts(),
+      upsertAccount: async (account) => {
+        const index = this.accounts.findIndex((item) => item.id === account.id)
+        if (index === -1) this.accounts.push(account)
+        else this.accounts[index] = account
+        this.emit({ type: 'accountsChanged' })
+      },
+      removeAccount: (accountId) => this.removeAccount(accountId),
+      loadCredential: async (accountId) => this.accountCredentials.get(accountId) ?? null,
+      saveCredential: async (accountId, credential) => { this.accountCredentials.set(accountId, credential) },
+      clearCredential: async (accountId) => { this.accountCredentials.delete(accountId) },
+      setDirectedConsent,
+      newAccountId: () => crypto.randomUUID(),
+      now: () => this.now,
+      refreshAfterApply: () => this.refresh(),
+    }
   }
 }
 

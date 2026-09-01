@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AccountClient } from '../src/core/account/client'
 import { seal } from '../src/core/account/crypto'
@@ -23,6 +23,8 @@ describe('AccountSync', () => {
     session = new AccountSessionStore(platform)
     await session.save({ token: 'session-token', deviceId: 'device', accountId: 'account', email: 'nick@example.com' }, key)
   })
+
+  afterEach(() => vi.useRealTimers())
 
   const local = () => ({
     getSettings: async () => settings,
@@ -55,7 +57,11 @@ describe('AccountSync', () => {
     const client = new AccountClient(platform, 'https://sync.test', 'session-token')
     const sync = new AccountSync({ client, session, local: local() })
     await sync.pull()
-    expect(sync.currentState()).toEqual({ kind: 'signed_out', reason: 'revoked' })
+    expect(sync.currentState()).toEqual({
+      kind: 'signed_out',
+      reason: 'revoked',
+      message: 'This device was signed out remotely. Sign in again to resume sync.',
+    })
     expect(platform.secrets.has(ACCOUNT_SESSION_SECRET)).toBe(false)
     expect(platform.secrets.has(ACCOUNT_KEY_SECRET)).toBe(false)
   })
@@ -74,5 +80,65 @@ describe('AccountSync', () => {
     expect(sync.currentState()).toMatchObject({ kind: 'paused', reason: 'subscription_needed' })
     await sync.pull()
     expect(method).toBe('GET')
+  })
+
+  it('joins concurrent pulls and ignores scheduled pushes after stop', async () => {
+    vi.useFakeTimers()
+    platform.handler = () => new Response(null, { status: 204 })
+    const client = new AccountClient(platform, 'https://sync.test', 'session-token')
+    const sync = new AccountSync({ client, session, local: local(), debounceMs: 1 })
+    const first = sync.pull()
+    const second = sync.pull()
+    expect(second).toBe(first)
+    await first
+    sync.stop()
+    sync.schedulePush()
+    await vi.advanceTimersByTimeAsync(2)
+    expect(platform.requests).toHaveLength(1)
+  })
+
+  it('does not echo settings applied by a pull', async () => {
+    vi.useFakeTimers()
+    const remote = await seal(key, JSON.stringify(doc(2)), 'maru-vault-v1:1')
+    platform.handler = (request) => request.method === 'GET'
+      ? jsonResponse({ version: 1, ciphertext: remote, updatedAt: 2 })
+      : jsonResponse({ version: 2 })
+    const client = new AccountClient(platform, 'https://sync.test', 'session-token')
+    let sync: AccountSync
+    const vaultLocal = local()
+    vaultLocal.getSettings = async () => ({ ...settings, theme: 'light' })
+    vaultLocal.setSettings = async () => { sync.schedulePush() }
+    sync = new AccountSync({ client, session, local: vaultLocal, debounceMs: 1, pullIntervalMs: 60_000 })
+    await sync.start()
+    await vi.advanceTimersByTimeAsync(2)
+    sync.stop()
+    expect(platform.requests.map((request) => request.method)).toEqual(['GET'])
+  })
+
+  it('reuses cached credentials until account data changes', async () => {
+    let version = 0
+    platform.handler = () => jsonResponse({ version: ++version })
+    let credentialReads = 0
+    const vaultLocal = {
+      ...local(),
+      listAccounts: async () => [{
+        id: 'mail', email: 'nick@example.com', displayName: 'Nick', color: '#123', addedAt: 1,
+      }],
+      loadCredential: async () => {
+        credentialReads += 1
+        return { clientId: 'client', refreshToken: 'token', issuedAt: 1 }
+      },
+    }
+    const sync = new AccountSync({
+      client: new AccountClient(platform, 'https://sync.test', 'session-token'),
+      session,
+      local: vaultLocal,
+    })
+    await sync.push()
+    await sync.push()
+    expect(credentialReads).toBe(1)
+    sync.invalidateCredentialCache()
+    await sync.push()
+    expect(credentialReads).toBe(2)
   })
 })

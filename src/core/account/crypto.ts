@@ -1,4 +1,5 @@
-import { argon2id } from 'hash-wasm'
+import { base64UrlEncodeBytes, decodeBase64Url } from '../mime'
+import { normalizeEmail } from './vault'
 
 export const DEFAULT_KDF = { algo: 'argon2id', m: 65_536, t: 3, p: 4 } as const
 
@@ -12,20 +13,8 @@ export interface KdfParams {
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
-export function encodeBase64Url(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '')
-}
-
-export function decodeBase64Url(value: string): Uint8Array {
-  const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4)
-  const binary = atob(padded)
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
-}
-
 export async function accountSalt(email: string): Promise<Uint8Array> {
-  const input = encoder.encode(`maru-account-v1:${email.trim().toLowerCase()}`)
+  const input = encoder.encode(`maru-account-v1:${normalizeEmail(email)}`)
   return new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', input))
 }
 
@@ -35,6 +24,7 @@ export async function deriveMasterKey(
   params: KdfParams = DEFAULT_KDF,
 ): Promise<Uint8Array> {
   if (params.algo !== 'argon2id') throw new Error(`Unsupported KDF: ${params.algo}`)
+  const { argon2id } = await import('hash-wasm')
   return argon2id({
     password,
     salt: await accountSalt(email),
@@ -85,7 +75,7 @@ export async function seal(key: Uint8Array, plaintext: Uint8Array | string, aad:
     await aesKey(key),
     bytes.slice().buffer,
   )
-  return `m1.${encodeBase64Url(nonce)}.${encodeBase64Url(new Uint8Array(ciphertext))}`
+  return `m1.${base64UrlEncodeBytes(nonce)}.${base64UrlEncodeBytes(new Uint8Array(ciphertext))}`
 }
 
 export async function open(key: Uint8Array, value: string, aad: string): Promise<Uint8Array> {
