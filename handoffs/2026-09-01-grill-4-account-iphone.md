@@ -1,6 +1,6 @@
 # Handoff — 2026-09-01, grill 4: the account, the phone, and production
 
-Baseline `395608e` → **`4c2b2c7`** on `main`, pushed to `galangster/maru`.
+Baseline `395608e` → **`e737e70`** on `main`, pushed to `galangster/maru`.
 Working tree clean. **660 tests pass** (638 at the baseline), `tsc` clean,
 `vite build` clean; server: 34 tests, typecheck, build. Orchestrated by one
 Fable 5.1 session as planner and auditor; seven Codex `gpt-5.6-sol` lanes
@@ -108,15 +108,21 @@ worktree; use `git show rev:path > path`.
    end to end); then sign in to the Maru account from the real app.
 2. I3 and I4 as the console items land; A9 once Nick decides; dossier
    "frozen build" fields now name 0.1.8 (Nick).
-3. I2 polish: recipient chips in compose, VoiceOver and Dynamic Type pass.
+3. **I2 polish merged** (`8a5c15e`…`e74cb8e`): recipient chips with one
+   state machine shared with the desktop `ChipInput`, recipients read from
+   the compose store, correspondent suggestions from one hook, native
+   semantics instead of promised ARIA widgets, one live region, a type
+   scale on `font: -apple-system-body` with `*-large-text-light.png`
+   captures. 674 tests. Owed: a VoiceOver pass on a physical iPhone (the
+   Inspector audit does not complete against the WebView; queued for Nick).
 
 ## Opener for the next session
 
 ```
 Resume wren from handoffs/2026-09-01-grill-4-account-iphone.md. Main is at
 bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
-I5 and the A5 drill are done. Next: accept the 0.1.8 update on the installed
-app and sign in to the account from it; then the I2 polish pass (recipient
-chips, VoiceOver, Dynamic Type) unless a console item has landed for I3/I4. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
+I5, the A5 drill and the I2 polish are done. Next: the I3 client side that
+needs no client id (the ASWebAuthenticationSession plugin and the ios OAuth
+seam, placeholder id), then whatever console item has landed. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
 order: work autonomously.
 ```

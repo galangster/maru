@@ -48,7 +48,12 @@ These are the buttons only you can press, in the order they unblock work.
    vault? My recommendation is yes; the reasoning is in the ticket.
 8. **Second operator** (A8): the IAM item below still stands, and now also
    Railway (invite as member) and the registrar.
-9. **Which devices are in the beta** (Q24): I assumed one iPhone and this
+9. **VoiceOver on a real iPhone** (I2). The simulator's Accessibility
+   Inspector never completes its audit against the Tauri WebView, so the
+   phone's labels and focus order were verified from source and by touch
+   only. Ten minutes with VoiceOver on your iPhone (inbox, a thread, compose,
+   Settings → Maru account) once TestFlight exists; note anything unlabeled.
+10. **Which devices are in the beta** (Q24): I assumed one iPhone and this
    Mac. Tell me if there is a Windows machine or a second Mac.
 
 ## Blocking the submission path
