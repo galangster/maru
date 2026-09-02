@@ -25,13 +25,13 @@ These are the buttons only you can press, in the order they unblock work.
      `railway-verify=59aaf0a4962154688765b78d7e0065f31842840af28a616cf3a73dde3bafece0`
    Railway issues the certificate when it sees them. Until then the beta
    uses `https://sync-production-c0b0.up.railway.app`.
-3. **Google Cloud, three items** (A4, I3), all in `maru-mail-prod`:
-   - Pub/Sub → Create topic `gmail-push`. On the topic, grant
-     `gmail-api-push@system.gserviceaccount.com` the role Pub/Sub Publisher.
-   - Create a push subscription on it: endpoint
-     `https://sync.getmaru.app/v1/push/gmail`, "Enable authentication" with a
-     new service account `maru-push`, audience `maru-sync`. Tell me the
-     service account email.
+3. **Google Cloud** (A4, I3), in `maru-mail-prod`:
+   - ~~Pub/Sub topic, publisher grant, service account, OIDC push
+     subscription~~ — done 2026-09-01 by gcloud with your go-ahead; a real
+     Pub/Sub delivery reached the relay and got 204.
+   - **Second Owner**: IAM → Grant access → `galangsterr@gmail.com` → Owner →
+     Save, then accept the invite from that account. The API refuses this
+     for a consumer address, so it is the console only. Verify the double-r.
    - Credentials → Create OAuth client → type **iOS**, bundle
      `app.getmaru.ios`. Tell me the client id. **The phone side is built
      and proven** (2026-09-01): the id becomes
