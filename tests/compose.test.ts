@@ -7,6 +7,7 @@ import type { Attachment, EmailAddress } from '@/core/types'
 import {
   carriedAttachments,
   dedupeAddresses,
+  sendBlockReason,
   deriveRecipients,
   formatAddress,
   isEmail,
@@ -268,5 +269,31 @@ describe('carriedAttachments', () => {
 
   it('carries nothing when the message has no attachments', () => {
     expect(carriedAttachments({ id: 'm-9', attachments: [] }, 'forward', 'k')).toEqual([])
+  })
+})
+
+describe('sendBlockReason', () => {
+  it('names the missing recipient — the case a new person hits first', () => {
+    expect(sendBlockReason({ accountId: 'acct-1', to: [] })).toBe('Add a recipient to send')
+  })
+
+  it('names the missing account once there is somebody to send to', () => {
+    expect(sendBlockReason({ accountId: '', to: [A('maya@fernwood.dev')] })).toBe(
+      'Pick an account to send from',
+    )
+  })
+
+  it('is null when the mail can actually go', () => {
+    expect(sendBlockReason({ accountId: 'acct-1', to: [A('maya@fernwood.dev')] })).toBeNull()
+  })
+
+  it('always gives a sentence when it blocks, never a bare flag', () => {
+    for (const draft of [
+      { accountId: '', to: [] },
+      { accountId: 'acct-1', to: [] },
+      { accountId: '', to: [A('maya@fernwood.dev')] },
+    ]) {
+      expect(sendBlockReason(draft)?.length).toBeGreaterThan(0)
+    }
   })
 })

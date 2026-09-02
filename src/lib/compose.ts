@@ -253,6 +253,26 @@ export function carriedAttachments(
     }))
 }
 
+/** The subset of a draft the send gate reads. */
+export type SendGateSource = { accountId: string; to: EmailAddress[] }
+
+/**
+ * Why this draft cannot be sent yet, or null when it can.
+ *
+ * A sentence rather than a boolean, because a disabled control that does not
+ * say why is the one place in Maru that explains nothing (issue 7). The same
+ * string is the button's tooltip, the line beside it, and what a screen reader
+ * hears — one answer, not three.
+ *
+ * Recipients are asked about first: it is the case a person actually hits, and
+ * the account resolves itself the moment there is one to resolve.
+ */
+export function sendBlockReason(draft: SendGateSource): string | null {
+  if (draft.to.length === 0) return 'Add a recipient to send'
+  if (!draft.accountId) return 'Pick an account to send from'
+  return null
+}
+
 export const ATTACHMENT_WARN_BYTES = 20 * 1024 * 1024
 
 export function totalBytes(sizes: number[]): number {

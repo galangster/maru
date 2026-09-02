@@ -33,7 +33,12 @@ import { useAccounts } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { useUi } from '@/features/mail/ui-store'
 import { useAnyDialogOpen } from '@/features/shell/surface-store'
-import { ATTACHMENT_WARN_BYTES, totalBytes, type ReplyMode } from '@/lib/compose'
+import {
+  ATTACHMENT_WARN_BYTES,
+  sendBlockReason,
+  totalBytes,
+  type ReplyMode,
+} from '@/lib/compose'
 import { HeldMutations } from '@/lib/deferred'
 import { formatBytes } from '@/lib/format'
 import { MOD } from '@/features/keyboard/keymap'
@@ -157,7 +162,23 @@ function ComposerSheet() {
     [draft.attachments],
   )
   const tooLarge = attachedBytes > ATTACHMENT_WARN_BYTES
-  const canSend = Boolean(draft.accountId) && draft.to.length > 0
+
+  /**
+   * Why the mail cannot go yet, in a sentence — issue 7.
+   *
+   * The button is `aria-disabled` rather than `disabled` so it keeps its hover
+   * and its focus: a `disabled` button fires no pointer events, so the tooltip
+   * carrying the reason could never open on the one control that needs it.
+   * Pressing it, or pressing ⌘↵, is not swallowed either — it says the reason
+   * out loud and puts the caret where the answer goes.
+   */
+  const blocked = sendBlockReason(draft)
+  const toRef = useRef<HTMLInputElement>(null)
+  const [notice, setNotice] = useState('')
+  // The reason stops being true the moment it stops being true.
+  useEffect(() => {
+    if (!blocked) setNotice('')
+  }, [blocked])
 
   const title = draft.reply ? TITLES[draft.reply.mode] : 'New message'
 
@@ -175,7 +196,15 @@ function ComposerSheet() {
    * sheet is gone and the app is usable from 140 ms onward.
    */
   const send = () => {
-    if (!canSend || sending) return
+    if (sending) return
+    if (blocked) {
+      // Never a silent key. The sentence appears beside the button and the
+      // caret lands in the field that answers it.
+      setNotice(blocked)
+      playSound('error')
+      toRef.current?.focus()
+      return
+    }
     const payload = toComposeDraft(draft)
     const kept: Draft = draft
     setSending(true)
@@ -377,6 +406,7 @@ function ComposerSheet() {
         value={draft.to}
         onChange={(to) => edit({ to })}
         autoFocus
+        inputRef={toRef}
         trailing={
           showCc ? undefined : (
             <button
@@ -482,13 +512,20 @@ function ComposerSheet() {
           aria-label="Attach files"
           onChange={(event) => void addFiles(event.target.files)}
         />
-        <div className="flex-1" />
+        <div className="min-w-0 flex-1" />
+        {/* The reason, once the person has asked for it by pressing something.
+            Live, so it is heard as well as seen, and truncating rather than
+            wrapping because the footer is one 48 px band. */}
+        <p aria-live="polite" className="text-ink-2 min-w-0 truncate text-xs">
+          {notice}
+        </p>
         <Tooltip>
           <TooltipTrigger
             render={
               <PrimaryButton
                 onClick={send}
-                disabled={!canSend || sending}
+                disabled={sending}
+                aria-disabled={blocked !== null || undefined}
                 // The send celebration — AMIE-STUDY §7(c).3. The button *is*
                 // the celebration: its fill crossfades to the green solid over
                 // 120 ms, the arrow becomes a check, and it runs one gentle
@@ -503,7 +540,10 @@ function ComposerSheet() {
                     ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
                     : undefined
                 }
-                className={cn(SEND_BUTTON, sending && SEND_CONFIRM)}
+                // `aria-disabled`, not `disabled`: it reads as unavailable and
+                // keeps its pointer events, which is what lets the tooltip and
+                // the press explain themselves.
+                className={cn(SEND_BUTTON, 'aria-disabled:opacity-40', sending && SEND_CONFIRM)}
               />
             }
           >
@@ -516,8 +556,8 @@ function ComposerSheet() {
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <span>Send</span>
-            <TooltipHint>{MOD}↵</TooltipHint>
+            <span>{blocked ?? 'Send'}</span>
+            {!blocked && <TooltipHint>{MOD}↵</TooltipHint>}
           </TooltipContent>
         </Tooltip>
       </footer>

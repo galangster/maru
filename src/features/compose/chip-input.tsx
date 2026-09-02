@@ -30,11 +30,24 @@ export interface ChipInputProps {
   autoFocus?: boolean
   /** Rendered at the end of the row — the "Cc Bcc" affordance on To. */
   trailing?: React.ReactNode
+  /**
+   * A handle on the text input, so a surface outside the field can put the
+   * caret in it — the composer pointing at an empty To when Send is blocked.
+   */
+  inputRef?: React.RefObject<HTMLInputElement | null>
 }
 
-export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipInputProps) {
+export function ChipInput({
+  label,
+  value,
+  onChange,
+  autoFocus,
+  trailing,
+  inputRef: externalRef,
+}: ChipInputProps) {
   const [state, setState] = useState(recipientChipState)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const ownRef = useRef<HTMLInputElement>(null)
+  const inputRef = externalRef ?? ownRef
   const id = useId()
 
   const dispatch = (action: RecipientChipAction) => {
