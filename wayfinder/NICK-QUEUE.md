@@ -19,12 +19,11 @@ These are the buttons only you can press, in the order they unblock work.
    secret. Turn on Stripe Tax; register where Stripe says you must.
    **Price is set: $5/month, $50/year, 14-day trial.** Say so if you want
    it moved before a stranger sees it.
-2. **The domain** (A5). At GoDaddy add two records, then nothing else:
-   - CNAME, name `sync`, value `71w6pmej.up.railway.app`
-   - TXT, name `_railway-verify.sync`, value
-     `railway-verify=59aaf0a4962154688765b78d7e0065f31842840af28a616cf3a73dde3bafece0`
-   Railway issues the certificate when it sees them. Until then the beta
-   uses `https://sync-production-c0b0.up.railway.app`.
+2. ~~**The domain** (A5)~~ — done 2026-09-01 by the agent in your GoDaddy
+   session: CNAME `sync` → `71w6pmej.up.railway.app` and the
+   `_railway-verify.sync` TXT. Railway issues the certificate once DNS
+   propagates (up to an hour); the agent flips the Pub/Sub endpoint and the
+   client base URL to `sync.getmaru.app` after that.
 3. **Google Cloud** (A4, I3), in `maru-mail-prod`:
    - ~~Pub/Sub topic, publisher grant, service account, OIDC push
      subscription~~ — done 2026-09-01 by gcloud with your go-ahead; a real
@@ -40,8 +39,9 @@ These are the buttons only you can press, in the order they unblock work.
    one click: App ID `app.getmaru.ios` registered with Push; APNs key
    `T89G5MWVBQ` created (Production, topic-specific); App Store Connect
    record **"Maru Mail"** created ("Maru" is taken on the App Store).
-   **Your click: download the key.** On the key's page press Download
-   (`AuthKey_T89G5MWVBQ.p8`, downloads once), then run from the repo:
+   ~~Your click: download the key~~ — downloaded 2026-09-01 to
+   `~/Downloads/AuthKey_T89G5MWVBQ.p8` (257 bytes). **Run this once from
+   the repo** (the key is a secret the agent will not handle):
    `railway variables --service sync --set "APNS_KEY_P8=$(cat ~/Downloads/AuthKey_T89G5MWVBQ.p8)"`
    and move the file to `ops/apple/` (gitignored). TestFlight internal
    group comes with the first build upload.
