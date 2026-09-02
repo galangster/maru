@@ -18,6 +18,11 @@ const SEARCH_HINT_ID = 'mobile-search-gesture-hint'
  * issue 15 — no swipe, no star, no long press, no unread dot — and search is
  * the one list on the phone that reaches archived, sent and deferred mail, so
  * it was the list that could act on the mail nothing else could reach.
+ *
+ * It is also the one list whose rows are not all in the same place, which is
+ * why each row resolves its own verbs (`thread-actions.ts`) rather than the
+ * screen resolving them once: a result set holds inbox mail, archived mail,
+ * sent mail and trashed mail at the same time.
  */
 export function SearchScreen({
   onOpen,
@@ -76,7 +81,7 @@ export function SearchScreen({
                 thread={thread}
                 model={model}
                 onOpen={() => onOpen(thread.key)}
-                onArchive={() => onAct([thread.key], 'archive')}
+                onRemove={(type) => onAct([thread.key], type)}
                 onLater={() => onLater([deferTarget(thread)])}
                 onContext={() => onContext(thread)}
                 onStar={() => onStar(thread)}
@@ -85,7 +90,7 @@ export function SearchScreen({
           </div>
         )}
       </div>
-      <p className="sr-only" id={SEARCH_HINT_ID}>Swipe right to archive or left to save for later. Long press for more actions.</p>
+      <p className="sr-only" id={SEARCH_HINT_ID}>Swipe right to archive, or to restore from Trash. Swipe left to save for later. Long press for more actions.</p>
     </section>
   )
 }

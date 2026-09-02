@@ -24,32 +24,51 @@ import {
   type DeferTarget,
   type MobileRowModel,
 } from '../state'
+import { REMOVE_ACTION_CHROME, batchActions, type MobileThreadActions } from '../thread-actions'
 import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
 const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
 
+/** One button of the Edit bar. `later` is not a `BulkActionType` and never
+ *  will be — `runBatchDefer` is `runBatchAction`'s sibling, not a member of
+ *  it — so it is spelled out here rather than smuggled through as `null`. */
+interface BulkVerb {
+  verb: BulkActionType | 'later'
+  icon: IconName
+  label: string
+  /** Whether the verb would do anything to every conversation checked. */
+  available: boolean
+}
+
 /**
- * The Edit bar, in the order the thumb reads it.
+ * The Edit bar, in the order the thumb reads it, for the batch that is checked.
  *
- * The four verbs are typed `BulkActionType`, so bulk.ts decides what a batch
- * may take and a verb it refuses will not compile here — Star included, and
- * bulk.ts says why it is refused. Later is `null` rather than a sixth verb
- * because it is not one: `runBatchDefer` is `runBatchAction`'s sibling and not
- * a member of it, so Later leaves through `onLater` carrying each
- * conversation's prior wake time with it.
+ * A function of the batch rather than a constant, because three of the five
+ * verbs depend on where the conversations are. In Trash, Archive is Move to
+ * Inbox and Trash itself does nothing; in Sent, neither Archive nor Later
+ * means anything unless the conversation is also in the inbox. The bar used to
+ * offer all five everywhere and report success for all five (issue 48).
+ *
+ * The types stay `BulkActionType`, so bulk.ts still decides what a batch may
+ * take and a verb it refuses will not compile — Star included.
  *
  * There is no "Done" here either. Edit's own control in the nav row already
  * says Done, and the room a duplicate would take is what Trash, Read and
  * Unread now use.
  */
-const BULK_BAR: readonly { type: BulkActionType | null; icon: IconName; label: string }[] = [
-  { type: 'archive', icon: 'archive', label: 'Archive' },
-  { type: null, icon: 'calendar', label: 'Later' },
-  { type: 'trash', icon: 'trash', label: 'Trash' },
-  { type: 'markRead', icon: 'read', label: 'Read' },
-  { type: 'markUnread', icon: 'unread', label: 'Unread' },
-]
+function bulkVerbs(batch: MobileThreadActions): readonly BulkVerb[] {
+  // The fallback names the button while nothing is checked, where every verb
+  // is disabled anyway and "Archive" is the honest thing for the bar to read.
+  const remove = REMOVE_ACTION_CHROME[batch.remove ?? 'archive']
+  return [
+    { verb: batch.remove ?? 'archive', icon: remove.icon, label: remove.label, available: batch.remove !== null },
+    { verb: 'later', icon: 'calendar', label: 'Later', available: batch.defer },
+    { verb: 'trash', icon: 'trash', label: 'Trash', available: batch.trash },
+    { verb: 'markRead', icon: 'read', label: 'Read', available: true },
+    { verb: 'markUnread', icon: 'unread', label: 'Unread', available: true },
+  ]
+}
 
 interface InboxRow {
   thread: Thread
@@ -219,6 +238,9 @@ export function InboxScreen({
   // the same — whatever leaves the list leaves the selection with it — rather
   // than one of them clearing up after itself and the other not.
   const selectedRows = rows.filter((row) => selected.has(row.thread.key))
+  // What the whole batch will accept, resolved the same way each row resolves
+  // its own swipes — the intersection over the conversations checked.
+  const batch = batchActions(selectedRows.map((row) => row.thread))
 
   return (
     <section className="mobile-screen" aria-label={title} hidden={paused}>
@@ -311,7 +333,7 @@ export function InboxScreen({
                     selected={selected.has(row.thread.key)}
                     onSelect={() => toggle(row.thread.key)}
                     onOpen={() => onOpen(row.thread.key)}
-                    onArchive={() => onAct([row.thread.key], 'archive')}
+                    onRemove={(type) => onAct([row.thread.key], type)}
                     onLater={() => onLater([deferTarget(row.thread)])}
                     onContext={() => onContext(row.thread)}
                     onStar={() => onStar(row.thread)}
@@ -322,19 +344,19 @@ export function InboxScreen({
           </div>
         )}
       </div>
-      <p className="sr-only" id={SWIPE_HINT_ID}>Swipe right to archive or left to save for later. Long press for more actions.</p>
+      <p className="sr-only" id={SWIPE_HINT_ID}>Swipe right to archive, or to restore from Trash. Swipe left to save for later. Long press for more actions.</p>
 
       {editing && (
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-          {BULK_BAR.map((verb) => (
+          {bulkVerbs(batch).map((verb) => (
             <button
-              key={verb.label}
+              key={verb.verb}
               type="button"
-              disabled={selectedRows.length === 0}
+              disabled={selectedRows.length === 0 || !verb.available}
               onClick={() =>
-                verb.type === null
+                verb.verb === 'later'
                   ? onLater(selectedRows.map((row) => deferTarget(row.thread)))
-                  : onAct(selectedRows.map((row) => row.thread.key), verb.type)
+                  : onAct(selectedRows.map((row) => row.thread.key), verb.verb)
               }
             >
               <MobileIcon name={verb.icon} scale="action" /><span>{verb.label}</span>

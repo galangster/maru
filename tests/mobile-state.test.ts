@@ -23,6 +23,12 @@ import {
   type MobileTab,
 } from '@/mobile/state'
 import {
+  REMOVE_ACTION_CHROME,
+  batchActions,
+  swipeRange,
+  threadActions,
+} from '@/mobile/thread-actions'
+import {
   SCROLL_RESTORE_FRAMES,
   SCROLL_RESTORE_TOLERANCE_PX,
   shouldReassert,
@@ -391,5 +397,86 @@ describe('mobileRowLabel', () => {
 
   it('counts a conversation of more than one message', () => {
     expect(mobileRowLabel({ ...model, messageCount: 2 })).toContain('2 messages')
+  })
+})
+
+/**
+ * What the phone's three triage verbs mean, per conversation.
+ *
+ * Issue 48: every list sent `archive` whatever it was drawing, so Sent and
+ * Trash reported "Archived" with an Undo and changed nothing anywhere, and
+ * saving for later reported a wake time for a conversation that could never
+ * appear in Later — `threadMatchesView` says a deferral is about the INBOX and
+ * nothing else.
+ */
+describe('mobile thread actions', () => {
+  const inboxed = thread({ labelIds: ['INBOX', 'UNREAD'] })
+  const sent = thread({ key: 'account/sent-1', labelIds: ['SENT'] })
+  const sentAndInboxed = thread({ key: 'account/sent-2', labelIds: ['SENT', 'INBOX'] })
+  const trashed = thread({ key: 'account/trash-1', labelIds: ['TRASH'] })
+  const trashedFromInbox = thread({ key: 'account/trash-2', labelIds: ['TRASH', 'INBOX'] })
+  const archived = thread({ key: 'account/archived-1', labelIds: [] })
+
+  it('archives a conversation that is in the inbox', () => {
+    expect(threadActions(inboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
+  })
+
+  it('restores a trashed conversation instead of archiving it', () => {
+    expect(threadActions(trashed)).toEqual({ remove: 'untrash', defer: false, trash: false })
+  })
+
+  it('gives TRASH the precedence the view rules give it', () => {
+    // A thread trashed out of the inbox keeps its INBOX label, and
+    // `threadMatchesView` still shows it only in Trash. Archiving it would
+    // strip a label nothing reads and leave it exactly where it was.
+    expect(threadActions(trashedFromInbox)).toEqual({ remove: 'untrash', defer: false, trash: false })
+  })
+
+  it('offers nothing to put away on sent mail that is not in the inbox', () => {
+    expect(threadActions(sent)).toEqual({ remove: null, defer: false, trash: true })
+  })
+
+  it('archives sent mail that IS in the inbox', () => {
+    // A thread you replied to carries SENT and INBOX at once, which is why the
+    // rule reads the conversation and not the mailbox on screen.
+    expect(threadActions(sentAndInboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
+  })
+
+  it('offers nothing to put away on mail that is already archived', () => {
+    expect(threadActions(archived)).toEqual({ remove: null, defer: false, trash: true })
+  })
+
+  it('takes the intersection over a batch, never the majority', () => {
+    // One batch is one action, one confirmation and one undo (bulk.ts). A
+    // mixed selection has no single verb, so it is offered none.
+    expect(batchActions([inboxed, trashed]).remove).toBeNull()
+    expect(batchActions([inboxed, sent]).remove).toBeNull()
+    expect(batchActions([inboxed, sent]).defer).toBe(false)
+    expect(batchActions([inboxed, sentAndInboxed])).toEqual({
+      remove: 'archive',
+      defer: true,
+      trash: true,
+    })
+    expect(batchActions([trashed, trashedFromInbox]).remove).toBe('untrash')
+  })
+
+  it('offers nothing over an empty batch', () => {
+    expect(batchActions([])).toEqual({ remove: null, defer: false, trash: false })
+  })
+
+  it('names each removing verb once, for the control and for the strip', () => {
+    expect(REMOVE_ACTION_CHROME.archive.label).toBe('Archive')
+    expect(REMOVE_ACTION_CHROME.untrash.label).toBe('Move to Inbox')
+    // Short enough for the strip behind a row, where the glyph takes the rest.
+    expect(REMOVE_ACTION_CHROME.untrash.swipe.length).toBeLessThanOrEqual(8)
+  })
+
+  it('lets a row travel only where there is an action behind it', () => {
+    // The strip under a row IS the promise. A row that slides open over an
+    // action it will not take tells the same lie as the toast, one second
+    // earlier.
+    expect(swipeRange(threadActions(inboxed), 104)).toEqual({ min: -104, max: 104 })
+    expect(swipeRange(threadActions(trashed), 104)).toEqual({ min: 0, max: 104 })
+    expect(swipeRange(threadActions(sent), 104)).toEqual({ min: 0, max: 0 })
   })
 })

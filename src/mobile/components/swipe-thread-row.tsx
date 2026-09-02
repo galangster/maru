@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { memo, useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import type { Thread } from '@/core/types'
 import { MobileIcon } from './mobile-icon'
@@ -9,6 +9,7 @@ import {
   resolveSwipeIntent,
   type MobileRowModel,
 } from '../state'
+import { REMOVE_ACTION_CHROME, swipeRange, threadActions, type RemoveAction } from '../thread-actions'
 import { usePointerDrag } from '../use-pointer-drag'
 import { useThresholdTick } from '../use-threshold-tick'
 
@@ -23,23 +24,32 @@ interface SwipeThreadRowProps {
   selected?: boolean
   onSelect?: () => void
   onOpen: () => void
-  onArchive: () => void
+  /** Put it away, whatever that means here — `threadActions` decides which. */
+  onRemove: (type: RemoveAction) => void
   onLater: () => void
   onContext: () => void
   onStar: () => void
 }
 
 export const SwipeThreadRow = memo(function SwipeThreadRow({
+  thread,
   model,
   editing = false,
   selected = false,
   onSelect = NOT_SELECTABLE,
   onOpen,
-  onArchive,
+  onRemove,
   onLater,
   onContext,
   onStar,
 }: SwipeThreadRowProps) {
+  // The row resolves its own verbs off the conversation it is drawing, rather
+  // than being told them: every list that draws this row — the inbox, Sent,
+  // Trash, Later, a label, search results — would otherwise need the same rule
+  // written into it, and search is the list that mixes all of them in one set.
+  const actions = useMemo(() => threadActions(thread), [thread])
+  const range = swipeRange(actions, SWIPE_OFFSET_LIMIT)
+  const removeChrome = REMOVE_ACTION_CHROME[actions.remove ?? 'archive']
   const [offset, setOffset] = useState(0)
   const [settling, setSettling] = useState(true)
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -84,7 +94,7 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
         tick.prepare()
       }
       setSettling(false)
-      const next = Math.max(-SWIPE_OFFSET_LIMIT, Math.min(SWIPE_OFFSET_LIMIT, dx))
+      const next = Math.max(range.min, Math.min(range.max, dx))
       setOffset(next)
       // The tap at the threshold, on the way out only: this is the moment the
       // action behind the row becomes the thing that will happen, and a thumb
@@ -97,8 +107,11 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
       const intent = resolveSwipeIntent(dx, dy)
       if (intent) suppressClick.current = true
       settle()
-      if (intent === 'archive') onArchive()
-      if (intent === 'later') onLater()
+      // Gated on the same two facts the travel was: a direction that could not
+      // move cannot have reached its threshold, and this is the second half of
+      // that promise rather than a second opinion about it.
+      if (intent === 'archive' && actions.remove) onRemove(actions.remove)
+      if (intent === 'later' && actions.defer) onLater()
     },
     // A tap, a scroll, or WebKit taking the gesture. None of them committed to
     // anything, so the row goes back the way it came.
@@ -135,8 +148,8 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
 
   return (
     <div className="mobile-swipe-row">
-      <div className="mobile-swipe-action is-archive"><MobileIcon name="archive" scale="large" /><span>Archive</span></div>
-      <div className="mobile-swipe-action is-later"><MobileIcon name="calendar" scale="large" /><span>Later</span></div>
+      {actions.remove && <div className="mobile-swipe-action is-archive"><MobileIcon name={removeChrome.icon} scale="large" /><span>{removeChrome.swipe}</span></div>}
+      {actions.defer && <div className="mobile-swipe-action is-later"><MobileIcon name="calendar" scale="large" /><span>Later</span></div>}
       <button
         type="button"
         className={`mobile-thread-row${model.unread ? ' is-unread' : ''}${selected ? ' is-selected' : ''}${settling ? ' is-settling' : ''}`}

@@ -15,6 +15,7 @@ import {
 import { runBatchAction, runBatchDefer, type BulkActionType } from '@/features/list/bulk'
 import { usePush } from '@/features/notifications/use-push'
 import { labelNameFor } from '@/features/mail/mailbox-title'
+import { UNDO_LABELS, announcesItself } from '@/lib/undo'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { viewOverride } from '@/lib/env'
@@ -124,7 +125,13 @@ export function MobileApp() {
     perform.mutate(action)
     // The archive haptic rides usePerformAction with the completion sound, so
     // every surface gets it and a bulk archive stays one tap.
-    if (type === 'archive') announce('Archived')
+    //
+    // Spoken for every action that takes the conversation out of the list, in
+    // the words the visible toast is already using: `announcesItself` is the
+    // desktop's own rule and `UNDO_LABELS` its own vocabulary, so restoring
+    // from Trash says "Moved to Inbox" out loud rather than nothing at all,
+    // and the eye and the ear cannot be given two different sentences.
+    if (announcesItself(type)) announce(UNDO_LABELS[type])
   }
   /**
    * One verb over a list of conversations — a swipe over one, or the Edit
@@ -200,7 +207,7 @@ export function MobileApp() {
             backLabel={navigation.tab === 'inbox' ? mailboxName : MOBILE_TAB_CHROME[navigation.tab].label}
             onBack={() => dispatch({ type: 'back' })}
             onReply={replyTo}
-            onArchive={(key) => { actMany([key], 'archive'); dispatch({ type: 'back' }) }}
+            onRemove={(key, type) => { actMany([key], type); dispatch({ type: 'back' }) }}
             onLater={(target) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets: [target] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
             onLabels={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'labels', thread } })}
@@ -275,7 +282,7 @@ export function MobileApp() {
           onMove={() => dispatch({ type: 'openSheet', sheet: { kind: 'move', thread: sheet.thread } })}
         />
       )}
-      {sheet?.kind === 'move' && <MoveSheet onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
+      {sheet?.kind === 'move' && <MoveSheet thread={sheet.thread} onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
       {sheet?.kind === 'pushAccount' && <PushAccountSheet onClose={closeSheet} onAccount={openAccount} />}
       <SyncAnnouncer accounts={accounts} announce={announce} />
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
