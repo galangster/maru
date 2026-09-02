@@ -1,6 +1,6 @@
 # Handoff — 2026-09-01, grill 4: the account, the phone, and production
 
-Baseline `395608e` → **`e737e70`** on `main`, pushed to `galangster/maru`.
+Baseline `395608e` → **`2839c74`** on `main`, pushed to `galangster/maru`.
 Working tree clean. **660 tests pass** (638 at the baseline), `tsc` clean,
 `vite build` clean; server: 34 tests, typecheck, build. Orchestrated by one
 Fable 5.1 session as planner and auditor; seven Codex `gpt-5.6-sol` lanes
@@ -113,16 +113,34 @@ worktree; use `git show rev:path > path`.
    the compose store, correspondent suggestions from one hook, native
    semantics instead of promised ARIA widgets, one live region, a type
    scale on `font: -apple-system-body` with `*-large-text-light.png`
-   captures. 674 tests. Owed: a VoiceOver pass on a physical iPhone (the
-   Inspector audit does not complete against the WebView; queued for Nick).
+   captures. Owed: a VoiceOver pass on a physical iPhone (the Inspector
+   audit does not complete against the WebView; queued for Nick).
+4. **I3 client side merged** (`a15c876`…`2839c74`): a Tauri iOS plugin
+   wrapping `ASWebAuthenticationSession`, one auth strategy chosen before
+   the flow (loopback on desktop, auth session on iOS), the `ios` credential
+   family threaded from one seam, no cross-family erasure on push (found by
+   review, fixed with tests), the iOS client id as a build input
+   (`VITE_MARU_IOS_GOOGLE_CLIENT_ID`, placeholder keeps the phone in demo),
+   the URL scheme derived from it in one module. Proven on the simulator:
+   the sheet presents on accounts.google.com (Google's invalid_client page
+   with the placeholder), cancel reads "Sign-in cancelled", no crash. 685
+   tests. **What I3 still needs from Nick: the iOS OAuth client id.** Then
+   set the variable, rebuild, and the phone signs in to Gmail.
+5. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
+   of the day (resets 2026-09-06 19:28 PT). Two lanes died mid-run; both
+   were sealed from the orchestrator after re-running the gates, and the
+   simulator proofs ran on Claude Opus subagents. Memory
+   `codex-usage-limit-2026-09` records it.
 
 ## Opener for the next session
 
 ```
 Resume wren from handoffs/2026-09-01-grill-4-account-iphone.md. Main is at
 bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
-I5, the A5 drill and the I2 polish are done. Next: the I3 client side that
-needs no client id (the ASWebAuthenticationSession plugin and the ios OAuth
-seam, placeholder id), then whatever console item has landed. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
+I5, the A5 drill, the I2 polish and I3's client side are done. Everything
+left on maps 4 and 5 waits on an owner item (iOS client id, APNs key,
+Pub/Sub, Stripe, DNS, A9) — check wayfinder/NICK-QUEUE.md for what landed
+and do that first; Codex is out of credits until 2026-09-06, so lanes run
+on Opus subagents until then. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
 order: work autonomously.
 ```

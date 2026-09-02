@@ -33,7 +33,10 @@ These are the buttons only you can press, in the order they unblock work.
      new service account `maru-push`, audience `maru-sync`. Tell me the
      service account email.
    - Credentials → Create OAuth client → type **iOS**, bundle
-     `app.getmaru.ios`. Tell me the client id.
+     `app.getmaru.ios`. Tell me the client id. **The phone side is built
+     and proven** (2026-09-01): the id becomes
+     `VITE_MARU_IOS_GOOGLE_CLIENT_ID` at build time and Gmail sign-in on
+     the iPhone turns on; nothing else changes.
 4. **Apple, two items** (A4, I6): Certificates → Keys → create an APNs key
    for team 2M8UE59WH7 and give me the `.p8` and its key id (put the file in
    `ops/apple/` locally, never in git); in App Store Connect create the app
