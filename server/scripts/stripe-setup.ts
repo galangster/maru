@@ -38,3 +38,28 @@ const monthly = await ensurePrice("maru_sync_monthly", 500, "month");
 const yearly = await ensurePrice("maru_sync_yearly", 5_000, "year");
 console.log(`STRIPE_PRICE_MONTHLY=${monthly}`);
 console.log(`STRIPE_PRICE_YEARLY=${yearly}`);
+
+// The webhook endpoint for spec §12. Stripe returns the signing secret only
+// at creation, so it is printed once here and never again; re-running finds
+// the endpoint by URL and prints nothing for it.
+const webhookUrl = process.env.MARU_WEBHOOK_URL ?? "https://sync.getmaru.app/v1/billing/webhook";
+const webhookEvents: Stripe.WebhookEndpointCreateParams.EnabledEvent[] = [
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "invoice.paid",
+  "invoice.payment_failed",
+];
+const endpoints = await stripe.webhookEndpoints.list({ limit: 100 });
+const endpoint = endpoints.data.find((item) => item.url === webhookUrl);
+if (endpoint) {
+  console.log(`# webhook endpoint exists: ${endpoint.id} (${webhookUrl}); its secret is only shown at creation`);
+} else {
+  const created = await stripe.webhookEndpoints.create({
+    url: webhookUrl,
+    enabled_events: webhookEvents,
+    description: "Maru sync relay (spec §12)",
+  }, { idempotencyKey: `maru-webhook-${webhookUrl}` });
+  console.log(`STRIPE_WEBHOOK_SECRET=${created.secret ?? ""}`);
+}

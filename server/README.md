@@ -94,7 +94,10 @@ STRIPE_SECRET_KEY=sk_... node --import tsx scripts/stripe-setup.ts
 ```
 
 The script uses the lookup keys `maru_sync_monthly` and
-`maru_sync_yearly`. It prints the two price environment lines. Configure the
+`maru_sync_yearly`. It prints the two price environment lines, and creates
+the `/v1/billing/webhook` endpoint with the six §12 events, printing
+`STRIPE_WEBHOOK_SECRET` once (Stripe shows a signing secret only at creation;
+`MARU_WEBHOOK_URL` overrides the URL for a staging run). Configure the
 Stripe webhook to send the events listed in spec section 12 to
 `/v1/billing/webhook`.
 
