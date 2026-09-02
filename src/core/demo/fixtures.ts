@@ -162,7 +162,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 0,
     id: 'p-cabin',
     subject: 'Cabin weekend — dates?',
-    labels: ['INBOX'],
+    labels: ['INBOX', 'Label_travel'],
     messages: [
       reply(JULES, [ME_PERSONAL, SAM], 12, 11, 'The cabin is free the second and fourth weekends of next month.', 'Second weekend suits me better but I can flex.'),
       reply(SAM, [JULES, ME_PERSONAL], 12, 14, 'Fourth for me — I am at the print fair on the second.'),
@@ -175,7 +175,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 0,
     id: 'p-mum',
     subject: 'Photos from the weekend',
-    labels: ['INBOX', 'STARRED'],
+    labels: ['INBOX', 'STARRED', 'Label_family'],
     messages: [
       {
         from: MUM,
@@ -241,7 +241,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 0,
     id: 'p-flight',
     subject: 'Your Alderfly Air itinerary — SFO to PDX',
-    labels: ['INBOX', 'STARRED'],
+    labels: ['INBOX', 'STARRED', 'Label_travel'],
     messages: [
       {
         from: A('Alderfly Air', 'no-reply@alderflyair.example'),
@@ -270,7 +270,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 0,
     id: 'p-order',
     subject: 'Order HS-40812 has shipped',
-    labels: ['INBOX'],
+    labels: ['INBOX', 'Label_receipts'],
     messages: [
       {
         from: A('Harlow Supply', 'orders@harlowsupply.example'),
@@ -299,7 +299,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 0,
     id: 'p-bank',
     subject: 'Statement ready — Northshore Bank',
-    labels: ['INBOX'],
+    labels: ['INBOX', 'Label_receipts'],
     messages: [
       {
         from: A('Northshore Bank', 'alerts@northshorebank.example'),
@@ -315,7 +315,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 0,
     id: 'p-gym',
     subject: 'Membership renews on the 1st',
-    labels: ['INBOX', 'UNREAD'],
+    labels: ['INBOX', 'UNREAD', 'Label_receipts'],
     messages: [
       reply(A('Ridgeline Gym', 'hello@ridgelinegym.example'), [ME_PERSONAL], 3, 7, 'Your membership renews on the 1st at the current rate.', 'Nothing to do unless you want to change plan.'),
     ],
@@ -488,7 +488,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 1,
     id: 'w-quarterly',
     subject: 'Quarterly review — draft agenda',
-    labels: ['INBOX', 'UNREAD'],
+    labels: ['INBOX', 'UNREAD', 'Label_reviews'],
     messages: [
       reply(TOM, [ME_WORK, HANI], 1, 9, 'Draft agenda attached to the doc. Two open questions on hiring.', 'Can you take the platform section?'),
       reply(HANI, [TOM, ME_WORK], 1, 10, 'I can cover the incident review if that helps.'),
@@ -498,7 +498,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 1,
     id: 'w-onboarding',
     subject: 'Onboarding doc needs a second pass',
-    labels: ['INBOX'],
+    labels: ['INBOX', 'Label_hiring'],
     messages: [
       reply(HANI, [ME_WORK], 3, 14, 'The setup section drifted. Half of it references the old CLI.'),
       reply(ME_WORK, [HANI], 3, 16, 'I will rewrite it Thursday. Do you have the new flags list?'),
@@ -537,7 +537,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 1,
     id: 'w-design-review',
     subject: 'Design review: settings surface',
-    labels: ['INBOX'],
+    labels: ['INBOX', 'Label_reviews'],
     messages: [
       reply(MAYA, [ME_WORK, DEV], 6, 10, 'Two options in the file. Option B collapses the account block.', 'I lean B, but it costs us a click on the common path.'),
       reply(ME_WORK, [MAYA, DEV], 6, 11, 'B, but promote the signed-in account to the header so the click is not lost.'),
@@ -613,7 +613,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 1,
     id: 'w-hiring',
     subject: 'Candidate debrief — backend',
-    labels: ['INBOX'],
+    labels: ['INBOX', 'Label_hiring'],
     messages: [
       reply(TOM, [ME_WORK, HANI], 27, 16, 'Debrief notes are in. Strong on systems, thin on testing habits.', 'I would still say hire, with a clear ramp plan.'),
       reply(ME_WORK, [TOM, HANI], 27, 17, 'Agreed. I will write the ramp plan before the offer goes out.'),
@@ -727,7 +727,7 @@ export const THREAD_SPECS: ThreadSpec[] = [
     account: 0,
     id: 'p-podcast',
     subject: 'That episode you mentioned',
-    labels: ['INBOX'],
+    labels: ['INBOX', 'Label_family'],
     messages: [
       reply(SAM, [ME_PERSONAL], 37, 20, 'Found it — the one about the bridge engineers. Second half is the good half.'),
       reply(ME_PERSONAL, [SAM], 36, 8, 'Listening on the drive up. Thanks.'),
@@ -781,6 +781,17 @@ export interface DemoData {
 }
 
 const SYSTEM_LABELS = ['INBOX', 'SENT', 'TRASH', 'STARRED', 'UNREAD', 'DRAFT', 'IMPORTANT']
+
+/**
+ * The user labels each demo account offers.
+ *
+ * **Every one of them has threads behind it, and must keep having them.** The
+ * demo is the only way to see Maru without connecting a Gmail account, so a
+ * label declared here and attached to nothing makes the label lens, the
+ * coloured chips, the picker and the `label:` operator all look like features
+ * that do nothing (issue 4). The ids appear in THREAD_SPECS' `labels` arrays;
+ * tests/demo.test.ts fails if a label is left empty.
+ */
 const USER_LABELS: Record<string, { id: string; name: string }[]> = {
   'demo-personal': [
     { id: 'Label_travel', name: 'Travel' },
@@ -880,7 +891,7 @@ export function buildExtraAccount(now = Date.now()): {
       account: 0,
       id: 's-brief',
       subject: 'Brief for the Quillfield rebrand',
-      labels: ['INBOX', 'UNREAD'],
+      labels: ['INBOX', 'UNREAD', 'Label_clients'],
       messages: [
         reply(ROSA, [A('Nick Galang', DEMO_EXTRA_ACCOUNT.email)], 1, 10, 'Brief attached in the doc. Two weeks for a first pass?'),
       ],
@@ -889,7 +900,7 @@ export function buildExtraAccount(now = Date.now()): {
       account: 0,
       id: 's-invoice',
       subject: 'Invoice 2026-041 paid',
-      labels: ['INBOX'],
+      labels: ['INBOX', 'Label_clients'],
       messages: [
         reply(A('Quillfield Studio', 'accounts@quillfield.example'), [A('Nick Galang', DEMO_EXTRA_ACCOUNT.email)], 4, 8, 'Invoice 2026-041 has been paid. Remittance attached.'),
       ],
@@ -898,7 +909,7 @@ export function buildExtraAccount(now = Date.now()): {
       account: 0,
       id: 's-sent-scope',
       subject: 'Scope and rates',
-      labels: ['SENT'],
+      labels: ['SENT', 'Label_clients'],
       messages: [
         reply(A('Nick Galang', DEMO_EXTRA_ACCOUNT.email), [ROSA], 6, 16, 'Scope, rates and availability in one place.', SIGN_OFF),
       ],
