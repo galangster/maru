@@ -35,7 +35,7 @@ import { bulkAction, isBulkAction } from '@/features/list/bulk'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
-import { announcesItself, LEAVES_THE_LIST, UNDO_LABELS } from '@/lib/undo'
+import { announcesItself, LEAVES_THE_LIST } from '@/lib/undo'
 
 import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
 
@@ -82,13 +82,13 @@ export function useShortcuts() {
       // Every triage key is a deliberate press, so every one is undoable. The
       // two that remove a thread from view also say so out loud, because the
       // keyboard path has no row animation to stand in for the confirmation.
-      const undoId = registerActionUndo(action.mutate, next)
+      const entry = registerActionUndo(action.mutate, next)
       // Every action that moves a thread between mailboxes says so, restore
       // from trash included: the keyboard path has no row animation to stand
       // in for the confirmation, and a key that seems to do nothing is worse
       // than the action it performed (issue 5).
       if (!announcesItself(type)) return
-      showUndoToast(undoId, UNDO_LABELS[type])
+      showUndoToast(entry.id, entry.label)
     },
     markRead: (threadKey) => action.mutate({ type: 'markRead', threadKey }),
     compose,

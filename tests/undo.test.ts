@@ -40,7 +40,7 @@ import { useUi } from '../src/features/mail/ui-store'
 import {
   announcesItself,
   findUndoable,
-  liveUndoable,
+  isLive,
   newestUndoable,
   NOTHING_TO_UNDO,
   pushUndoable,
@@ -104,36 +104,24 @@ function entry(at: number, id = 'archive:t1'): Undoable {
   return { id, label: 'Archived', at, run: vi.fn() }
 }
 
-describe('liveUndoable', () => {
-  it('has nothing to offer when nothing was registered', () => {
-    expect(liveUndoable(null, 1_000)).toBeNull()
-  })
-
+describe('isLive', () => {
   it('offers an action taken a moment ago', () => {
-    const e = entry(1_000)
-    expect(liveUndoable(e, 1_500)).toBe(e)
+    expect(isLive(entry(1_000), 1_500)).toBe(true)
   })
 
   it('offers an action taken exactly at the edge of the window', () => {
-    const e = entry(1_000)
-    expect(liveUndoable(e, 1_000 + UNDO_WINDOW_MS)).toBe(e)
+    expect(isLive(entry(1_000), 1_000 + UNDO_WINDOW_MS)).toBe(true)
   })
 
   it('drops an action one millisecond past the window', () => {
-    expect(liveUndoable(entry(1_000), 1_001 + UNDO_WINDOW_MS)).toBeNull()
+    expect(isLive(entry(1_000), 1_001 + UNDO_WINDOW_MS)).toBe(false)
   })
 
   it('drops an entry stamped in the future rather than treating it as fresh', () => {
     // A clock that went backwards — a system time change, a laptop resumed.
     // Reading a negative age as "very recent" would hand back an action the
     // user stopped thinking about hours ago.
-    expect(liveUndoable(entry(9_000), 1_000)).toBeNull()
-  })
-
-  it('takes the window as an argument, so a caller can be stricter', () => {
-    const e = entry(1_000)
-    expect(liveUndoable(e, 3_000, 1_000)).toBeNull()
-    expect(liveUndoable(e, 1_500, 1_000)).toBe(e)
+    expect(isLive(entry(9_000), 1_000)).toBe(false)
   })
 })
 
@@ -161,9 +149,18 @@ describe('pushUndoable', () => {
     expect(stack[0].id).toBe(`e${UNDO_DEPTH}`)
   })
 
-  it('takes the depth as an argument, so the bound is testable at any size', () => {
-    const stack = pushUndoable(pushUndoable([entry(1, 'a')], entry(2, 'b')), entry(3, 'c'), 2)
-    expect(stack.map((e) => e.id)).toEqual(['c', 'b'])
+  it('drops entries that expired before this one was registered', () => {
+    // Nothing sweeps the stack on a timer, so a registration is where the dead
+    // entries go — otherwise the ten slots fill with offers no press can take.
+    const stale = entry(0, 'stale')
+    const fresh = entry(UNDO_WINDOW_MS + 1, 'fresh')
+    expect(pushUndoable([stale], fresh)).toEqual([fresh])
+  })
+
+  it('keeps an entry that is still inside its window', () => {
+    const live = entry(1_000, 'live')
+    const stack = pushUndoable([live], entry(1_500, 'newer'))
+    expect(stack.map((e) => e.id)).toEqual(['newer', 'live'])
   })
 })
 

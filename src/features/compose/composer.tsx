@@ -55,7 +55,7 @@ import {
   type Draft,
   type DraftAttachment,
 } from './compose-store'
-import { sendToastOptions } from './send-toast'
+import { SEND_UNDO, sendToastOptions } from './send-toast'
 
 const TITLES: Record<ReplyMode, string> = {
   reply: 'Reply',
@@ -84,9 +84,6 @@ const UNDO_WINDOW_MS = 4000
  */
 const heldSend = new HeldMutations()
 const SEND_KEY = 'send'
-
-/** The send's slot in the ⌘Z registry. Withdrawn the moment the mail goes. */
-const SEND_UNDO = 'send'
 
 if (typeof window !== 'undefined') {
   // Closing the window must not eat a held message. Whatever is waiting goes

@@ -10,8 +10,25 @@
 // So `action` is always present here, and is `undefined` unless the send can
 // genuinely still be taken back.
 
-/** One toast at a time. A second send replaces this one rather than stacking. */
-export const SEND_TOAST = 'wren-send'
+import { undoToastId } from '@/lib/undo'
+
+/**
+ * The send's slot in the ⌘Z registry. Withdrawn the moment the mail goes.
+ *
+ * Here rather than in the composer so the toast id below can be derived from
+ * it instead of agreeing with it by hand.
+ */
+export const SEND_UNDO = 'send'
+
+/**
+ * One toast at a time. A second send replaces this one rather than stacking.
+ *
+ * DERIVED from the registry id, not agreed with it by hand. The two used to be
+ * separate literals, so `undoAndSay` dismissing `undoToastId(entry.id)` after
+ * a ⌘Z on the send named a toast that did not exist and left the spent Undo
+ * standing — issue 2's own failure, reached the long way round.
+ */
+export const SEND_TOAST = undoToastId(SEND_UNDO)
 
 export interface SendToastOptions {
   id: string

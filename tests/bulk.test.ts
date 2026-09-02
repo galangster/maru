@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-vi.mock('sonner', () => ({ toast: vi.fn() }))
+// `toast.dismiss` is called whenever an offer is spent, so the mock carries it.
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { dismiss: vi.fn() }) }))
 
 import { toast } from 'sonner'
 
@@ -105,7 +106,8 @@ describe('bulkDefer', () => {
       [key('d'), WAKE],
     ])
     expect(useUi.getState().checked.size).toBe(0)
-    expect(useUi.getState().undoStack[0]).toMatchObject({ id: 'bulk:later' })
+    expect(useUi.getState().undoStack).toHaveLength(1)
+    expect(useUi.getState().undoStack[0].id).toMatch(/^bulk:later:/)
   })
 
   it('says what Maru will do, and says it once for the whole batch', () => {
@@ -161,11 +163,30 @@ describe('runBatchAction', () => {
     const sent: MailAction[] = []
     runBatchAction((a) => sent.push(a), KEYS, 'archive')
     expect(sent).toHaveLength(3)
-    expect(useUi.getState().undoStack[0]).toMatchObject({ id: 'bulk:archive' })
+    expect(useUi.getState().undoStack).toHaveLength(1)
+    expect(useUi.getState().undoStack[0].id).toMatch(/^bulk:archive:/)
 
     sent.length = 0
     useUi.getState().runUndo()
     expect(sent).toEqual(KEYS.map((threadKey) => ({ type: 'unarchive', threadKey })))
+  })
+
+  it('gives each batch its own entry, so a second archive keeps the first undo', () => {
+    // Keyed by the verb, two bulk archives collapsed into one entry and the
+    // first forty threads stayed archived. A batch is an event, not a category.
+    const sent: MailAction[] = []
+    runBatchAction((a) => sent.push(a), KEYS.slice(0, 2), 'archive')
+    runBatchAction((a) => sent.push(a), KEYS.slice(2), 'archive')
+    expect(useUi.getState().undoStack).toHaveLength(2)
+    sent.length = 0
+
+    useUi.getState().runUndo()
+    useUi.getState().runUndo()
+    expect(sent).toEqual([
+      { type: 'unarchive', threadKey: KEYS[2] },
+      { type: 'unarchive', threadKey: KEYS[0] },
+      { type: 'unarchive', threadKey: KEYS[1] },
+    ])
   })
 
   it('names the count, so the confirmation cannot say "Archived" over forty rows', () => {
@@ -212,7 +233,9 @@ describe('runBatchAction', () => {
       { type: 'unarchive', threadKey: KEYS[1] },
     ])
     // The trash batch is untouched, and is what the next Cmd+Z reaches.
-    expect(useUi.getState().undoStack.map((e) => e.id)).toEqual(['bulk:trash'])
+    const left = useUi.getState().undoStack
+    expect(left).toHaveLength(1)
+    expect(left[0].id).toMatch(/^bulk:trash:/)
   })
 
   it('agrees with the number in singular and plural', () => {

@@ -17,9 +17,9 @@ import { SEARCH_WINDOW_DAYS } from '@/core/sync/engine'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
   MIN_SEARCH_LENGTH,
+  offerUndo,
   registerActionUndo,
   registerUndoable,
-  showUndoToast,
   useAccountsById,
   useDefer,
   useLabels,
@@ -279,26 +279,27 @@ export function ThreadList() {
       // cancel and undo sends the reverse action, which is the whole reason
       // `unarchive` exists. Registered rather than closed over by the toast, so
       // ⌘Z reaches the same two halves.
-      const undoId = `archive:${thread.key}`
-      useUi.getState().registerUndo({
-        id: undoId,
-        label: UNDO_LABELS.archive,
-        run: () => {
-          if (held.has(thread.key)) {
-            cancel()
-            setTicking((current) => (current === thread.key ? null : current))
-            return
-          }
-          mutate({ type: 'unarchive', threadKey: thread.key })
-        },
-      })
-
+      //
       // DIRECTION §2 (Superhuman 5): small, bottom-left, inline UNDO. The
       // affordance is on screen for the toast's own life; ⌘Z keeps offering the
       // same undo for the rest of the 10 s window. The button carries this
       // archive's id, so a second archive raises its own toast beside this one
       // rather than replacing it (issue 40).
-      showUndoToast(undoId, UNDO_LABELS.archive, thread.subject || '(no subject)')
+      offerUndo(
+        {
+          id: `archive:${thread.key}`,
+          label: UNDO_LABELS.archive,
+          run: () => {
+            if (held.has(thread.key)) {
+              cancel()
+              setTicking((current) => (current === thread.key ? null : current))
+              return
+            }
+            mutate({ type: 'unarchive', threadKey: thread.key })
+          },
+        },
+        thread.subject || '(no subject)',
+      )
     },
     [held],
   )
@@ -334,20 +335,20 @@ export function ThreadList() {
       // cancels it and the row simply stays. After it flushes, undo puts the
       // previous deferral back — `null` when there was none, which is the
       // ordinary case, and the old wake time when this was a re-schedule.
-      const undoId = `later:${thread.key}`
-      useUi.getState().registerUndo({
-        id: undoId,
-        label,
-        run: () => {
-          if (held.has(thread.key)) {
-            cancel()
-            return
-          }
-          commit(before)
+      offerUndo(
+        {
+          id: `later:${thread.key}`,
+          label,
+          run: () => {
+            if (held.has(thread.key)) {
+              cancel()
+              return
+            }
+            commit(before)
+          },
         },
-      })
-
-      showUndoToast(undoId, label, thread.subject || '(no subject)')
+        thread.subject || '(no subject)',
+      )
     },
     [held],
   )

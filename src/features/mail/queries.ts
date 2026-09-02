@@ -27,10 +27,11 @@ import { playSound } from '@/lib/sound'
 import { dedupeAddresses } from '@/lib/compose'
 import { correspondents } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
-import { NOTHING_TO_UNDO, UNDO_LABELS, UNDO_TOAST_ID, undoToastId } from '@/lib/undo'
+import { NOTHING_TO_UNDO, UNDO_LABELS, undoToastId, type Undoable } from '@/lib/undo'
 
 import { useMailService } from './service'
 import { useUi, viewKey } from './ui-store'
+import { undoAnswerOptions, undoToastOptions } from './undo-toast'
 
 export const keys = {
   accounts: ['accounts'] as const,
@@ -353,22 +354,33 @@ function restore(client: QueryClient, threadKey: string, context: ActionContext 
   if (context?.detail) client.setQueryData(keys.thread(threadKey), context.detail)
 }
 
+/** What a caller hands the registry: an entry, without the clock's stamp. */
+type NewUndoable = Omit<Undoable, 'at'>
+
 /**
  * One entry's undo toast. Every surface that offers an inline Undo goes
  * through here, so the id, the action wiring and the wording cannot drift
  * apart.
  *
- * The button reverses the entry that raised it, by name — so a second archive
- * no longer withdraws the first one's offer, and clicking Undo on a toast that
- * has three newer actions above it undoes the archive it is describing rather
- * than the newest thing on the stack (issue 40).
+ * The button is `undoAndSay` with a name, which is the whole point: the toast,
+ * ⌘Z and `z` are three doors onto one body, so the button reverses the entry
+ * that raised it — a second archive no longer withdraws the first one's offer
+ * — and still says what it did, exactly as the keyboard does (issue 40).
  */
 export function showUndoToast(entryId: string, label: string, description?: string): void {
-  toast(label, {
-    id: undoToastId(entryId),
-    description,
-    action: { label: 'Undo', onClick: () => useUi.getState().undoEntry(entryId) },
-  })
+  toast(label, undoToastOptions(entryId, description, () => undoAndSay(entryId)))
+}
+
+/**
+ * Register an offer and put it on screen, under one id.
+ *
+ * The two halves are one act — an entry nobody is told about is not an offer —
+ * and the four sites that used to write the pair by hand are four chances for
+ * the toast to name an id the registry does not hold.
+ */
+export function offerUndo(entry: NewUndoable, description?: string): void {
+  useUi.getState().registerUndo(entry)
+  showUndoToast(entry.id, entry.label, description)
 }
 
 /**
@@ -383,20 +395,20 @@ export function showUndoToast(entryId: string, label: string, description?: stri
  * The reverse is dispatched through `mutate` and not through this function, so
  * an undo never registers a redo: ⌘Z twice is one undo, not a loop.
  *
- * Returns the entry's id, which is what the toast needs to name its own
- * offer.
+ * Returns the entry it registered, so a caller that also wants a toast has the
+ * id AND the wording without deriving either a second time.
  */
 export function registerActionUndo(
   mutate: (action: MailAction) => void,
   action: MailAction,
-): string {
-  const id = `${action.type}:${action.threadKey}`
-  useUi.getState().registerUndo({
-    id,
+): NewUndoable {
+  const entry: NewUndoable = {
+    id: `${action.type}:${action.threadKey}`,
     label: UNDO_LABELS[action.type],
     run: () => mutate({ type: reverseAction(action.type), threadKey: action.threadKey }),
-  })
-  return id
+  }
+  useUi.getState().registerUndo(entry)
+  return entry
 }
 
 /** Register a deliberate action and show its undo toast. */
@@ -405,31 +417,28 @@ export function registerUndoable(
   action: MailAction,
   description?: string,
 ): void {
-  showUndoToast(registerActionUndo(mutate, action), UNDO_LABELS[action.type], description)
+  const entry = registerActionUndo(mutate, action)
+  showUndoToast(entry.id, entry.label, description)
 }
 
 /**
- * ⌘Z and `z`: run the newest undo and say what happened.
+ * Undo, and say what happened. The one body behind all three doors: ⌘Z and `z`
+ * pass nothing and get the newest live entry, a toast's button passes its own
+ * id and gets that entry however deep it has been buried.
  *
  * The answer is the point. Pressing ⌘Z with nothing left used to do nothing at
  * all — no toast, no change, no message — which reads as a broken key rather
- * than as an empty stack (issue 40). Both keyboard doors come through here so
- * they cannot answer the same press differently.
+ * than as an empty stack (issue 40). One body is what stops the three doors
+ * answering the same press differently.
  */
-export function undoAndSay(): void {
-  const entry = useUi.getState().runUndo()
+export function undoAndSay(entryId?: string): void {
+  const ui = useUi.getState()
+  const entry = entryId === undefined ? ui.runUndo() : ui.undoEntry(entryId)
   // That entry's own offer is spent. It goes off the screen in the same turn
   // as the action it offered, rather than being left standing with nothing
   // behind it — send-toast.ts's rule (issue 2), on the archive toast.
   if (entry) toast.dismiss(undoToastId(entry.id))
-  // `description` is always a key here, and never merely left out. Sonner
-  // updates a toast by spreading the new options over the ones already on
-  // screen, so omitting it would print "Nothing to undo" over the label of the
-  // last thing that WAS undone — the same trap, one line further on.
-  toast(entry ? 'Undone' : NOTHING_TO_UNDO, {
-    id: UNDO_TOAST_ID,
-    description: entry?.label,
-  })
+  toast(entry ? 'Undone' : NOTHING_TO_UNDO, undoAnswerOptions(entry))
 }
 
 /**

@@ -139,39 +139,36 @@ export interface Undoable {
 export type UndoStack = readonly Undoable[]
 
 /**
+ * Is this entry still inside its window at `now`?
+ *
+ * A negative age is treated as expired rather than as fresh: a clock that has
+ * gone backwards (a system time change, a suspended laptop) must not hand back
+ * an entry the user has long since forgotten about.
+ */
+export function isLive(entry: Undoable, now: number): boolean {
+  const age = now - entry.at
+  return age >= 0 && age <= UNDO_WINDOW_MS
+}
+
+/**
  * The stack after `entry` is registered.
  *
- * Newest first, capped at `depth` — the oldest falls off the bottom, silently,
- * because an entry that far back is past its window anyway.
+ * Newest first, capped at UNDO_DEPTH — the oldest falls off the bottom,
+ * silently, because an entry that far back is past its window anyway.
+ *
+ * Entries that have already expired are dropped BEFORE the cap, so the ten
+ * slots hold ten live offers rather than nine dead ones and the archive from a
+ * minute ago. Nothing sweeps this stack on a timer — a registration is the
+ * only moment it changes, so it is the moment the dead entries go.
  *
  * An id the stack already holds is REPLACED rather than added beside. Identity
  * is what the toast button and a late `clear` navigate by, so two entries
  * under one name would make both of them ambiguous: a second archive of the
  * same thread is one offer to undo, not two.
  */
-export function pushUndoable(
-  stack: UndoStack,
-  entry: Undoable,
-  depth: number = UNDO_DEPTH,
-): UndoStack {
-  return [entry, ...stack.filter((held) => held.id !== entry.id)].slice(0, depth)
-}
-
-/**
- * The entry a ⌘Z at `now` should run, or null.
- *
- * A negative age is treated as expired rather than as fresh: a clock that has
- * gone backwards (a system time change, a suspended laptop) must not hand back
- * an entry the user has long since forgotten about.
- */
-export function liveUndoable(
-  entry: Undoable | null,
-  now: number,
-  windowMs: number = UNDO_WINDOW_MS,
-): Undoable | null {
-  if (!entry) return null
-  const age = now - entry.at
-  return age >= 0 && age <= windowMs ? entry : null
+export function pushUndoable(stack: UndoStack, entry: Undoable): UndoStack {
+  const kept = stack.filter((held) => held.id !== entry.id && isLive(held, entry.at))
+  return [entry, ...kept].slice(0, UNDO_DEPTH)
 }
 
 /**
@@ -180,19 +177,11 @@ export function liveUndoable(
  * It scans rather than reading the top slot alone. On a well-behaved clock the
  * two are the same answer, since anything under an expired entry is older
  * still; on one that has jumped forward, a future-stamped entry is skipped by
- * `liveUndoable` and the scan finds the newest genuinely live one underneath
- * it instead of reporting an empty stack.
+ * `isLive` and the scan finds the newest genuinely live one underneath it
+ * instead of reporting an empty stack.
  */
-export function newestUndoable(
-  stack: UndoStack,
-  now: number,
-  windowMs: number = UNDO_WINDOW_MS,
-): Undoable | null {
-  for (const entry of stack) {
-    const live = liveUndoable(entry, now, windowMs)
-    if (live) return live
-  }
-  return null
+export function newestUndoable(stack: UndoStack, now: number): Undoable | null {
+  return stack.find((entry) => isLive(entry, now)) ?? null
 }
 
 /**
@@ -203,13 +192,9 @@ export function newestUndoable(
  * is the same as ⌘Z's, so a button left on screen past ten seconds answers the
  * same way the keyboard does rather than reaching back further.
  */
-export function findUndoable(
-  stack: UndoStack,
-  id: string,
-  now: number,
-  windowMs: number = UNDO_WINDOW_MS,
-): Undoable | null {
-  return liveUndoable(stack.find((entry) => entry.id === id) ?? null, now, windowMs)
+export function findUndoable(stack: UndoStack, id: string, now: number): Undoable | null {
+  const entry = stack.find((held) => held.id === id)
+  return entry && isLive(entry, now) ? entry : null
 }
 
 /**
