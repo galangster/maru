@@ -118,6 +118,16 @@ export function FieldLabel({ children, htmlFor }: { children: React.ReactNode; h
   return <label htmlFor={htmlFor} className={SECTION_LABEL}>{children}</label>
 }
 
+/**
+ * A labelled text input in one of two modes.
+ *
+ * `onValueChange` is the controlled one: the caller owns the string and hears
+ * every keystroke. `onCommit` is the uncontrolled one: the field holds a draft
+ * and hands it over, trimmed, when the edit is FINISHED — on blur or on Enter,
+ * which is what a person expects of a settings field and the only two ways
+ * they signal they are done. Enter keeps focus, because leaving a field is the
+ * caller's business and not a side effect of saving it.
+ */
 export function TextField({
   id,
   label,
@@ -125,6 +135,7 @@ export function TextField({
   onCommit,
   onValueChange,
   onBlur,
+  onKeyDown,
   className,
   inputClassName,
   ...props
@@ -153,6 +164,18 @@ export function TextField({
         onBlur={(event) => {
           onBlur?.(event)
           if (!onValueChange && onCommit && draft !== value) onCommit(draft.trim())
+        }}
+        onKeyDown={(event) => {
+          onKeyDown?.(event)
+          // Only the uncontrolled mode: a controlled field inside a form must
+          // keep Enter for the form's own submit, which is why this neither
+          // fires nor calls preventDefault there.
+          if (event.key !== 'Enter' || onValueChange || !onCommit) return
+          if (event.defaultPrevented || event.nativeEvent.isComposing) return
+          event.preventDefault()
+          const next = draft.trim()
+          setDraft(next)
+          if (next !== value) onCommit(next)
         }}
         autoComplete="off"
         spellCheck={false}

@@ -10,7 +10,7 @@ import { ThreadSearchIndex } from '../search/index'
 import { buildDemoData, buildExtraAccount, labelsFor } from '../demo/fixtures'
 import { applyLabelChanges, applyActionToMessage, applyActionToThread, labelDelta } from './actions'
 import { resolveAttachments } from './attachments'
-import { bodyTextOf, sentRowsFor } from './sent'
+import { bodyTextOf, senderNameFrom, sentRowsFor } from './sent'
 import type {
   LabelChanges,
   Account,
@@ -180,6 +180,24 @@ export class DemoMailService implements MailService {
     this.emit({ type: 'accountsChanged' })
     this.emit({ type: 'threadsChanged', accountId: extra.account.id })
     return { ...extra.account }
+  }
+
+  /**
+   * Rename what an account puts on the mail it sends.
+   *
+   * The demo's accounts ship WITH a sender name — every fixture message from
+   * these addresses is signed "Nick Galang", and a demo whose own Sent mail
+   * disagreed with the rest of the mailbox would be the bug this setting
+   * exists to fix. Editing it here is the same edit real mode makes; nothing
+   * reseeds it.
+   */
+  async setSenderName(accountId: string, name: string): Promise<void> {
+    const account = this.accounts.find((a) => a.id === accountId)
+    if (!account) throw new Error(`No such account: ${accountId}`)
+    const senderName = senderNameFrom(name)
+    if (senderName === account.senderName) return
+    account.senderName = senderName
+    this.emit({ type: 'accountsChanged' })
   }
 
   async removeAccount(accountId: string): Promise<void> {

@@ -354,6 +354,21 @@ export interface MailService {
    */
   addAccount(expectEmail?: string): Promise<Account>
   removeAccount(accountId: string): Promise<void>
+  /**
+   * Set the name that goes on mail this account SENDS — `Account.senderName`.
+   *
+   * Its own method rather than a general account patch, because there is
+   * exactly one field on an account a person edits and inventing a patch
+   * shape would invite the label in through the same door. The label is
+   * derived from the address and has never been editable.
+   *
+   * The name is TRIMMED and an empty result CLEARS it: `senderName` is
+   * optional, and the whole of "no name" is already spelled `undefined`
+   * everywhere downstream. A stored `''` would read as "named, with nothing"
+   * to the From header and to the Sent list, both of which test the field
+   * rather than its length.
+   */
+  setSenderName(accountId: string, name: string): Promise<void>
 
   listThreads(view: MailView, opts?: ListThreadsOptions): Promise<Thread[]>
   getThread(

@@ -31,6 +31,8 @@ import type {
   GmailListThreadsResponse,
   GmailMessage,
   GmailProfile,
+  GmailSendAs,
+  GmailSendAsResponse,
   GmailThread,
   GmailWatchResponse,
   HistoryType,
@@ -53,6 +55,7 @@ export const BATCH_RETRY_ROUNDS = 4
 export const QUOTA_COST = {
   getProfile: 1,
   labelsList: 1,
+  sendAsList: 1,
   historyList: 2,
   messagesList: 5,
   messagesModify: 5,
@@ -247,6 +250,22 @@ export class GmailApi {
   async listLabels(): Promise<GmailLabel[]> {
     const res = await this.json<GmailLabelsResponse>(QUOTA_COST.labelsList, this.url('/labels'))
     return res.labels ?? []
+  }
+
+  /**
+   * The account's "send mail as" identities, primary first in practice.
+   *
+   * Read for one reason: the display name Gmail already puts on this
+   * mailbox's outgoing mail, so a newly added account arrives named instead of
+   * signing everything with its address. Read only, and covered by the one
+   * scope Maru requests — `docs/security/google-oauth-method-scope-matrix.md`.
+   */
+  async listSendAs(): Promise<GmailSendAs[]> {
+    const res = await this.json<GmailSendAsResponse>(
+      QUOTA_COST.sendAsList,
+      this.url('/settings/sendAs'),
+    )
+    return res.sendAs ?? []
   }
 
   listThreads(params: ListThreadsParams = {}): Promise<GmailListThreadsResponse> {

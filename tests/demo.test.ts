@@ -5,6 +5,7 @@ import { sentRowsFor } from '../src/core/service/sent'
 import type { MailEvent } from '../src/core/types'
 import { displayName, initials } from '../src/lib/format'
 import { makeAccount } from './fixtures/domain'
+import { expectSenderNameContract } from './helpers/sender-name'
 
 const NOW = Date.UTC(2026, 7, 28, 12, 0, 0)
 
@@ -454,6 +455,57 @@ describe('accounts', () => {
     const threads = await svc.listThreads({ kind: 'account', accountId: added.id, labelId: 'INBOX' }, { limit: 500 })
     expect(threads.length).toBeGreaterThan(0)
     expect(events.some((e) => e.type === 'accountsChanged')).toBe(true)
+  })
+
+  it('ships every demo account already named, so its Sent mail matches its inbox', async () => {
+    // Issue #66. The demo is the only mode where a person sees the whole
+    // product without signing in, and a demo whose own Sent mail was signed
+    // "nick@gmail.com" while forty inbox messages from the same address said
+    // "Nick Galang" would be the exact defect issue #61 fixed, reintroduced.
+    const { svc } = service()
+    const accounts = await svc.listAccounts()
+    expect(accounts.map((a) => a.senderName)).toEqual(['Nick Galang', 'Nick Galang'])
+    // And the third account, which arrives through addAccount.
+    const added = await svc.addAccount()
+    expect(added.senderName).toBe('Nick Galang')
+  })
+
+  it('trims, clears and announces the sender name like real mode does', async () => {
+    const { svc, events } = service()
+    const [personal] = await svc.listAccounts()
+    await expectSenderNameContract(svc, events, personal.id)
+  })
+
+  it('falls the sent mail back to the address once the name is cleared', async () => {
+    // What clearing is FOR: `senderName` is optional and `displayName(addr)`
+    // tests the field rather than its length, so no name means the address.
+    const { svc } = service()
+    const [personal] = await svc.listAccounts()
+
+    await svc.setSenderName(personal.id, '   ')
+
+    const [cleared] = await svc.listAccounts()
+    expect(cleared.senderName).toBeUndefined()
+
+    const rows = sentRowsFor(
+      {
+        accountId: cleared.id,
+        to: [{ email: 'maya@fernwood.dev' }],
+        cc: [],
+        bcc: [],
+        subject: 'A note',
+        bodyHtml: '<p>Hello</p>',
+        attachments: [],
+      },
+      {
+        account: cleared,
+        gmailThreadId: 't-new',
+        messageId: 'm-new',
+        date: NOW,
+        attachmentId: (i) => `a-${i}`,
+      },
+    )
+    expect(displayName(rows.message.from)).toBe(cleared.email)
   })
 
   it('removes an account and its threads', async () => {

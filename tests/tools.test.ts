@@ -1099,6 +1099,7 @@ function stubMail(opts: {
     deferredCount: async () => 0,
     addAccount: unsupported,
     removeAccount: unsupported,
+    setSenderName: unsupported,
     listLabels: async () => [],
     unreadCount: async () => 0,
     send: unsupported,

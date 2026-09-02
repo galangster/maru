@@ -311,7 +311,8 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
     <div className="flex flex-col gap-4">
       <Explainer>
         Maru shows every account in one list. Removing one takes its mail out of Maru; nothing at
-        Google changes.
+        Google changes. The name on outgoing mail is what the people you write to see; leave it
+        empty and they see the address instead.
       </Explainer>
 
       {list.length === 0 ? (
@@ -444,19 +445,69 @@ function accountStatusLine(status: SyncStatus | undefined, now: number): string 
   }
 }
 
-function AccountRow({
-  account,
-  status,
-  onReauth,
-  onNeedsClient,
-  reauthBusy,
-}: {
+/** A failed action, reported the way this dialog reports them. */
+function toastError(title: string, cause: unknown): void {
+  toast.error(title, {
+    description: cause instanceof Error ? cause.message : String(cause),
+  })
+}
+
+/**
+ * The name this account puts on the mail it sends — issue #66.
+ *
+ * The one editable thing about an account. Its neighbour on the row, the
+ * label, is derived from the address and is not: the label is how you find
+ * this mailbox among yours, and the sender name is how you appear to everyone
+ * else. That is the distinction issue #61 drew, and this field is its missing
+ * half.
+ *
+ * Committed on blur or Enter, trimmed, and an empty value CLEARS it rather
+ * than storing a blank — the seam's own rule, and the reason the placeholder
+ * is the address: it is not a suggestion, it is what recipients actually see
+ * while the field is empty.
+ */
+function SenderNameField({ account, className }: { account: Account; className?: string }) {
+  const service = useMailService()
+
+  return (
+    <TextField
+      id={`wren-sender-name-${account.id}`}
+      label="Name on outgoing mail"
+      value={account.senderName ?? ''}
+      placeholder={account.email}
+      className={className}
+      onCommit={(next) => {
+        void service
+          .setSenderName(account.id, next)
+          .catch((cause: unknown) => toastError('Could not save the name', cause))
+      }}
+    />
+  )
+}
+
+interface AccountRowProps {
   account: Account
   status: SyncStatus | undefined
   onReauth: () => void
   onNeedsClient: () => void
   reauthBusy: boolean
-}) {
+}
+
+/**
+ * Who this account is, and every way back when it stops syncing: the avatar,
+ * the three lines, and the one recovery button the failure calls for.
+ *
+ * Its own component because the row grew a second band underneath it and this
+ * one did not change — everything below is about the account's sender name,
+ * and nothing here is.
+ */
+function AccountIdentityRow({
+  account,
+  status,
+  onReauth,
+  onNeedsClient,
+  reauthBusy,
+}: AccountRowProps) {
   const service = useMailService()
   const now = useNow()
   const [confirming, setConfirming] = useState(false)
@@ -489,7 +540,7 @@ function AccountRow({
     // Unconditional, because a status line now renders in every state rather
     // than only on failure. Two height branches for one row was the kind of
     // thing that drifts.
-    <li className="flex min-h-14 items-center gap-3 py-2">
+    <div className="col-span-2 flex min-h-14 items-center gap-3">
       <AccountAvatar
         address={{ name: account.displayName, email: account.email }}
         hue={hueFor(account.email)}
@@ -576,6 +627,21 @@ function AccountRow({
         }
         triggerContent="Remove"
       />
+    </div>
+  )
+}
+
+function AccountRow(props: AccountRowProps) {
+  return (
+    // Two stacked bands on one grid, not a line with a computed indent. The
+    // avatar's own column is what puts the field under the text rather than
+    // under the whole row: the identity band spans both columns and keeps its
+    // internal gap, and the field simply starts in column 2. A band of its own
+    // and not a fourth line inside the text column, so Remove stays centred on
+    // the name it removes instead of on a text input.
+    <li className="grid grid-cols-[var(--wren-avatar)_1fr] gap-x-3 gap-y-2 py-2">
+      <AccountIdentityRow {...props} />
+      <SenderNameField account={props.account} className="col-start-2" />
     </li>
   )
 }

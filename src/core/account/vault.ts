@@ -15,11 +15,26 @@ export interface VaultCredential {
   issuedAt: number
 }
 
+/**
+ * One address in the vault's account list.
+ *
+ * `label` is this device's name FOR the mailbox; `senderName` is the name that
+ * goes on the mail it sends — two different questions, which `Account` in
+ * `core/types.ts` sets out. `senderName` is optional and additive, and its
+ * absence never means "clear the name": the merge rule is normative in
+ * `docs/spec/MARU-ACCOUNT.md`.
+ */
+export interface VaultAccount {
+  email: string
+  label: string
+  senderName?: string
+}
+
 export interface VaultDocument {
   v: 1
   updatedAt: number
   settings: VaultSettings
-  accounts: { email: string; label: string }[]
+  accounts: VaultAccount[]
   credentials: Record<PlatformFamily, Record<string, VaultCredential>>
   /**
    * Later, across devices — A9 (owner ruling, Nick, 2026-09-02).
@@ -134,7 +149,13 @@ export async function buildVault(
     v: 1,
     updatedAt,
     settings: vaultSettings(settings),
-    accounts: accounts.map((account) => ({ email: normalizeEmail(account.email), label: account.displayName })),
+    accounts: accounts.map((account) => ({
+      email: normalizeEmail(account.email),
+      label: account.displayName,
+      // Omitted rather than sent as null: absent means "no opinion", which is
+      // exactly what an unnamed account means (`docs/spec/MARU-ACCOUNT.md`).
+      ...(account.senderName ? { senderName: account.senderName } : {}),
+    })),
     credentials,
     // Pruned on the way in, so an expired entry stops travelling from the
     // device that still remembers it rather than on some later merge. Worth the
@@ -232,11 +253,18 @@ export async function applyVault(
         id: local.newAccountId?.() ?? globalThis.crypto.randomUUID(),
         email,
         displayName: remote.label || email.split('@')[0],
+        ...(remote.senderName ? { senderName: remote.senderName } : {}),
         color: '#8f7cff',
         addedAt: now,
       }
       await local.upsertAccount(account)
       added += 1
+    } else if (remote.senderName && !account.senderName) {
+      // FILLED, never replaced — the merge rule in `docs/spec/MARU-ACCOUNT.md`.
+      // Type a name once and the laptop you added last week stops signing its
+      // mail with an address; a device that already has one keeps it.
+      account = { ...account, senderName: remote.senderName }
+      await local.upsertAccount(account)
     }
     const credential = doc.credentials[family][email]
     if (credential) {
