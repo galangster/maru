@@ -240,3 +240,31 @@ export function buildMobileRowModel(
     messageCount: thread.messageCount,
   }
 }
+
+/**
+ * What a screen reader hears when it reaches a row.
+ *
+ * Every row used to announce its sender and its subject and nothing else, so
+ * an unread conversation and a read one below it were indistinguishable
+ * (issue 17). The unread dot, the star mark and the message count were all
+ * marked as decoration — correctly, since they are glyphs — and nothing put
+ * the words back.
+ *
+ * The desktop row does this with sr-only words in DOM order: "Unread" from the
+ * gutter dot, then the content, then "Starred". The phone's row is one button
+ * with an `aria-label`, so the same words are composed here instead, in the
+ * order the eye takes them, and the label is a pure function of the model so
+ * it can be tested as a sentence rather than as a tree.
+ */
+export function mobileRowLabel(model: MobileRowModel): string {
+  return [
+    model.unread ? 'Unread' : null,
+    model.sender,
+    model.time,
+    model.subject,
+    model.messageCount > 1 ? `${model.messageCount} messages` : null,
+    model.starred ? 'Starred' : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(', ')
+}

@@ -10,6 +10,7 @@ import {
   indexOfTab,
   initialMobileRoute,
   mobileRouteReducer,
+  mobileRowLabel,
   nativeTabs,
   resolveDragAxis,
   resolveSwipeIntent,
@@ -294,5 +295,39 @@ describe('shouldLeaveSelection', () => {
 
   it('has nothing to say when the mode is off', () => {
     expect(shouldLeaveSelection(false, false, 0)).toBe(false)
+  })
+})
+
+// A screen reader could not tell read from unread: the dot, the star and the
+// message count are glyphs, correctly hidden, and nothing put the words back
+// (issue 17).
+describe('mobileRowLabel', () => {
+  const model = {
+    sender: 'Priya, Jules +1',
+    subject: 'Book club: next pick',
+    snippet: 'Two candidates for next month.',
+    time: 'Yesterday',
+    unread: false,
+    starred: false,
+    messageCount: 1,
+  }
+
+  it('announces the state as well as the content', () => {
+    expect(mobileRowLabel({ ...model, unread: true, starred: true, messageCount: 3 })).toBe(
+      'Unread, Priya, Jules +1, Yesterday, Book club: next pick, 3 messages, Starred',
+    )
+  })
+
+  it('says nothing about a state the row is not in', () => {
+    expect(mobileRowLabel(model)).toBe('Priya, Jules +1, Yesterday, Book club: next pick')
+  })
+
+  it('distinguishes two rows a screen reader used to hear identically', () => {
+    expect(mobileRowLabel({ ...model, unread: true })).not.toBe(mobileRowLabel(model))
+  })
+
+  it('leaves a single-message conversation uncounted', () => {
+    expect(mobileRowLabel({ ...model, messageCount: 1 })).not.toContain('message')
+    expect(mobileRowLabel({ ...model, messageCount: 2 })).toContain('2 messages')
   })
 })
