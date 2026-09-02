@@ -36,11 +36,15 @@ These are the buttons only you can press, in the order they unblock work.
      with your go-ahead: `537601059334-302klho3gdlj3kloseb6akr96o26r855.apps.googleusercontent.com`
      (name "Maru for iPhone", bundle `app.getmaru.ios`, team 2M8UE59WH7).
      Set as repository variable `MARU_IOS_GOOGLE_CLIENT_ID`.
-4. **Apple, two items** (A4, I6): Certificates → Keys → create an APNs key
-   for team 2M8UE59WH7 and give me the `.p8` and its key id (put the file in
-   `ops/apple/` locally, never in git); in App Store Connect create the app
-   `Maru` with bundle `app.getmaru.ios` and a TestFlight internal group with
-   your iPhone.
+4. **Apple** (A4, I6) — done 2026-09-01 by the agent in your Chrome except
+   one click: App ID `app.getmaru.ios` registered with Push; APNs key
+   `T89G5MWVBQ` created (Production, topic-specific); App Store Connect
+   record **"Maru Mail"** created ("Maru" is taken on the App Store).
+   **Your click: download the key.** On the key's page press Download
+   (`AuthKey_T89G5MWVBQ.p8`, downloads once), then run from the repo:
+   `railway variables --service sync --set "APNS_KEY_P8=$(cat ~/Downloads/AuthKey_T89G5MWVBQ.p8)"`
+   and move the file to `ops/apple/` (gitignored). TestFlight internal
+   group comes with the first build upload.
 5. **Two accounts for App Review** (I6): a fresh Google account with two or
    three seed threads, and its Maru account (I comp it). Both need a phone
    number for signup, which is why they are yours.
