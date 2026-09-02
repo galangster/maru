@@ -198,41 +198,53 @@ Search and settings hold no measurement worth keeping.
 `visibleScreen()` in `src/mobile/state.ts` states the rule.
 It returns the tab while the stack is at its root.
 It returns `thread` or `account` while a screen is pushed.
-`tests/mobile-state.test.ts` asserts it.
+`atRoot()` beside it answers the stage's other question:
+whether the stack is at its root, which is where the tab bar belongs.
+`tests/mobile-state.test.ts` asserts both.
 
-`MobileApp` passes `hidden` to `InboxScreen`.
-`InboxScreen` sets `hidden` and `inert` on its own section.
-`hidden` takes the screen out of flow. `inert` keeps VoiceOver and focus out.
+`MobileApp` passes `paused` to `InboxScreen`.
+The stage decides that the inbox is not the screen on top.
+The screen decides what pausing means for it.
+`InboxScreen` sets `hidden` on its own section.
 `.mobile-screen[hidden] { display: none }` is required in `mobile.css`.
 The UA rule for `[hidden]` loses to the author `display: flex` without it.
+No `inert` is set. `display: none` already takes the section out of the
+accessibility tree and out of the focus order.
 
 The screen must leave the flow, not just become invisible.
 The document is the scroller, so the page height must be the top screen's.
 The thread screen keeps its push transform, because it is the only screen
 in flow while it is up.
 
-`hidden` also sets `enabled: false` on the virtualizer. That does three things.
+The virtualizer is never disabled. `enabled: false` reads like the switch
+that parks it, and it is the one option that must not be used here.
+`getMeasurements()` in `@tanstack/virtual-core` short-circuits when the
+option is false. It empties `measurementsCache` and `itemSizeCache` on the
+way out. The screen would come back and remeasure every row from
+`estimateSize`, which is the exact cost this exception exists to avoid.
+`tests/mobile-inbox-virtualizer.test.ts` pins both halves of that.
 
-1. It drops the window scroll listener.
-   A thread's scrolling then re-renders nothing behind it.
-2. It disconnects the row `ResizeObserver`.
-   A `display: none` row measures zero, and that zero would be cached.
-3. It reports a size of zero, so the range empties and no row renders.
+Pausing is three cheap refusals instead.
+
+1. `display: none` leaves the rows no box, so nothing measures zero.
+2. The `rows` array is not rebuilt. A `useNow` tick or a mail event
+   arriving behind a thread hands back the previous array.
+3. `getVirtualItems()` and `getTotalSize()` are not called, so no row is
+   rendered and no range is computed.
 
 The measured row heights survive all three. That is the point of the change.
 
-Returning to the inbox sets `enabled: true` again.
-The virtualizer then asks `initialOffset` for the scroll position.
-It asks during the render, one commit before `useRouteScroll` restores it.
-So `useRouteScroll` returns `readScrollTop`, and `InboxScreen` passes that.
-`readScrollTop` gives the offset the page is going to,
-not the offset of the screen being left.
-`window.scrollY` would give the wrong one, and the first frame would be wrong.
-`initialRect` is answered with the real viewport for the same reason.
+The virtualizer instance therefore outlives every screen change.
+`initialOffset` and `initialRect` are asked once, when it is built.
+`initialOffset` is `readScrollTop`, not `window.scrollY`, because a screen
+that computes its layout during render is a commit ahead of the `scrollTo`
+that moves the page. `initialRect` is answered with the real viewport,
+so the first list is a full screen of rows rather than an empty one
+waiting on a resize callback.
 
-The restore is exact, and it is no longer racing a remount.
-The list is full height on the frame it appears, from the cached measurements,
-so `window.scrollTo` cannot be clamped to a shorter page.
+Returning to the inbox rebuilds the list from the surviving heights.
+The list is full height on the frame it appears,
+so `window.scrollTo` in `useRouteScroll` cannot be clamped to a shorter page.
 
 ### Commands and events
 

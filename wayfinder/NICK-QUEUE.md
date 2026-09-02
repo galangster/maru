@@ -546,3 +546,15 @@ one client id.
   the log shows `pushReceived`, then `badge set to N`, then
   `sync finished for push <id>`. `docs/IOS.md` § What the Simulator
   cannot show has the detail.
+
+- **FlowDeck simulator captures are blocked** (I8 lane 5's carried check) —
+  `flowdeck ui simulator screen --screenshot` never writes a file. It reports
+  "No translation object returned for simulator" and then "Simulator
+  accessibility bridge isn't ready", and it does so for a native app
+  (Settings) as well as for Maru, so it is not the WebView. Booting the
+  simulator, opening Simulator.app, activating its window, attaching the live
+  panel and clearing the UI session all leave it unchanged. The likely cause is
+  the macOS Accessibility permission for the `flowdeck` binary, which is a
+  system setting and an owner action. Until it is fixed, iOS captures under
+  `wayfinder/captures/ios/` cannot be refreshed;
+  `native-inbox-return-light.png` is owed a re-shoot.

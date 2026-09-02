@@ -436,3 +436,85 @@ review agents that pass needs, so the orchestrating session owns it. The lane's
 own review of its diff produced the `hidden` guard on the `listTop`
 measurement, the `.mobile-screen[hidden]` rule, and `visibleScreen` replacing
 the ternary chain.
+
+## Lane 5 — the mounted inbox, corrected and simplified
+
+Lane 4 shipped the mounting model. Lane 5 fixes the one thing in it that did
+not do what it said, then lowers the rest of the code to the altitude it
+belongs at.
+
+### The correction
+
+`enabled: !hidden` on the window virtualizer was the opposite of a parking
+brake. `getMeasurements()` in `@tanstack/virtual-core@3.17.8` short-circuits
+when the option is false, and on the way out it empties both
+`measurementsCache` and `itemSizeCache`. The first hidden render therefore
+threw away every measured row height, and the return remeasured the whole list
+from `estimateSize` — exactly the cost the mounting exception exists to avoid.
+
+The virtualizer is now never disabled. The screen is parked by three refusals
+instead:
+
+1. `.mobile-screen[hidden] { display: none }`, so the rows have no box.
+2. The `rows` array is not rebuilt while paused. A `useNow` tick or a mail
+   event arriving behind a thread hands back the previous array from a ref.
+3. `getVirtualItems()` and `getTotalSize()` are not called in the paused
+   branch, so no row is rendered and no range is computed.
+
+`tests/mobile-inbox-virtualizer.test.ts` pins both halves against the installed
+package: the measured heights survive a pause, and `enabled: false` drops them
+back to the estimate.
+
+Two smaller corrections in the same area. `initialRect` was rebuilt on every
+render and is now read once, at first mount. `useRouteScroll` re-asserts its
+target on the next frame only when the target is above zero — a reset to the
+top always sticks, and re-asserting it would fight a finger already scrolling
+the new screen. `readScrollTop` is now a `useCallback` keyed on the route.
+
+### The altitude
+
+- `InboxScreen` takes `paused`, not `hidden`. The stage says the inbox is not
+  the screen on top; the screen decides what that means for it, and `hidden` on
+  its own section is part of that answer.
+- `inert={hidden}` is gone. `display: none` already removes the section from
+  the accessibility tree and from the focus order, and `docs/IOS.md` no longer
+  credits `inert` with it.
+- The stage is one switch on `screen`, not a chain that mixes `screen` and
+  `route.kind`.
+- `atRoot()` sits beside `visibleScreen()` in `state.ts` and answers the
+  stage's other question. It replaces both `route.kind === 'inbox'` tests.
+- `MobileScreen` is derived: `MobileTab | Exclude<MobileStackEntry['kind'],
+  'inbox'>`. A new route kind cannot fall outside the union.
+- The rationale was written five times. `docs/IOS.md` § The inbox stays mounted
+  holds it once; each code site keeps one locally-true sentence and a pointer.
+- The `visibleScreen` tests call it on literal routes, one per branch, instead
+  of replaying reducer choreography.
+
+### Simulator — iPhone 16, iOS 26.5, demo mode
+
+Scrolled the inbox deep into the list, opened *Design review: settings
+surface*, and came back with the header's Inbox control. The return lands on
+the same rows in the same order at the same offset — `Keel Metrics` at the top
+of the list under the sticky header, before and after. No skeleton, no reset to
+the top, no re-measure jump.
+
+### Gates
+
+`npm run typecheck && npm test && npm run build` pass — 733 tests, two new over
+the virtualizer, three rewritten over `visibleScreen` and `atRoot`.
+No Rust or Swift changed.
+
+### Owed
+
+`wayfinder/captures/ios/native-inbox-return-light.png` was **not** re-captured.
+`flowdeck ui simulator screen --screenshot` fails on this machine with
+"No translation object returned for simulator" — the accessibility bridge does
+not come up, on the Maru WebView and on a native app alike, so no FlowDeck
+capture can be written. The file from lane 4 still stands, and the return it
+shows is the behaviour verified again here. See `wayfinder/NICK-QUEUE.md`.
+
+`/simplify` did not run as its own pass. A lane delegate may not spawn the two
+review agents that pass needs, so the orchestrating session owns it. The lane's
+own review of its diff produced the `InboxRow` type, the shared `topEntry`
+helper behind `visibleScreen` and `atRoot`, and the decision to leave the
+paused header rendering rather than early-returning a bare section.

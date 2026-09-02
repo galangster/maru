@@ -26,6 +26,7 @@ import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
+  atRoot,
   initialMobileRoute,
   mobileRouteReducer,
   tabAtIndex,
@@ -108,7 +109,7 @@ export function MobileApp() {
 
   useNativeShellSync(nativeTabBar, {
     tab: navigation.tab,
-    hidden: route.kind !== 'inbox' || globalModalOpen,
+    hidden: !atRoot(navigation) || globalModalOpen,
   })
 
   // `data-native-shell` answers synchronously, so no strip of dead space is
@@ -120,17 +121,11 @@ export function MobileApp() {
   return (
     <div className="mobile-app" data-testid="mobile-app" data-native-shell={nativeChrome ? 'true' : undefined}>
       <main className="mobile-stage" inert={globalModalOpen}>
-        {/*
-          The inbox is mounted for the life of the shell and hidden while
-          anything is on top of it; every other screen mounts when it becomes
-          the visible one and unmounts when it stops being it. One screen earns
-          that exception because one screen pays for a remount — the window
-          virtualizer, its measured rows and the measured top of its list —
-          and it is the screen a thread is opened from and returned to.
-          docs/IOS.md, "The inbox stays mounted", holds the rule.
-        */}
+        {/* The one screen the stage never unmounts. It is paused instead,
+            and it decides what that means for it — docs/IOS.md, "The inbox
+            stays mounted". */}
         <InboxScreen
-          hidden={screen !== 'inbox'}
+          paused={screen !== 'inbox'}
           readScrollTop={readScrollTop}
           onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
           onCompose={compose}
@@ -140,14 +135,14 @@ export function MobileApp() {
           onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
         />
-        {route.kind === 'account' ? (
+        {screen === 'account' ? (
           <AccountScreen
             onBack={() => dispatch({ type: 'back' })}
             sheet={sheet}
             openSheet={(next) => dispatch({ type: 'openSheet', sheet: next })}
             closeSheet={closeSheet}
           />
-        ) : route.kind === 'thread' ? (
+        ) : screen === 'thread' && route.kind === 'thread' ? (
           <ThreadScreen
             threadKey={route.threadKey}
             onBack={() => dispatch({ type: 'back' })}
@@ -163,7 +158,7 @@ export function MobileApp() {
         ) : null}
       </main>
 
-      {route.kind === 'inbox' && nativeTabBar === false && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={changeTab} />}
+      {atRoot(navigation) && nativeTabBar === false && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={changeTab} />}
       {composerOpen && <ComposeSheet onSent={() => announce('Sent')} />}
       {sheet?.kind === 'later' && (
         <LaterSheet

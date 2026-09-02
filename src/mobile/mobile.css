@@ -211,12 +211,9 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   background: var(--wren-surface-base);
 }
 
-/* The stage keeps the inbox mounted and hides it -- docs/IOS.md, "The inbox
-   stays mounted". The `hidden` attribute alone cannot do that: the UA rule is
-   `[hidden] { display: none }`, and any author `display` beats a UA one
-   whatever the specificity, so `display: flex` above would keep a hidden
-   screen on screen. It has to be taken out of flow, not merely made
-   invisible, so the document's height is the height of the screen on top. */
+/* An author `display` beats the UA `[hidden]` rule whatever the specificity,
+   so the flex above would keep a hidden screen on screen -- docs/IOS.md, "The
+   inbox stays mounted". */
 .mobile-screen[hidden] {
   display: none;
 }

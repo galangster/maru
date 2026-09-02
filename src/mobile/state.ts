@@ -118,11 +118,23 @@ export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction
  * A tab is only the visible screen while the stack is at its root, because
  * `changeTab` resets the stack and a push covers whichever tab it started from.
  */
-export type MobileScreen = MobileTab | 'thread' | 'account'
+export type MobileScreen = MobileTab | Exclude<MobileStackEntry['kind'], 'inbox'>
 
 export function visibleScreen(route: MobileRoute): MobileScreen {
-  const top = route.stack[route.stack.length - 1]
+  const top = topEntry(route)
   return top.kind === 'inbox' ? route.tab : top.kind
+}
+
+/**
+ * Whether the stack is at its root, which is the other question the stage
+ * asks: the tab bar belongs to the root, and only the root.
+ */
+export function atRoot(route: MobileRoute): boolean {
+  return topEntry(route).kind === 'inbox'
+}
+
+function topEntry(route: MobileRoute): MobileStackEntry {
+  return route.stack[route.stack.length - 1]
 }
 
 export const SWIPE_ACTION_THRESHOLD = 72

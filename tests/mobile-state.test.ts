@@ -4,6 +4,7 @@ import type { Thread } from '@/core/types'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
+  atRoot,
   buildMobileRowModel,
   inboxBadgeValue,
   indexOfTab,
@@ -13,6 +14,9 @@ import {
   resolveSwipeIntent,
   tabAtIndex,
   visibleScreen,
+  type MobileRoute,
+  type MobileStackEntry,
+  type MobileTab,
 } from '@/mobile/state'
 
 function thread(overrides: Partial<Thread> = {}): Thread {
@@ -95,36 +99,28 @@ describe('mobile route reducer', () => {
 })
 
 describe('visible screen', () => {
+  const route = (stack: MobileStackEntry[], tab: MobileTab = 'inbox'): MobileRoute => ({ tab, stack, sheet: null })
+  const thread: MobileStackEntry = { kind: 'thread', threadKey: 'account/thread-1' }
+
   it('is the tab while the stack is at its root', () => {
-    expect(visibleScreen(initialMobileRoute)).toBe('inbox')
     for (const tab of MOBILE_TABS) {
-      expect(visibleScreen(mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab }))).toBe(tab)
+      expect(visibleScreen(route([{ kind: 'inbox' }], tab))).toBe(tab)
     }
   })
 
   it('is the pushed screen, whichever tab it was pushed from', () => {
-    const search = mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'search' })
-    const thread = mobileRouteReducer(search, {
-      type: 'push',
-      entry: { kind: 'thread', threadKey: 'account/thread-1' },
-    })
-    expect(visibleScreen(thread)).toBe('thread')
-
-    const settings = mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'settings' })
-    expect(visibleScreen(mobileRouteReducer(settings, { type: 'push', entry: { kind: 'account' } }))).toBe('account')
+    expect(visibleScreen(route([{ kind: 'inbox' }, thread], 'search'))).toBe('thread')
+    expect(visibleScreen(route([{ kind: 'inbox' }, { kind: 'account' }], 'settings'))).toBe('account')
   })
 
-  it('is unchanged by a sheet, and returns to the tab on back', () => {
-    const thread = mobileRouteReducer(initialMobileRoute, {
-      type: 'push',
-      entry: { kind: 'thread', threadKey: 'account/thread-1' },
-    })
-    const sheet = mobileRouteReducer(thread, {
-      type: 'openSheet',
-      sheet: { kind: 'later', threadKeys: ['account/thread-1'] },
-    })
-    expect(visibleScreen(sheet)).toBe('thread')
-    expect(visibleScreen(mobileRouteReducer(mobileRouteReducer(sheet, { type: 'back' }), { type: 'back' }))).toBe('inbox')
+  it('is unchanged by a sheet', () => {
+    const withSheet = { ...route([{ kind: 'inbox' }, thread]), sheet: { kind: 'later' as const, threadKeys: ['account/thread-1'] } }
+    expect(visibleScreen(withSheet)).toBe('thread')
+  })
+
+  it('reads the root separately, because the tab bar belongs to the root', () => {
+    expect(atRoot(route([{ kind: 'inbox' }], 'settings'))).toBe(true)
+    expect(atRoot(route([{ kind: 'inbox' }, thread]))).toBe(false)
   })
 })
 
