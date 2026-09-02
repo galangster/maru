@@ -15,6 +15,7 @@ import { useComposeActions } from '@/features/compose/use-compose-actions'
 import type { ReplyMode } from '@/lib/compose'
 import {
   registerActionUndo,
+  registerUndoable,
   useLabels,
   usePerformAction,
   useSaveSettings,
@@ -33,6 +34,7 @@ import { displayName } from '@/lib/format'
 import { hueFor, hueVars } from '@/lib/hue'
 import { crossfadePreset, staggerPreset, stillPreset, useMotionMode } from '@/lib/motion'
 import { useNow } from '@/lib/use-now'
+import { announcesItself, LEAVES_THE_LIST } from '@/lib/undo'
 import { cn } from '@/lib/utils'
 
 import { MessageCard } from './message-card'
@@ -197,9 +199,10 @@ export function ReadingPane() {
                     useSurfaces.getState().openLater([thread.key])
                     return
                   }
-                  // Same advance rule as the keys: removing the open thread
-                  // shows the next one, so triage stays one press per message.
-                  if (spec.type === 'archive' || spec.type === 'trash') {
+                  // Same advance rule as the keys, off the same set: removing
+                  // the open thread shows the next one, so triage stays one
+                  // press per message.
+                  if (LEAVES_THE_LIST.has(spec.type)) {
                     useUi
                       .getState()
                       .setSelected(
@@ -212,7 +215,13 @@ export function ReadingPane() {
                   // A deliberate press, so it is worth a ⌘Z. The mark-read that
                   // fires on merely opening a thread is not, and does not
                   // register — see registerActionUndo.
-                  registerActionUndo(action.mutate, next)
+                  //
+                  // The four that empty the pane also say so, restore from
+                  // trash included (issue 5): the thread the toolbar was
+                  // describing is gone, and a button that seems to do nothing
+                  // is worse than the action it performed.
+                  if (announcesItself(spec.type)) registerUndoable(action.mutate, next)
+                  else registerActionUndo(action.mutate, next)
                 }}
               />
             )

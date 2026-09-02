@@ -5,13 +5,16 @@
 import { create } from 'zustand'
 
 import type { AttachmentSource, ComposeDraft, EmailAddress } from '@/core/types'
+import type { AttachmentFacts } from '@/lib/compose'
 
-export interface DraftAttachment {
-  /** Local id; the chip's key and what its remove control names. */
-  id: string
-  filename: string
-  mimeType: string
-  sizeBytes: number
+/**
+ * An attachment on the open draft — a file picked here, or one carried off the
+ * message being forwarded.
+ *
+ * The four identifying fields come from `AttachmentFacts` rather than being
+ * written out a second time; exactly one of the two below is set.
+ */
+export interface DraftAttachment extends AttachmentFacts {
   /** The bytes, for a file picked in this composer. */
   dataBase64?: string
   /**

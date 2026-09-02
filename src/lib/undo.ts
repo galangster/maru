@@ -45,22 +45,31 @@ export const UNDO_LABELS: Record<MailActionType, string> = {
 }
 
 /**
- * The actions that have to say out loud what they did.
+ * The actions that take the thread out of the list it was in.
  *
- * All four take the thread out of the list it was in, so there is no row left
- * to stand in for the confirmation — and each one is a move between mailboxes
- * rather than a flag on a row you can still see. Star and read/unread are not
- * here: the row is still there, wearing the change.
+ * All four are a move between mailboxes rather than a flag on a row you can
+ * still see. Star and read/unread are not here: the row is still there,
+ * wearing the change.
+ *
+ * Two rules read this one set, because they are the same question asked twice.
+ * The row is gone, so the selection has to advance to the next one; and the row
+ * is gone, so there is nothing left to stand in for the confirmation and the
+ * action has to say out loud what it did.
  *
  * A set rather than a condition at each call site, because the call sites are
- * the keyboard, the row cluster, the reading toolbar and the palette, and
- * hardcoding `archive || trash` at each of them is what left restore-from-trash
- * silent (issue 5).
+ * the keyboard, the row cluster, the reading toolbar, the bulk bar and the
+ * palette, and hardcoding `archive || trash` at each of them is what left
+ * restore-from-trash silent (issue 5).
  */
-const ANNOUNCED_ACTIONS = new Set<MailActionType>(['archive', 'unarchive', 'trash', 'untrash'])
+export const LEAVES_THE_LIST: ReadonlySet<MailActionType> = new Set<MailActionType>([
+  'archive',
+  'unarchive',
+  'trash',
+  'untrash',
+])
 
 export function announcesItself(type: MailActionType): boolean {
-  return ANNOUNCED_ACTIONS.has(type)
+  return LEAVES_THE_LIST.has(type)
 }
 
 export interface Undoable {

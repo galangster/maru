@@ -310,10 +310,13 @@ function ArchiveTick() {
  * visible rows were mounting ~140 tooltip roots, each with its own positioning
  * subscription, to describe buttons no assistive technology can reach.
  *
- * They do each carry a name now (issue 6): `aria-label` from the descriptor,
- * which is the same string the reading toolbar and the palette use, plus a
- * `title` so a mouse hovering an unfamiliar glyph is told what it does without
- * mounting a single tooltip root.
+ * They do each carry a name now (issue 6), and exactly one way of carrying it:
+ * `title`, from the same descriptor string the reading toolbar and the palette
+ * use, so a mouse hovering an unfamiliar glyph is told what it does without
+ * mounting a single tooltip root. There is no `aria-label` beside it — inside
+ * an `aria-hidden` cluster it names nothing that can be reached, and a second
+ * copy of the string that no one ever reads is a place for the two to drift
+ * apart. The mouse gets the name; the keyboard gets the shortcut.
  *
  * The cluster stays `aria-hidden`, and that is the decision the names sit
  * inside rather than one they overturn. `role="option"` is children-presentational
@@ -362,7 +365,6 @@ function QuickActions({
             key={spec.id}
             type="button"
             tabIndex={-1}
-            aria-label={spec.label}
             title={spec.label}
             disabled={spec.disabled}
             onClick={() => {

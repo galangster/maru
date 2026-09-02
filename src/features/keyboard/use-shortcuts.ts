@@ -35,7 +35,7 @@ import { bulkAction, isBulkAction } from '@/features/list/bulk'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
-import { announcesItself, UNDO_LABELS, UNDO_TOAST_ID } from '@/lib/undo'
+import { announcesItself, LEAVES_THE_LIST, UNDO_LABELS, UNDO_TOAST_ID } from '@/lib/undo'
 
 import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
 
@@ -73,7 +73,7 @@ export function useShortcuts() {
       if (!selected) return
       // Removing the thread you are on selects the next one *first*, so the
       // reading pane is already showing it when the row leaves — e, e, e.
-      if (type === 'archive' || type === 'trash') {
+      if (LEAVES_THE_LIST.has(type)) {
         const follow = nextAfterRemoval(live.current.threads(), selected)
         useUi.getState().setSelected(follow, 'keyboard')
       }

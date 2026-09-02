@@ -540,6 +540,16 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
  * control that does nothing six days a week teaches people to stop looking at
  * it. A clickable "Up to date" is a focus stop that buys nothing.
  */
+/**
+ * The status line's box, declared once for the two element types it can be.
+ *
+ * A span when there is nothing to do about the state and a button when there
+ * is — one sentence of layout either way, so the line does not change shape as
+ * it becomes actionable. `flex` itself is left to the `room` gate beside it,
+ * which is the thing that decides whether the line is laid out at all.
+ */
+const SYNC_LINE = 'min-w-0 flex-1 items-center gap-2 overflow-hidden text-xs'
+
 function SyncLine({
   sync,
   waiting,
@@ -563,6 +573,11 @@ function SyncLine({
    * the line a 1 px box, and its 16 px glyph overhung the collapse button
    * beside it (issue 3). Below the gate the line drops out whole: a glyph drawn
    * on top of a control is not information.
+   *
+   * The gate is on the LINE and not on the wrapper around it, because the
+   * wrapper is also the flex-1 that holds the three chrome buttons at the right
+   * edge. Hiding the wrapper would take that spacer away and slide them left at
+   * exactly the width issue 3 was about.
    *
    * Written out in full, both branches, so Tailwind can see the class names.
    */
@@ -643,10 +658,7 @@ function SyncLine({
   const action = sync.action
   if (action === null) {
     return (
-      <span
-        title={sync.detail}
-        className={cn('text-ink-3 min-w-0 flex-1 items-center gap-2 overflow-hidden text-xs', room)}
-      >
+      <span title={sync.detail} className={cn(SYNC_LINE, room, 'text-ink-3')}>
         {body}
       </span>
     )
@@ -661,11 +673,12 @@ function SyncLine({
             aria-label={sync.detail}
             onClick={() => openSettings(action)}
             className={cn(
+              SYNC_LINE,
+              room,
               // NavRow's own radius and focus ring, so the hit target reads as
               // the same kind of object as a mailbox row. -mx-1 px-1 = 4 px, on
               // grid.
-              'rounded-row focus-ring text-ink-2 -mx-1 min-w-0 flex-1 items-center gap-2 overflow-hidden px-1 text-xs',
-              room,
+              'rounded-row focus-ring text-ink-2 -mx-1 px-1',
               'duration-(--wren-dur-fast) ease-(--wren-ease-out) transition-colors',
               'hover:bg-fill-hover hover:text-ink',
             )}

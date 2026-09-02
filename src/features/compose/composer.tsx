@@ -48,7 +48,7 @@ import { playSound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
 import { BodyEditor, FormatToolbar, useBodyEditor } from './body-editor'
-import { ChipInput, FIELD_LABEL } from './chip-input'
+import { ChipInput, FIELD_LABEL, type ChipInputHandle } from './chip-input'
 import {
   toComposeDraft,
   useComposer,
@@ -173,12 +173,11 @@ function ComposerSheet() {
    * out loud and puts the caret where the answer goes.
    */
   const blocked = sendBlockReason(draft)
-  const toRef = useRef<HTMLInputElement>(null)
-  const [notice, setNotice] = useState('')
-  // The reason stops being true the moment it stops being true.
-  useEffect(() => {
-    if (!blocked) setNotice('')
-  }, [blocked])
+  const toRef = useRef<ChipInputHandle>(null)
+  // Whether the person has asked. The reason itself is never held in state —
+  // `blocked` is already the live answer, and a second copy of it could only
+  // ever be the stale one.
+  const [askedWhy, setAskedWhy] = useState(false)
 
   const title = draft.reply ? TITLES[draft.reply.mode] : 'New message'
 
@@ -200,7 +199,7 @@ function ComposerSheet() {
     if (blocked) {
       // Never a silent key. The sentence appears beside the button and the
       // caret lands in the field that answers it.
-      setNotice(blocked)
+      setAskedWhy(true)
       playSound('error')
       toRef.current?.focus()
       return
@@ -406,7 +405,7 @@ function ComposerSheet() {
         value={draft.to}
         onChange={(to) => edit({ to })}
         autoFocus
-        inputRef={toRef}
+        ref={toRef}
         trailing={
           showCc ? undefined : (
             <button
@@ -517,7 +516,7 @@ function ComposerSheet() {
             Live, so it is heard as well as seen, and truncating rather than
             wrapping because the footer is one 48 px band. */}
         <p aria-live="polite" className="text-ink-2 min-w-0 truncate text-xs">
-          {notice}
+          {askedWhy ? (blocked ?? '') : ''}
         </p>
         <Tooltip>
           <TooltipTrigger
@@ -542,8 +541,9 @@ function ComposerSheet() {
                 }
                 // `aria-disabled`, not `disabled`: it reads as unavailable and
                 // keeps its pointer events, which is what lets the tooltip and
-                // the press explain themselves.
-                className={cn(SEND_BUTTON, 'aria-disabled:opacity-40', sending && SEND_CONFIRM)}
+                // the press explain themselves. The dimming that goes with it
+                // is PrimaryButton's, not this call site's.
+                className={cn(SEND_BUTTON, sending && SEND_CONFIRM)}
               />
             }
           >

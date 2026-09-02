@@ -30,10 +30,11 @@ export async function resolveAttachments(
   draft: ComposeDraft,
   fetch: FetchAttachment,
 ): Promise<SendableDraft> {
-  if (draft.attachments.every((a) => a.dataBase64 !== undefined)) {
-    return draft as SendableDraft
-  }
-
+  // No fast path for a draft that already holds every byte. The map below is
+  // what proves each attachment has its bytes, so short-circuiting it would
+  // buy one skipped allocation at the price of a cast the compiler cannot
+  // check — and the cast is the only thing standing between a reference and
+  // the MIME builder.
   const attachments = await Promise.all(
     draft.attachments.map(async (attachment): Promise<SendableAttachment> => {
       if (attachment.dataBase64 !== undefined) {

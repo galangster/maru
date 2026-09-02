@@ -207,12 +207,30 @@ export function quoteOriginal(
   return `${spacer}${attribution}<blockquote>${body}</blockquote>`
 }
 
-/** An attachment a new draft carries from the message it answers. */
-export interface CarriedAttachment {
+/**
+ * What every attachment in a draft is known by, however it got there.
+ *
+ * The one place these four fields are written down. A file picked in the
+ * composer and a file carried off a forward differ only in where the bytes
+ * are — see `CarriedAttachment` here and `DraftAttachment` in the compose
+ * store, which both build on this.
+ */
+export interface AttachmentFacts {
+  /** Local id; the chip's key and what its remove control names. */
   id: string
   filename: string
   mimeType: string
   sizeBytes: number
+}
+
+/**
+ * An attachment a new draft carries from the message it answers.
+ *
+ * `source` is required here and optional on a draft attachment, which is the
+ * whole difference: a carried attachment is a reference by definition, and a
+ * picked file has bytes instead.
+ */
+export interface CarriedAttachment extends AttachmentFacts {
   source: AttachmentSource
 }
 

@@ -8,7 +8,7 @@
 import { reverseAction } from '@/core/service/actions'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
 import { showUndoToast } from '@/features/mail/queries'
-import { UNDO_LABELS } from '@/lib/undo'
+import { LEAVES_THE_LIST, UNDO_LABELS } from '@/lib/undo'
 import { useUi } from '@/features/mail/ui-store'
 import { wakeTime } from '@/lib/format'
 
@@ -25,8 +25,6 @@ export type BulkActionType = typeof BULK_TYPES extends ReadonlySet<infer T> ? T 
 export function isBulkAction(type: MailActionType): type is BulkActionType {
   return (BULK_TYPES as ReadonlySet<MailActionType>).has(type)
 }
-
-const REMOVES: ReadonlySet<MailActionType> = new Set(['archive', 'trash', 'untrash'])
 
 /**
  * The checked threads, in the order the person sees them. Checked keys that
@@ -56,7 +54,9 @@ export function bulkAction(
   const keys = new Set(targets.map((t) => t.key))
 
   const ui = useUi.getState()
-  if (REMOVES.has(type) && ui.selected && keys.has(ui.selected)) {
+  // `LEAVES_THE_LIST` also holds unarchive, which `BULK_TYPES` excludes, so
+  // reading the shared set rather than a local copy changes no batch.
+  if (LEAVES_THE_LIST.has(type) && ui.selected && keys.has(ui.selected)) {
     ui.setSelected(nextAfterRemoval(visible, keys), 'keyboard')
   }
 

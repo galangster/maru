@@ -18,6 +18,7 @@ import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
   MIN_SEARCH_LENGTH,
   registerActionUndo,
+  registerUndoable,
   showUndoToast,
   useAccountsById,
   useDefer,
@@ -33,6 +34,7 @@ import { ThreadResult } from '@/components/thread-result'
 import { SHELL_CARD } from '@/features/shell/app-shell'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { HeldMutations } from '@/lib/deferred'
+import { announcesItself, LEAVES_THE_LIST, UNDO_LABELS } from '@/lib/undo'
 import { dateGroup, wakeGroup, wakeTime, type DateGroup, type WakeGroup } from '@/lib/format'
 import { DUR } from '@/lib/motion'
 import { useDebounced } from '@/lib/use-debounced'
@@ -233,7 +235,7 @@ export function ThreadList() {
 
   const onAction = useCallback(
     (thread: Thread, type: MailActionType) => {
-      if ((type === 'archive' || type === 'trash') && useUi.getState().selected === thread.key) {
+      if (LEAVES_THE_LIST.has(type) && useUi.getState().selected === thread.key) {
         useUi.getState().setSelected(nextAfterRemoval(visibleRef.current, thread.key), 'keyboard')
       }
       // Archive is the one action with a row-level celebration; everything else
@@ -249,8 +251,14 @@ export function ThreadList() {
       const mutate = (next: MailAction) => actionRef.current.mutate(next)
 
       if (type !== 'archive' || held.has(thread.key)) {
-        mutate({ type, threadKey: thread.key })
-        registerActionUndo(mutate, { type, threadKey: thread.key })
+        const next = { type, threadKey: thread.key }
+        mutate(next)
+        // An action that empties the row has no row left to confirm it, so the
+        // mouse gets the same sentence the keyboard does — restore from trash
+        // included (issue 5). Everything else stays a silent ⌘Z: the row is
+        // still there, wearing the change.
+        if (announcesItself(type)) registerUndoable(mutate, next, thread.subject || '(no subject)')
+        else registerActionUndo(mutate, next)
         return
       }
       setTicking(thread.key)
@@ -272,7 +280,7 @@ export function ThreadList() {
       // ⌘Z reaches the same two halves.
       useUi.getState().registerUndo({
         id: `archive:${thread.key}`,
-        label: 'Archived',
+        label: UNDO_LABELS.archive,
         run: () => {
           if (held.has(thread.key)) {
             cancel()
@@ -286,7 +294,7 @@ export function ThreadList() {
       // DIRECTION §2 (Superhuman 5): small, bottom-left, inline UNDO. The
       // affordance is on screen for the toast's own life; ⌘Z keeps offering the
       // same undo for the rest of the 10 s window.
-      showUndoToast('Archived', thread.subject || '(no subject)')
+      showUndoToast(UNDO_LABELS.archive, thread.subject || '(no subject)')
     },
     [held],
   )
