@@ -167,7 +167,13 @@ function ComposeButton({ collapsed }: { collapsed: boolean }) {
           />
         }
       >
-        <Icon name="compose" size={collapsed ? 18 : 16} />
+        {/* 20, like the five navigation rows 40 px below it — issue #35. The
+            primary action on the card had the smallest glyph on it, at 16 next
+            to their 20, and the two sizes are close enough together to read as
+            a mistake rather than as a hierarchy. The button keeps its 36 px
+            geometry; only the glyph moves, so DIRECTION §8's 16/18/20 grid
+            gains nothing new. */}
+        <Icon name="compose" size={20} />
         {!collapsed && 'Compose'}
       </TooltipTrigger>
       <TooltipContent>
