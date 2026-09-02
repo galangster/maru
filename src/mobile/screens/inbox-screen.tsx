@@ -24,7 +24,7 @@ import {
   type DeferTarget,
   type MobileRowModel,
 } from '../state'
-import { batchActions, removeChrome, type MobileThreadActions } from '../thread-actions'
+import { batchActions, gestureHint, removeChrome, type MobileThreadActions } from '../thread-actions'
 import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
@@ -151,6 +151,10 @@ export function InboxScreen({
     parked.current = threads.map((thread) => ({ thread, model: buildMobileRowModel(thread, selfEmails, now) }))
     return parked.current
   }, [paused, threads, selfEmails, now])
+  // What this mailbox's rows actually answer to a finger. Memoized with the
+  // rows because it resolves every one of them, and it is read by the hidden
+  // help below the list (issue 63).
+  const hint = useMemo(() => gestureHint(batchActions(rows.map((row) => row.thread))), [rows])
   // The window, not a container. UIKit minimizes the Liquid Glass tab bar off
   // the WKWebView's own scroll view, so the inbox has to move the document
   // (mobile.css). `scrollMargin` is what tells the virtualizer how far the list
@@ -363,7 +367,7 @@ export function InboxScreen({
           </div>
         )}
       </div>
-      <p className="sr-only" id={SWIPE_HINT_ID}>Swipe right to archive, or to restore from Trash. Swipe left to save for later. Long press for more actions.</p>
+      <p className="sr-only" id={SWIPE_HINT_ID}>{hint}</p>
 
       {editBar && (
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">

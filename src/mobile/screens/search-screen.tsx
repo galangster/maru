@@ -9,6 +9,7 @@ import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
 import { buildMobileRowModel, deferTarget, type DeferTarget } from '../state'
+import { batchActions, gestureHint } from '../thread-actions'
 import './search-screen.css'
 
 const SEARCH_HINT_ID = 'mobile-search-gesture-hint'
@@ -68,6 +69,10 @@ export function SearchScreen({
       })),
     [results.data, selfEmails, now],
   )
+  // A result set holds inbox mail, sent mail and trashed mail at once, so the
+  // help is the intersection: only the gestures every row on screen will
+  // answer to (issue 63).
+  const hint = useMemo(() => gestureHint(batchActions(rows.map((row) => row.thread))), [rows])
   return (
     <section className="mobile-screen" aria-label="Search">
       <header className="mobile-nav mobile-search-nav">
@@ -106,6 +111,7 @@ export function SearchScreen({
         )}
       </div>
       <p className="sr-only" id={SEARCH_HINT_ID}>Swipe right to archive, or to restore from Trash. Swipe left to save for later. Long press for more actions.</p>
+      <p className="sr-only" id={SEARCH_HINT_ID}>{hint}</p>
     </section>
   )
 }

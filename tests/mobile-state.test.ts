@@ -34,6 +34,7 @@ import {
 } from '@/mobile/state'
 import {
   batchActions,
+  gestureHint,
   moveTargets,
   removeChrome,
   rowActions,
@@ -737,5 +738,57 @@ describe('the conversation title', () => {
 
   it('flattens the whitespace a pasted paragraph brings with it', () => {
     expect(threadTitleName('Two\n\nlines')).toBe('Two lines')
+  })
+})
+
+/**
+ * The gesture help a list gives a screen reader.
+ *
+ * Sent and Later announced the inbox's sentence — swipe right to archive,
+ * swipe left to save for later — while correctly refusing both gestures, so
+ * the only instructions a screen-reader user got in Sent were for two things
+ * that are not there (issue 63). The help is derived from the same resolved
+ * verbs the rows are drawn from now, so it cannot say one thing while the row
+ * does another.
+ */
+describe('gesture help', () => {
+  const inboxed = thread({ labelIds: ['INBOX', 'UNREAD'] })
+  const sent = thread({ key: 'account/sent-1', labelIds: ['SENT'] })
+  const trashed = thread({ key: 'account/trash-1', labelIds: ['TRASH'] })
+
+  it('names both swipes in the inbox', () => {
+    expect(gestureHint(batchActions([inboxed]))).toBe(
+      'Swipe right to archive. Swipe left to save for later. Long press for more actions.',
+    )
+  })
+
+  it('names only the long press in Sent', () => {
+    expect(gestureHint(batchActions([sent]))).toBe('Long press for more actions.')
+  })
+
+  it('names the restore Trash actually offers, in the words the row uses', () => {
+    expect(gestureHint(batchActions([trashed]))).toBe(
+      'Swipe right to move to Inbox. Long press for more actions.',
+    )
+  })
+
+  it('promises only what every row in a mixed list will do', () => {
+    // Search reaches inbox mail, sent mail and trashed mail at once. A promise
+    // that holds for some of the rows is the same defect one row further down.
+    expect(gestureHint(batchActions([inboxed, sent, trashed]))).toBe('Long press for more actions.')
+  })
+
+  it('never promises a gesture the row would refuse', () => {
+    for (const list of [[inboxed], [sent], [trashed], [inboxed, sent], [sent, trashed]]) {
+      const actions = batchActions(list)
+      const hint = gestureHint(actions)
+      expect(hint.includes('Swipe right')).toBe(actions.remove !== null)
+      expect(hint.includes('Swipe left')).toBe(actions.defer)
+      expect(hint.endsWith('Long press for more actions.')).toBe(true)
+    }
+  })
+
+  it('says nothing at all about swipes over an empty list', () => {
+    expect(gestureHint(batchActions([]))).toBe('Long press for more actions.')
   })
 })
