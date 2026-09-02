@@ -24,6 +24,8 @@ export default defineRailway(() => {
       DATABASE_URL: db.env.DATABASE_URL,
       NODE_ENV: "production",
       PORT: "8787",
+      PUBSUB_AUDIENCE: "maru-sync",
+      PUBSUB_SERVICE_ACCOUNT: "maru-push@maru-mail-prod.iam.gserviceaccount.com",
       MARU_ALLOWLIST: "nick@metadao.fi,galangsterr@gmail.com,nicholasgalang@gmail.com",
       MARU_COMPED: "nick@metadao.fi,galangsterr@gmail.com,nicholasgalang@gmail.com",
     },
