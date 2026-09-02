@@ -22,16 +22,19 @@ import { describe, expect, it } from 'vitest'
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
 import { ratio } from '../scripts/lib/color.mjs'
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
-import { backdropsFor, fillsFor, hoverOver } from '../scripts/lib/fills.mjs'
+import { SELECTED_ALPHA, backdropsFor, fillsFor, hoverOver } from '../scripts/lib/fills.mjs'
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
 import { tokenReader } from '../scripts/lib/tokens.mjs'
 
 type Rgb = [number, number, number]
 type Theme = 'light' | 'dark'
 
-const { token } = tokenReader() as {
+const { token, alphaOf } = tokenReader() as {
   token: (name: string, theme: Theme) => { rgb: Rgb; clipped: boolean }
+  alphaOf: (name: string, theme: Theme) => number
 }
+
+const selectedAlpha = SELECTED_ALPHA as Record<Theme, number>
 
 const rgb = (name: string, theme: Theme): Rgb => token(name, theme).rgb
 
@@ -132,26 +135,35 @@ describe('the on-fill tier — issues #26, #27, #29, #30', () => {
     ).toBeGreaterThanOrEqual(TEXT)
   })
 
-  it('paints that tier from the fill utility, not from a colour at the label', () => {
+  it('carries the hover fill on all three certified surfaces', () => {
     // The fix is the third fill utility, matching `bg-sunken` and
     // `bg-fill-selected`: painting a fill and certifying the text on it are one
     // act. A one-off colour on the picker's own row would have left every other
-    // hover fill in the app uncertified.
-    const css = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../src/index.css'),
-      'utf8',
-    )
-    const utility = css.match(/@utility bg-fill-hover \{[\s\S]*?\n\}/)
-    expect(utility, 'the bg-fill-hover utility moved out of src/index.css').not.toBeNull()
-    expect(utility![0]).toContain('--wren-text-3: var(--wren-text-on-fill)')
+    // hover fill in the app uncertified — so the guard is that the hover fill
+    // is in the shared table on every surface it is painted on, which is what
+    // the two suites above measure the tiers against.
+    for (const theme of ['light', 'dark'] as const) {
+      expect(fills(theme).map(([name]) => name)).toEqual(
+        expect.arrayContaining([
+          'hover fill over surface',
+          'hover fill over base',
+          'hover fill over raised',
+        ]),
+      )
+      // And it is composited at the alpha the stylesheet declares, not at one
+      // this suite would have to keep in step by hand.
+      expect(alphaOf('wren-fill-hover', theme), `${theme} hover alpha`).toBeGreaterThan(0)
+    }
   })
 
   it('leaves the ruled wash alphas alone', () => {
     // DIRECTION §3 rules the selected row as the accent at 8% light and 14%
     // dark. The trap was fixed by certifying a tier against those fills, not by
-    // weakening them, and this is the line that says so.
-    const { raw } = tokenReader() as { raw: (n: string, t: Theme) => string }
-    expect(raw('wren-fill-selected', 'light')).toContain('8%')
-    expect(raw('wren-fill-selected', 'dark')).toContain('14%')
+    // weakening them, and this is the line that says so. The numbers compared
+    // are the ones the fills were actually composited at, read off
+    // `--wren-fill-selected` — so weakening the token fails here rather than
+    // quietly relaxing every ratio in this file.
+    expect(selectedAlpha.light).toBeCloseTo(0.08, 5)
+    expect(selectedAlpha.dark).toBeCloseTo(0.14, 5)
   })
 })

@@ -8,48 +8,32 @@
 // change. Wave 3's own encoding: driven at 1600×1000 (2560 where the finding
 // was bracketed there), written 880 px wide, palette-encoded, no dithering.
 //
-// `?screenshot=1` freezes the clock and removes every transition. The Later
-// frames run on the LIVE clock instead — under the frozen clock every preset
-// the picker offers is already due.
+// The Later frames run on the LIVE clock — under the frozen capture clock every
+// preset the picker offers is already due. The runner and the shared acts are
+// `scripts/lib/capture.mjs` and `scripts/lib/page-acts.mjs`.
 
-import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { chromium } from 'playwright'
-import sharp from 'sharp'
 
-import { gotoReady, newCaptureContext, parkPointer } from './lib/capture.mjs'
+import { runShots } from './lib/capture.mjs'
+import { openLater, search } from './lib/page-acts.mjs'
 
-import { ORIGIN, startServerIfNeeded } from './dev-server.mjs'
+import { startServerIfNeeded } from './dev-server.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'wayfinder/captures/qa-desktop-3/after')
 
+const VIEWPORT = { width: 1600, height: 1000 }
 /** Wave 3's file width. The viewport is 1600 or 2560; the file is always 880. */
 const FILE_W = 880
-
-const search = (query) => async (page) => {
-  await page.keyboard.press('/')
-  await page.waitForSelector('input[type="search"], input[aria-label="Search mail"]', {
-    timeout: 10_000,
-  })
-  await page.keyboard.type(query)
-  await page.waitForSelector('ul[aria-label="Search results"]', { timeout: 10_000 })
-  await page.waitForTimeout(600)
-}
 
 /** Rest the pointer on the first row, which is the frame's whole subject. */
 const hoverFirstRow = async (page) => {
   const box = await page.locator('[data-thread-key]').first().boundingBox()
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.waitForTimeout(300)
-}
-
-const openLater = async (page) => {
-  await page.locator('[data-thread-key]').first().click()
-  await page.keyboard.press('h')
-  await page.waitForSelector('[role="dialog"]', { timeout: 10_000 })
 }
 
 const SHOTS = [
@@ -99,29 +83,9 @@ const SHOTS = [
 
 const browser = await chromium.launch()
 const child = await startServerIfNeeded(ROOT)
-await mkdir(OUT, { recursive: true })
 
 try {
-  for (const shot of SHOTS) {
-    const viewport = { width: shot.width ?? 1600, height: 1000 }
-    // A context per width, not per shot: the viewport is the only thing that
-    // varies, and locale, timezone and motion stay pinned by the shared helper.
-    const context = await newCaptureContext(browser, { viewport })
-    const page = await context.newPage()
-    const flags = shot.live ? '' : '&screenshot=1'
-    await gotoReady(page, `${ORIGIN}/?demo=1${flags}&theme=${shot.theme ?? 'light'}`)
-    if (shot.act) await shot.act(page)
-    if (shot.keepPointer) await page.waitForLoadState('networkidle')
-    else await parkPointer(page, viewport)
-    const buffer = await page.screenshot({ type: 'png' })
-    const encoded = await sharp(buffer)
-      .resize({ width: FILE_W })
-      .png({ palette: true, dither: 0 })
-      .toBuffer()
-    await writeFile(join(OUT, shot.file), encoded)
-    console.log(`${shot.file}  ${(encoded.length / 1024).toFixed(0)} KB`)
-    await context.close()
-  }
+  await runShots(browser, SHOTS, { out: OUT, viewport: VIEWPORT, fileWidth: FILE_W })
 } finally {
   await browser.close()
   if (child) child.kill('SIGTERM')

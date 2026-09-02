@@ -8,50 +8,27 @@
 // `captures/ui-review-desktop/after/<name>.png` and see the one change.
 //
 // 1280 px, palette-encoded PNG with no dithering, exactly as the review's own
-// set. `?screenshot=1` freezes the clock and removes every transition, so two
-// runs a week apart produce comparable frames.
+// set. The runner and the shared acts are `scripts/lib/capture.mjs` and
+// `scripts/lib/page-acts.mjs`.
 
-import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { chromium } from 'playwright'
-import sharp from 'sharp'
 
-import { gotoReady, newCaptureContext, parkPointer } from './lib/capture.mjs'
+import { runShots } from './lib/capture.mjs'
+import { openRow, search } from './lib/page-acts.mjs'
 
-import { ORIGIN, startServerIfNeeded } from './dev-server.mjs'
+import { startServerIfNeeded } from './dev-server.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'wayfinder/captures/ui-review-desktop/after')
 
 const VIEWPORT = { width: 1280, height: 800 }
 
-/** Open the nth row and wait for the pane to have rendered it. The card is the
- *  signal every shot that opens a thread needs — the row click resolves a query
- *  and a sleep long enough for that on this machine is not long enough on
- *  another. */
-const openRow = (index) => async (page) => {
-  await page.locator('[data-thread-key]').nth(index).click()
-  await page.waitForSelector('section[aria-label="Reading"] [data-message-card]', {
-    timeout: 10_000,
-  })
-}
-
 /** A thread with several messages and a rich body — the reply tiles' home. */
 const openThird = openRow(2)
 const openFirst = openRow(0)
-
-const search = (query) => async (page) => {
-  await page.keyboard.press('/')
-  await page.waitForSelector('input[type="search"], input[aria-label="Search mail"]', {
-    timeout: 10_000,
-  })
-  await page.keyboard.type(query)
-  // The debounce, then the query. The one wait with no DOM signal to take
-  // instead: a search that matches nothing settles by NOT changing the page.
-  await page.waitForTimeout(1200)
-}
 
 /** #22 — three tabs from an empty spot in the sidebar lands on "Starred". */
 const focusRing = async (page) => {
@@ -187,35 +164,9 @@ const SHOTS = [
 
 const browser = await chromium.launch()
 const child = await startServerIfNeeded(ROOT)
-await mkdir(OUT, { recursive: true })
 
 try {
-  // One pinned context for the whole set, and one page inside it: the frames
-  // are meant to be compared with each other, so locale, timezone and motion
-  // are settled once rather than per shot. `scripts/lib/capture.mjs`, shared
-  // with scripts/screenshot.mjs.
-  const context = await newCaptureContext(browser, { viewport: VIEWPORT })
-  const page = await context.newPage()
-
-  for (const shot of SHOTS) {
-    const flags = shot.live ? '' : '&screenshot=1'
-    const theme = shot.theme ?? 'light'
-    await gotoReady(page, `${ORIGIN}/?demo=1${flags}&theme=${theme}`)
-    if (shot.act) await shot.act(page)
-    // Park the pointer off every row unless the frame IS a hover state: a
-    // click leaves the cursor where it landed, and the row's hover cluster
-    // would then cover the very text some of these frames exist to show.
-    if (shot.keepPointer) await page.waitForLoadState('networkidle')
-    else await parkPointer(page, VIEWPORT)
-    const buffer = await page.screenshot({ type: 'png' })
-    // Palette-encoded, no dithering — the review's own encoding, and what keeps
-    // a flat interface capture under a tenth of a truecolour one.
-    const encoded = await sharp(buffer).png({ palette: true, dither: 0 }).toBuffer()
-    await writeFile(join(OUT, shot.file), encoded)
-    console.log(`${shot.file}  ${(encoded.length / 1024).toFixed(0)} KB`)
-  }
-
-  await context.close()
+  await runShots(browser, SHOTS, { out: OUT, viewport: VIEWPORT })
 } finally {
   await browser.close()
   if (child) child.kill('SIGTERM')

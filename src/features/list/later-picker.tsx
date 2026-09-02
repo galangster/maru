@@ -102,6 +102,35 @@ export function LaterPicker({ onCommit, isDeferred }: LaterPickerProps) {
   )
 }
 
+/**
+ * Which preset row a keystroke picks, or `null` for "not this menu's".
+ *
+ * 1..n pick a preset outright. They are bound on the dialog rather than
+ * globally because the keymap has already stood down — `anyDialogOpen()` —
+ * which is what keeps `1` from meaning two things at once.
+ *
+ * And they are accelerators for the *rows*, so they stand down in turn the
+ * moment something inside this menu is taking typed text. "Pick a date…"
+ * replaces the four numbered rows with a date field, and the digits kept firing
+ * into the list that was no longer there: typing `09/10/2026` closed the menu
+ * on the `1` and saved the thread for this evening, with a toast confirming a
+ * time nobody had chosen (issue #54). The guard is the keymap's own —
+ * `@/lib/typing` — rather than a second spelling of it here, because one
+ * surface disagreeing about what counts as a field is how this defect came
+ * back.
+ *
+ * It is a function beside the component, and exported, because the ORDER of
+ * those two steps is the fix: the guard has to run before the key is read.
+ * That is a thing a test can execute, and it used to be a thing a test could
+ * only assert about the source text.
+ */
+export function presetForKey<T>(key: string, target: EventTarget | null, presets: T[]): T | null {
+  if (isTyping(target)) return null
+  const index = Number(key) - 1
+  if (!Number.isInteger(index) || index < 0 || index >= presets.length) return null
+  return presets[index]
+}
+
 function PickerBody({
   target,
   now,
@@ -123,26 +152,12 @@ function PickerBody({
     first.current?.focus()
   }, [])
 
-  // 1..n pick a preset outright. Bound on the dialog rather than globally
-  // because the keymap has already stood down — `anyDialogOpen()` — which is
-  // what keeps `1` from meaning two things at once.
-  //
-  // And they are accelerators for the *rows*, so they stand down in turn the
-  // moment something inside this menu is taking typed text. "Pick a date…"
-  // replaces the four numbered rows with a date field, and the digits kept
-  // firing into the list that was no longer there: typing `09/10/2026` closed
-  // the menu on the `1` and saved the thread for this evening, with a toast
-  // confirming a time nobody had chosen (issue #54). The guard is the keymap's
-  // own — `@/lib/typing` — rather than a second spelling of it here, because
-  // one surface disagreeing about what counts as a field is how this defect
-  // came back.
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return
-    if (isTyping(event.target)) return
-    const index = Number(event.key) - 1
-    if (!Number.isInteger(index) || index < 0 || index >= presets.length) return
+    const preset = presetForKey(event.key, event.target, presets)
+    if (preset === null) return
     event.preventDefault()
-    onPick(presets[index].wakeAt)
+    onPick(preset.wakeAt)
   }
 
   const count = target.keys.length

@@ -671,6 +671,16 @@
        rect is that minus the gap, so nothing about the virtualizer moves. */
     --wren-row-inset-x: 8px;
     --wren-row-gap: 4px;
+    /* The right-aligned date column, shared by the list row and the search
+       row so subjects across the two row kinds start at the same x.
+
+       Fixed, not shrink-to-fit: "02:30", "Sat" and "Yesterday" are three
+       different widths, and a column that sizes to its content leaves the left
+       edge of the timestamps ragged down the list — the one thing DIRECTION §1
+       says a column may never do. 64 px holds the longest value.
+
+       The hover cluster is measured off it, below. */
+    --wren-row-date-w: 64px;
     /* The hover cluster — issue #32, twice.
        It is opaque and absolutely positioned, so wherever it sits it takes
        that region of the row away for as long as the pointer is on it. The
@@ -686,11 +696,14 @@
        metadatum and the cheapest thing on the row to cover for as long as a
        pointer rests on it. Line two reserves nothing and never reflows.
 
-       140 px is that lane at the list's own 400 px measure: a 68 px gap, the
-       8 px between them and the 64 px date column. Five actions at 28 px
-       rather than 32 — the number the lane allows, on a mouse-only cluster
-       with keyboard equivalents for all five. */
-    --wren-row-cluster-w: 140px;
+       The lane at the list's own 400 px measure is a 68 px gap, the 8 px
+       between them and the date column — so it is derived from
+       `--wren-row-date-w` rather than restated, and widening the date column
+       cannot leave the cluster overhanging the sender's name. It comes to
+       140 px today. Five actions at 28 px rather than 32 — the number the lane
+       allows, on a mouse-only cluster with keyboard equivalents for all
+       five. */
+    --wren-row-cluster-w: calc(68px + 8px + var(--wren-row-date-w));
     /* Amie's coloured squircle: a category tile in settings and label rows. */
     --wren-tile: 28px;
     --wren-read-px: 32px;

@@ -11,10 +11,6 @@
 //  3. `thread_defer` reaching `deleteAccount` and `deleteThreads` — both
 //     one-word additions, and both data-leak bugs if missed.
 
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 // @ts-expect-error -- jsdom is a devDependency of vite and ships no types.
 import { JSDOM } from 'jsdom'
 import { describe, it, expect, afterEach } from 'vitest'
@@ -36,6 +32,7 @@ import {
 } from '../src/core/defaults'
 import { applyListPrefs } from '../src/features/list/list-prefs'
 import { wakeTime } from '../src/lib/format'
+import { presetForKey } from '../src/features/list/later-picker'
 import { isTyping } from '../src/lib/typing'
 import type { GmailHistoryResponse, GmailMessage, GmailProfile, GmailThread } from '../src/core/gmail/types'
 import type { MailEvent, MailView } from '../src/core/types'
@@ -726,15 +723,24 @@ describe('the preset digits stand down inside the date field — issue #54', () 
 
   it('is the guard the picker actually calls, before it reads the key', () => {
     // The regression is not the predicate — it is a surface binding digits
-    // without asking it. This is the line that says the picker asks.
-    const source = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../src/features/list/later-picker.tsx'),
-      'utf8',
+    // without asking it, so the rule under test is the picker's own, run
+    // against the same fixture rather than read out of the file.
+    const presets = deferPresets(NOW)
+
+    // A digit on a preset row is the accelerator it looks like.
+    expect(presetForKey('1', at('preset'), presets)).toBe(presets[0])
+    expect(presetForKey(String(presets.length), at('preset'), presets)).toBe(
+      presets[presets.length - 1],
     )
-    const handler = source.match(/const onKeyDown = \(event: React\.KeyboardEvent\) => \{[\s\S]*?\n  \}/)
-    expect(handler, 'the picker key handler moved out of later-picker.tsx').not.toBeNull()
-    expect(handler![0]).toContain('isTyping(event.target)')
-    expect(handler![0].indexOf('isTyping')).toBeLessThan(handler![0].indexOf('Number(event.key)'))
+
+    // The same digit with the caret in the date field is a digit. This is the
+    // ordering that was the defect: the guard runs before the key is read.
+    expect(presetForKey('1', at('date'), presets)).toBeNull()
+
+    // And nothing outside the list of rows is ever a row.
+    expect(presetForKey('0', at('preset'), presets)).toBeNull()
+    expect(presetForKey(String(presets.length + 1), at('preset'), presets)).toBeNull()
+    expect(presetForKey('x', at('preset'), presets)).toBeNull()
   })
 })
 

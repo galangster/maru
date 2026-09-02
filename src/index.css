@@ -200,14 +200,9 @@
     --wren-text-3: var(--wren-text-on-fill);
 }
 
-/* The hover fill was the third one, and it was left out of the first pass
-   because it is neutral rather than tinted — 4.5% black in light, 5% white in
-   dark — so it reads as "barely a fill at all". It is a fill, and in dark it is
-   the one that carries the *highlighted* row of a menu, which is the row a
-   person is about to choose: the Save for later picker opens with its first row
-   already highlighted, and the return time on it measured 3.94:1 while the same
-   time on the three rows below it measured 4.61 (issue #55). The row you are
-   about to pick was the least readable row on the surface.
+/* The hover fill was the third one, left out of the first pass because it is
+   neutral rather than tinted — see `--wren-text-on-fill` for what that cost the
+   highlighted row of the Save for later menu (issue #55).
 
    It is a variant-only class in practice — `hover:`, `group-hover:`,
    `focus-visible:` — and that is exactly why the utility is the right shape:

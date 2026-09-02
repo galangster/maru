@@ -6,14 +6,13 @@
 import { Icon } from '@/components/ui/icon'
 import { AccountAvatar, ICON_SLOT } from '@/components/wren-controls'
 import type { Thread } from '@/core/types'
-import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import { correspondents, fullTimestamp, participantLine } from '@/lib/format'
 import { hueFor } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
 export interface ThreadResultProps {
   thread: Thread
   selfEmails: string[]
-  now: number
   /** The list shows avatars; the palette shows a mail glyph in the icon slot. */
   avatar?: boolean
   className?: string
@@ -22,7 +21,6 @@ export interface ThreadResultProps {
 export function ThreadResult({
   thread,
   selfEmails,
-  now,
   avatar = true,
   className,
 }: ThreadResultProps) {
@@ -70,12 +68,20 @@ export function ThreadResult({
           for a timestamp. Cutting seven subjects in nine to keep it is the
           wrong way round. It is still ANNOUNCED — the `time` below is
           sr-only — so nothing is lost to a screen reader, only to the column
-          that was starving the subject. */}
+          that was starving the subject.
+
+          It is ABSOLUTE rather than relative, which is why this row takes no
+          `now`. A relative time has to be recomputed against the ticking
+          clock, so every search result and every palette row re-rendered once
+          a minute to update text no sighted reader can see and no screen
+          reader was re-reading. The full stamp is the better announcement
+          anyway: a result list is scanned out of order, and "Sep 2, 2026 at
+          14:03" does not depend on when it is read. */}
       <span className="text-ink-2 min-w-0 flex-1 truncate text-sm">
         {thread.subject || '(no subject)'}
       </span>
       <time className="sr-only" dateTime={new Date(thread.lastMessageAt).toISOString()}>
-        {relativeTime(thread.lastMessageAt, now)}
+        {fullTimestamp(thread.lastMessageAt)}
       </time>
     </span>
   )

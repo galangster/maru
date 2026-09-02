@@ -575,11 +575,7 @@ export function ThreadList() {
                       selected === thread.key ? 'bg-fill-selected' : 'hover:bg-fill-hover',
                     )}
                   >
-                    <ThreadResult
-                      thread={thread}
-                      selfEmails={selfEmails}
-                      now={now}
-                    />
+                    <ThreadResult thread={thread} selfEmails={selfEmails} />
                   </button>
                 </li>
               ))}

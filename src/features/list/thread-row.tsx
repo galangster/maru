@@ -205,12 +205,9 @@ export const ThreadRow = memo(function ThreadRow({
             )}
           </span>
           <span className="min-w-0 flex-1" />
-          {/* Fixed width, right-aligned. "02:30", "Sat" and "Yesterday" are
-              three different widths; a shrink-to-fit column would leave the
-              left edge of the timestamps ragged down the list, which is the
-              one thing DIRECTION §1 says a column may never do. 64 px holds
-              the longest value. */}
-          {/* In the Later list this is when the thread comes back, not when it
+          {/* Fixed width, right-aligned — see `--wren-row-date-w`.
+
+              In the Later list this is when the thread comes back, not when it
               arrived — and it says so to a screen reader, which reads the row
               as one run of text and would otherwise hear two dates with nothing
               between them. `wakeStamp` answers with what the group header does
@@ -227,19 +224,8 @@ export const ThreadRow = memo(function ThreadRow({
           </time>
         </div>
 
-        {/* This line gives the hover cluster nothing — issue #32, second pass.
-
-            It used to reserve a 160 px lane on hover, off the same token the
-            cluster was sized by, so that an opaque control could not sit on the
-            row's own words. The lane was honest and the row paid for it out of
-            the only two things on this line: the subject's box dropped
-            186.7 → 124 px and the preview's dropped to zero. Covering the text
-            and evicting the text look the same to the person hovering the row,
-            which is why the issue came back with the same title.
-
-            The cluster moved to line one instead, into the empty lane between
-            the sender column and the date — see `QuickActions`. Nothing here
-            reflows, at rest or on hover. */}
+        {/* This line gives the hover cluster nothing, at rest or on hover —
+            issue #32, second pass. See `--wren-row-cluster-w`. */}
         <div className="flex items-baseline gap-2 leading-5">
           <span
             className={cn(
@@ -365,30 +351,13 @@ function ArchiveTick() {
  * rather than a loss of function.
  *
  * **It sits in the empty lane at the end of the row's FIRST line**, right-
- * aligned with the date column: the flexible gap the fixed sender column leaves
- * before the timestamp, plus the timestamp itself. That gap is the only region
- * of a row no text ever spreads into, so the cluster can be opaque there and
- * evict nothing.
+ * aligned with the date column — see `--wren-row-cluster-w` for the lane, the
+ * two places the cluster sat before it, and the measurements that moved it.
  *
- * It has been in three places, and the two before this one are why:
- *
- *   - Centred on the row, it covered the timestamp column exactly (S2).
- *   - On line two, it covered the subject's tail and the whole preview (#32).
- *     Reserving a lane on line two instead stopped the covering and started
- *     evicting: subject 186.7 → 124 px, preview to zero, which is the same row
- *     with the same words missing (#32, reopened).
- *
- * So the cost is back on the timestamp, deliberately. A date is the trailing
- * metadatum: it is the same on the row above and below, it is not what a
- * sentence needs to finish, and it comes back the moment the pointer leaves.
- * The subject and the preview are the row, and they now measure the same
- * hovered as at rest.
- *
- * 140 px, five actions at 28 px rather than 32. The lane is what it is —
- * 68 px of gap, the 8 px between, and the 64 px date column at the list's own
- * measure — and a cluster wider than its lane is a cluster back on the sender's
- * name. 28 px is a mouse target on a desktop-only surface whose five actions
- * all have keys.
+ * Five actions at 28 px rather than 32, because that is what the lane allows
+ * and a cluster wider than its lane is a cluster back on the sender's name.
+ * 28 px is a mouse target on a desktop-only surface whose five actions all
+ * have keys.
  *
  * The five buttons are bare, styled by `iconButtonClass` rather than rendered
  * as <IconButton>. IconButton brings a tooltip, and a tooltip inside an

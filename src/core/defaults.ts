@@ -275,6 +275,14 @@ export function isoDay(timestamp: number): string {
 }
 
 /**
+ * The first year a date field's value is taken as a year somebody MEANT.
+ *
+ * A four-digit floor, because a date field reports a complete value after the
+ * first digit of the year: see `clampedDeferDay` below.
+ */
+export const MIN_TYPED_YEAR = 1000
+
+/**
  * A typed date, brought inside the Later window at BOTH ends.
  *
  * `min` and `max` on the input are what the calendar popup obeys; typing into
@@ -298,8 +306,6 @@ export function isoDay(timestamp: number): string {
  * 9:00" before they had finished the year. Clamping is for a date somebody
  * means; four digits is what makes it one.
  */
-export const MIN_TYPED_YEAR = 1000
-
 export function clampedDeferDay(value: string, now: number): number | null {
   const [year, month, day] = value.split('-').map(Number)
   if (!year || !month || !day) return null

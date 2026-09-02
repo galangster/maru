@@ -100,6 +100,39 @@ const SNAP_SLACK = 8
 const ARROW_STEP = 16
 
 /**
+ * The arrow keys on a channel, stepped symmetrically — issue #56.
+ *
+ * The library's own arrow handling is a 5% step, so one press right and one
+ * press left do not return a panel to where it started. This replaces it with a
+ * fixed ±16 px.
+ *
+ * It is `onKeyDownCapture` on the separator rather than a listener of our own:
+ * the library binds a native `keydown` on the separator ELEMENT, React's
+ * delegated capture listener sits on the root above it, and a capture listener
+ * on an ancestor runs before a listener on the target itself. The library's
+ * handler opens with `if (event.defaultPrevented) return`, so preventing the
+ * default here is the whole handshake — nothing is unbound and no component is
+ * forked.
+ *
+ * A collapsed sidebar is left to the library: the arrows are a resize, and the
+ * panel is not at a width the user placed it at. Enter, and the footer button,
+ * are what expand it.
+ */
+function stepArrows(panelRef: React.RefObject<PanelImperativeHandle | null>) {
+  return (event: React.KeyboardEvent) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+    const panel = panelRef.current
+    if (!panel || panel.isCollapsed()) return
+    event.preventDefault()
+    // From the ROUNDED current width, so a step never inherits a fractional
+    // origin and the two directions cannot land 0.4 px apart.
+    const from = Math.round(panel.getSize().inPixels)
+    panel.resize(`${from + (event.key === 'ArrowRight' ? ARROW_STEP : -ARROW_STEP)}px`)
+  }
+}
+
+/**
  * A shell card: the sidebar and the list, which are the two things that float
  * on the ground. (The reading region is the ground, so it is not one.)
  *
@@ -131,8 +164,6 @@ export function AppShell() {
   const setCollapsed = useUi((s) => s.setSidebarCollapsed)
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
   const listRef = useRef<PanelImperativeHandle | null>(null)
-  const sidebarHandle = useRef<HTMLDivElement | null>(null)
-  const listHandle = useRef<HTMLDivElement | null>(null)
 
   // Sidebar and list measures are CARD widths (tokens.css says so at each
   // group). A panel is its card plus the padding below, and that padding is
@@ -159,42 +190,6 @@ export function AppShell() {
   // handle (5px), because the reading region contributes no padding of its own.
   const SIDEBAR_PAD = measures.gutter + measures.seam
   const LIST_PAD = measures.seam * 2
-
-  /**
-   * The arrow keys on both channels, stepped symmetrically — issue #56.
-   *
-   * The library binds its own `keydown` on each separator element, so this
-   * listener is on the DOCUMENT in the capture phase: capture on an ancestor
-   * runs before a listener on the target itself, and the library's handler
-   * opens with `if (event.defaultPrevented) return`. That is the whole
-   * handshake — preventing the default here is what stands the 5% step down,
-   * rather than unbinding anything or forking the component.
-   *
-   * A collapsed sidebar is left to the library: the arrows are a resize, and
-   * the panel is not at a width the user placed it at. Enter, and the footer
-   * button, are what expand it.
-   */
-  useEffect(() => {
-    const lanes = [
-      [sidebarHandle, sidebarRef],
-      [listHandle, listRef],
-    ] as const
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
-      const lane = lanes.find(([handle]) => handle.current === event.target)
-      if (!lane) return
-      const panel = lane[1].current
-      if (!panel || panel.isCollapsed()) return
-      event.preventDefault()
-      // From the ROUNDED current width, so a step never inherits a fractional
-      // origin and the two directions cannot land 0.4 px apart.
-      const from = Math.round(panel.getSize().inPixels)
-      panel.resize(`${from + (event.key === 'ArrowRight' ? ARROW_STEP : -ARROW_STEP)}px`)
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [])
 
   // The footer button drives the panel; dragging the handle past the min
   // drives the store. Both end up at the same place.
@@ -249,7 +244,7 @@ export function AppShell() {
             are useful stops, and every other control in the app is named. */}
         <ResizableHandle
           aria-label="Resize the sidebar"
-          elementRef={sidebarHandle}
+          onKeyDownCapture={stepArrows(sidebarRef)}
           className={CHANNEL_HANDLE}
         />
         <ResizablePanel
@@ -264,7 +259,7 @@ export function AppShell() {
         </ResizablePanel>
         <ResizableHandle
           aria-label="Resize the thread list"
-          elementRef={listHandle}
+          onKeyDownCapture={stepArrows(listRef)}
           className={CHANNEL_HANDLE}
         />
         {/* No padding, no card. The reading region IS the ground — it runs
