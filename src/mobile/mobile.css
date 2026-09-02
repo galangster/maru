@@ -35,6 +35,25 @@ html:has(.mobile-app) ::-webkit-scrollbar {
 }
 
 /*
+ * A sheet holds the page still.
+ *
+ * The document is the scroller, so without this a drag on a sheet or its scrim
+ * scrolls the inbox behind it — and scrolling behind a modal is also what would
+ * minimize the native tab bar under one. In CSS rather than in JS because the
+ * scroll position must not move: pinning the body instead would report a scroll
+ * offset of zero to the window virtualizer, which would then render the top of
+ * the list into a page that is still displaced, and the inbox would go blank
+ * behind the sheet.
+ */
+html:has(.mobile-sheet-layer) {
+  overflow: hidden;
+}
+
+html:has(.mobile-sheet-layer) .mobile-stage {
+  touch-action: none;
+}
+
+/*
  * The document is the scroller on the phone, and that is load-bearing rather
  * than a style choice: UIKit decides when to minimize the Liquid Glass tab bar
  * by watching a UIScrollView, and the only one in the hierarchy is the
@@ -65,13 +84,17 @@ html:has(.mobile-app) ::-webkit-scrollbar {
 }
 
 /*
- * With the native shell there is no bar in the document to leave room for.
- * UIKit folds the tab bar's height into the webview's safe-area inset instead,
- * so `env(safe-area-inset-bottom)` already clears the glass and adding the web
- * bar's height on top would leave a strip of dead space under every list.
+ * With the native shell there is no bar in the document to leave room for --
+ * but the iOS 26 bar floats over the page rather than insetting it, and
+ * `env(safe-area-inset-bottom)` carries only the home indicator. So the plugin
+ * measures the glass and publishes its height above that inset as
+ * `--maru-native-tab-inset`, and it lands exactly where the web bar's height
+ * used to. The fallback is zero, not a guess: until the measurement arrives on
+ * the first layout, a list that runs under the glass is better than a strip of
+ * dead space that has to be taken back.
  */
 .mobile-app[data-native-shell='true'] {
-  --mobile-tab-height: 0px;
+  --mobile-tab-height: var(--maru-native-tab-inset, 0px);
 }
 
 .mobile-app *,
@@ -163,13 +186,35 @@ html:has(.mobile-app) ::-webkit-scrollbar {
    anyway. */
 .mobile-nav {
   position: sticky;
-  z-index: 2;
+  z-index: 6;
   top: 0;
   flex: 0 0 auto;
   padding-block-start: max(env(safe-area-inset-top), 12px);
   padding-inline: max(env(safe-area-inset-left), 16px) max(env(safe-area-inset-right), 16px);
   background: color-mix(in oklch, var(--wren-surface-base) 94%, transparent);
   backdrop-filter: blur(18px) saturate(1.2);
+}
+
+/*
+ * The strip above the header.
+ *
+ * WebKit insets the page by the status bar's height and reports
+ * `env(safe-area-inset-top)` as zero for it, so the page's own top sits below
+ * the clock — but page content that has scrolled past the sticky header is
+ * still drawn up there, over the status bar. A native app puts its navigation
+ * bar in that strip; this header is that bar, so it paints through it. Opaque
+ * rather than the header's 94%, because there is no blurred backdrop behind a
+ * scroll view's inset to soften what shows through.
+ */
+.mobile-nav::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  background: var(--wren-surface-base);
+  pointer-events: none;
 }
 
 .mobile-nav-row,
@@ -1627,3 +1672,4 @@ html:has(.mobile-app) ::-webkit-scrollbar {
     background: var(--wren-fill-hover);
   }
 }
+

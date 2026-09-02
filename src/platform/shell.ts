@@ -73,15 +73,23 @@ export const nativeShell = {
  * The descriptors travel with the subscription because the bar cannot exist
  * before them: the plugin installs itself on this call.
  */
+let subscription = 0
+
 export async function attachNativeShell(
   tabs: readonly NativeTab[],
   onSelect: (index: number) => void,
 ): Promise<(() => void) | null> {
+  const mine = ++subscription
   const channel = new Channel<{ index: number }>()
   channel.onmessage = (message) => onSelect(message.index)
   if (!(await call('watch_tabs', { channel, tabs }))) return null
   return () => {
     channel.onmessage = () => {}
-    void call('unwatch_tabs')
+    // Only the newest subscription may clear the native side. React's
+    // development double-mount attaches twice and tears the first one down
+    // after the second has landed, and an unconditional `unwatch_tabs` there
+    // takes the live channel with it: the bar highlights the tab it was tapped
+    // on and the route never moves.
+    if (mine === subscription) void call('unwatch_tabs')
   }
 }

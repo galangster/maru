@@ -45,30 +45,74 @@ private struct TabSelectedEvent: Encodable {
 
 /// The tab bar controller, with the web content pinned under its bar.
 ///
-/// The content is not a child of the selected tab, so UIKit does not fold the
-/// bar's height into its safe area the way it would for a tab's own root. This
-/// asks for the same measurement by hand. `contentLayoutGuide` is the iOS 26
-/// answer and already accounts for the glass and for a minimized bar; below it
-/// the bar's frame is the same number.
+/// It also measures the bar for the page. The iOS 26 bar floats over the
+/// content by design, and `env(safe-area-inset-bottom)` carries only the
+/// window's own inset -- the home indicator -- however the content controller
+/// is parented. So the bar's own height is handed to CSS as a custom property
+/// instead, and `mobile.css` adds it to `env()` exactly where the web tab bar's
+/// height used to go.
 final class MaruShellTabBarController: UITabBarController {
   weak var content: UIViewController?
+  weak var webView: WKWebView?
+  /// The expanded bar's height, held while the bar is on screen.
+  private var reserved: CGFloat = 0
+  private var published: CGFloat = -1
+
+  /// Keeps the web content directly under the bar, every layout.
+  ///
+  /// UIKit adds and reorders the tab hosts as tabs change, so the order has to
+  /// be re-asserted rather than set once. Under the bar so the glass draws over
+  /// the page; above the hosts because a host's view is hit-testable even when
+  /// it is empty and clear, and anything above the content swallows every touch
+  /// the page should have had.
+  private func restack(_ content: UIViewController) {
+    guard content.view.superview === view else { return }
+    guard let barRoot = view.subviews.last(where: { tabBar.isDescendant(of: $0) }) else { return }
+    guard let barIndex = view.subviews.firstIndex(of: barRoot) else { return }
+    if view.subviews.firstIndex(of: content.view) != barIndex - 1 {
+      view.insertSubview(content.view, belowSubview: barRoot)
+    }
+  }
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     guard let content else { return }
-    let occluded: CGFloat
-    if #available(iOS 26.0, *) {
-      occluded = view.bounds.maxY - contentLayoutGuide.layoutFrame.maxY
+    restack(content)
+
+    let hidden: Bool
+    if #available(iOS 18.0, *) {
+      hidden = isTabBarHidden
     } else {
-      occluded = tabBar.isHidden ? 0 : tabBar.frame.height
+      hidden = tabBar.isHidden
     }
-    // Additional, so the window's own bottom inset -- the home indicator -- is
-    // not counted twice. The half-point threshold stops a rounding difference
-    // from bouncing layout back and forth.
-    let extra = max(0, occluded - view.safeAreaInsets.bottom)
-    if abs(content.additionalSafeAreaInsets.bottom - extra) > 0.5 {
-      content.additionalSafeAreaInsets.bottom = extra
+    // The bar's own frame. `contentLayoutGuide` reports the full view, because
+    // the iOS 26 bar is meant to float over the content rather than inset it.
+    var occluded: CGFloat = 0
+    if !hidden, tabBar.frame.minY < view.bounds.maxY {
+      occluded = view.bounds.maxY - tabBar.frame.minY
     }
+    // The high-water mark while the bar is up, not the measurement of the
+    // moment. The bar shrinks to a pill as the page scrolls, and a number that
+    // shrank with it would reflow the page mid-scroll and let the last row
+    // slide under the pill. Reserving the expanded height keeps the list still
+    // and leaves the minimized bar floating over the page's own bottom margin,
+    // which is what iOS does. A hidden bar reserves nothing and re-measures
+    // when it comes back.
+    reserved = hidden ? 0 : max(reserved, occluded)
+    // Only what the page does not already know: `env(safe-area-inset-bottom)`
+    // carries the home indicator, and the bar's frame includes it.
+    publish(max(0, reserved - view.safeAreaInsets.bottom))
+  }
+
+  private func publish(_ inset: CGFloat) {
+    // The webview, not the value, gates this: the first layout can land before
+    // the plugin has handed the controller its webview, and recording a value
+    // that never reached the page would make every later layout a no-op.
+    guard let webView, abs(published - inset) > 0.5 else { return }
+    published = inset
+    webView.evaluateJavaScript(
+      "document.documentElement.style.setProperty('--maru-native-tab-inset','\(inset)px')"
+    )
   }
 }
 
@@ -138,9 +182,13 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
 
     let controller = MaruShellTabBarController()
     controller.delegate = self
+    controller.webView = webView
     controller.viewControllers = tabs.enumerated().map { index, tab in
       let host = UIViewController()
       host.view.backgroundColor = .clear
+      // Nothing is drawn here and nothing may be touched here. The web content
+      // sits underneath and must receive every touch that is not the bar's.
+      host.view.isUserInteractionEnabled = false
       host.tabBarItem = UITabBarItem(
         title: tab.title,
         image: UIImage(systemName: tab.symbol),
@@ -172,7 +220,7 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
     // the web layer through the delegate instead.
     controller.addChild(root)
     root.view.translatesAutoresizingMaskIntoConstraints = false
-    controller.view.insertSubview(root.view, belowSubview: controller.tabBar)
+    controller.view.addSubview(root.view)
     NSLayoutConstraint.activate([
       root.view.topAnchor.constraint(equalTo: controller.view.topAnchor),
       root.view.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),

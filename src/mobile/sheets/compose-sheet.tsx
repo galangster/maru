@@ -11,7 +11,6 @@ import { useMailService } from '@/features/mail/service'
 import { cue } from '@/lib/cue'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
 import { MobileIcon } from '../components/mobile-icon'
-import { useBodyScrollLock } from '../use-body-scroll-lock'
 import { useModalFocus } from '../use-modal-focus'
 import { nativeShell } from '@/platform/shell'
 
@@ -57,7 +56,6 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
     closeStore()
   }
   const dialogRef = useModalFocus<HTMLElement>(close)
-  useBodyScrollLock()
   // The composer ends in `notify('success')`. Same boundary, same reason.
   useEffect(() => {
     void nativeShell.prepareHaptics()

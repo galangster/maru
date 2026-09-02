@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 
 import { nativeShell } from '@/platform/shell'
 import { MobileIcon } from './mobile-icon'
-import { useBodyScrollLock } from '../use-body-scroll-lock'
 import { useModalFocus } from '../use-modal-focus'
 
 export function BottomSheet({
@@ -16,7 +15,6 @@ export function BottomSheet({
   children: ReactNode
 }) {
   const dialogRef = useModalFocus<HTMLElement>(onClose)
-  useBodyScrollLock()
   // A sheet is a haptic about to happen: Later commits one, the actions sheet
   // archives. This is the boundary that makes `prepare()` worth the call.
   useEffect(() => {
