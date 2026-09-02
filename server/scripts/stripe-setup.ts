@@ -1,7 +1,12 @@
 import Stripe from "stripe";
 
-const secretKey = process.env.STRIPE_SECRET_KEY;
+// Trimmed: a key pasted from a wrapped terminal line arrives with a newline
+// inside it, and Node refuses it as an invalid Authorization header.
+const secretKey = process.env.STRIPE_SECRET_KEY?.replace(/\s+/g, "");
 if (!secretKey) throw new Error("STRIPE_SECRET_KEY is required");
+if (!/^sk_(live|test)_[A-Za-z0-9]+$/.test(secretKey)) {
+  throw new Error("STRIPE_SECRET_KEY does not look like a Stripe secret key (sk_live_… or sk_test_…)");
+}
 const stripe = new Stripe(secretKey);
 const lookupKeys = ["maru_sync_monthly", "maru_sync_yearly"];
 const existing = await stripe.prices.list({ active: true, lookup_keys: lookupKeys, limit: 100 });
