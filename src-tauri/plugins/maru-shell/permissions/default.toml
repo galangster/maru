@@ -1,0 +1,11 @@
+[default]
+description = "Allows Maru to drive its native iOS tab bar and haptics"
+permissions = [
+  "allow-select-tab",
+  "allow-set-badge",
+  "allow-set-tab-bar-hidden",
+  "allow-impact",
+  "allow-notify",
+  "allow-selection",
+  "allow-watch-tabs",
+]

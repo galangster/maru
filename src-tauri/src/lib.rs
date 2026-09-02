@@ -400,6 +400,8 @@ pub fn run() {
 
   #[cfg(target_os = "ios")]
   let builder = builder.plugin(tauri_plugin_maru_auth::init());
+  #[cfg(target_os = "ios")]
+  let builder = builder.plugin(tauri_plugin_maru_shell::init());
 
   #[cfg(desktop)]
   let builder = builder.invoke_handler(tauri::generate_handler![
