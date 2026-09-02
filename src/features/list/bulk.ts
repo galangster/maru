@@ -94,9 +94,10 @@ function batchActionLabel(type: BulkActionType, count: number, noun: BatchNoun):
  *
  * This is the mechanism issue 8 was about. The phone had no batch at all: its
  * bulk bar looped the single-thread path, and every pass registered its own
- * undoable into a store that holds exactly one (lib/undo.ts). The last write
- * won, so Undo returned a single conversation out of forty and said nothing
- * about the other thirty-nine.
+ * undoable. One slot meant the last write won and Undo returned a single
+ * conversation out of forty; a stack (issue 40) would mean forty presses. One
+ * batch is one action, so it registers ONE entry either way — the shape here
+ * is what makes that true, not the depth of the registry below it.
  *
  * Both bulk bars come through here now, so the count in the toast and the
  * breadth of the undo cannot disagree with each other or with the desktop.
@@ -114,14 +115,15 @@ export function runBatchAction(
 
   const label = batchActionLabel(type, threadKeys.length, noun)
   const reverse = reverseAction(type)
+  const undoId = `bulk:${type}`
   useUi.getState().registerUndo({
-    id: `bulk:${type}`,
+    id: undoId,
     label,
     run: () => {
       for (const key of threadKeys) mutate({ type: reverse, threadKey: key })
     },
   })
-  showUndoToast(label)
+  showUndoToast(undoId, label)
   return label
 }
 
@@ -213,13 +215,14 @@ export function runBatchDefer(
   for (const key of threadKeys) defer(key, wakeAt)
 
   const label = batchDeferLabel(threadKeys.length, wakeAt, now, noun)
+  const undoId = 'bulk:later'
   useUi.getState().registerUndo({
-    id: 'bulk:later',
+    id: undoId,
     label,
     run: () => {
       for (const [key, prior] of before) defer(key, prior)
     },
   })
-  showUndoToast(label)
+  showUndoToast(undoId, label)
   return label
 }

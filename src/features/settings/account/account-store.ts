@@ -396,6 +396,10 @@ async function clearLocalSession(): Promise<void> {
   active.sync = null
   await active.session.clear()
   active.client.setToken(null)
+  // Signing out and deleting the account both land here, and both take the
+  // mail with them. An undo that survived either would offer to unarchive a
+  // thread this device no longer holds, so the stack goes with the session.
+  useUi.getState().clearUndoStack()
   useMaruAccount.setState({
     email: null,
     pending: null,

@@ -6,7 +6,14 @@ import { create } from 'zustand'
 
 import type { MailView } from '@/core/types'
 import { viewOverride } from '@/lib/env'
-import { clearedUndoable, liveUndoable, type Undoable } from '@/lib/undo'
+import {
+  findUndoable,
+  newestUndoable,
+  pushUndoable,
+  withoutUndoable,
+  type Undoable,
+  type UndoStack,
+} from '@/lib/undo'
 
 export type ListSort = 'newest' | 'oldest'
 export type ListFilter = 'all' | 'unread' | 'starred' | 'attachments'
@@ -118,12 +125,13 @@ interface UiState {
   /** Expansion of the open conversation. Reset whenever the selection moves. */
   readingExpansion: ReadingExpansion
   /**
-   * The one thing ⌘Z would put back. One slot, not a stack — see lib/undo.ts.
+   * What ⌘Z would put back, newest first — a bounded stack, see lib/undo.ts.
    *
-   * It is UI state and not mail data: the mutation itself has already gone
-   * through react-query, and what is held here is only the offer to reverse it.
+   * It is UI state and not mail data: the mutations themselves have already
+   * gone through react-query, and what is held here is only the offers to
+   * reverse them.
    */
-  undoable: Undoable | null
+  undoStack: UndoStack
 
   setView: (view: MailView) => void
   setSelected: (key: string | null, source?: SelectionSource) => void
@@ -142,16 +150,33 @@ interface UiState {
   /** Change part of a view's list lens; the rest keeps its current value. */
   setListPrefs: (view: MailView, patch: Partial<ListPrefs>) => void
   setReadingExpansion: (next: ReadingExpansion) => void
-  /** Offer an undo. Stamps `at` here so no caller can hand in its own clock. */
+  /**
+   * Offer an undo, on top of the ones already there. Stamps `at` here so no
+   * caller can hand in its own clock. Re-registering an id replaces it.
+   */
   registerUndo: (entry: Omit<Undoable, 'at'>) => void
-  /** Withdraw the offer, if it is still the one on the table. */
+  /** Withdraw one offer by name, wherever in the stack it is. */
   clearUndo: (id: string) => void
   /**
-   * Run the pending undo if it is still inside its window, and report what it
-   * was so the caller can say so. The entry is cleared *before* it runs, which
-   * is what stops a double ⌘Z reversing the same action twice.
+   * Drop every offer. Sign-out and a mailbox reset, and nothing else: an undo
+   * that outlived the mail it names would reverse an action against threads
+   * that are no longer there.
    */
-  runUndo: (now?: number) => string | null
+  clearUndoStack: () => void
+  /**
+   * Run the newest undo still inside its window and report the entry, so the
+   * caller can say what it was and take that entry's own offer off the screen.
+   * Null means there was nothing live, which is a sentence and not a silence.
+   *
+   * The entry leaves the stack *before* it runs, which is what stops a double
+   * ⌘Z reversing the same action twice.
+   */
+  runUndo: (now?: number) => Undoable | null
+  /**
+   * Run one named offer — the toast's own Undo button, which reverses the
+   * action that raised it even when newer ones sit above it in the stack.
+   */
+  undoEntry: (id: string, now?: number) => Undoable | null
 }
 
 /**
@@ -199,7 +224,7 @@ export const useUi = create<UiState>()((set, get) => ({
   pendingAccounts: [],
   listPrefs: {},
   readingExpansion: 'default',
-  undoable: null,
+  undoStack: [],
 
   // Changing view always drops the selection: keeping a thread from another
   // folder open while its row is gone reads as a bug. Opening a label also
@@ -275,16 +300,25 @@ export const useUi = create<UiState>()((set, get) => ({
       }
     }),
 
-  registerUndo: (entry) => set({ undoable: { ...entry, at: Date.now() } }),
-  clearUndo: (id) => set((s) => ({ undoable: clearedUndoable(s.undoable, id) })),
-  runUndo: (now = Date.now()) => {
-    const entry = liveUndoable(get().undoable, now)
-    if (!entry) return null
-    set({ undoable: null })
-    entry.run()
-    return entry.label
-  },
+  registerUndo: (entry) =>
+    set((s) => ({ undoStack: pushUndoable(s.undoStack, { ...entry, at: Date.now() }) })),
+  clearUndo: (id) => set((s) => ({ undoStack: withoutUndoable(s.undoStack, id) })),
+  clearUndoStack: () => set((s) => (s.undoStack.length === 0 ? s : { undoStack: [] })),
+  runUndo: (now = Date.now()) => runEntry(newestUndoable(get().undoStack, now)),
+  undoEntry: (id, now = Date.now()) => runEntry(findUndoable(get().undoStack, id, now)),
 }))
+
+/**
+ * Take one entry out of the stack, then run it — in that order, so a second
+ * press during the reversal finds it gone. Shared by ⌘Z and by the toast
+ * button, because "which entry" is the only thing the two disagree about.
+ */
+function runEntry(entry: Undoable | null): Undoable | null {
+  if (!entry) return null
+  useUi.setState((s) => ({ undoStack: withoutUndoable(s.undoStack, entry.id) }))
+  entry.run()
+  return entry
+}
 
 // Fires only when the boolean actually changes, so the write happens on a
 // deliberate toggle and never during triage or a resize drag.

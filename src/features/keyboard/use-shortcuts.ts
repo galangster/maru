@@ -17,7 +17,6 @@
 
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 
 import { UNIFIED_ORDER } from '@/core/defaults'
 import type { MailActionType, Thread } from '@/core/types'
@@ -27,6 +26,7 @@ import {
   keys as queryKeys,
   registerActionUndo,
   showUndoToast,
+  undoAndSay,
   usePerformAction,
 } from '@/features/mail/queries'
 import { threadActions } from '@/features/mail/thread-actions'
@@ -35,7 +35,7 @@ import { bulkAction, isBulkAction } from '@/features/list/bulk'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
-import { announcesItself, LEAVES_THE_LIST, UNDO_LABELS, UNDO_TOAST_ID } from '@/lib/undo'
+import { announcesItself, LEAVES_THE_LIST, UNDO_LABELS } from '@/lib/undo'
 
 import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
 
@@ -82,13 +82,13 @@ export function useShortcuts() {
       // Every triage key is a deliberate press, so every one is undoable. The
       // two that remove a thread from view also say so out loud, because the
       // keyboard path has no row animation to stand in for the confirmation.
-      registerActionUndo(action.mutate, next)
+      const undoId = registerActionUndo(action.mutate, next)
       // Every action that moves a thread between mailboxes says so, restore
       // from trash included: the keyboard path has no row animation to stand
       // in for the confirmation, and a key that seems to do nothing is worse
       // than the action it performed (issue 5).
       if (!announcesItself(type)) return
-      showUndoToast(UNDO_LABELS[type])
+      showUndoToast(undoId, UNDO_LABELS[type])
     },
     markRead: (threadKey) => action.mutate({ type: 'markRead', threadKey }),
     compose,
@@ -182,10 +182,7 @@ export function useShortcuts() {
       help: () => useSurfaces.getState().setShortcuts(true),
       // `z`, Gmail's unmodified undo. ⌘Z runs the same body ahead of the
       // table because it must also work with a dialog up.
-      undo: () => {
-        const label = useUi.getState().runUndo()
-        if (label) toast('Undone', { id: UNDO_TOAST_ID, description: label })
-      },
+      undo: undoAndSay,
       // Handled ahead of the table, because they carry modifiers, need the
       // event, or must fire while typing. Listed so the record stays
       // exhaustive.
@@ -245,19 +242,19 @@ export function useShortcuts() {
       // A dialog owns the screen and its own Escape.
       if (anyDialogOpen()) return
 
-      // ⌘Z / Ctrl+Z — the most recent undoable, if it is still inside its 10 s
-      // window. Ignored while typing, without exception: inside a text field
-      // and inside the composer's editor ⌘Z belongs to that field's own
-      // history, and stealing it to unarchive something across the app is the
-      // worst possible answer to the key.
+      // ⌘Z / Ctrl+Z — the newest undoable still inside its 10 s window, and
+      // an answer either way: with the stack empty the key says so rather than
+      // doing nothing at all (issue 40). Ignored while typing, without
+      // exception: inside a text field and inside the composer's editor ⌘Z
+      // belongs to that field's own history, and stealing it to unarchive
+      // something across the app is the worst possible answer to the key.
       //
       // ⇧⌘Z is left alone. There is no redo, and swallowing the key to do
       // nothing is worse than letting it through.
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
         if (isTyping(event.target)) return
         event.preventDefault()
-        const label = useUi.getState().runUndo()
-        if (label) toast('Undone', { id: UNDO_TOAST_ID, description: label })
+        undoAndSay()
         return
       }
 

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('sonner', () => ({ toast: vi.fn() }))
 
+import { toast } from 'sonner'
+
 import type { MailAction } from '../src/core/types'
 import {
   bulkAction,
@@ -24,9 +26,16 @@ beforeEach(() => {
     checked: new Set<string>(),
     checkAnchor: null,
     selected: null,
-    undoable: null,
+    undoStack: [],
   })
+  vi.mocked(toast).mockClear()
 })
+
+/** The Undo button sonner was handed on toast call `call`. Sonner types the
+ *  option as an action OR a node, and only this app puts an action there. */
+function undoButton(call: number): { onClick: () => void } {
+  return vi.mocked(toast).mock.calls[call][1]?.action as unknown as { onClick: () => void }
+}
 
 describe('checkedInView', () => {
   it('returns checked threads in list order, ignoring keys the lens hides', () => {
@@ -52,7 +61,7 @@ describe('bulkAction', () => {
     const sent: MailAction[] = []
     expect(bulkAction((a) => sent.push(a), threads, 'archive')).toBe(0)
     expect(sent).toEqual([])
-    expect(useUi.getState().undoable).toBeNull()
+    expect(useUi.getState().undoStack).toHaveLength(0)
   })
 
   it('advances the reading selection past the whole batch on a removal', () => {
@@ -72,8 +81,8 @@ describe('bulkAction', () => {
     const sent: MailAction[] = []
     bulkAction((a) => sent.push(a), threads, 'archive')
     sent.length = 0
-    const label = useUi.getState().runUndo()
-    expect(label).toBe('2 threads archived')
+    const entry = useUi.getState().runUndo()
+    expect(entry?.label).toBe('2 threads archived')
     expect(sent).toEqual([
       { type: 'unarchive', threadKey: key('a') },
       { type: 'unarchive', threadKey: key('c') },
@@ -96,13 +105,15 @@ describe('bulkDefer', () => {
       [key('d'), WAKE],
     ])
     expect(useUi.getState().checked.size).toBe(0)
-    expect(useUi.getState().undoable).toMatchObject({ id: 'bulk:later' })
+    expect(useUi.getState().undoStack[0]).toMatchObject({ id: 'bulk:later' })
   })
 
   it('says what Maru will do, and says it once for the whole batch', () => {
     useUi.setState({ checked: new Set([key('a')]) })
     bulkDefer(() => {}, threads, WAKE, NOW)
-    expect(useUi.getState().undoable?.label).toBe(`1 thread saved for ${wakeTime(WAKE, NOW)}`)
+    expect(useUi.getState().undoStack[0]?.label).toBe(
+      `1 thread saved for ${wakeTime(WAKE, NOW)}`,
+    )
   })
 
   it('puts each thread back on ITS OWN schedule, not on one shared guess', () => {
@@ -150,7 +161,7 @@ describe('runBatchAction', () => {
     const sent: MailAction[] = []
     runBatchAction((a) => sent.push(a), KEYS, 'archive')
     expect(sent).toHaveLength(3)
-    expect(useUi.getState().undoable).toMatchObject({ id: 'bulk:archive' })
+    expect(useUi.getState().undoStack[0]).toMatchObject({ id: 'bulk:archive' })
 
     sent.length = 0
     useUi.getState().runUndo()
@@ -159,13 +170,49 @@ describe('runBatchAction', () => {
 
   it('names the count, so the confirmation cannot say "Archived" over forty rows', () => {
     expect(runBatchAction(() => {}, KEYS, 'archive')).toBe('3 threads archived')
-    expect(useUi.getState().undoable?.label).toBe('3 threads archived')
+    expect(useUi.getState().undoStack[0]?.label).toBe('3 threads archived')
   })
 
   it('takes the shell\'s own noun for the same object', () => {
     expect(runBatchAction(() => {}, KEYS, 'archive', 'conversation')).toBe(
       '3 conversations archived',
     )
+  })
+
+  it('walks back two batches one at a time, newest batch first', () => {
+    // A batch is ONE entry, and the stack is what makes a second batch stop
+    // erasing the first one's undo (issue 40).
+    const sent: MailAction[] = []
+    runBatchAction((a) => sent.push(a), KEYS.slice(0, 2), 'archive')
+    runBatchAction((a) => sent.push(a), KEYS.slice(2), 'trash')
+    sent.length = 0
+
+    expect(useUi.getState().runUndo()?.label).toBe('1 thread moved to trash')
+    expect(useUi.getState().runUndo()?.label).toBe('2 threads archived')
+    expect(sent).toEqual([
+      { type: 'untrash', threadKey: KEYS[2] },
+      { type: 'unarchive', threadKey: KEYS[0] },
+      { type: 'unarchive', threadKey: KEYS[1] },
+    ])
+    expect(useUi.getState().undoStack).toHaveLength(0)
+  })
+
+  it("lets the older batch's toast undo its own batch", () => {
+    // The button carries the entry's id, so the archive toast still reverses
+    // the archive after a trash batch has landed on top of it.
+    const sent: MailAction[] = []
+    runBatchAction((a) => sent.push(a), KEYS.slice(0, 2), 'archive')
+    const archiveUndo = undoButton(0)
+    runBatchAction((a) => sent.push(a), KEYS.slice(2), 'trash')
+    sent.length = 0
+
+    archiveUndo.onClick()
+    expect(sent).toEqual([
+      { type: 'unarchive', threadKey: KEYS[0] },
+      { type: 'unarchive', threadKey: KEYS[1] },
+    ])
+    // The trash batch is untouched, and is what the next Cmd+Z reaches.
+    expect(useUi.getState().undoStack.map((e) => e.id)).toEqual(['bulk:trash'])
   })
 
   it('agrees with the number in singular and plural', () => {
