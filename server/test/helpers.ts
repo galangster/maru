@@ -2,9 +2,9 @@ import { PGlite } from "@electric-sql/pglite";
 import pino from "pino";
 import { afterEach, vi } from "vitest";
 import { createApp } from "../src/app.js";
-import { DEFAULT_KDF } from "../src/constants.js";
+import { DEFAULT_KDF, PUSH_TEST_RATE_LIMIT_CAPACITY, PUSH_TEST_RATE_LIMIT_REFILL_MS } from "../src/constants.js";
 import { migrate } from "../src/db.js";
-import { TokenBucketRateLimiter } from "../src/ratelimit.js";
+import { KeyedRateLimiter, TokenBucketRateLimiter } from "../src/ratelimit.js";
 import type { AppDeps, BillingClient, PubSubVerifier, PushSender } from "../src/types.js";
 import { createPgliteDb } from "./pglite-db.js";
 
@@ -25,6 +25,14 @@ export interface FixtureOptions {
   stripePriceYearly?: string;
 }
 
+export function unconfiguredPushSender(): PushSender {
+  return {
+    configured: false,
+    send: vi.fn(async () => undefined),
+    sendAlert: vi.fn(async () => { throw new Error("APNs is not configured"); }),
+  };
+}
+
 export async function fixture(options: FixtureOptions = {}) {
   const client = new PGlite();
   const db = createPgliteDb(client);
@@ -36,8 +44,9 @@ export async function fixture(options: FixtureOptions = {}) {
     clock: { now: () => new Date(current.value) },
     version: "0.1.7-test",
     rateLimiter: new TokenBucketRateLimiter(() => current.value.getTime()),
+    pushTestLimiter: new KeyedRateLimiter(() => current.value.getTime(), PUSH_TEST_RATE_LIMIT_CAPACITY, PUSH_TEST_RATE_LIMIT_REFILL_MS),
     pubSubVerifier: options.pubSubVerifier ?? { verify: vi.fn(async () => undefined) },
-    pushSender: options.pushSender ?? { send: vi.fn(async () => undefined) },
+    pushSender: options.pushSender ?? unconfiguredPushSender(),
     billing: options.billing ?? null,
     stripeWebhookSecret: options.stripeWebhookSecret,
     stripePriceMonthly: options.stripePriceMonthly,

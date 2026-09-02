@@ -9,3 +9,5 @@ export const TRIAL_DAYS = 14;
 export const BILLING_GRACE_DAYS = 7;
 export const RATE_LIMIT_CAPACITY = 10;
 export const RATE_LIMIT_REFILL_MS = 60_000;
+export const PUSH_TEST_RATE_LIMIT_CAPACITY = 6;
+export const PUSH_TEST_RATE_LIMIT_REFILL_MS = 60_000;

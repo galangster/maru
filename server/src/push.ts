@@ -10,6 +10,11 @@ import { isRecord, normalizeEmail, parseBearer } from "./util.js";
 const GOOGLE_ISSUER = "https://accounts.google.com";
 const GOOGLE_JWKS = "https://www.googleapis.com/oauth2/v3/certs";
 
+// The only push the relay gives content. The content is fixed, so no mail
+// data can reach it.
+const TEST_PUSH_TITLE = "Maru";
+const TEST_PUSH_BODY = "Test notification from your Maru account";
+
 export interface PubSubVerifierOptions {
   audience: string;
   serviceAccount: string;
@@ -44,8 +49,12 @@ export async function createPushServices(
     return {
       pubSubVerifier,
       pushSender: {
+        configured: false,
         async send(tokens) {
           logger.info({ code: "apns_unconfigured", count: tokens.length }, "APNs send skipped");
+        },
+        async sendAlert() {
+          throw new Error("APNs is not configured");
         },
       },
     };
@@ -98,6 +107,31 @@ export function registerPushRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       [c.get("session").user.id, normalizeEmail(body.email), expiration],
     );
     return c.json({ ok: true });
+  });
+
+  app.post("/v1/push/test", async (c) => {
+    const { deviceId } = c.get("session");
+    const { pushSender } = deps;
+    if (!pushSender.configured) return error(c, 503, "push_unavailable", "APNs is not configured.");
+
+    const [row] = await deps.db.query<{ apns_token: string | null }>(
+      "SELECT apns_token FROM devices WHERE id = $1",
+      [deviceId],
+    );
+    if (!row?.apns_token) return error(c, 404, "no_token", "This device has not registered an APNs token.");
+    // The budget is spent on sends, so a device that just fixed its
+    // registration is not locked out by its earlier 404s.
+    if (!deps.pushTestLimiter.consume(deviceId)) return error(c, 429, "rate_limited", "Try again later.");
+
+    const apns = await pushSender.sendAlert(row.apns_token, { title: TEST_PUSH_TITLE, body: TEST_PUSH_BODY });
+    if (apns.status === 200) {
+      deps.logger.info({ code: "push_test" }, "Test push sent");
+      return c.json({ ok: true, sent: true });
+    }
+    // Apple's reason is the only useful diagnostic, so it travels to the phone
+    // in a 200 body rather than dying in a server error.
+    deps.logger.warn({ code: "push_test_rejected", status: apns.status, reason: apns.reason }, "Test push rejected");
+    return c.json({ ok: false, sent: false, apns: { status: apns.status, reason: apns.reason } });
   });
 
   app.post("/v1/push/gmail", async (c) => {

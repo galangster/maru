@@ -58,6 +58,7 @@ export interface AppDeps {
   clock: Clock;
   version: string;
   rateLimiter: RateLimiter;
+  pushTestLimiter: KeyedLimiter;
   pubSubVerifier: PubSubVerifier;
   pushSender: PushSender;
   billing: BillingClient | null;
@@ -74,8 +75,26 @@ export interface PubSubVerifier {
   verify(token: string): Promise<void>;
 }
 
+export interface ApnsAlert {
+  title: string;
+  body: string;
+}
+
+export interface ApnsResult {
+  status: number;
+  reason: string | null;
+}
+
 export interface PushSender {
+  // False when APNs is not configured: sends are skipped and
+  // POST /v1/push/test answers 503 push_unavailable.
+  readonly configured: boolean;
   send(tokens: string[]): Promise<void>;
+  sendAlert(token: string, alert: ApnsAlert): Promise<ApnsResult>;
+}
+
+export interface KeyedLimiter {
+  consume(key: string): boolean;
 }
 
 export interface BillingClient {

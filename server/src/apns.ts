@@ -1,9 +1,42 @@
 import { connect, constants as http2Constants, type ClientHttp2Session } from "node:http2";
 import { importPKCS8, SignJWT } from "jose";
 import type { Logger } from "pino";
-import type { PushSender } from "./types.js";
+import type { ApnsAlert, ApnsResult, PushSender } from "./types.js";
+import { isRecord } from "./util.js";
 
-const APNS_PAYLOAD = JSON.stringify({ aps: { "content-available": 1 } });
+interface ApnsPush {
+  payload: string;
+  pushType: "background" | "alert";
+}
+
+// The relay push carries no content and never wakes the screen.
+const BACKGROUND_PUSH: ApnsPush = {
+  payload: JSON.stringify({ aps: { "content-available": 1 } }),
+  pushType: "background",
+};
+
+// An alert push carries a visible title and body, so it arrives on a locked
+// phone. `content-available` keeps the background wake the relay already sends.
+function alertPush(alert: ApnsAlert): ApnsPush {
+  return {
+    payload: JSON.stringify({
+      aps: { alert: { title: alert.title, body: alert.body }, "content-available": 1 },
+    }),
+    pushType: "alert",
+  };
+}
+
+// APNs answers a rejection with a small JSON body naming the reason.
+function apnsReason(body: string) {
+  if (!body) return null;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    const reason = isRecord(parsed) ? parsed.reason : null;
+    return typeof reason === "string" ? reason : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface ApnsOptions {
   teamId: string;
@@ -14,6 +47,7 @@ export interface ApnsOptions {
 }
 
 export class ApnsSender implements PushSender {
+  readonly configured = true;
   private cachedToken: { value: string; issuedAt: number } | null = null;
   private session: ClientHttp2Session | null = null;
 
@@ -23,9 +57,16 @@ export class ApnsSender implements PushSender {
     if (tokens.length === 0) return;
     const providerToken = await this.providerToken();
     const session = this.http2Session();
-    const statuses = await Promise.all(tokens.map((token) => this.sendOne(session, token, providerToken)));
-    const failed = statuses.filter((status) => status !== 200).length;
+    const results = await Promise.all(tokens.map((token) => this.sendOne(session, token, providerToken, BACKGROUND_PUSH)));
+    const failed = results.filter((result) => result.status !== 200).length;
     this.logger.info({ code: "apns_batch", count: tokens.length, failed }, "APNs batch complete");
+  }
+
+  async sendAlert(token: string, alert: ApnsAlert): Promise<ApnsResult> {
+    const providerToken = await this.providerToken();
+    const result = await this.sendOne(this.http2Session(), token, providerToken, alertPush(alert));
+    this.logger.info({ code: "apns_alert", status: result.status, reason: result.reason }, "APNs alert complete");
+    return result;
   }
 
   private http2Session() {
@@ -62,28 +103,34 @@ export class ApnsSender implements PushSender {
     return value;
   }
 
-  private sendOne(session: ClientHttp2Session, deviceToken: string, providerToken: string) {
-    return new Promise<number>((resolve, reject) => {
+  private sendOne(session: ClientHttp2Session, deviceToken: string, providerToken: string, push: ApnsPush) {
+    return new Promise<ApnsResult>((resolve, reject) => {
       const request = session.request({
         [http2Constants.HTTP2_HEADER_METHOD]: "POST",
         [http2Constants.HTTP2_HEADER_PATH]: `/3/device/${deviceToken}`,
         authorization: `bearer ${providerToken}`,
         "apns-topic": this.options.bundleId,
-        "apns-push-type": "background",
-        "apns-priority": "5",
+        "apns-push-type": push.pushType,
+        // Apple pairs the priority with the type: alerts go now, background
+        // pushes wait for a power-friendly moment.
+        "apns-priority": push.pushType === "alert" ? "10" : "5",
         "content-type": "application/json",
-        "content-length": Buffer.byteLength(APNS_PAYLOAD),
+        "content-length": Buffer.byteLength(push.payload),
       });
       let status = 0;
+      let body = "";
       request.setEncoding("utf8");
       request.on("response", (headers) => {
         status = Number(headers[http2Constants.HTTP2_HEADER_STATUS] ?? 0);
       });
-      request.on("data", () => undefined);
-      request.on("end", () => resolve(status));
+      // An APNs error body is a few dozen bytes naming the reason.
+      request.on("data", (chunk: string) => {
+        body += chunk;
+      });
+      request.on("end", () => resolve({ status, reason: apnsReason(body) }));
       request.on("error", reject);
       request.setTimeout(10_000, () => request.destroy(new Error("APNs request timed out")));
-      request.end(APNS_PAYLOAD);
+      request.end(push.payload);
     });
   }
 }

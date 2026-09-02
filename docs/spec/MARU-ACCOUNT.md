@@ -171,6 +171,7 @@ beta, `http://127.0.0.1:8787` in development. JSON bodies. Errors are
 | `DELETE /v1/account` | bearer | `{authKey}` → `{ok:true}`. Deletes user, devices, vault, push registrations. Irreversible. |
 | `POST /v1/push/register` | bearer | `{apnsToken}` or `{apnsToken:null}` → `{ok:true}` |
 | `POST /v1/push/watch` | bearer | `{email, expiration}` → `{ok:true}` — the device tells the relay it has called `users.watch` itself for this address; the relay maps address → devices |
+| `POST /v1/push/test` | bearer | → `{ok:true, sent:true}` — one visible test alert to this device's own registered token. **404 `no_token`** when the device registered none, **503 `push_unavailable`** when APNs is not configured, **429 `rate_limited`** above six per minute per device. An APNs rejection returns 200 with `{ok:false, sent:false, apns:{status, reason}}`, so the phone can show Apple's reason. (Added 2026-09-01.) |
 | `POST /v1/push/gmail` | Pub/Sub OIDC | Google Pub/Sub push body → 204. Content-free APNs to every registered device of the account(s) watching that address. |
 | `GET /healthz` | none | → `{ok:true, version}` |
 
@@ -246,6 +247,17 @@ a background APNs push (`content-available: 1`, empty payload) to each device
 registered for an account that has reported a watch on that address. The
 relay logs counts, never addresses.
 
+A device checks its own registration with `POST /v1/push/test`. The relay
+sends one **alert** push (`apns-push-type: alert`, priority 10) to that
+device's registered token, with the title "Maru", the body "Test notification
+from your Maru account", and `content-available: 1`. It is therefore visible
+on a locked phone and still wakes the app. This is the only push the relay
+gives content, and that content is a fixed string: no mail data reaches it.
+Apple's rejection status and `reason` — `BadDeviceToken`, `TopicDisallowed`,
+`InvalidProviderToken`, and the rest — are returned to the calling device in a
+200 body, because a person reading the failure is the point of the endpoint.
+Six sends per minute per device. (Added 2026-09-01.)
+
 Desktop consumers of the relay come after iOS ships (grill 4, Q23).
 
 ## 10. Server data model
@@ -289,8 +301,8 @@ Entitlement states, stored on the user, computed server-side:
 
 Enforcement: **reading is never locked.** `GET /v1/vault`, `GET /v1/devices`,
 `GET /v1/me`, logout and account deletion always work. `PUT /v1/vault`,
-`POST /v1/push/register` and `POST /v1/push/watch` return **402
-`payment_required`** when the state is `expired`.
+`POST /v1/push/register`, `POST /v1/push/watch` and `POST /v1/push/test`
+return **402 `payment_required`** when the state is `expired`.
 
 Endpoints (bearer):
 
