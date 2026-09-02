@@ -81,6 +81,12 @@ A build carrying the placeholder client id runs on fixture data and would be
 rejected under guideline 2.1 as non-functional. The real iOS client id exists
 (`docs/IOS.md`); export `VITE_MARU_IOS_GOOGLE_CLIENT_ID` before archiving.
 
-Follow-up after I8 merges: retake the six store screenshots from the native
+~~Follow-up after I8 merges: retake the six store screenshots from the native
 build so they show the Liquid Glass tab bar, not the web one (the composer
-in `scripts/store-screenshots.mjs` captures the browser build).
+in `scripts/store-screenshots.mjs` captures the browser build).~~ **Done
+2026-09-01.** All six sources are now full-scale 1179 × 2556 captures from
+the demo simulator build on a light iPhone 16, so the inbox and settings
+frames carry UIKit's Liquid Glass bar. `scripts/store-screenshots.mjs` grew a
+`--from-dir` mode that composes from existing PNGs and refuses a source that
+is too small or the wrong shape; the browser path is still there for a quick
+recompose. `docs/APP-STORE.md` §5 records how the captures are taken.

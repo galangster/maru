@@ -1,14 +1,23 @@
 // App Store screenshot sets for "Maru Mail" (ticket I6).
 //
 //   node scripts/store-screenshots.mjs
+//   node scripts/store-screenshots.mjs --from-dir <dir>
+//
+// The second form composes from six PNGs that already exist — the six named in
+// SHOTS below — instead of driving a browser. That is the path the shipped
+// sets take: the iPhone tab bar is UIKit's Liquid Glass bar, and only the
+// native simulator build draws it, so the source frames come off the simulator
+// and this script only sets the caption and the canvas around them. The
+// browser path stays for a quick recompose when no simulator is at hand.
 //
 // Apple requires a 6.5" set (1284×2778) and a 6.9" set (1320×2868). The iOS
-// simulator captures in wayfinder/captures/ios are 393×852 — one CSS pixel per
-// point — so they cannot fill either canvas, and upscaling a screenshot is the
-// one thing a store asset must never be. This script therefore re-captures the
-// same six mobile screens from the same demo build at deviceScaleFactor 3,
-// which is 1179×2556 of real pixels, then composes each one onto the store
-// canvas UNDER a caption. The device frame is only ever scaled DOWN.
+// captures in wayfinder/captures/ios are 393×852 — one CSS pixel per point —
+// so they cannot fill either canvas, and upscaling a screenshot is the one
+// thing a store asset must never be. Both paths here therefore work from
+// 1179×2556 of real pixels: --from-dir takes the simulator's own full-scale
+// PNGs, and the browser path re-captures the same six screens at
+// deviceScaleFactor 3. Either way the frame is composed onto the store canvas
+// UNDER a caption, and is only ever scaled DOWN.
 //
 // The composition runs in the browser rather than in sharp because the caption
 // is set in Open Runde, and only a browser can be trusted with the woff2 the
@@ -21,8 +30,8 @@
 
 import { spawn } from 'node:child_process'
 import { createConnection } from 'node:net'
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
@@ -108,6 +117,53 @@ const CANVASES = [
   { name: '6.5', width: 1284, height: 2778, deviceWidth: 1040, top: 404 },
   { name: '6.9', width: 1320, height: 2868, deviceWidth: 1070, top: 423 },
 ]
+
+const WIDEST_DEVICE = Math.max(...CANVASES.map((canvas) => canvas.deviceWidth))
+
+/**
+ * Width and height out of a PNG's IHDR. Enough to prove a source frame is
+ * large enough to scale down, without adding an image library to a script
+ * whose only other dependency is the Playwright the repository already has.
+ */
+function pngSize(name, bytes) {
+  const signature = '89504e470d0a1a0a'
+  if (bytes.subarray(0, 8).toString('hex') !== signature) throw new Error(`${name} is not a PNG`)
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }
+}
+
+/**
+ * The six source frames, read into memory *before* anything is deleted. The
+ * directory handed to --from-dir is normally the device/ directory this script
+ * also writes, so reading first is what makes a recompose in place safe.
+ */
+async function readSourceFrames(dir) {
+  const frames = []
+  for (const shot of SHOTS) {
+    const path = join(dir, shot.file)
+    let bytes
+    try {
+      bytes = await readFile(path)
+    } catch {
+      throw new Error(`--from-dir ${dir} has no ${shot.file}; all six frames must be present`)
+    }
+    const size = pngSize(shot.file, bytes)
+    // Upscaling a screenshot is the one thing a store asset must never be.
+    if (size.width < WIDEST_DEVICE) {
+      throw new Error(
+        `${shot.file} is ${size.width}px wide; the 6.9" canvas needs at least ${WIDEST_DEVICE}px ` +
+          'so the frame is only ever scaled down',
+      )
+    }
+    // The frame is drawn into a box of the phone's own aspect ratio. A source
+    // of another shape would be stretched, and nobody would see it until Apple did.
+    const wanted = VIEWPORT.height / VIEWPORT.width
+    if (Math.abs(size.height / size.width - wanted) > 0.005) {
+      throw new Error(`${shot.file} is ${size.width}×${size.height}, which is not the iPhone 16 aspect ratio`)
+    }
+    frames.push({ file: shot.file, bytes, size })
+  }
+  return frames
+}
 
 /**
  * A synthetic click, not a tap. The row carries a 480 ms long-press that opens
@@ -196,13 +252,18 @@ function frameHtml(canvas, shot, deviceFile) {
 `
 }
 
-async function main() {
-  await rm(OUT, { recursive: true, force: true })
-  await mkdir(DEVICE_OUT, { recursive: true })
-  await mkdir(join(OUT, 'fonts'), { recursive: true })
-  const server = await startServer()
-  const browser = await chromium.launch()
+/** `--from-dir <dir>`, or null for the browser path. */
+function sourceDirFromArgv(argv) {
+  const at = argv.indexOf('--from-dir')
+  if (at === -1) return null
+  const dir = argv[at + 1]
+  if (!dir || dir.startsWith('--')) throw new Error('--from-dir needs a directory')
+  return resolve(process.cwd(), dir)
+}
 
+/** The browser path: run a vite of our own and re-capture the six screens. */
+async function captureFromBrowser(browser) {
+  const server = await startServer()
   try {
     const phone = await browser.newContext({
       viewport: VIEWPORT,
@@ -227,43 +288,70 @@ async function main() {
       console.log(`captured ${shot.file}`)
     }
     await phone.close()
+  } finally {
+    server.kill('SIGTERM')
+  }
+}
 
-    // The fonts have to sit beside the frame HTML: file:// pages cannot reach
-    // out of their own directory in Chromium without a server.
-    await copyFile(
-      join(ROOT, 'src/assets/fonts/open-runde/OpenRunde-Semibold.woff2'),
-      join(OUT, 'fonts/OpenRunde-Semibold.woff2'),
-    )
-    await copyFile(
-      join(ROOT, 'src/assets/fonts/dm-sans/DMSans-Regular.woff2'),
-      join(OUT, 'fonts/DMSans-Regular.woff2'),
-    )
+/** The store canvases, from whatever now sits in device/. */
+async function compose(browser) {
+  // The fonts have to sit beside the frame HTML: file:// pages cannot reach
+  // out of their own directory in Chromium without a server.
+  await mkdir(join(OUT, 'fonts'), { recursive: true })
+  await copyFile(
+    join(ROOT, 'src/assets/fonts/open-runde/OpenRunde-Semibold.woff2'),
+    join(OUT, 'fonts/OpenRunde-Semibold.woff2'),
+  )
+  await copyFile(
+    join(ROOT, 'src/assets/fonts/dm-sans/DMSans-Regular.woff2'),
+    join(OUT, 'fonts/DMSans-Regular.woff2'),
+  )
 
-    for (const canvas of CANVASES) {
-      const dir = join(OUT, canvas.name)
-      await mkdir(dir, { recursive: true })
-      const context = await browser.newContext({
-        viewport: { width: canvas.width, height: canvas.height },
-        deviceScaleFactor: 1,
-        reducedMotion: 'reduce',
-      })
-      const framePage = await context.newPage()
-      for (const shot of SHOTS) {
-        const htmlPath = join(OUT, `frame-${canvas.name}-${shot.file}.html`)
-        await writeFile(htmlPath, frameHtml(canvas, shot, shot.file))
-        await framePage.goto(`file://${htmlPath}`, { waitUntil: 'load' })
-        await framePage.evaluate(() => document.fonts.ready)
-        await framePage.screenshot({ path: join(dir, shot.file) })
-        await rm(htmlPath)
-        console.log(`composed ${canvas.name}/${shot.file}`)
-      }
-      await context.close()
+  for (const canvas of CANVASES) {
+    const dir = join(OUT, canvas.name)
+    await mkdir(dir, { recursive: true })
+    const context = await browser.newContext({
+      viewport: { width: canvas.width, height: canvas.height },
+      deviceScaleFactor: 1,
+      reducedMotion: 'reduce',
+    })
+    const framePage = await context.newPage()
+    for (const shot of SHOTS) {
+      const htmlPath = join(OUT, `frame-${canvas.name}-${shot.file}.html`)
+      await writeFile(htmlPath, frameHtml(canvas, shot, shot.file))
+      await framePage.goto(`file://${htmlPath}`, { waitUntil: 'load' })
+      await framePage.evaluate(() => document.fonts.ready)
+      await framePage.screenshot({ path: join(dir, shot.file) })
+      await rm(htmlPath)
+      console.log(`composed ${canvas.name}/${shot.file}`)
     }
+    await context.close()
+  }
 
-    await rm(join(OUT, 'fonts'), { recursive: true, force: true })
+  await rm(join(OUT, 'fonts'), { recursive: true, force: true })
+}
+
+async function main() {
+  const sourceDir = sourceDirFromArgv(process.argv.slice(2))
+  // Read the sources before the output tree goes, not after.
+  const frames = sourceDir ? await readSourceFrames(sourceDir) : null
+
+  await rm(OUT, { recursive: true, force: true })
+  await mkdir(DEVICE_OUT, { recursive: true })
+  const browser = await chromium.launch()
+
+  try {
+    if (frames) {
+      for (const frame of frames) {
+        await writeFile(join(DEVICE_OUT, frame.file), frame.bytes)
+        console.log(`took ${frame.file} at ${frame.size.width}×${frame.size.height}`)
+      }
+    } else {
+      await captureFromBrowser(browser)
+    }
+    await compose(browser)
   } finally {
     await browser.close()
-    server.kill('SIGTERM')
   }
 }
 
