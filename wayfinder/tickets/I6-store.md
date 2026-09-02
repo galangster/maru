@@ -91,7 +91,7 @@ frames carry UIKit's Liquid Glass bar. `scripts/store-screenshots.mjs` grew a
 is too small or the wrong shape; the browser path is still there for a quick
 recompose. `docs/APP-STORE.md` §5 records how the captures are taken.
 
-## TestFlight lane — 2026-09-01. Archive built, upload blocked on one toggle
+## TestFlight lane, attempt 1 — 2026-09-01. Superseded, kept for the errors
 
 The whole path was run end to end on this Mac. It gets as far as a correct,
 real-mode App Store archive and stops at code signing. Nothing in the repo is
@@ -169,3 +169,56 @@ carry cloud-managed distribution signing. It lives at
 `~/.wren-release/AuthKey_G52RSWR37N.p8` once downloaded (never in git). The
 export block in `docs/APP-STORE.md` §6 uses it; `wren-notary` stays for
 notarization.
+
+## TestFlight lane, attempt 2 — 2026-09-01. Shipped
+
+Build **0.1.8** is on TestFlight and distributed to Nick. The Admin key was the
+whole fix; nothing in the repo changed. `docs/APP-STORE.md` §6 is now a record
+of a run that completed, with every command verbatim.
+
+| | |
+| --- | --- |
+| Version / build number | `0.1.8` / `0.1.8` — `CFBundleVersion` in `src-tauri/gen/apple/project.yml`. Apple accepted it, so **no increment was needed**. Increment before the next upload. |
+| Archive | `src-tauri/gen/apple/build/wren_iOS.xcarchive` — release, `arm64`, `** BUILD SUCCEEDED **` |
+| Export | Succeeded. Cloud signing minted the certificate and the `app.getmaru.ios` App Store profile with `-allowProvisioningUpdates`. No manual certificate, no keychain identity. |
+| `.ipa` | `src-tauri/gen/apple/build/arm64/Maru.ipa`, 8,674,600 bytes |
+| Upload | `UPLOAD SUCCEEDED with no errors`, Delivery UUID `36f6be5b-2805-4047-9cf7-8f7abbe89bce` |
+| Build id | `36f6be5b-2805-4047-9cf7-8f7abbe89bce` — the delivery UUID *is* the build id |
+| Processing | `PROCESSING` → `VALID` in under two minutes |
+| Export compliance | `usesNonExemptEncryption: false` came back on its own. No `PATCH` needed — the answer is in the binary. |
+| Group | Automatic distribution put the build in `Maru internal` with no step taken |
+| Tester | Nick, `nicholasgalang@gmail.com`, tester id `6317b3f3-891a-44d4-b373-b9e83872c14b`, state `INVITED` |
+
+### The keys, and which does what
+
+- **`G52RSWR37N` "Maru release", Admin** — signing, export, `altool`, TestFlight.
+  Everything on this lane.
+- **`PTF7XH7JWF` "wren-notary", Developer** — notarization only. It cannot sign
+  a distribution build, which is what stopped attempt 1.
+
+Apple keys cannot gain services after creation, so the Developer key could not
+be upgraded. Both are in `~/.wren-release/`, neither in git.
+
+### Two corrections to what attempt 1 wrote down
+
+- **`PLACEHOLDER` does appear in `dist/`.** It is the sentinel the demo-mode
+  test compares the configured client id against. "No `PLACEHOLDER` anywhere in
+  `dist/`" was never a true statement. Check that the *configured* id is not the
+  sentinel instead.
+- **`GET /v1/builds/{id}/betaGroups` answers `403`** even on the Admin key. Ask
+  the group for its builds.
+
+### Third build trap, now recorded
+
+A failed export leaves `src-tauri/gen/apple/build/` behind, so the next run can
+export a stale archive while looking like it succeeded. `rm -rf
+src-tauri/gen/apple/build` before every archive.
+
+### Still open — none of it blocks the internal beta
+
+- [ ] **Test Information on the group** — feedback email, marketing URL, privacy
+      policy. Required only before an external group.
+- [ ] Nick accepts the TestFlight invite on his device. State is `INVITED`.
+
+The reviewer-account items further up this page are unchanged and are not on the
+TestFlight path — internal builds need no Beta App Review.
