@@ -211,6 +211,7 @@ function hostileMail(): MailService {
     ],
     addAccount: unsupported,
     removeAccount: unsupported,
+    setSenderName: unsupported,
     listThreads: async () => [thread],
     getThread: async () => ({ thread, messages: [message] }),
     ensureBodies: async () => [message],

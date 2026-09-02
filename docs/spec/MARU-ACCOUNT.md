@@ -97,7 +97,7 @@ old one stops working.
   "updatedAt": 1756700000000,            // ms epoch, writer's clock, informational
   "settings": { /* TransferSettings from src/features/settings/transfer.ts — never googleClientSecret */ },
   "accounts": [                          // the address list; order is display order
-    { "email": "nick@example.com", "label": "Nick" }
+    { "email": "nick@example.com", "label": "Nick", "senderName": "Nick Galang" }
   ],
   "credentials": {                       // per platform family, per address
     "desktop": {
@@ -125,6 +125,20 @@ Rules:
 - `accounts` is the union across devices. Removing an account on one device
   removes it from the list and from `credentials`; other devices drop it on
   the next pull.
+- `senderName` on an account entry is the name that goes on the mail that
+  address sends — `Account.senderName`, the From header and the Sent list. It
+  is **optional and additive** (issue #66): a vault written before it has no
+  such key, and its absence means "this writer had no opinion", never "clear
+  the name". `label` is unrelated — that is the device's own name for the
+  mailbox.
+  - A device omits the key for an account with no name rather than sending
+    `null` or `""`.
+  - On apply, a device that has no name for that address **fills** it in; a
+    device that already has one **keeps** it. The account list carries no
+    per-field stamp, so a pull that is older than a local edit cannot be told
+    from one that is newer, and overwriting what a person typed is the worse
+    of the two failures. The local edit pushes on the same debounce as any
+    other account change, and the fill is then a no-op everywhere.
 - `credentials[family][email]` is written by a device of that family after a
   successful Google consent, and read by another device of the same family
   at sign-in to file the tokens under the account without a consent screen.
@@ -189,7 +203,8 @@ device's `lastSeenAt`.
   the returned blob, merge, re-seal, `PUT` again with its version. Give up
   after 3 rounds and surface a "sync paused" state.
 - **Merge** is per section: `settings` = the copy with the newer `updatedAt`;
-  `accounts` = union by email, order from the newer copy; `credentials` =
+  `accounts` = union by email, entry and order from the newer copy — which
+  carries that copy's `senderName` with it; `credentials` =
   union per family and email, newer `issuedAt` wins.
 - **Merge `deferrals`** = union by `(accountEmail, threadId)`. Within one key:
   - two live entries — the **later `until` wins**. A deferral is an absolute

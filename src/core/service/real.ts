@@ -23,7 +23,7 @@ import { accountColor } from '../palette'
 import { parseWatchExpiration } from '../push/watch'
 import { fromVaultDeferral, normalizeEmail, toVaultDeferral, type VaultLocal } from './vault-port'
 import type { PlatformFamily } from './vault-port'
-import type { GmailMessage, GmailThread } from '../gmail/types'
+import type { GmailMessage, GmailSendAs, GmailThread } from '../gmail/types'
 import type {
   LabelChanges,
   Account,
@@ -50,6 +50,15 @@ export interface MailGmailClient extends SyncGmailClient {
   sendMessage(raw: string, threadId?: string): Promise<GmailMessage>
   getAttachment(messageId: string, attachmentId: string): Promise<Uint8Array>
   watch(topicName: string, labelIds?: string[]): Promise<{ expiration?: string }>
+  /**
+   * The account's send-as identities, for the sender-name prefill.
+   *
+   * Optional so a client that cannot answer simply never prefills, rather than
+   * every stand-in for this seam having to grow a method it has no opinion
+   * about. An account then keeps whatever name it has, which for a fresh one
+   * is none — the address, which is what it showed before this existed.
+   */
+  listSendAs?(): Promise<GmailSendAs[]>
 }
 
 export class MissingOAuthClientError extends Error {
@@ -66,6 +75,30 @@ export class MissingOAuthClientError extends Error {
     super('No Google OAuth client is configured. Add your client ID in Settings.')
     this.name = 'MissingOAuthClientError'
   }
+}
+
+/**
+ * The display name Gmail puts on mail from THIS mailbox, out of the send-as
+ * list — or nothing, which is a real answer and the common one.
+ *
+ * The primary entry is the account's own address, and a mailbox may hold
+ * several aliases with names of their own; an alias's name on the account's
+ * own mail would be wrong. `isPrimary` is what Gmail flags it with, and the
+ * address match is the fallback for a response that omits the flag.
+ *
+ * Trimmed, and an empty name is no name: Gmail returns `""` for a mailbox
+ * whose owner never set one, and storing that would make every downstream
+ * fallback to the address stop working.
+ */
+export function primarySendAsName(
+  identities: readonly GmailSendAs[],
+  email: string,
+): string | undefined {
+  const address = email.trim().toLowerCase()
+  const primary =
+    identities.find((entry) => entry.isPrimary) ??
+    identities.find((entry) => entry.sendAsEmail?.trim().toLowerCase() === address)
+  return primary?.displayName?.trim() || undefined
 }
 
 export class UnknownThreadError extends Error {
@@ -280,7 +313,60 @@ export class RealMailService implements MailService {
     })
     const runtime: AccountRuntime = { account, client, engine }
     this.runtimes.set(account.id, runtime)
+    // Detached, and that is load-bearing rather than tidy. Attach reaches no
+    // network today, which is why an offline launch still opens a window with
+    // every account in the sidebar — and `start()` brings accounts up one at a
+    // time. `isRetryableError` counts a fetch failure as retryable, so an
+    // awaited prefill on a machine with no connection would be five tries and
+    // roughly seven seconds of backoff PER nameless account before Maru drew
+    // anything. The name can arrive a moment late; `accountsChanged` is
+    // emitted when it does, and the row re-reads.
+    //
+    // Awaited under `autoStart: false`, which is the contract tests and
+    // captures already have with `indexReady`: a service that is fully settled
+    // when `create` resolves. Nothing else about the prefill differs.
+    const prefill = this.prefillSenderName(runtime)
+    if (this.autoStart) void prefill
+    else await prefill
     return runtime
+  }
+
+  /**
+   * Give a nameless account the name Google already puts on its outgoing mail.
+   *
+   * Attach is the moment for it because attach is every moment a live token
+   * exists for an account: the launch pass, the account that was just added,
+   * and the re-link that mints fresh tokens for one that had gone stale —
+   * `addAccount` drops the old runtime precisely so this runs again. One
+   * gate covers all three: an account that HAS a name is never touched, so a
+   * name a person typed is never overwritten by Google's, and the request is
+   * made once in the life of an account rather than on every launch.
+   *
+   * The source is `users.settings.sendAs`, not the OAuth `userinfo` profile.
+   * Both carry the same string; only one of them is reachable with the single
+   * scope Maru requests. Asking for `userinfo.profile` would add a line to the
+   * consent screen and a row to the verification submission for a name Gmail
+   * will already tell us.
+   *
+   * Nothing here may fail an attach. A mailbox with no display name set, a
+   * client that cannot answer, a 429 — all of them mean the same thing to the
+   * caller, which is that this account still shows its address, exactly as it
+   * did before.
+   */
+  private async prefillSenderName(runtime: AccountRuntime): Promise<void> {
+    const { account, client } = runtime
+    if (account.senderName || !client.listSendAs) return
+    try {
+      const identities = await client.listSendAs()
+      const name = primarySendAsName(identities, account.email)
+      if (!name) return
+      const named: Account = { ...account, senderName: name }
+      await this.store.upsertAccount(named)
+      runtime.account = named
+      this.emit({ type: 'accountsChanged' })
+    } catch {
+      // A name is a nicety; sync is not. The account keeps its address.
+    }
   }
 
   /** Backfill runs detached: the UI shows fixtures-free empty state meanwhile. */
@@ -407,6 +493,26 @@ export class RealMailService implements MailService {
     this.emit({ type: 'accountsChanged' })
     if (this.autoStart) this.beginSync(runtime, settings)
     return account
+  }
+
+  /**
+   * Rename what this account puts on the mail it sends.
+   *
+   * Through `upsertAccount`, the one write path an account row has — a
+   * dedicated UPDATE would be a second place for the encryption keyring to be
+   * asked for a key, and the column list to drift.
+   */
+  async setSenderName(accountId: string, name: string): Promise<void> {
+    const accounts = await this.store.listAccounts()
+    const account = accounts.find((a) => a.id === accountId)
+    if (!account) throw new Error(`No such account: ${accountId}`)
+    const senderName = name.trim() || undefined
+    if (senderName === account.senderName) return
+    const named: Account = { ...account, senderName }
+    await this.store.upsertAccount(named)
+    const runtime = this.runtimes.get(accountId)
+    if (runtime) runtime.account = named
+    this.emit({ type: 'accountsChanged' })
   }
 
   async removeAccount(accountId: string): Promise<void> {
@@ -728,7 +834,15 @@ export class RealMailService implements MailService {
       getSettings: () => this.store.getSettings(),
       setSettings: (patch) => this.setSettings(patch),
       listAccounts: () => this.store.listAccounts(),
-      upsertAccount: (account) => this.store.upsertAccount(account),
+      // The event matters as much as the write. A pull can add an account or
+      // fill in the sender name someone typed on another device, and neither
+      // shows up until the account query is invalidated — `refreshAfterApply`
+      // is a Gmail refresh and emits no such thing. The demo's port has always
+      // emitted here; this one had not.
+      upsertAccount: async (account) => {
+        await this.store.upsertAccount(account)
+        this.emit({ type: 'accountsChanged' })
+      },
       removeAccount: (accountId) => this.removeAccount(accountId),
       loadCredential: async (accountId) => {
         const token = await this.tokenStore.load(accountId)

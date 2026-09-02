@@ -15,11 +15,31 @@ export interface VaultCredential {
   issuedAt: number
 }
 
+/**
+ * One address in the vault's account list.
+ *
+ * `label` is this device's name FOR the mailbox; `senderName` is the name that
+ * goes on the mail it sends. Two different questions — `Account` in
+ * `core/types.ts` says why at length — and the second one is worth carrying
+ * because it is typed by a person, once, and every other device would
+ * otherwise sign their mail with an address.
+ *
+ * `senderName` is optional and additive: a vault written before this field
+ * simply has none, and absent means "this writer had no opinion", never
+ * "clear the name". Nothing that reads the vault may treat its absence as an
+ * instruction.
+ */
+export interface VaultAccount {
+  email: string
+  label: string
+  senderName?: string
+}
+
 export interface VaultDocument {
   v: 1
   updatedAt: number
   settings: VaultSettings
-  accounts: { email: string; label: string }[]
+  accounts: VaultAccount[]
   credentials: Record<PlatformFamily, Record<string, VaultCredential>>
   /**
    * Later, across devices — A9 (owner ruling, Nick, 2026-09-02).
@@ -134,7 +154,13 @@ export async function buildVault(
     v: 1,
     updatedAt,
     settings: vaultSettings(settings),
-    accounts: accounts.map((account) => ({ email: normalizeEmail(account.email), label: account.displayName })),
+    accounts: accounts.map((account) => ({
+      email: normalizeEmail(account.email),
+      label: account.displayName,
+      // Omitted rather than sent as null: the field is optional, and a vault
+      // that never mentions it is exactly what an unnamed account means.
+      ...(account.senderName ? { senderName: account.senderName } : {}),
+    })),
     credentials,
     // Pruned on the way in, so an expired entry stops travelling from the
     // device that still remembers it rather than on some later merge. Worth the
@@ -232,11 +258,25 @@ export async function applyVault(
         id: local.newAccountId?.() ?? globalThis.crypto.randomUUID(),
         email,
         displayName: remote.label || email.split('@')[0],
+        ...(remote.senderName ? { senderName: remote.senderName } : {}),
         color: '#8f7cff',
         addedAt: now,
       }
       await local.upsertAccount(account)
       added += 1
+    } else if (remote.senderName && !account.senderName) {
+      // A name this device does not have yet, which is the whole reason the
+      // field travels: type it once, and the laptop you added last week stops
+      // signing its mail with an address.
+      //
+      // FILLED, never replaced. A device holding a different name is a device
+      // whose owner typed one there, and this pull may be older than that
+      // edit — the account list has no per-field stamp to settle which is
+      // newer, and silently rewriting what someone typed is the worse of the
+      // two failures. The local edit pushes, and the fill is then a no-op
+      // everywhere.
+      account = { ...account, senderName: remote.senderName }
+      await local.upsertAccount(account)
     }
     const credential = doc.credentials[family][email]
     if (credential) {

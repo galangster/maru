@@ -71,6 +71,27 @@ export interface GmailProfile {
   historyId: string
 }
 
+/**
+ * One "send mail as" identity — `users.settings.sendAs`. Maru reads exactly one
+ * field of it, the display name Gmail itself puts on outgoing mail, and only
+ * for the PRIMARY entry.
+ *
+ * This is the profile name the OAuth `userinfo` endpoint would hand back, from
+ * an endpoint the scope Maru already holds can reach: `sendAs.list` accepts
+ * `gmail.modify`, and `userinfo.profile` would be a new scope on the consent
+ * screen for the same string.
+ */
+export interface GmailSendAs {
+  sendAsEmail: string
+  displayName?: string
+  isPrimary?: boolean
+  isDefault?: boolean
+}
+
+export interface GmailSendAsResponse {
+  sendAs?: GmailSendAs[]
+}
+
 export interface GmailHistoryMessageRef {
   message: GmailMessage
   labelIds?: string[]

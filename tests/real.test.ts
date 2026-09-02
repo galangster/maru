@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { RealMailService, MissingOAuthClientError, type MailGmailClient } from '../src/core/service/real'
+import { RealMailService, MissingOAuthClientError, primarySendAsName, type MailGmailClient } from '../src/core/service/real'
 import { Store } from '../src/core/store/db'
 import { HttpError } from '../src/core/gmail/limiter'
 import { NodePlatform } from './helpers/node-platform'
 import { makeAccount, makeMessage, makeThread } from './fixtures/domain'
-import type { MailEvent } from '../src/core/types'
-import type { GmailMessage, GmailThread } from '../src/core/gmail/types'
+import type { Account, MailEvent } from '../src/core/types'
+import type { GmailMessage, GmailSendAs, GmailThread } from '../src/core/gmail/types'
 
 class FakeClient implements MailGmailClient {
   modifyCalls: { id: string; add: string[]; remove: string[] }[] = []
@@ -90,6 +90,17 @@ class FakeClient implements MailGmailClient {
   async getAttachment() {
     return new Uint8Array([9, 9, 9])
   }
+
+  sendAsCalls = 0
+  /** What `users.settings.sendAs` answers. Null makes the call fail. */
+  sendAs: GmailSendAs[] | null = [
+    { sendAsEmail: 'nick@gmail.com', displayName: 'Nick Galang', isPrimary: true },
+  ]
+  async listSendAs(): Promise<GmailSendAs[]> {
+    this.sendAsCalls += 1
+    if (!this.sendAs) throw new HttpError(429, 'Too Many Requests', '', 'sendAs')
+    return this.sendAs
+  }
 }
 
 function decodeRaw(raw: string): string {
@@ -97,16 +108,27 @@ function decodeRaw(raw: string): string {
   return Buffer.from(b64 + '='.repeat((4 - (b64.length % 4)) % 4), 'base64').toString('utf8')
 }
 
-async function harness(opts: { seed?: boolean; family?: 'desktop' | 'ios'; officialClientId?: string } = {}) {
+async function harness(
+  opts: {
+    seed?: boolean
+    family?: 'desktop' | 'ios'
+    officialClientId?: string
+    /** Overrides on the seeded account — `senderName: undefined` is the one the prefill needs. */
+    account?: Partial<Account>
+    /** What the seeded account's mailbox answers `users.settings.sendAs` with. */
+    sendAs?: GmailSendAs[] | null
+  } = {},
+) {
   const platform = new NodePlatform()
   const store = await Store.open(platform)
   const client = new FakeClient()
+  if (opts.sendAs !== undefined) client.sendAs = opts.sendAs
   const events: MailEvent[] = []
   const clientBindings: { accountId: string; clientId: string; clientSecret?: string }[] = []
   const authBindings: { clientId: string; clientSecret?: string; family: 'desktop' | 'ios' }[] = []
 
   if (opts.seed !== false) {
-    await store.upsertAccount(makeAccount())
+    await store.upsertAccount(makeAccount(opts.account))
     await store.upsertThreads([makeThread({ labelIds: ['INBOX', 'UNREAD'], unread: true })])
     await store.upsertMessages([makeMessage({ labelIds: ['INBOX', 'UNREAD'], unread: true, rfcMessageId: '<root@x>' })])
     await platform.secretSet(
@@ -558,6 +580,127 @@ describe('startup order', () => {
     })
 
     expect(order[0], `expected attach before allThreads, got ${order.join(' → ')}`).toBe('attach')
+  })
+})
+
+describe('the name on outgoing mail', () => {
+  it('prefills it from the mailbox\u2019s own send-as name when the account has none', async () => {
+    // Issue #66. Signing in hands Maru an ADDRESS — Gmail's profile endpoint
+    // returns nothing else — so a real account signed everything it sent with
+    // "nick@gmail.com" until somebody typed a name. `users.settings.sendAs`
+    // already holds the name Gmail itself puts on this mailbox's mail, and it
+    // accepts the one scope Maru requests. The OAuth `userinfo` profile
+    // carries the same string behind a scope Maru does not ask for.
+    const { store, client } = await harness({
+      account: { senderName: undefined },
+      sendAs: [
+        { sendAsEmail: 'alias@gmail.com', displayName: 'An Alias' },
+        { sendAsEmail: 'nick@gmail.com', displayName: '  Nick Galang  ', isPrimary: true },
+      ],
+    })
+
+    expect(client.sendAsCalls).toBe(1)
+    // The PRIMARY entry's name, trimmed — an alias's name on the account's own
+    // mail would be the wrong name, not a missing one.
+    expect((await store.listAccounts())[0].senderName).toBe('Nick Galang')
+  })
+
+  it('never overwrites a name the account already has', async () => {
+    // The gate is the whole safety property: a person who typed "Nick" must
+    // not find "Nicholas Galang, PhD" there after the next launch, and the
+    // request must not be made once per launch forever either.
+    const { store, client } = await harness({
+      sendAs: [{ sendAsEmail: 'nick@gmail.com', displayName: 'From Google', isPrimary: true }],
+    })
+
+    expect(client.sendAsCalls).toBe(0)
+    expect((await store.listAccounts())[0].senderName).toBe('Nick Galang')
+  })
+
+  it('leaves the account nameless, and syncing untouched, when Gmail will not answer', async () => {
+    // A name is a nicety; sync is not. A 429 here must reach nobody: the
+    // account keeps showing its address, exactly as it did before the prefill
+    // existed, and attach still succeeds.
+    const { store, svc, events } = await harness({
+      account: { senderName: undefined },
+      sendAs: null,
+    })
+
+    expect((await store.listAccounts())[0].senderName).toBeUndefined()
+    expect(
+      (svc as unknown as { runtimes: Map<string, unknown> }).runtimes.has('acct-1'),
+      'the account still attached',
+    ).toBe(true)
+    expect(events.some((e) => e.type === 'syncStatus' && e.status.state === 'error')).toBe(false)
+  })
+
+  it('stores no name when the mailbox has none set', async () => {
+    // Gmail answers with an empty displayName for a mailbox whose owner never
+    // set one. Storing that would make every fallback to the address stop
+    // working, because they test the field and not its length.
+    const { store } = await harness({
+      account: { senderName: undefined },
+      sendAs: [{ sendAsEmail: 'nick@gmail.com', displayName: '', isPrimary: true }],
+    })
+    expect((await store.listAccounts())[0].senderName).toBeUndefined()
+  })
+
+  it('names an account the moment it is added, and again when it is re-linked', async () => {
+    const { store, client, svc } = await harness()
+    client.sendAs = [{ sendAsEmail: 'new@gmail.com', displayName: 'Nick Galang', isPrimary: true }]
+
+    const added = await svc.addAccount()
+    const named = (await store.listAccounts()).find((a) => a.id === added.id)
+    expect(named?.senderName).toBe('Nick Galang')
+
+    // A re-link mints fresh tokens for an account Maru already holds, and
+    // drops its runtime so attach runs again. An account still without a name
+    // gets another chance at one; this is the "or its token is refreshed" half.
+    await svc.setSenderName(added.id, '')
+    client.sendAs = [{ sendAsEmail: 'new@gmail.com', displayName: 'Nicholas Galang', isPrimary: true }]
+    await svc.addAccount('new@gmail.com')
+    expect((await store.listAccounts()).find((a) => a.id === added.id)?.senderName)
+      .toBe('Nicholas Galang')
+  })
+
+  it('saves an edited name through the account upsert path, trimmed, and announces it', async () => {
+    const { store, svc, events } = await harness()
+
+    await svc.setSenderName('acct-1', '  Nicholas Galang  ')
+
+    const [account] = await store.listAccounts()
+    expect(account.senderName).toBe('Nicholas Galang')
+    // The label is a different field and this edit does not touch it.
+    expect(account.displayName).toBe('Personal')
+    expect(events.filter((e) => e.type === 'accountsChanged')).toHaveLength(1)
+  })
+
+  it('clears the name when the field is emptied, and says nothing when it is unchanged', async () => {
+    const { store, svc, events } = await harness()
+
+    await svc.setSenderName('acct-1', '   ')
+    expect((await store.listAccounts())[0].senderName).toBeUndefined()
+
+    const announced = events.filter((e) => e.type === 'accountsChanged').length
+    await svc.setSenderName('acct-1', '')
+    expect(events.filter((e) => e.type === 'accountsChanged')).toHaveLength(announced)
+    await expect(svc.setSenderName('nope', 'Someone')).rejects.toThrow(/No such account/)
+  })
+
+  it('picks the primary send-as entry, by flag or by address', () => {
+    const aliases = [
+      { sendAsEmail: 'alias@gmail.com', displayName: 'An Alias' },
+      { sendAsEmail: 'NICK@gmail.com', displayName: 'Nick Galang' },
+    ]
+    // No isPrimary flag anywhere: the account's own address decides, case-fold.
+    expect(primarySendAsName(aliases, 'nick@gmail.com')).toBe('Nick Galang')
+    // The flag wins over the address match when both are present.
+    expect(
+      primarySendAsName([{ sendAsEmail: 'alias@gmail.com', displayName: 'An Alias', isPrimary: true }, ...aliases], 'nick@gmail.com'),
+    ).toBe('An Alias')
+    // Nothing that matches, and nothing at all.
+    expect(primarySendAsName(aliases, 'someone@else.com')).toBeUndefined()
+    expect(primarySendAsName([], 'nick@gmail.com')).toBeUndefined()
   })
 })
 

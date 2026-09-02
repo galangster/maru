@@ -56,6 +56,23 @@ describe('accounts', () => {
     expect(accounts[0]).toMatchObject({ displayName: 'Renamed', color: '#8b5cf6' })
   })
 
+  it('round-trips the sender name, and reads a cleared one back as absent', async () => {
+    // Issue #66. `sender_name` is nullable and `senderName` is optional, and
+    // the two have to agree: a cleared name comes back UNDEFINED, never '',
+    // because the From header and the Sent list test the field rather than its
+    // length and an empty string would read as "named, with nothing".
+    const { store } = await openStore()
+    await store.upsertAccount(makeAccount({ senderName: 'Nick Galang' }))
+    expect((await store.listAccounts())[0].senderName).toBe('Nick Galang')
+
+    await store.upsertAccount(makeAccount({ senderName: undefined }))
+    const cleared = await store.listAccounts()
+    expect(cleared).toHaveLength(1)
+    expect(cleared[0].senderName).toBeUndefined()
+    // And the label, which is a different field, survived the edit.
+    expect(cleared[0].displayName).toBe('Personal')
+  })
+
   it('removes the account and everything hanging off it', async () => {
     const { store } = await openStore()
     await store.upsertAccount(makeAccount())

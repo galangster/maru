@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Settings } from '../src/core/types'
+import type { Account, Settings } from '../src/core/types'
 import {
   applyVault,
   buildVault,
@@ -20,7 +20,10 @@ const settings: Settings = {
 
 class FakeLocal extends FakeVaultLocal {
   settings = { ...settings }
-  accounts = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', color: '#123', addedAt: 1 }]
+  // Annotated, not inferred: without it the literal narrows and a subclass
+  // (or a test reading `senderName` back) is arguing with a type that has no
+  // optional fields on it.
+  accounts: Account[] = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', color: '#123', addedAt: 1 }]
   credentials = new Map<string, LocalCredential>([['local-1', { clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10 }]])
 }
 
@@ -47,6 +50,27 @@ describe('vault document', () => {
     expect(vault.credentials.ios['nick@example.com']).toMatchObject({
       clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10,
     })
+  })
+
+  it('carries the sender name on the account list, and omits it when there is none', async () => {
+    // Issue #66. The name a person types once has to reach the laptop they set
+    // up last week, or that machine signs its mail with an address. It rides on
+    // the account entry beside the label, which is a different thing: the label
+    // is this device's name FOR the mailbox.
+    class Named extends FakeLocal {
+      accounts: Account[] = [
+        { id: 'local-1', email: 'nick@example.com', displayName: 'Nick', senderName: 'Nick Galang', color: '#123', addedAt: 1 },
+        { id: 'local-2', email: 'unnamed@example.com', displayName: 'Unnamed', color: '#456', addedAt: 2 },
+      ]
+    }
+    const vault = await buildVault(new Named(), 'desktop', 20)
+    expect(vault.accounts).toEqual([
+      { email: 'nick@example.com', label: 'Nick', senderName: 'Nick Galang' },
+      // Omitted, not null and not '': absent means "this writer had no
+      // opinion", which is exactly what an account with no name means.
+      { email: 'unnamed@example.com', label: 'Unnamed' },
+    ])
+    expect(vault.accounts[1]).not.toHaveProperty('senderName')
   })
 
   it('merges settings by document time, accounts by union and credentials by issuedAt', () => {
@@ -105,6 +129,55 @@ describe('vault document', () => {
     expect(local.consent).toEqual(['desktop@example.com'])
     expect(result).toMatchObject({ added: 2, removed: 1, tokensFiled: 1 })
     expect(local.refreshes).toBe(1)
+  })
+
+  it('takes the sender name from the newer copy when both name the same address', () => {
+    const a = document({ updatedAt: 10, accounts: [{ email: 'nick@example.com', label: 'Nick', senderName: 'Old Name' }] })
+    const b = document({ updatedAt: 20, accounts: [{ email: 'nick@example.com', label: 'Nick', senderName: 'New Name' }] })
+    expect(mergeVault(a, b).accounts).toEqual([
+      { email: 'nick@example.com', label: 'Nick', senderName: 'New Name' },
+    ])
+    // Symmetric: the argument order must not decide it.
+    expect(mergeVault(b, a).accounts[0].senderName).toBe('New Name')
+  })
+
+  it('gives a restored account its name, and fills one in for an account that has none', async () => {
+    const local = new FakeLocal()
+    const vault = document({
+      accounts: [
+        // Already local, and nameless: this is the fill.
+        { email: 'nick@example.com', label: 'Nick', senderName: 'Nick Galang' },
+        // Not local at all: the name arrives with the account.
+        { email: 'restored@example.com', label: 'Restored', senderName: 'Nick G' },
+      ],
+    })
+
+    const result = await applyVault(vault, local, 'desktop')
+
+    expect(local.accounts.map((a) => [a.email, a.senderName])).toEqual([
+      ['nick@example.com', 'Nick Galang'],
+      ['restored@example.com', 'Nick G'],
+    ])
+    // The fill is not an add: no account appeared, and the row was updated in
+    // place rather than duplicated.
+    expect(result).toMatchObject({ added: 1, removed: 0 })
+  })
+
+  it('keeps a name this device already has, and never clears one the vault omits', async () => {
+    // The account list carries no per-field stamp, so a pull older than a local
+    // edit cannot be told from one that is newer. Overwriting what a person
+    // typed is the worse of the two failures — and an older client that never
+    // wrote the field must not read as "clear the name".
+    class Named extends FakeLocal {
+      accounts: Account[] = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', senderName: 'Mine', color: '#123', addedAt: 1 }]
+    }
+    const different = new Named()
+    await applyVault(document({ accounts: [{ email: 'nick@example.com', label: 'Nick', senderName: 'Theirs' }] }), different, 'desktop')
+    expect(different.accounts[0].senderName).toBe('Mine')
+
+    const silent = new Named()
+    await applyVault(document({ accounts: [{ email: 'nick@example.com', label: 'Nick' }] }), silent, 'desktop')
+    expect(silent.accounts[0].senderName).toBe('Mine')
   })
 
   it('skips equal settings, current credentials and empty refresh work', async () => {

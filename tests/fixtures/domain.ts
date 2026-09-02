@@ -122,7 +122,14 @@ export class FakeVaultLocal implements VaultLocal {
     this.settings = { ...this.settings, ...patch }
   }
   listAccounts = async () => [...this.accounts]
-  upsertAccount = async (account: Account) => { this.accounts.push(account) }
+  // Replace-or-append, like the store's own upsert. Appending blindly made an
+  // in-place update — a sender name filled in by a pull — look like a second
+  // account with the same address.
+  upsertAccount = async (account: Account) => {
+    const at = this.accounts.findIndex((item) => item.id === account.id)
+    if (at === -1) this.accounts.push(account)
+    else this.accounts[at] = account
+  }
   removeAccount = async (id: string) => { this.accounts = this.accounts.filter((a) => a.id !== id) }
   loadCredential = async (id: string) => this.credentials.get(id) ?? null
   saveCredential = async (id: string, credential: LocalCredential) => {

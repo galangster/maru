@@ -456,6 +456,75 @@ describe('accounts', () => {
     expect(events.some((e) => e.type === 'accountsChanged')).toBe(true)
   })
 
+  it('ships every demo account already named, so its Sent mail matches its inbox', async () => {
+    // Issue #66. The demo is the only mode where a person sees the whole
+    // product without signing in, and a demo whose own Sent mail was signed
+    // "nick@gmail.com" while forty inbox messages from the same address said
+    // "Nick Galang" would be the exact defect issue #61 fixed, reintroduced.
+    const { svc } = service()
+    const accounts = await svc.listAccounts()
+    expect(accounts.map((a) => a.senderName)).toEqual(['Nick Galang', 'Nick Galang'])
+    // And the third account, which arrives through addAccount.
+    const added = await svc.addAccount()
+    expect(added.senderName).toBe('Nick Galang')
+  })
+
+  it('sets the sender name, trims it and announces the change', async () => {
+    const { svc, events } = service()
+    const [personal] = await svc.listAccounts()
+
+    await svc.setSenderName(personal.id, '  Nicholas Galang  ')
+
+    const [named] = await svc.listAccounts()
+    expect(named.senderName).toBe('Nicholas Galang')
+    // The label is a different field and is not touched by this edit.
+    expect(named.displayName).toBe('Personal')
+    expect(events.some((e) => e.type === 'accountsChanged')).toBe(true)
+  })
+
+  it('clears the name when the field is emptied, and the mail falls back to the address', async () => {
+    // Empty means NONE, not a blank name: `senderName` is optional, and every
+    // downstream fallback tests the field rather than its length. A stored ''
+    // would put an empty display name on the From header.
+    const { svc } = service()
+    const [personal] = await svc.listAccounts()
+
+    await svc.setSenderName(personal.id, '   ')
+
+    const [cleared] = await svc.listAccounts()
+    expect(cleared.senderName).toBeUndefined()
+
+    const rows = sentRowsFor(
+      {
+        accountId: cleared.id,
+        to: [{ email: 'maya@fernwood.dev' }],
+        cc: [],
+        bcc: [],
+        subject: 'A note',
+        bodyHtml: '<p>Hello</p>',
+        attachments: [],
+      },
+      {
+        account: cleared,
+        gmailThreadId: 't-new',
+        messageId: 'm-new',
+        date: NOW,
+        attachmentId: (i) => `a-${i}`,
+      },
+    )
+    expect(displayName(rows.message.from)).toBe(cleared.email)
+  })
+
+  it('says nothing when the name is unchanged, and refuses an unknown account', async () => {
+    const { svc, events } = service()
+    const [personal] = await svc.listAccounts()
+
+    await svc.setSenderName(personal.id, 'Nick Galang')
+
+    expect(events.some((e) => e.type === 'accountsChanged')).toBe(false)
+    await expect(svc.setSenderName('no-such-account', 'Someone')).rejects.toThrow(/No such account/)
+  })
+
   it('removes an account and its threads', async () => {
     const { svc } = service()
     const [personal] = await svc.listAccounts()
