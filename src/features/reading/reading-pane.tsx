@@ -33,7 +33,6 @@ import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-p
 import { displayMessages, expandedIds, normalizeExpansion, toggleExpanded } from './conversation'
 import { showRemoteImages } from './remote-images'
 import { EmptyState } from '@/components/empty-state'
-import { textDirection } from '@/lib/direction'
 import { displayName } from '@/lib/format'
 import { hueFor, hueVars } from '@/lib/hue'
 import { crossfadePreset, staggerPreset, stillPreset, useMotionMode } from '@/lib/motion'
@@ -332,13 +331,13 @@ function ThreadHeader({
         // Issue #59: the heading takes the subject's own direction, so a
         // sentence that ends in a full stop puts it on the correct end and the
         // line is aligned to the edge it reads from.
-        dir={textDirection(thread.subject)}
+        dir="auto"
         className="font-ui text-ink text-xl font-semibold text-balance"
       >
         {thread.subject || '(no subject)'}
       </h1>
       <p className="text-ink-3 text-sm">
-        <span dir={textDirection(people)}>{people}</span>
+        <span dir="auto">{people}</span>
         <span className="tabular-nums">
           {' · '}
           {messages.length} message{messages.length === 1 ? '' : 's'}

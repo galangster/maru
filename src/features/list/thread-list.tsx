@@ -43,7 +43,12 @@ import { bulkAction, bulkDefer, type BulkActionType } from './bulk'
 import { LATER_DISCLOSURE, LaterPicker } from './later-picker'
 import { labelNameFor, mailboxTitle } from '@/features/mail/mailbox-title'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
-import { initialSearchInput, searchInput, useListSearch } from './list-search'
+import {
+  initialSearchInput,
+  searchInput,
+  useListSearch,
+  type SearchInputEvent,
+} from './list-search'
 import { ListControls } from './list-controls'
 import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
 import { SyncNotice } from './sync-notice'
@@ -749,9 +754,15 @@ function SearchField() {
     initialSearchInput,
   )
 
-  useEffect(() => {
-    setQuery(field.query)
-  }, [field.query, setQuery])
+  // The reducer owns `text` and `composing`. The store is written HERE, by the
+  // handler, rather than mirrored out of an effect a render later: `searchInput`
+  // is pure, so asking it for the answer costs nothing, and the query then lands
+  // in the same tick as the keystroke that produced it.
+  const apply = (event: SearchInputEvent) => {
+    const next = searchInput(field, event)
+    dispatch(event)
+    if (next.query !== field.query) setQuery(next.query)
+  }
 
   return (
     // The header above is `data-tauri-drag-region="deep"`. The input blocks the
@@ -769,15 +780,15 @@ function SearchField() {
         placeholder="Search mail"
         value={field.text}
         onChange={(event) =>
-          dispatch({
+          apply({
             type: 'input',
             value: event.target.value,
             isComposing: (event.nativeEvent as InputEvent).isComposing,
           })
         }
-        onCompositionStart={() => dispatch({ type: 'compositionstart' })}
+        onCompositionStart={() => apply({ type: 'compositionstart' })}
         onCompositionEnd={(event) =>
-          dispatch({ type: 'compositionend', value: event.currentTarget.value })
+          apply({ type: 'compositionend', value: event.currentTarget.value })
         }
         onKeyDown={(event) => {
           if (event.key !== 'Escape') return

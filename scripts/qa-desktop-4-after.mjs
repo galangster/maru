@@ -32,10 +32,25 @@ const OUT = join(ROOT, 'wayfinder/captures/qa-desktop-4/after')
 const VIEWPORT = { width: 880, height: 700 }
 const FILE_W = 880
 
-/** Apple's Show/Hide Sidebar chord, which is what issue #57 is about. */
-const toggleSidebar = async (page) => {
-  await page.keyboard.press('Meta+Alt+s')
-  await page.waitForTimeout(400)
+// Apple's Show/Hide Sidebar chord, which is what issue #57 is about. The press
+// is waited ON rather than slept past, and the two widths answer it differently:
+// below the floor it is refused and the hint toast IS the answer; above it the
+// wide sidebar collapses and the Compose pill drops its word for a bare glyph.
+const pressSidebarChord = (page) => page.keyboard.press('Meta+Alt+s')
+
+/** Below the floor: the refusal, and the hint that says why. */
+const toggleSidebarNarrow = async (page) => {
+  await pressSidebarChord(page)
+  await page.locator('[data-sonner-toast]').first().waitFor({ timeout: 10_000 })
+}
+
+/** Above the floor: the collapse the shortcut has always done. */
+const toggleSidebarWide = async (page) => {
+  await pressSidebarChord(page)
+  await page
+    .locator('button[aria-label="Compose"]')
+    .filter({ hasText: 'Compose' })
+    .waitFor({ state: 'detached', timeout: 10_000 })
 }
 
 /**
@@ -69,7 +84,6 @@ const paletteOverAndBack = async (page) => {
     state: 'detached',
     timeout: 10_000,
   })
-  await page.waitForTimeout(300)
 }
 
 /** The issue's own reproduction: an Arabic subject and an Arabic body, sent. */
@@ -103,23 +117,24 @@ const sendArabicAndOpenIt = async (page) => {
   await openRowMatching(ARABIC_SUBJECT)(page)
   // Let the send toast retire, so the frame is the mail and not the toast.
   await page.locator('[data-sonner-toast]').first().waitFor({ state: 'detached', timeout: 20_000 })
-  await page.waitForTimeout(400)
 }
 
 const SHOTS = [
   // ---- #57 -------------------------------------------------------------
   // The window the issue opens in. The sidebar has collapsed on its own, and
   // the rail is readable: a centred Compose glyph, four mailbox glyphs.
-  { file: 'a57-narrow-rest.png', act: async (page) => page.waitForTimeout(200) },
+  // No act: `gotoReady` has already waited for the list, which is the app
+  // saying the frame is ready.
+  { file: 'a57-narrow-rest.png' },
   // One press of the shortcut. Before: the WIDE layout inside this rail —
   // "Compo", an icon cut off by the window edge, mailboxes reduced to "S",
   // "S", "T", "L". After: the rail is unchanged and a hint says why.
-  { file: 'a57-narrow-after-toggle.png', act: toggleSidebar },
+  { file: 'a57-narrow-after-toggle.png', act: toggleSidebarNarrow },
   // Dark, because the hint is a surface of its own and has to hold in both.
-  { file: 'a57-narrow-after-toggle-dark.png', theme: 'dark', act: toggleSidebar },
+  { file: 'a57-narrow-after-toggle-dark.png', theme: 'dark', act: toggleSidebarNarrow },
   // Above the floor the shortcut still does exactly what it always did: the
   // wide sidebar collapses to the rail, Compose centred. Driven at 1000.
-  { file: 'a57-wide-after-toggle.png', width: 1000, act: toggleSidebar },
+  { file: 'a57-wide-after-toggle.png', width: 1000, act: toggleSidebarWide },
 
   // ---- #58 -------------------------------------------------------------
   // The Save for later menu, with the palette opened over it and closed
@@ -141,7 +156,6 @@ const SHOTS = [
       await openLater(page)
       await paletteOverAndBack(page)
       await page.keyboard.press('Tab')
-      await page.waitForTimeout(200)
       await reportFocus('Tab, over the Later menu')(page)
     },
   },

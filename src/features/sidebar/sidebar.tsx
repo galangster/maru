@@ -25,7 +25,7 @@ import {
   useLabels,
   useUnreadCount,
 } from '@/features/mail/queries'
-import { selectSidebarRail, useUi, viewKey } from '@/features/mail/ui-store'
+import { selectSidebarCramped, selectSidebarRail, useUi, viewKey } from '@/features/mail/ui-store'
 import { SHELL_CARD } from '@/features/shell/app-shell'
 import { useSurfaces, type SettingsSection } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
@@ -448,7 +448,7 @@ function AccountSection({ account }: { account: Account }) {
 function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: Account[] }) {
   // Named honestly at a width where the wide sidebar is not on offer, rather
   // than promising an expansion the window cannot hold — issue #57.
-  const cramped = useUi((s) => s.sidebarCramped)
+  const cramped = useUi(selectSidebarCramped)
   const { theme, toggle } = useThemeToggle()
   const themeIcon: IconName =
     theme === 'light' ? 'themeLight' : theme === 'dark' ? 'themeDark' : 'themeSystem'

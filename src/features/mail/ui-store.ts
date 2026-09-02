@@ -79,9 +79,10 @@ interface UiState {
    * `sidebarCollapsed` rather than overwriting it so that widening the window
    * gives back the sidebar the person actually asked for.
    *
-   * Nothing reads either field directly. `selectSidebarRail` below is the one
-   * answer to "is the sidebar drawn as a rail", and it is what the shell, the
-   * sidebar and the toggle all ask.
+   * The rail is only ever asked through `selectSidebarRail` below, which is
+   * what the shell, the sidebar and the toggle all read. This field on its own
+   * answers a narrower question — "is a wide sidebar on offer at all" — and
+   * `selectSidebarCramped` is the one door onto that.
    */
   sidebarCramped: boolean
   /** Account sections start collapsed — DIRECTION's sidebar spec. */
@@ -244,10 +245,14 @@ function storedSidebarCollapsed(): boolean {
  */
 export const selectSidebarRail = (s: UiState): boolean => s.sidebarCollapsed || s.sidebarCramped
 
-/** The same answer outside React — the shell effect and the toggle guard. */
-export function sidebarIsRail(): boolean {
-  return selectSidebarRail(useUi.getState())
-}
+/**
+ * Is a wide sidebar on offer at all? — issue #57.
+ *
+ * Not the same question as the rail, and the sidebar footer is the one caller:
+ * it names the toggle honestly at a width where the wide form cannot be had,
+ * rather than promising an expansion the window has nowhere to put.
+ */
+export const selectSidebarCramped = (s: UiState): boolean => s.sidebarCramped
 
 export const useUi = create<UiState>()((set, get) => {
   /**

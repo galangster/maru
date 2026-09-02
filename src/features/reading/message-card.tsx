@@ -6,7 +6,6 @@ import { useCallback, useState } from 'react'
 import { Icon } from '@/components/ui/icon'
 import { AccountAvatar, META_TEXT } from '@/components/wren-controls'
 import type { Message } from '@/core/types'
-import { textDirection } from '@/lib/direction'
 import { displayName, fullTimestamp, relativeTime } from '@/lib/format'
 import { hueFor } from '@/lib/hue'
 import { cn } from '@/lib/utils'
@@ -58,13 +57,13 @@ export function MessageCard({
       >
         <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
         <span
-          dir={textDirection(displayName(message.from))}
+          dir="auto"
           className="font-ui text-ink-2 shrink-0 text-base font-medium"
         >
           {displayName(message.from)}
         </span>
         <span
-          dir={textDirection(message.snippet)}
+          dir="auto"
           className="text-ink-3 min-w-0 flex-1 truncate text-sm"
         >
           {message.snippet}
@@ -93,7 +92,7 @@ export function MessageCard({
             // Issue #59. The address below it is deliberately left LTR: an
             // email address is an identifier, not prose, and it reads the same
             // way in every language.
-            dir={textDirection(displayName(message.from))}
+            dir="auto"
             className="font-ui text-ink truncate text-base font-semibold"
           >
             {displayName(message.from)}

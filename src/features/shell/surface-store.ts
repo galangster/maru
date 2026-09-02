@@ -1,9 +1,9 @@
 // Which floating surface is open. One store, so the Esc handler and the
 // shortcut layer never have to guess what is on top.
 //
-// The four dialog surfaces (palette, settings, shortcuts, onboarding) trap
-// focus and own their own Escape. The two inline surfaces (list search, the
-// composer) do not, so `topmostInline` is what the global Esc handler reads.
+// The dialog surfaces trap focus and own their own Escape. The three surfaces
+// that remember where the keyboard came from and hand it back — the composer,
+// the list search and the palette — are `InlineSurface` below.
 
 import { create } from 'zustand'
 
@@ -155,20 +155,6 @@ export function useAnyDialogOpen(): boolean {
 }
 
 /**
- * The two inline surfaces that have somewhere of their own to go back to.
- *
- * The four dialogs trap focus and hand it back to the thread list, which is
- * right for them: they take the screen, so there is no "where you were" left
- * to return to. The composer and the search field do not take the screen — a
- * keyboard user reaches them from wherever they had tabbed to, and dropping
- * focus on the page throws that position away. The next Tab then starts again
- * at the first control in the app (issue 44).
- *
- * One slot per surface rather than one shared slot: both can be open at once,
- * and a search opened from inside a compose must not overwrite where the
- * composer has to go back to.
- */
-/**
  * The surfaces that have somewhere of their own to go back to.
  *
  * The composer and the search field, because they do not take the screen —
@@ -177,6 +163,10 @@ export function useAnyDialogOpen(): boolean {
  * later menu used to drop the keyboard on the thread list while the menu was
  * still covering the window: one Tab then walked the page underneath a dialog,
  * and the only way back into the menu was the mouse.
+ *
+ * One slot per surface rather than one shared slot: more than one of them can
+ * be open at once, and a search opened from inside a compose must not
+ * overwrite where the composer has to go back to.
  */
 export type InlineSurface = 'composer' | 'search' | 'palette'
 

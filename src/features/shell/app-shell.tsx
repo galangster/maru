@@ -178,11 +178,6 @@ export function AppShell() {
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
   const listRef = useRef<PanelImperativeHandle | null>(null)
   const groupRef = useRef<HTMLDivElement | null>(null)
-  // The same fact the store holds, readable from `onResize` without waiting
-  // for a render: the two fire against the same width and must agree within
-  // the tick, or a narrow window writes the collapse back into the persisted
-  // preference.
-  const crampedRef = useRef(false)
 
   // Sidebar and list measures are CARD widths (tokens.css says so at each
   // group). A panel is its card plus the padding below, and that padding is
@@ -237,9 +232,7 @@ export function AppShell() {
     if (!el || typeof ResizeObserver === 'undefined') return
     const measure = (width: number) => {
       // A zero width is a hidden or not-yet-laid-out shell, not a narrow one.
-      const next = width > 0 && width < wideSidebarFloor
-      crampedRef.current = next
-      setCramped(next)
+      setCramped(width > 0 && width < wideSidebarFloor)
     }
     measure(el.getBoundingClientRect().width)
     const observer = new ResizeObserver((entries) => {
@@ -292,7 +285,10 @@ export function AppShell() {
             // has no room, not because anyone asked — so that collapse must
             // not be written into the preference that survives a relaunch.
             // Widening the window then gives back the sidebar you had.
-            if (!crampedRef.current) {
+            // Read off the store rather than a ref beside it: zustand's `set`
+            // is synchronous, so the measure above has already landed by the
+            // time the group resizes against the same width.
+            if (!useUi.getState().sidebarCramped) {
               setCollapsed(size.inPixels <= measures.sidebarCollapsed + SIDEBAR_PAD + SNAP_SLACK)
             }
             snapToWholePixels(sidebarRef.current, size.inPixels)
