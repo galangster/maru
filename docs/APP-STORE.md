@@ -468,7 +468,7 @@ The archive lands at `src-tauri/gen/apple/build/wren_iOS.xcarchive` and the
 | --- | --- |
 | `CFBundleIdentifier` | `app.getmaru.ios` |
 | `CFBundleShortVersionString` | `0.1.8` |
-| `CFBundleVersion` (the build number) | `0.1.8` — set in `src-tauri/gen/apple/project.yml`, which is tracked. Apple accepted it, so no increment was needed. Increment it there before the next upload. |
+| `CFBundleVersion` (the build number) | `0.1.8` for the first build. **It is read from `src-tauri/gen/apple/wren_iOS/Info.plist`, not from `project.yml`** — xcodegen wrote the plist once at `tauri ios init` and nothing re-reads the yml, so a bump in the yml alone ships the old number (learned 2026-09-02: build 2 uploaded as `0.1.8` again and App Store Connect silently dropped it; no build appeared). Bump both files. The second build is `2`, the third `3`. |
 | `ITSAppUsesNonExemptEncryption` | `false` |
 | Real mode | `dist/assets/env-*.js` carries the real client id, and the Rust binary that embeds `dist/` was compiled after it (22:06:23 → 22:08:13) |
 
