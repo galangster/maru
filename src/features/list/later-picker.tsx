@@ -14,7 +14,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Icon } from '@/components/ui/icon'
 import { ICON_SLOT, Keycap } from '@/components/wren-controls'
-import { MAX_DEFER_DAYS, deferAtDate, deferPresets, maxDeferAt } from '@/core/defaults'
+import {
+  MAX_DEFER_DAYS,
+  clampedDeferDay,
+  deferPresets,
+  isoDay,
+  maxDeferAt,
+  minDeferAt,
+} from '@/core/defaults'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { wakeTime } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
@@ -48,17 +55,10 @@ import { cn } from '@/lib/utils'
 export const LATER_DISCLOSURE =
   "Later follows your Maru account when you're signed in, and stays on this device when you're not. Gmail never sees it, so these still show in Gmail's inbox."
 
-export function isoDay(timestamp: number): string {
-  const date = new Date(timestamp)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-/** Parse an ISO day and enforce the Later window even when input bounds are ignored. */
-export function clampedDeferDay(value: string, now: number): number | null {
-  const [year, month, day] = value.split('-').map(Number)
-  if (!year || !month || !day) return null
-  return Math.min(deferAtDate(year, month - 1, day), maxDeferAt(now))
-}
+// Both live in core/defaults now, beside the window they enforce, and are
+// re-exported here because this is where the mobile Later sheet reaches for
+// them. The window has two ends and the clamp now honours both — issue 43.
+export { clampedDeferDay, isoDay }
 
 export interface LaterPickerProps {
   /**
@@ -252,7 +252,7 @@ function PickerRow({
  * reachable, and the sentence under it is why.
  */
 function CustomDate({ now, onPick }: { now: number; onPick: (wakeAt: number) => void }) {
-  const min = isoDay(now + 86_400_000)
+  const min = isoDay(minDeferAt(now))
   const max = isoDay(maxDeferAt(now))
 
   return (
@@ -269,8 +269,15 @@ function CustomDate({ now, onPick }: { now: number; onPick: (wakeAt: number) => 
         }}
         className="text-ink bg-sunken focus-ring h-9 w-full rounded-inset px-2 text-base outline-none"
       />
-      <span className="text-ink-3 px-1 text-xs">
-        Mail older than 90 days leaves Maru, so Later stops at {MAX_DEFER_DAYS} days.
+      {/* Both ends of the window, because both are clamped. `min` and `max` on
+          the field are what the calendar popup obeys, but a date typed into it
+          reaches past them and is brought back — so the reader is told where
+          it will land before the toast names a day they did not choose
+          (issue 43). The far end still carries its reason: 30 days is not a
+          preference, it is what the 90-day sync window leaves room for. */}
+      <span className="text-ink-3 px-1 text-xs text-pretty">
+        Tomorrow at the earliest, {MAX_DEFER_DAYS} days at the latest. Mail older than 90 days
+        leaves Maru, so Later cannot hold one for longer.
       </span>
     </div>
   )

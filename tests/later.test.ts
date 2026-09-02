@@ -19,9 +19,12 @@ import { DemoMailService } from '../src/core/service/demo'
 import {
   MAX_DEFER_DAYS,
   WOKE_RETENTION_MS,
+  clampedDeferDay,
   deferPresets,
   deferSortKey,
+  isoDay,
   maxDeferAt,
+  minDeferAt,
   threadMatchesView,
   viewLabel,
 } from '../src/core/defaults'
@@ -629,5 +632,40 @@ describe('the demo service', () => {
     expect((await demo.listThreads(INBOX, { now: at + DAY })).map((t) => t.key)).toContain(
       target.key,
     )
+  })
+})
+
+
+describe('clampedDeferDay', () => {
+  // The field's own bounds are what the calendar popup obeys. Typing into it
+  // reaches past them, which is the whole of issue 43.
+  it('brings a date that has already gone up to the picker\u2019s earliest day', () => {
+    expect(clampedDeferDay('2020-01-01', NOW)).toBe(minDeferAt(NOW))
+  })
+
+  it('confirms a time that is still coming', () => {
+    // The defect was not only the wrong day: "Back this evening, 9:00" named a
+    // moment in the past, so nothing ever came back.
+    const at = clampedDeferDay('2020-01-01', NOW)
+    expect(at).not.toBeNull()
+    expect(at as number).toBeGreaterThan(NOW)
+  })
+
+  it('still clamps the far end at 30 days, unchanged', () => {
+    expect(clampedDeferDay('2030-01-01', NOW)).toBe(maxDeferAt(NOW))
+  })
+
+  it('leaves a date inside the window exactly where it was typed', () => {
+    const inside = isoDay(minDeferAt(NOW) + 3 * 86_400_000)
+    expect(clampedDeferDay(inside, NOW)).toBe(minDeferAt(NOW) + 3 * 86_400_000)
+  })
+
+  it('takes today as tomorrow, which is what the field already offered', () => {
+    expect(clampedDeferDay(isoDay(NOW), NOW)).toBe(minDeferAt(NOW))
+  })
+
+  it('rejects an empty or half-typed field rather than clamping it to a day', () => {
+    expect(clampedDeferDay('', NOW)).toBeNull()
+    expect(clampedDeferDay('2026-09', NOW)).toBeNull()
   })
 })
