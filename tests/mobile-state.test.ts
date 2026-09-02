@@ -19,6 +19,11 @@ import {
   type MobileStackEntry,
   type MobileTab,
 } from '@/mobile/state'
+import {
+  SCROLL_RESTORE_FRAMES,
+  SCROLL_RESTORE_TOLERANCE_PX,
+  restoreStep,
+} from '@/mobile/use-route-scroll'
 
 function thread(overrides: Partial<Thread> = {}): Thread {
   return {
@@ -242,5 +247,31 @@ describe('inbox badge', () => {
   it('rolls over past the cap instead of widening the pill', () => {
     expect(inboxBadgeValue(100)).toBe('99+')
     expect(inboxBadgeValue(3607)).toBe('99+')
+  })
+})
+
+// Coming back from a conversation lands where you left (issue 10). The hook
+// asserts the offset and then checks its work, because a document that is
+// still growing clamps the target and WebKit re-applies its own idea of the
+// old offset — neither of which is reliably over in one frame.
+describe('restoreStep', () => {
+  it('is settled once the page holds the offset', () => {
+    expect(restoreStep(1592, 1592, SCROLL_RESTORE_FRAMES)).toBe('settled')
+  })
+
+  it('tolerates a sub-pixel resting place, which a 3x screen produces', () => {
+    expect(restoreStep(1592 + SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe('settled')
+    expect(restoreStep(1592 - SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe('settled')
+  })
+
+  it('re-asserts while the page is short of the target and frames remain', () => {
+    // 660 against 1592: the reported landing, and what a page clamped to a
+    // height it has not finished growing past looks like.
+    expect(restoreStep(660, 1592, SCROLL_RESTORE_FRAMES)).toBe('reassert')
+    expect(restoreStep(0, 1278, 1)).toBe('reassert')
+  })
+
+  it('gives the page back to the person once the budget is spent', () => {
+    expect(restoreStep(660, 1592, 0)).toBe('abandon')
   })
 })
