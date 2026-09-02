@@ -4,6 +4,7 @@ import { Store } from '../src/core/store/db'
 import { HttpError } from '../src/core/gmail/limiter'
 import { NodePlatform } from './helpers/node-platform'
 import { makeAccount, makeMessage, makeThread } from './fixtures/domain'
+import { expectSenderNameContract } from './helpers/sender-name'
 import type { Account, MailEvent } from '../src/core/types'
 import type { GmailMessage, GmailSendAs, GmailThread } from '../src/core/gmail/types'
 
@@ -588,9 +589,8 @@ describe('the name on outgoing mail', () => {
     // Issue #66. Signing in hands Maru an ADDRESS — Gmail's profile endpoint
     // returns nothing else — so a real account signed everything it sent with
     // "nick@gmail.com" until somebody typed a name. `users.settings.sendAs`
-    // already holds the name Gmail itself puts on this mailbox's mail, and it
-    // accepts the one scope Maru requests. The OAuth `userinfo` profile
-    // carries the same string behind a scope Maru does not ask for.
+    // already holds the name Gmail itself puts on this mailbox's mail; why that
+    // endpoint is `docs/security/google-oauth-method-scope-matrix.md`.
     const { store, client } = await harness({
       account: { senderName: undefined },
       sendAs: [
@@ -663,28 +663,15 @@ describe('the name on outgoing mail', () => {
       .toBe('Nicholas Galang')
   })
 
-  it('saves an edited name through the account upsert path, trimmed, and announces it', async () => {
+  it('trims, clears and announces an edited name, through the account upsert path', async () => {
+    // The shared contract, plus the one thing that is real mode's own: the
+    // edit lands in the store rather than only in the live runtime.
     const { store, svc, events } = await harness()
+
+    await expectSenderNameContract(svc, events, 'acct-1')
 
     await svc.setSenderName('acct-1', '  Nicholas Galang  ')
-
-    const [account] = await store.listAccounts()
-    expect(account.senderName).toBe('Nicholas Galang')
-    // The label is a different field and this edit does not touch it.
-    expect(account.displayName).toBe('Personal')
-    expect(events.filter((e) => e.type === 'accountsChanged')).toHaveLength(1)
-  })
-
-  it('clears the name when the field is emptied, and says nothing when it is unchanged', async () => {
-    const { store, svc, events } = await harness()
-
-    await svc.setSenderName('acct-1', '   ')
-    expect((await store.listAccounts())[0].senderName).toBeUndefined()
-
-    const announced = events.filter((e) => e.type === 'accountsChanged').length
-    await svc.setSenderName('acct-1', '')
-    expect(events.filter((e) => e.type === 'accountsChanged')).toHaveLength(announced)
-    await expect(svc.setSenderName('nope', 'Someone')).rejects.toThrow(/No such account/)
+    expect((await store.listAccounts())[0].senderName).toBe('Nicholas Galang')
   })
 
   it('picks the primary send-as entry, by flag or by address', () => {

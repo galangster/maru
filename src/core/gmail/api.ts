@@ -257,8 +257,8 @@ export class GmailApi {
    *
    * Read for one reason: the display name Gmail already puts on this
    * mailbox's outgoing mail, so a newly added account arrives named instead of
-   * signing everything with its address. `gmail.modify` covers this method —
-   * see `docs/security/google-oauth-method-scope-matrix.md`.
+   * signing everything with its address. Read only, and covered by the one
+   * scope Maru requests — `docs/security/google-oauth-method-scope-matrix.md`.
    */
   async listSendAs(): Promise<GmailSendAs[]> {
     const res = await this.json<GmailSendAsResponse>(

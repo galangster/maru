@@ -42,6 +42,19 @@ export interface SentRows {
   thread: Thread
 }
 
+/**
+ * What a typed sender name becomes on its way to an account row: trimmed, and
+ * an empty result is NO name rather than a blank one.
+ *
+ * Lives beside `sentRowsFor` because that is what reads the field: `from`
+ * below falls back to the address by testing `senderName` rather than its
+ * length, so a stored `''` would put an empty display name on the From header.
+ * Both services normalize through here so the two cannot drift.
+ */
+export function senderNameFrom(input: string): string | undefined {
+  return input.trim() || undefined
+}
+
 export function sentRowsFor(draft: SendableDraft, ctx: SentContext): SentRows {
   const { account } = ctx
   const key = threadKey(account.id, ctx.gmailThreadId)

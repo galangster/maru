@@ -19,15 +19,10 @@ export interface VaultCredential {
  * One address in the vault's account list.
  *
  * `label` is this device's name FOR the mailbox; `senderName` is the name that
- * goes on the mail it sends. Two different questions — `Account` in
- * `core/types.ts` says why at length — and the second one is worth carrying
- * because it is typed by a person, once, and every other device would
- * otherwise sign their mail with an address.
- *
- * `senderName` is optional and additive: a vault written before this field
- * simply has none, and absent means "this writer had no opinion", never
- * "clear the name". Nothing that reads the vault may treat its absence as an
- * instruction.
+ * goes on the mail it sends — two different questions, which `Account` in
+ * `core/types.ts` sets out. `senderName` is optional and additive, and its
+ * absence never means "clear the name": the merge rule is normative in
+ * `docs/spec/MARU-ACCOUNT.md`.
  */
 export interface VaultAccount {
   email: string
@@ -157,8 +152,8 @@ export async function buildVault(
     accounts: accounts.map((account) => ({
       email: normalizeEmail(account.email),
       label: account.displayName,
-      // Omitted rather than sent as null: the field is optional, and a vault
-      // that never mentions it is exactly what an unnamed account means.
+      // Omitted rather than sent as null: absent means "no opinion", which is
+      // exactly what an unnamed account means (`docs/spec/MARU-ACCOUNT.md`).
       ...(account.senderName ? { senderName: account.senderName } : {}),
     })),
     credentials,
@@ -265,16 +260,9 @@ export async function applyVault(
       await local.upsertAccount(account)
       added += 1
     } else if (remote.senderName && !account.senderName) {
-      // A name this device does not have yet, which is the whole reason the
-      // field travels: type it once, and the laptop you added last week stops
-      // signing its mail with an address.
-      //
-      // FILLED, never replaced. A device holding a different name is a device
-      // whose owner typed one there, and this pull may be older than that
-      // edit — the account list has no per-field stamp to settle which is
-      // newer, and silently rewriting what someone typed is the worse of the
-      // two failures. The local edit pushes, and the fill is then a no-op
-      // everywhere.
+      // FILLED, never replaced — the merge rule in `docs/spec/MARU-ACCOUNT.md`.
+      // Type a name once and the laptop you added last week stops signing its
+      // mail with an address; a device that already has one keeps it.
       account = { ...account, senderName: remote.senderName }
       await local.upsertAccount(account)
     }

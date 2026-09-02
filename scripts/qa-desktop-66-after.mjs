@@ -30,8 +30,8 @@ const { runWave, ROOT } = await import('./lib/capture.mjs')
 
 const OUT = join(ROOT, 'wayfinder/captures/qa-desktop-4/after')
 
-/** Wave 4's width, and the window the wave's other frames were taken in. */
-const VIEWPORT = { width: 880, height: 780 }
+/** Wave 4's own window, so these frames sit beside the wave's others. */
+const VIEWPORT = { width: 880, height: 700 }
 const FILE_W = 880
 
 const SENDER_FIELD = '#wren-sender-name-demo-personal'

@@ -5,6 +5,7 @@ import { sentRowsFor } from '../src/core/service/sent'
 import type { MailEvent } from '../src/core/types'
 import { displayName, initials } from '../src/lib/format'
 import { makeAccount } from './fixtures/domain'
+import { expectSenderNameContract } from './helpers/sender-name'
 
 const NOW = Date.UTC(2026, 7, 28, 12, 0, 0)
 
@@ -469,23 +470,15 @@ describe('accounts', () => {
     expect(added.senderName).toBe('Nick Galang')
   })
 
-  it('sets the sender name, trims it and announces the change', async () => {
+  it('trims, clears and announces the sender name like real mode does', async () => {
     const { svc, events } = service()
     const [personal] = await svc.listAccounts()
-
-    await svc.setSenderName(personal.id, '  Nicholas Galang  ')
-
-    const [named] = await svc.listAccounts()
-    expect(named.senderName).toBe('Nicholas Galang')
-    // The label is a different field and is not touched by this edit.
-    expect(named.displayName).toBe('Personal')
-    expect(events.some((e) => e.type === 'accountsChanged')).toBe(true)
+    await expectSenderNameContract(svc, events, personal.id)
   })
 
-  it('clears the name when the field is emptied, and the mail falls back to the address', async () => {
-    // Empty means NONE, not a blank name: `senderName` is optional, and every
-    // downstream fallback tests the field rather than its length. A stored ''
-    // would put an empty display name on the From header.
+  it('falls the sent mail back to the address once the name is cleared', async () => {
+    // What clearing is FOR: `senderName` is optional and `displayName(addr)`
+    // tests the field rather than its length, so no name means the address.
     const { svc } = service()
     const [personal] = await svc.listAccounts()
 
@@ -513,16 +506,6 @@ describe('accounts', () => {
       },
     )
     expect(displayName(rows.message.from)).toBe(cleared.email)
-  })
-
-  it('says nothing when the name is unchanged, and refuses an unknown account', async () => {
-    const { svc, events } = service()
-    const [personal] = await svc.listAccounts()
-
-    await svc.setSenderName(personal.id, 'Nick Galang')
-
-    expect(events.some((e) => e.type === 'accountsChanged')).toBe(false)
-    await expect(svc.setSenderName('no-such-account', 'Someone')).rejects.toThrow(/No such account/)
   })
 
   it('removes an account and its threads', async () => {

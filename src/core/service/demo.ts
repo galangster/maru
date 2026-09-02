@@ -10,7 +10,7 @@ import { ThreadSearchIndex } from '../search/index'
 import { buildDemoData, buildExtraAccount, labelsFor } from '../demo/fixtures'
 import { applyLabelChanges, applyActionToMessage, applyActionToThread, labelDelta } from './actions'
 import { resolveAttachments } from './attachments'
-import { bodyTextOf, sentRowsFor } from './sent'
+import { bodyTextOf, senderNameFrom, sentRowsFor } from './sent'
 import type {
   LabelChanges,
   Account,
@@ -194,7 +194,7 @@ export class DemoMailService implements MailService {
   async setSenderName(accountId: string, name: string): Promise<void> {
     const account = this.accounts.find((a) => a.id === accountId)
     if (!account) throw new Error(`No such account: ${accountId}`)
-    const senderName = name.trim() || undefined
+    const senderName = senderNameFrom(name)
     if (senderName === account.senderName) return
     account.senderName = senderName
     this.emit({ type: 'accountsChanged' })

@@ -445,6 +445,13 @@ function accountStatusLine(status: SyncStatus | undefined, now: number): string 
   }
 }
 
+/** A failed action, reported the way this dialog reports them. */
+function toastError(title: string, cause: unknown): void {
+  toast.error(title, {
+    description: cause instanceof Error ? cause.message : String(cause),
+  })
+}
+
 /**
  * The name this account puts on the mail it sends — issue #66.
  *
@@ -454,12 +461,12 @@ function accountStatusLine(status: SyncStatus | undefined, now: number): string 
  * else. That is the distinction issue #61 drew, and this field is its missing
  * half.
  *
- * Committed on blur, trimmed, and an empty value CLEARS it rather than storing
- * a blank — the seam's own rule, and the reason the placeholder is the
- * address: it is not a suggestion, it is what recipients actually see while
- * the field is empty.
+ * Committed on blur or Enter, trimmed, and an empty value CLEARS it rather
+ * than storing a blank — the seam's own rule, and the reason the placeholder
+ * is the address: it is not a suggestion, it is what recipients actually see
+ * while the field is empty.
  */
-function SenderNameField({ account }: { account: Account }) {
+function SenderNameField({ account, className }: { account: Account; className?: string }) {
   const service = useMailService()
 
   return (
@@ -468,30 +475,39 @@ function SenderNameField({ account }: { account: Account }) {
       label="Name on outgoing mail"
       value={account.senderName ?? ''}
       placeholder={account.email}
+      className={className}
       onCommit={(next) => {
-        void service.setSenderName(account.id, next).catch((cause: unknown) => {
-          toast.error('Could not save the name', {
-            description: cause instanceof Error ? cause.message : String(cause),
-          })
-        })
+        void service
+          .setSenderName(account.id, next)
+          .catch((cause: unknown) => toastError('Could not save the name', cause))
       }}
     />
   )
 }
 
-function AccountRow({
-  account,
-  status,
-  onReauth,
-  onNeedsClient,
-  reauthBusy,
-}: {
+interface AccountRowProps {
   account: Account
   status: SyncStatus | undefined
   onReauth: () => void
   onNeedsClient: () => void
   reauthBusy: boolean
-}) {
+}
+
+/**
+ * Who this account is, and every way back when it stops syncing: the avatar,
+ * the three lines, and the one recovery button the failure calls for.
+ *
+ * Its own component because the row grew a second band underneath it and this
+ * one did not change — everything below is about the account's sender name,
+ * and nothing here is.
+ */
+function AccountIdentityRow({
+  account,
+  status,
+  onReauth,
+  onNeedsClient,
+  reauthBusy,
+}: AccountRowProps) {
   const service = useMailService()
   const now = useNow()
   const [confirming, setConfirming] = useState(false)
@@ -521,106 +537,111 @@ function AccountRow({
   }
 
   return (
-    // Two stacked bands, not one line. The identity band is unconditional — a
-    // status line now renders in every state rather than only on failure, and
-    // two height branches for one row was the kind of thing that drifts. The
-    // field below it is a band of its own rather than a fourth line inside the
-    // text column, so Remove stays centred on the name it removes instead of
-    // on a text input.
-    <li className="flex flex-col gap-2 py-2">
-      <div className="flex min-h-14 items-center gap-3">
-        <AccountAvatar
-          address={{ name: account.displayName, email: account.email }}
-          hue={hueFor(account.email)}
-        />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="font-ui text-ink truncate text-base font-medium">
-            {account.displayName}
-          </span>
-          <span className="text-ink-3 truncate text-sm">{account.email}</span>
-          {/* This is the row that answers "which ones aren't syncing", so it
-              answers it in every state — a healthy account saying when it last
-              synced is what makes a silent one legible by contrast. */}
-          <span
-            className={cn(
-              'text-sm',
-              // Every failure wraps; only the healthy one-liner truncates. The
-              // row is min-h-14 and grows, and a message that explains what
-              // broke is the last thing that should be cut — "Signed out by
-              // Google — sign in aga…" spends its width on the half the button
-              // beside it already says.
-              failed ? 'text-destructive text-pretty' : 'text-ink-3 truncate',
-            )}
+    // Unconditional, because a status line now renders in every state rather
+    // than only on failure. Two height branches for one row was the kind of
+    // thing that drifts.
+    <div className="col-span-2 flex min-h-14 items-center gap-3">
+      <AccountAvatar
+        address={{ name: account.displayName, email: account.email }}
+        hue={hueFor(account.email)}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="font-ui text-ink truncate text-base font-medium">
+          {account.displayName}
+        </span>
+        <span className="text-ink-3 truncate text-sm">{account.email}</span>
+        {/* This is the row that answers "which ones aren't syncing", so it
+            answers it in every state — a healthy account saying when it last
+            synced is what makes a silent one legible by contrast. */}
+        <span
+          className={cn(
+            'text-sm',
+            // Every failure wraps; only the healthy one-liner truncates. The
+            // row is min-h-14 and grows, and a message that explains what
+            // broke is the last thing that should be cut — "Signed out by
+            // Google — sign in aga…" spends its width on the half the button
+            // beside it already says.
+            failed ? 'text-destructive text-pretty' : 'text-ink-3 truncate',
+          )}
+        >
+          {accountStatusLine(status, now)}
+        </span>
+      </div>
+      {/* Three recoveries, three buttons. A rejected client is fixed in
+          Settings → Google and a dead grant by signing in again — but an
+          untyped error used to land on "Sign in again" too, which offers a
+          browser round trip for a rate limit or a dropped connection it cannot
+          touch. Those get "Try again" instead. */}
+      {failed &&
+        (clientProblem ? (
+          <button
+            type="button"
+            onClick={onNeedsClient}
+            className={textButtonClass('default', 'shrink-0 rounded-md')}
           >
-            {accountStatusLine(status, now)}
-          </span>
-        </div>
-        {/* Three recoveries, three buttons. A rejected client is fixed in
-            Settings → Google and a dead grant by signing in again — but an
-            untyped error used to land on "Sign in again" too, which offers a
-            browser round trip for a rate limit or a dropped connection it cannot
-            touch. Those get "Try again" instead. */}
-        {failed &&
-          (clientProblem ? (
-            <button
-              type="button"
-              onClick={onNeedsClient}
-              className={textButtonClass('default', 'shrink-0 rounded-md')}
-            >
-              Use your own client
-            </button>
-          ) : needsSignIn ? (
-            <button
-              type="button"
-              onClick={onReauth}
-              disabled={reauthBusy}
-              className={textButtonClass('default', 'shrink-0 rounded-md')}
-            >
-              Sign in again
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setRetrying(true)
-                void service
-                  .refresh()
-                  .catch(() => {})
-                  .finally(() => setRetrying(false))
-              }}
-              disabled={retrying}
-              className={textButtonClass('default', 'shrink-0 rounded-md')}
-            >
-              Try again
-            </button>
-          ))}
-        <ConfirmPopover
-          open={confirming}
-          onOpenChange={setConfirming}
-          title={`Remove ${account.email}?`}
-          description="Its mail leaves Maru and its tokens are deleted. Nothing at Google changes, and you can add it back."
-          cancelLabel="Keep it"
-          confirmLabel="Remove"
-          onConfirm={() => void remove()}
-          trigger={
-            <button
-              type="button"
-              // Every account row says "Remove". Read out of context that is
-              // two identical buttons; the label says which one.
-              aria-label={`Remove ${account.email}`}
-              // The kit's text-button recipe; rounded-md kept deliberately —
-              // these sit inside list rows, not on an open surface.
-              className={textButtonClass('danger', 'shrink-0 rounded-md')}
-            />
-          }
-          triggerContent="Remove"
-        />
-      </div>
-      {/* Indented to the text column, so the field reads as this account's
-          own and not as the list's. Avatar width plus the row's gap. */}
-      <div className="pl-[calc(var(--wren-avatar)+0.75rem)]">
-        <SenderNameField account={account} />
-      </div>
+            Use your own client
+          </button>
+        ) : needsSignIn ? (
+          <button
+            type="button"
+            onClick={onReauth}
+            disabled={reauthBusy}
+            className={textButtonClass('default', 'shrink-0 rounded-md')}
+          >
+            Sign in again
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setRetrying(true)
+              void service
+                .refresh()
+                .catch(() => {})
+                .finally(() => setRetrying(false))
+            }}
+            disabled={retrying}
+            className={textButtonClass('default', 'shrink-0 rounded-md')}
+          >
+            Try again
+          </button>
+        ))}
+      <ConfirmPopover
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Remove ${account.email}?`}
+        description="Its mail leaves Maru and its tokens are deleted. Nothing at Google changes, and you can add it back."
+        cancelLabel="Keep it"
+        confirmLabel="Remove"
+        onConfirm={() => void remove()}
+        trigger={
+          <button
+            type="button"
+            // Every account row says "Remove". Read out of context that is
+            // two identical buttons; the label says which one.
+            aria-label={`Remove ${account.email}`}
+            // The kit's text-button recipe; rounded-md kept deliberately —
+            // these sit inside list rows, not on an open surface.
+            className={textButtonClass('danger', 'shrink-0 rounded-md')}
+          />
+        }
+        triggerContent="Remove"
+      />
+    </div>
+  )
+}
+
+function AccountRow(props: AccountRowProps) {
+  return (
+    // Two stacked bands on one grid, not a line with a computed indent. The
+    // avatar's own column is what puts the field under the text rather than
+    // under the whole row: the identity band spans both columns and keeps its
+    // internal gap, and the field simply starts in column 2. A band of its own
+    // and not a fourth line inside the text column, so Remove stays centred on
+    // the name it removes instead of on a text input.
+    <li className="grid grid-cols-[var(--wren-avatar)_1fr] gap-x-3 gap-y-2 py-2">
+      <AccountIdentityRow {...props} />
+      <SenderNameField account={props.account} className="col-start-2" />
     </li>
   )
 }

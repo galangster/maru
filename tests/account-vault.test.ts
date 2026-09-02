@@ -164,10 +164,8 @@ describe('vault document', () => {
   })
 
   it('keeps a name this device already has, and never clears one the vault omits', async () => {
-    // The account list carries no per-field stamp, so a pull older than a local
-    // edit cannot be told from one that is newer. Overwriting what a person
-    // typed is the worse of the two failures — and an older client that never
-    // wrote the field must not read as "clear the name".
+    // Fill, never replace, and absence is never an instruction — the merge
+    // rule in `docs/spec/MARU-ACCOUNT.md`.
     class Named extends FakeLocal {
       accounts: Account[] = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', senderName: 'Mine', color: '#123', addedAt: 1 }]
     }

@@ -9,7 +9,7 @@ import { searchWithOperators } from '../search/operators'
 import type { Platform } from '../platform'
 import type { Store } from '../store/db'
 import { GmailApi } from '../gmail/api'
-import { GMAIL_BUDGET_PER_MINUTE, TokenBucket } from '../gmail/limiter'
+import { GMAIL_BUDGET_PER_MINUTE, HttpError, TokenBucket } from '../gmail/limiter'
 import { SyncEngine, type SyncGmailClient } from '../sync/engine'
 import { syncFailure } from '../sync/failure'
 import { ThreadSearchIndex } from '../search/index'
@@ -18,7 +18,7 @@ import { isOfficialGoogleClientId, resolveOAuthClient } from '../auth/client-con
 import { buildRawMessage } from '../mime'
 import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } from './actions'
 import { resolveAttachments } from './attachments'
-import { bodyTextOf, sentRowsFor } from './sent'
+import { bodyTextOf, senderNameFrom, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
 import { parseWatchExpiration } from '../push/watch'
 import { fromVaultDeferral, normalizeEmail, toVaultDeferral, type VaultLocal } from './vault-port'
@@ -337,16 +337,14 @@ export class RealMailService implements MailService {
    * Attach is the moment for it because attach is every moment a live token
    * exists for an account: the launch pass, the account that was just added,
    * and the re-link that mints fresh tokens for one that had gone stale —
-   * `addAccount` drops the old runtime precisely so this runs again. One
-   * gate covers all three: an account that HAS a name is never touched, so a
-   * name a person typed is never overwritten by Google's, and the request is
-   * made once in the life of an account rather than on every launch.
+   * `addAccount` drops the old runtime precisely so this runs again. One gate
+   * covers all three: an account that HAS a name is never touched, so a name a
+   * person typed is never overwritten by Google's, and the request stops being
+   * made once an account has a name.
    *
-   * The source is `users.settings.sendAs`, not the OAuth `userinfo` profile.
-   * Both carry the same string; only one of them is reachable with the single
-   * scope Maru requests. Asking for `userinfo.profile` would add a line to the
-   * consent screen and a row to the verification submission for a name Gmail
-   * will already tell us.
+   * The source is `users.settings.sendAs` rather than the OAuth `userinfo`
+   * profile because it accepts the one scope Maru already requests — see
+   * `docs/security/google-oauth-method-scope-matrix.md`.
    *
    * Nothing here may fail an attach. A mailbox with no display name set, a
    * client that cannot answer, a 429 — all of them mean the same thing to the
@@ -357,15 +355,14 @@ export class RealMailService implements MailService {
     const { account, client } = runtime
     if (account.senderName || !client.listSendAs) return
     try {
-      const identities = await client.listSendAs()
-      const name = primarySendAsName(identities, account.email)
-      if (!name) return
-      const named: Account = { ...account, senderName: name }
-      await this.store.upsertAccount(named)
-      runtime.account = named
-      this.emit({ type: 'accountsChanged' })
-    } catch {
-      // A name is a nicety; sync is not. The account keeps its address.
+      const name = primarySendAsName(await client.listSendAs(), account.email)
+      if (name) await this.setSenderName(account.id, name)
+    } catch (cause) {
+      // A name is a nicety; sync is not: the account keeps its address. Narrow
+      // on purpose — only the shapes this request can itself produce are
+      // swallowed. A stand-in client that throws to prove it was never called
+      // has to reach the test that installed it.
+      if (!(cause instanceof HttpError || cause instanceof TypeError)) throw cause
     }
   }
 
@@ -496,23 +493,31 @@ export class RealMailService implements MailService {
   }
 
   /**
-   * Rename what this account puts on the mail it sends.
+   * The one way an account row changes: write it, keep any live runtime's copy
+   * of it in step, and say so.
    *
    * Through `upsertAccount`, the one write path an account row has — a
    * dedicated UPDATE would be a second place for the encryption keyring to be
-   * asked for a key, and the column list to drift.
+   * asked for a key, and the column list to drift. The event matters as much
+   * as the write: nothing that reads an account re-renders until the account
+   * query is invalidated, and the vault port's own writes used to skip both
+   * this and the runtime refresh.
    */
+  private async saveAccount(next: Account): Promise<void> {
+    await this.store.upsertAccount(next)
+    const runtime = this.runtimes.get(next.id)
+    if (runtime) runtime.account = next
+    this.emit({ type: 'accountsChanged' })
+  }
+
+  /** Rename what this account puts on the mail it sends. */
   async setSenderName(accountId: string, name: string): Promise<void> {
     const accounts = await this.store.listAccounts()
     const account = accounts.find((a) => a.id === accountId)
     if (!account) throw new Error(`No such account: ${accountId}`)
-    const senderName = name.trim() || undefined
+    const senderName = senderNameFrom(name)
     if (senderName === account.senderName) return
-    const named: Account = { ...account, senderName }
-    await this.store.upsertAccount(named)
-    const runtime = this.runtimes.get(accountId)
-    if (runtime) runtime.account = named
-    this.emit({ type: 'accountsChanged' })
+    await this.saveAccount({ ...account, senderName })
   }
 
   async removeAccount(accountId: string): Promise<void> {
@@ -834,15 +839,11 @@ export class RealMailService implements MailService {
       getSettings: () => this.store.getSettings(),
       setSettings: (patch) => this.setSettings(patch),
       listAccounts: () => this.store.listAccounts(),
-      // The event matters as much as the write. A pull can add an account or
-      // fill in the sender name someone typed on another device, and neither
-      // shows up until the account query is invalidated — `refreshAfterApply`
-      // is a Gmail refresh and emits no such thing. The demo's port has always
-      // emitted here; this one had not.
-      upsertAccount: async (account) => {
-        await this.store.upsertAccount(account)
-        this.emit({ type: 'accountsChanged' })
-      },
+      // Through `saveAccount`, for its event: a pull can add an account or fill
+      // in the sender name someone typed on another device, and neither shows
+      // up until the account query is invalidated. `refreshAfterApply` is a
+      // Gmail refresh and emits no such thing.
+      upsertAccount: (account) => this.saveAccount(account),
       removeAccount: (accountId) => this.removeAccount(accountId),
       loadCredential: async (accountId) => {
         const token = await this.tokenStore.load(accountId)
