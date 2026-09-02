@@ -110,6 +110,23 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
      tracks Dynamic Type: as a fixed 54px the label overflowed its own box at
      the accessibility sizes and printed straight over the field beside it. */
   --mobile-field-label: 3.4rem;
+  /*
+   * Wrap floors: the width below which a flex item stops being squeezed and
+   * takes a line of its own instead.
+   *
+   * In `ch`, so each one is a floor in the text's OWN type and scales with
+   * Dynamic Type — a pixel guess stops meaning anything at 53px, which is
+   * where the accessibility sizes put a row's body text. Unregistered custom
+   * properties are substituted as tokens, so each `ch` is still resolved
+   * against the element that uses it, not against this one.
+   *
+   * At every size the phone ships at by default none of these floors is
+   * reached, and every line is exactly what it was.
+   */
+  --mobile-wrap-sender: 9ch;
+  --mobile-wrap-title: 4ch;
+  --mobile-wrap-recipient: 14ch;
+  --mobile-wrap-value: 12ch;
   position: relative;
   min-height: 100dvh;
   isolation: isolate;
@@ -512,6 +529,63 @@ html[data-input-modality='keyboard']
   font: var(--mobile-text-caption)/var(--mobile-leading-tight) var(--wren-font-body);
 }
 
+/*
+ * The sync notice (issue 9).
+ *
+ * All six failure sentences reached the phone and none of them was ever
+ * drawn — the inbox looked healthy while mail had stopped arriving. It lives
+ * in the sticky header, under the search field, because a notice you have to
+ * scroll to find is the state that was reported.
+ *
+ * `--wren-radius-md` and the sunken fill are the search field's above it, so
+ * the two read as one stack rather than as a banner bolted on. It wraps: the
+ * sentence names an account and a remedy, and truncating either is what the
+ * desktop's own status line refuses to do (sync-summary.ts, `address`).
+ *
+ * Urgency is colour and nothing else. `stalled` — "Maru can't reach Google.
+ * It keeps trying; nothing is lost." — routes to Settings like the rest and
+ * must never be dressed as an alarm, which is the rule sync-summary.ts states
+ * beside `isUrgent`.
+ */
+.mobile-sync-banner {
+  display: flex;
+  width: 100%;
+  align-items: start;
+  gap: 8px;
+  margin-block-end: 10px;
+  border: 0;
+  border-radius: var(--wren-radius-md);
+  padding: 10px 12px;
+  background: var(--wren-surface-sunken);
+  color: var(--wren-text-2);
+  font-size: var(--mobile-text-footnote);
+  line-height: var(--mobile-leading-normal);
+  text-align: start;
+  text-wrap: pretty;
+}
+
+.mobile-sync-banner > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Optically on the first line of the sentence rather than centred on a box
+   whose height depends on how many lines the sentence takes. */
+.mobile-sync-banner .mobile-icon {
+  flex: 0 0 auto;
+  margin-block-start: 1px;
+  color: var(--wren-text-3);
+}
+
+.mobile-sync-banner.is-urgent {
+  background: color-mix(in oklab, var(--wren-destructive) 10%, transparent);
+  color: var(--wren-text-1);
+}
+
+.mobile-sync-banner.is-urgent > .mobile-icon:first-child {
+  color: var(--wren-destructive);
+}
+
 /* The name is kept because it is what every screen's main region is called,
    but the scrolling is the document's now. `flex: 1` is what pushes a sticky
    bottom bar to the foot of a short screen. */
@@ -699,8 +773,25 @@ html[data-input-modality='keyboard']
   white-space: nowrap;
 }
 
+/*
+ * The top line reflows rather than crushing the sender (issue 20).
+ *
+ * At the accessibility text sizes the timestamp kept its full width on the
+ * same line and the sender took whatever was left — "Priya, Jules +1" became
+ * "Pri…", three characters of the first thing the row is for. The subject and
+ * the preview below it were fine, so this was one line rather than a layout
+ * giving up.
+ *
+ * Below `--mobile-wrap-sender` the line wraps and the timestamp takes the
+ * second row on its own.
+ */
+.mobile-row-topline {
+  flex-wrap: wrap;
+}
+
 .mobile-row-topline strong {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: var(--mobile-wrap-sender);
   font-family: var(--wren-font-ui);
   font-size: var(--mobile-text-body);
   line-height: var(--mobile-leading-tight);
@@ -1322,20 +1413,43 @@ html[data-input-modality='keyboard']
  * A flex item with text refuses to shrink below its content by default, so at
  * the accessibility text sizes the composer's title did not squeeze — it
  * *overflowed*, printing "New Message" across Cancel on one side and pushing
- * Send off the right edge of the phone. The title is the part that can afford
- * to lose characters; the two controls are not.
+ * Send off the right edge of the phone. `min-width: 0` and an ellipsis stopped
+ * the overflow and then produced the other half of issue 14: at the largest
+ * accessibility size the title was a single letter, "R".
+ *
+ * A one-letter title is not a title. It wraps instead: the words survive, the
+ * header grows by however many lines it needs, and the row wraps under them if
+ * even that is not enough — Cancel and Send are the two things that must stay
+ * on the screen and reachable, and they now can. `4ch` is the floor at which
+ * the title stops taking room from them and takes a line of its own instead.
+ *
+ * At every size the phone ships at by default nothing here wraps and the
+ * header is exactly the bar it was.
  */
+.mobile-sheet-nav,
+.mobile-bottom-sheet > header {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
 .mobile-sheet-nav h2,
 .mobile-bottom-sheet > header h2 {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: var(--mobile-wrap-title);
+  overflow-wrap: anywhere;
+  text-align: center;
+  text-wrap: balance;
 }
 
 .mobile-sheet-nav > button,
 .mobile-bottom-sheet > header button {
   flex: 0 0 auto;
+}
+
+/* On a line of its own — which is where a wrap puts it — Send belongs at the
+   end of the row rather than at its start. */
+.mobile-sheet-nav > .mobile-send-button {
+  margin-inline-start: auto;
 }
 
 .mobile-send-button:disabled {
@@ -1352,23 +1466,57 @@ html[data-input-modality='keyboard']
   -webkit-overflow-scrolling: touch;
 }
 
+/*
+ * From and Subject (issue 14). The label column was a fixed `3.4rem` and the
+ * value took the rest, so at the accessibility sizes "nick@gmail.com" was cut
+ * mid-word to "nick@" and "Re: Book club: next pick" to "Re: Boo" — both at
+ * the screen edge, with no ellipsis, because a `<select>` and an `<input>`
+ * clip rather than ellipsise unless told otherwise.
+ *
+ * The row wraps, the label is a floor rather than a cap so a long word like
+ * "Subject" is not clipped by its own column, and the value asks for `12ch`
+ * before it will share the line. Below that it takes the next line at full
+ * width. The ellipsis is the last resort under even that.
+ */
 .mobile-compose-field {
   display: flex;
   min-height: 48px;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding-inline: 16px 10px;
 }
 
+/*
+ * The To row (issue 14).
+ *
+ * It was a grid whose second track was `auto`, so at the accessibility sizes
+ * the Cc/Bcc control took its full intrinsic width and left the recipient
+ * whatever remained — which was less than nothing: the chip was crushed to a
+ * coloured sliver a few pixels wide and the control printed on top of it. The
+ * person being written to was unreadable.
+ *
+ * A wrapping flex row instead, with the recipient asking for `14ch` before it
+ * will share the line. Under that, Cc/Bcc drops to its own row and the
+ * recipient keeps the full width. At the default size the two sit side by side
+ * exactly as they did.
+ */
 .mobile-compose-to-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: start;
   padding-inline-end: 10px;
 }
 
+.mobile-compose-to-field > .mobile-recipient-row {
+  flex: 1 1 var(--mobile-wrap-recipient);
+  min-width: 0;
+}
+
 .mobile-compose-to-field > button {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
   min-height: 44px;
   border: 0;
   padding-inline: 8px;
@@ -1377,14 +1525,26 @@ html[data-input-modality='keyboard']
   font-size: var(--mobile-text-footnote);
 }
 
+/* Wrapping flex rather than a two-track grid, for the reason above: a grid
+   track cannot move to the next line, so the value column went to nothing
+   instead. Below `--mobile-wrap-value` the value takes a row of its own. */
 .mobile-recipient-row {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   min-width: 0;
   min-height: 48px;
-  grid-template-columns: var(--mobile-field-label) minmax(0, 1fr);
   align-items: start;
   gap: 10px;
   padding: 6px 0 6px 16px;
+}
+
+.mobile-recipient-row > label {
+  flex: 0 0 auto;
+  min-width: var(--mobile-field-label);
+}
+
+.mobile-recipient-control {
+  flex: 1 1 var(--mobile-wrap-value);
 }
 
 /*
@@ -1544,7 +1704,7 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-compose-field > span {
-  width: var(--mobile-field-label);
+  min-width: var(--mobile-field-label);
   flex: 0 0 auto;
   color: var(--wren-text-3);
   font-size: var(--mobile-text-subhead);
@@ -1554,12 +1714,15 @@ html[data-input-modality='keyboard']
 .mobile-compose-field select {
   min-width: 0;
   min-height: 44px;
-  flex: 1;
+  flex: 1 1 var(--mobile-wrap-value);
+  overflow: hidden;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--wren-text-1);
   font-size: var(--mobile-text-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mobile-compose-field > button {
@@ -1618,14 +1781,37 @@ html[data-input-modality='keyboard']
   font-size: var(--mobile-text-footnote);
 }
 
+/*
+ * The footer (issue 14). "Add attachment" refused to shrink below its own
+ * text, so at the accessibility sizes it pushed the discard control most of
+ * the way off the right edge of the phone.
+ *
+ * `min-width: 0` lets the label wrap inside its button instead of shoving its
+ * neighbour off the screen, and the row wraps under that. A control that
+ * cannot be reached is worse than a tall footer.
+ */
 .mobile-compose-footer {
   display: flex;
   min-height: 58px;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  row-gap: 4px;
   padding-inline: 12px;
   box-shadow: inset 0 1px 0 var(--wren-hairline);
+}
+
+.mobile-attach-button {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* No auto margin here. `margin-inline-start: auto` would put it back in its
+   corner on a wrapped line, and measured at the largest accessibility size it
+   also stops the line breaking at all — which is the defect, not the corner. */
+.mobile-discard-button {
+  flex: 0 0 auto;
 }
 
 .mobile-attach-button,

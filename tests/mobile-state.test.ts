@@ -11,7 +11,9 @@ import {
   indexOfTab,
   initialMobileRoute,
   mobileRouteReducer,
+  mobileRowLabel,
   nativeTabs,
+  hasListToSelect,
   resolveDragAxis,
   resolveSwipeIntent,
   tabAtIndex,
@@ -20,6 +22,11 @@ import {
   type MobileStackEntry,
   type MobileTab,
 } from '@/mobile/state'
+import {
+  SCROLL_RESTORE_FRAMES,
+  SCROLL_RESTORE_TOLERANCE_PX,
+  shouldReassert,
+} from '@/mobile/use-route-scroll'
 
 function thread(overrides: Partial<Thread> = {}): Thread {
   return {
@@ -46,7 +53,7 @@ describe('mobile route reducer', () => {
   it('changes tabs and resets the stack and sheet', () => {
     const state = mobileRouteReducer(initialMobileRoute, {
       type: 'openSheet',
-      sheet: { kind: 'later', threadKeys: ['account/thread-1'] },
+      sheet: { kind: 'later', targets: [{ key: 'account/thread-1', deferredUntil: null }] },
     })
     expect(mobileRouteReducer(state, { type: 'changeTab', tab: 'search' })).toEqual({
       tab: 'search',
@@ -116,7 +123,7 @@ describe('visible screen', () => {
   })
 
   it('is unchanged by a sheet', () => {
-    const withSheet = { ...route([{ kind: 'inbox' }, thread]), sheet: { kind: 'later' as const, threadKeys: ['account/thread-1'] } }
+    const withSheet = { ...route([{ kind: 'inbox' }, thread]), sheet: { kind: 'later' as const, targets: [{ key: 'account/thread-1', deferredUntil: null }] } }
     expect(visibleScreen(withSheet)).toBe('thread')
   })
 
@@ -305,5 +312,84 @@ describe('inbox badge', () => {
   it('rolls over past the cap instead of widening the pill', () => {
     expect(inboxBadgeValue(100)).toBe('99+')
     expect(inboxBadgeValue(3607)).toBe('99+')
+  })
+})
+
+// Coming back from a conversation lands where you left (issue 10). The hook
+// asserts the offset and then checks its work, because a document that is
+// still growing clamps the target and WebKit re-applies its own idea of the
+// old offset — neither of which is reliably over in one frame.
+describe('shouldReassert', () => {
+  it('is settled once the page holds the offset', () => {
+    expect(shouldReassert(1592, 1592, SCROLL_RESTORE_FRAMES)).toBe(false)
+  })
+
+  it('tolerates a sub-pixel resting place, which a 3x screen produces', () => {
+    expect(shouldReassert(1592 + SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe(false)
+    expect(shouldReassert(1592 - SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe(false)
+  })
+
+  it('re-asserts while the page is short of the target and frames remain', () => {
+    // 660 against 1592: the reported landing, and what a page clamped to a
+    // height it has not finished growing past looks like.
+    expect(shouldReassert(660, 1592, SCROLL_RESTORE_FRAMES)).toBe(true)
+    expect(shouldReassert(0, 1278, 1)).toBe(true)
+  })
+
+  it('gives the page back to the person once the budget is spent', () => {
+    expect(shouldReassert(660, 1592, 0)).toBe(false)
+  })
+})
+
+// The phone used to keep the bulk bar across the bottom of an empty inbox,
+// offering Archive, Later and Done over nothing (issue 18).
+describe('hasListToSelect', () => {
+  it('ends the mode when the last conversation leaves the list', () => {
+    expect(hasListToSelect(false, 0)).toBe(false)
+  })
+
+  it('leaves a batch alone while rows remain', () => {
+    expect(hasListToSelect(false, 1)).toBe(true)
+  })
+
+  it('does not take the checkmarks away from a list that is still loading', () => {
+    expect(hasListToSelect(true, 0)).toBe(true)
+  })
+
+  it('is the same answer the Edit control is drawn from', () => {
+    // One predicate for both rules: the control that enters the mode and the
+    // effect that ends it cannot disagree about what counts as a list.
+    expect(hasListToSelect(false, 3)).toBe(true)
+    expect(hasListToSelect(false, 0)).toBe(false)
+  })
+})
+
+// A screen reader could not tell read from unread: the dot, the star and the
+// message count are glyphs, correctly hidden, and nothing put the words back
+// (issue 17).
+describe('mobileRowLabel', () => {
+  const model = {
+    sender: 'Priya, Jules +1',
+    subject: 'Book club: next pick',
+    snippet: 'Two candidates for next month.',
+    time: 'Yesterday',
+    unread: false,
+    starred: false,
+    messageCount: 1,
+    until: null,
+  }
+
+  it('announces the state as well as the content', () => {
+    expect(mobileRowLabel({ ...model, unread: true, starred: true, messageCount: 3 })).toBe(
+      'Unread, Priya, Jules +1, Yesterday, Book club: next pick, 3 messages, Starred',
+    )
+  })
+
+  it('says nothing about a state the row is not in', () => {
+    expect(mobileRowLabel(model)).toBe('Priya, Jules +1, Yesterday, Book club: next pick')
+  })
+
+  it('counts a conversation of more than one message', () => {
+    expect(mobileRowLabel({ ...model, messageCount: 2 })).toContain('2 messages')
   })
 })

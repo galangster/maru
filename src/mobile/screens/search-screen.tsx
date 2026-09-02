@@ -7,7 +7,7 @@ import { useNow } from '@/lib/use-now'
 import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
-import { buildMobileRowModel } from '../state'
+import { buildMobileRowModel, deferTarget, type DeferTarget } from '../state'
 import './search-screen.css'
 
 const SEARCH_HINT_ID = 'mobile-search-gesture-hint'
@@ -27,7 +27,7 @@ export function SearchScreen({
 }: {
   onOpen: (key: string) => void
   onAct: (keys: string[], type: MailActionType) => void
-  onLater: (keys: string[]) => void
+  onLater: (targets: DeferTarget[]) => void
   onContext: (thread: Thread) => void
   onStar: (thread: Thread) => void
 }) {
@@ -67,7 +67,7 @@ export function SearchScreen({
                 onSelect={() => {}}
                 onOpen={() => onOpen(thread.key)}
                 onArchive={() => onAct([thread.key], 'archive')}
-                onLater={() => onLater([thread.key])}
+                onLater={() => onLater([deferTarget(thread)])}
                 onContext={() => onContext(thread)}
                 onStar={() => onStar(thread)}
               />

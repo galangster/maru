@@ -1,6 +1,6 @@
-import { lazy, useCallback, useEffect, useMemo, useReducer, useState } from 'react'
+import { lazy, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
-import type { MailActionType, MailView } from '@/core/types'
+import type { Account, MailActionType, MailView } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import {
@@ -10,11 +10,12 @@ import {
   useMailEvents,
   usePerformAction,
   useAccountsById,
-  useSyncStatus,
   useWakeSweep,
 } from '@/features/mail/queries'
+import { isBulkAction, runBatchAction, runBatchDefer } from '@/features/list/bulk'
 import { usePush } from '@/features/notifications/use-push'
 import { useThemeEffect } from '@/features/shell/use-theme'
+import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { viewOverride } from '@/lib/env'
 import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
@@ -33,6 +34,7 @@ import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
   atRoot,
+  deferTarget,
   initialMobileRoute,
   mobileRouteReducer,
   tabAtIndex,
@@ -94,7 +96,6 @@ export function MobileApp() {
   const defer = useDefer()
   const composerOpen = useComposer((state) => state.open)
   const { accounts } = useAccountsById()
-  const syncStatuses = useSyncStatus()
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
   const mailboxName = mailboxTitle(
@@ -114,19 +115,9 @@ export function MobileApp() {
     route.kind === 'thread' ? `thread:${route.threadKey}` : `screen:${screen}`,
   )
   const globalModalOpen = composerOpen || (sheet !== null && route.kind !== 'account')
-  const syncAnnouncement = useMemo(() => {
-    const states = accounts.map((account) => syncStatuses[account.id]?.state).filter(Boolean)
-    if (states.includes('error')) return 'Mail sync needs attention'
-    if (states.includes('syncing')) return 'Syncing mail'
-    if (states.length === accounts.length && states.length > 0 && states.every((state) => state === 'idle')) return 'Mail is up to date'
-    return ''
-  }, [accounts, syncStatuses])
   const announce = useCallback((text: string) => {
     setAnnouncement((current) => ({ text, alternate: !current.alternate }))
   }, [])
-  useEffect(() => {
-    if (syncAnnouncement) announce(syncAnnouncement)
-  }, [announce, syncAnnouncement])
 
   const act = (threadKey: string, type: MailActionType) => {
     const action = { threadKey, type }
@@ -136,9 +127,26 @@ export function MobileApp() {
     // every surface gets it and a bulk archive stays one tap.
     if (type === 'archive') announce('Archived')
   }
-  /** One verb over a list of threads — a swipe over one, or the Edit bar's batch. */
+  /**
+   * One verb over a list of conversations — a swipe over one, or the Edit
+   * bar's batch.
+   *
+   * The batch goes through the desktop's own `runBatchAction` rather than a
+   * loop over `act` (issue 8). The loop registered one undoable per
+   * conversation into a store that holds exactly one, so Undo put back the
+   * last row of the batch and quietly abandoned the rest — and the toast said
+   * "Archived" whether it had taken one conversation or forty.
+   *
+   * One row keeps the single-thread toast, because "Archived" beside the row
+   * you just flicked is the better sentence and its undo was never wrong.
+   */
   const actMany = (threadKeys: string[], type: MailActionType) => {
-    threadKeys.forEach((threadKey) => act(threadKey, type))
+    if (threadKeys.length === 0) return
+    if (threadKeys.length === 1 || !isBulkAction(type)) {
+      for (const threadKey of threadKeys) act(threadKey, type)
+      return
+    }
+    announce(runBatchAction((next) => perform.mutate(next), threadKeys, type, 'conversation'))
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
   const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
@@ -173,9 +181,10 @@ export function MobileApp() {
           onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
           onCompose={compose}
           onSearch={() => changeTab('search')}
+          onSettings={() => changeTab('settings')}
           onMailboxes={() => dispatch({ type: 'openSheet', sheet: { kind: 'mailboxes' } })}
           onAct={actMany}
-          onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
+          onLater={(targets) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets } })}
           onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
         />
@@ -193,8 +202,8 @@ export function MobileApp() {
             backLabel={navigation.tab === 'inbox' ? mailboxName : MOBILE_TAB_CHROME[navigation.tab].label}
             onBack={() => dispatch({ type: 'back' })}
             onReply={replyTo}
-            onArchive={(key) => { act(key, 'archive'); dispatch({ type: 'back' }) }}
-            onLater={(key) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys: [key] } })}
+            onArchive={(key) => { actMany([key], 'archive'); dispatch({ type: 'back' }) }}
+            onLater={(target) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets: [target] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
             onLabels={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'labels', thread } })}
           />
@@ -202,7 +211,7 @@ export function MobileApp() {
           <SearchScreen
             onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
             onAct={actMany}
-            onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
+            onLater={(targets) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets } })}
             onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
             onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
           />
@@ -215,12 +224,32 @@ export function MobileApp() {
       {composerOpen && <ComposeSheet onSent={() => announce('Sent')} />}
       {sheet?.kind === 'later' && (
         <LaterSheet
-          count={sheet.threadKeys.length}
+          count={sheet.targets.length}
           onClose={closeSheet}
           onPick={(wakeAt) => {
             // The haptic rides `useDefer`, beside the cache patch every Later
             // surface shares.
-            sheet.threadKeys.forEach((threadKey) => defer.mutate({ threadKey, wakeAt }))
+            //
+            // Saving for later says so now, and offers Undo (issue 16): a left
+            // swipe and a right swipe are one flick apart on a phone, and one
+            // of them used to be silently irreversible while the other put up
+            // a toast. It goes through the same batch mechanism as the bulk
+            // bar, so one pick is one confirmation and one undo however many
+            // conversations it took, and the undo returns each of them to its
+            // own prior schedule rather than to one shared guess.
+            // The prior wake times came in with the keys, from the surface
+            // that opened the sheet and already had the conversations in hand.
+            const prior = new Map(sheet.targets.map((t) => [t.key, t.deferredUntil]))
+            announce(
+              runBatchDefer(
+                (threadKey, at) => defer.mutate({ threadKey, wakeAt: at }),
+                sheet.targets.map((t) => t.key),
+                (key) => prior.get(key) ?? null,
+                wakeAt,
+                Date.now(),
+                'conversation',
+              ),
+            )
             closeSheet()
           }}
         />
@@ -239,17 +268,53 @@ export function MobileApp() {
           thread={sheet.thread}
           onClose={closeSheet}
           onAction={(type) => { act(sheet.thread.key, type); closeSheet() }}
-          onLater={() => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys: [sheet.thread.key] } })}
+          onLater={() =>
+            dispatch({
+              type: 'openSheet',
+              sheet: { kind: 'later', targets: [deferTarget(sheet.thread)] },
+            })
+          }
           onMove={() => dispatch({ type: 'openSheet', sheet: { kind: 'move', thread: sheet.thread } })}
         />
       )}
       {sheet?.kind === 'move' && <MoveSheet onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
       {sheet?.kind === 'pushAccount' && <PushAccountSheet onClose={closeSheet} onAccount={openAccount} />}
+      <SyncAnnouncer accounts={accounts} announce={announce} />
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement.text}{announcement.alternate ? '\u200B' : ''}
       </div>
     </div>
   )
+}
+
+/**
+ * The sync state, spoken.
+ *
+ * A component of its own, drawing nothing, so the minute tick `useSyncSummary`
+ * subscribes to re-renders this and not the whole stage — `detail` carries an
+ * elapsed time that moves every minute, and re-rendering every screen and
+ * sheet for a sentence they do not draw is a frame budget a phone cannot
+ * spare. The live region stays in `MobileApp`, because Sent and Archived have
+ * to arrive in the same one.
+ *
+ * The eye reads the same summary in the inbox's sticky header, from the same
+ * hook over the same query and the same clock — so the two cannot be two
+ * different sentences (issue 9).
+ *
+ * Spoken on a change of KIND, not of sentence. VoiceOver used to hear "Mail
+ * sync needs attention" for all six failure kinds and the eye was given
+ * nothing at all; an announcement per minute is the opposite mistake, and it
+ * is how a live region teaches people to ignore it.
+ */
+function SyncAnnouncer({ accounts, announce }: { accounts: Account[]; announce: (text: string) => void }) {
+  const sync = useSyncSummary(accounts)
+  const spokenKind = useRef('')
+  useEffect(() => {
+    if (spokenKind.current === sync.kind) return
+    spokenKind.current = sync.kind
+    announce(sync.detail)
+  }, [announce, sync.kind, sync.detail])
+  return null
 }
 
 /**

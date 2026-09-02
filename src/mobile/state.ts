@@ -63,8 +63,29 @@ export type MobileStackEntry =
   | { kind: 'inbox' }
   | { kind: 'thread'; threadKey: string }
   | { kind: 'account' }
+/**
+ * What a Later batch needs to know about one conversation: which one, and the
+ * wake time it is coming off.
+ *
+ * The prior time travels WITH the key rather than being looked up later. Undo
+ * has to put each conversation back on its own schedule, and the surfaces that
+ * open the sheet — a row, a batch of rows, the thread screen, the actions
+ * sheet — all hold the `Thread` at the moment they ask. A sheet handed only
+ * keys had to go and scrape the query cache for what its own caller already
+ * had in hand.
+ */
+export interface DeferTarget {
+  key: string
+  deferredUntil: number | null
+}
+
+/** One, off the thread the surface already has in hand. */
+export function deferTarget(thread: Thread): DeferTarget {
+  return { key: thread.key, deferredUntil: thread.deferredUntil ?? null }
+}
+
 export type MobileSheet =
-  | { kind: 'later'; threadKeys: string[] }
+  | { kind: 'later'; targets: DeferTarget[] }
   /** The mailbox picker behind the inbox title — every place mail can be. */
   | { kind: 'mailboxes' }
   | { kind: 'threadActions'; thread: Thread }
@@ -203,7 +224,30 @@ export function resolveSwipeIntent(deltaX: number, deltaY: number): SwipeIntent 
   return null
 }
 
-export interface MobileRowModel {
+/**
+ * Whether there is a list to be in selection mode over.
+ *
+ * Select All, then Archive, and the inbox empties — and the bulk bar stayed
+ * across the bottom of the empty state offering Archive, Later and Done over
+ * nothing, with the header still reading "Done" (issue 18). Selection is a
+ * mode over a list; with no list there is nothing to be in the mode of.
+ *
+ * One predicate, because the mode has two rules — when to offer Edit, and when
+ * to end the mode on its own — and they are the same question asked twice. Two
+ * copies of it is how the empty state kept an Edit control that could only put
+ * an all-disabled bulk bar on screen and take it away again.
+ *
+ * `pending` is the half that matters. A list that has not loaded yet is also a
+ * list with no rows, and dropping the mode on a refetch would take the
+ * checkmarks away from someone who is mid-batch and just pulled to refresh —
+ * so a list still loading counts as a list, in both rules alike.
+ */
+export function hasListToSelect(pending: boolean, rowCount: number): boolean {
+  return pending || rowCount > 0
+}
+
+/** What a row draws. */
+export interface MobileRowContent {
   sender: string
   subject: string
   snippet: string
@@ -222,13 +266,18 @@ export interface MobileRowModel {
   until: string | null
 }
 
+/** What a row draws, plus what it announces. */
+export interface MobileRowModel extends MobileRowContent {
+  label: string
+}
+
 export function buildMobileRowModel(
   thread: Thread,
   selfEmails: string[],
   now: number,
 ): MobileRowModel {
   const self = selfEmails.map((email) => email.toLowerCase())
-  return {
+  const content: MobileRowContent = {
     sender: participantLine(correspondents(thread.participants, self)),
     subject: thread.subject || '(No subject)',
     snippet: thread.snippet,
@@ -241,4 +290,36 @@ export function buildMobileRowModel(
     // same moment.
     until: isDeferred(thread, now) ? wakeTime(thread.deferredUntil as number, now) : null,
   }
+  // Composed here, with the rest of the model, rather than in the row: the row
+  // is rendered by a virtualizer and re-rendered on every scroll, and the
+  // sentence only ever changes when the model does.
+  return { ...content, label: mobileRowLabel(content) }
+}
+
+/**
+ * What a screen reader hears when it reaches a row.
+ *
+ * Every row used to announce its sender and its subject and nothing else, so
+ * an unread conversation and a read one below it were indistinguishable
+ * (issue 17). The unread dot, the star mark and the message count were all
+ * marked as decoration — correctly, since they are glyphs — and nothing put
+ * the words back.
+ *
+ * The desktop row does this with sr-only words in DOM order: "Unread" from the
+ * gutter dot, then the content, then "Starred". The phone's row is one button
+ * with an `aria-label`, so the same words are composed here instead, in the
+ * order the eye takes them, and the label is a pure function of the model so
+ * it can be tested as a sentence rather than as a tree.
+ */
+export function mobileRowLabel(model: MobileRowContent): string {
+  return [
+    model.unread ? 'Unread' : null,
+    model.sender,
+    model.time,
+    model.subject,
+    model.messageCount > 1 ? `${model.messageCount} messages` : null,
+    model.starred ? 'Starred' : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(', ')
 }
