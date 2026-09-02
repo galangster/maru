@@ -105,11 +105,11 @@ export const SURFACE_TITLE = 'font-ui text-ink min-w-0 flex-1 truncate text-base
 export const META_TEXT = 'text-ink-3 shrink-0 text-xs tabular-nums'
 
 /**
- * The right-aligned date column the list row and the search row share. One
- * width for both, because subjects across the two row kinds start at the same
- * x only while their trailing columns agree.
+ * The right-aligned date column. The width, and why it is fixed rather than
+ * shrink-to-fit, are at `--wren-row-date-w` in tokens.css — which is also what
+ * `--wren-row-cluster-w` is derived from, so the two cannot drift.
  */
-export const DATE_COLUMN = `${META_TEXT} w-16 text-right`
+export const DATE_COLUMN = `${META_TEXT} w-(--wren-row-date-w) text-right`
 
 /** The uppercase group label settings surfaces and the shortcut sheet share. */
 export const SECTION_LABEL = 'font-ui text-ink-3 text-xs font-semibold uppercase'

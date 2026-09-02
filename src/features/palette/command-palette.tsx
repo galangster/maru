@@ -38,7 +38,6 @@ import { ThreadResult } from '@/components/thread-result'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { useDebounced } from '@/lib/use-debounced'
-import { useNow } from '@/lib/use-now'
 import { viewForThread } from '@/lib/thread-view'
 
 // Each verb names its end state, so "unread" always shows unread rather than
@@ -88,7 +87,6 @@ export function CommandPalette() {
 function PaletteBody({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const debounced = useDebounced(query)
-  const now = useNow()
 
   const view = useUi((s) => s.view)
   const saveSettings = useSaveSettings()
@@ -304,12 +302,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                 // Concentric: the palette is 24 and the list is `p-2`, so a row is 16.
                 className="data-[selected=true]:bg-fill-selected group flex h-(--wren-row-h-compact) cursor-default items-center rounded-inset px-2 outline-none"
               >
-                <ThreadResult
-                  thread={thread}
-                  selfEmails={selfEmails}
-                  now={now}
-                  avatar={false}
-                />
+                <ThreadResult thread={thread} selfEmails={selfEmails} avatar={false} />
               </Command.Item>
             ))}
           </Group>

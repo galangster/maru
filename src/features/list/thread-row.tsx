@@ -205,12 +205,9 @@ export const ThreadRow = memo(function ThreadRow({
             )}
           </span>
           <span className="min-w-0 flex-1" />
-          {/* Fixed width, right-aligned. "02:30", "Sat" and "Yesterday" are
-              three different widths; a shrink-to-fit column would leave the
-              left edge of the timestamps ragged down the list, which is the
-              one thing DIRECTION §1 says a column may never do. 64 px holds
-              the longest value. */}
-          {/* In the Later list this is when the thread comes back, not when it
+          {/* Fixed width, right-aligned — see `--wren-row-date-w`.
+
+              In the Later list this is when the thread comes back, not when it
               arrived — and it says so to a screen reader, which reads the row
               as one run of text and would otherwise hear two dates with nothing
               between them. `wakeStamp` answers with what the group header does
@@ -227,24 +224,9 @@ export const ThreadRow = memo(function ThreadRow({
           </time>
         </div>
 
-        {/* The hover cluster's lane — issue #32. The cluster is opaque and
-            absolutely positioned over this line's right end, so hovering "Bike
-            service — ready Thursday" hid "Thursday" and the whole preview
-            behind it: the row's own text, covered by a control that was
-            summoned by pointing at it.
-
-            The line now reserves the lane while the cluster is there, off the
-            same `--wren-row-cluster-w` the cluster is sized by, so the lane
-            cannot be narrower than the thing it is holding room for. Reserved
-            only on hover, because reserving it at rest would spend 160 px of
-            every row in the list on a state that is true for one row at a time.
-
-            The padding SNAPS. It is layout, and animating it re-flows and
-            re-truncates the subject and the snippet on every frame of the
-            cluster's fade — the text visibly crawling left under a control
-            that is only crossfading in. The cluster keeps its own transition;
-            the lane is simply there before it is. */}
-        <div className="flex items-baseline gap-2 leading-5 group-hover:pr-(--wren-row-cluster-w)">
+        {/* This line gives the hover cluster nothing, at rest or on hover —
+            issue #32, second pass. See `--wren-row-cluster-w`. */}
+        <div className="flex items-baseline gap-2 leading-5">
           <span
             className={cn(
               'truncate text-sm leading-5',
@@ -368,12 +350,14 @@ function ArchiveTick() {
  * unaffected at every width, which is what makes hiding the strip acceptable
  * rather than a loss of function.
  *
- * It sits on the row's *second* line. Centred, it covered the timestamp
- * column exactly (S2) — the row's right-hand anchor, hidden precisely when the
- * cursor is on the row being read. There is no room in a 400 px pane to reserve
- * 130 px of gutter, so the cluster moved down instead of the content moving
- * over: nothing reflows, nothing animates but opacity and a 4 px slide, and the
- * time stays visible.
+ * **It sits in the empty lane at the end of the row's FIRST line**, right-
+ * aligned with the date column — see `--wren-row-cluster-w` for the lane, the
+ * two places the cluster sat before it, and the measurements that moved it.
+ *
+ * Five actions at 28 px rather than 32, because that is what the lane allows
+ * and a cluster wider than its lane is a cluster back on the sender's name.
+ * 28 px is a mouse target on a desktop-only surface whose five actions all
+ * have keys.
  *
  * The five buttons are bare, styled by `iconButtonClass` rather than rendered
  * as <IconButton>. IconButton brings a tooltip, and a tooltip inside an
@@ -419,11 +403,15 @@ function QuickActions({
     <div
       aria-hidden
       className={cn(
-        // The width is the token, not the sum of what happens to be inside:
-        // the lane the row's second line gives up is the same number, and a
-        // sixth action would otherwise widen the cluster without widening the
-        // lane and put us back under issue #32.
-        'bg-raised absolute right-3 bottom-1 w-(--wren-row-cluster-w) items-center justify-center overflow-hidden rounded-md shadow-md',
+        // The width is the token, not the sum of what happens to be inside: a
+        // sixth action would otherwise widen the cluster past the lane it is
+        // allowed to cover and put it back on the sender's name.
+        //
+        // `right-2` is the row's own `px-2`, so the cluster's right edge is the
+        // date column's right edge and the two together are exactly the lane.
+        // `top-1.5` centres the 28 px cluster on the first line, which sits at
+        // 10..30 inside a 64 px row.
+        'bg-raised absolute top-1.5 right-2 w-(--wren-row-cluster-w) items-center justify-center overflow-hidden rounded-md shadow-md',
         // Below `--container-row` the cluster is not shown at all — see the
         // note above. `hidden` rather than `pointer-events-none`, because a
         // strip a click passes through is still a strip sitting on the words
@@ -454,7 +442,9 @@ function QuickActions({
               if (spec.kind === 'later') onLater()
               else onAction(spec.type)
             }}
-            className={iconButtonClass(spec.tone)}
+            // 28 px, not the 32 px of every other icon button in the app:
+            // five of them are what the lane holds. See the note above.
+            className={iconButtonClass(spec.tone, 'size-7')}
           >
             <span
               key={spec.pop ? presses : 0}

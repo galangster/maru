@@ -426,10 +426,24 @@
     --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.59 fails · ink 11.29 */
 
     /* The same row, dark. text-3 #949190 measured 4.28 on the selected row's
-       14% wash, which is the row the reader is on. The on-fill step measures
-       selected wash over surface 4.75 · surface 6.07 · raised 5.10 · sunken
-       7.24, and the accent step 6.27 on the same wash. */
-    --wren-text-on-fill: oklch(0.685 0.004 50); /* #9C9998                    */
+       14% wash, which is the row the reader is on, and 3.94 on the hover fill
+       over `raised` — the highlighted first row of the Save for later menu,
+       the row a person is about to choose (issue #55).
+
+       The step moved 0.685 → 0.700 for that second one. The hover fill was not
+       on the certified list when the step was chosen, and it is the LIGHTEST
+       ground in the set: 5% white over `raised` composites to #373433, where
+       the old step measured 4.36 — the tier that exists to clear 4.5 on a fill
+       did not clear it on the fill nobody had listed. Adding the fill to
+       `scripts/lib/fills.mjs` without moving the ink would have swapped one
+       failure for a smaller one.
+
+       The step now measures, worst first: hover over raised 4.62 · selected
+       wash over surface 5.04 · hover over surface 5.64 · selected wash over
+       base 5.93 · hover over base 6.58 · sunken 7.67. Same hue, same chroma,
+       one notch of lightness — still a step of text-3 and not a second
+       palette, and still under text-2 at 0.742. */
+    --wren-text-on-fill: oklch(0.700 0.004 50); /* #A09E9C                    */
     --wren-accent-on-fill: oklch(0.775 0.12 13); /* #F895A0                   */
 
     /* Same rule, same one token. See the light block for the measurements. */
@@ -640,11 +654,16 @@
        it; the 152 px measure above is sized for the two-line list row, where
        the subject has line 2 to itself. Left uncapped, the sender set the
        column and nine results started their subjects across a 76 px band with
-       seven of nine truncated. Given the 384 px list card at 1280, the 236 px
-       that sender and subject share splits 96 / 140: 96 holds six of the nine
-       demo senders whole, and every subject gets the same 140 px — where the
-       worst previously got 98. Fixed, so the subjects line up; smaller than
-       152, because 152 would have left the subject 84. */
+       seven of nine truncated. Fixed at 96, the subjects line up and 96 holds
+       six of the nine demo senders whole; smaller than 152, because 152 would
+       have left the subject 84.
+
+       The first pass then gave the subject the 140 px that remained beside a
+       trailing date column, and seven of nine still truncated — the longest
+       needing 244. The row now ends at the subject instead (see
+       `components/thread-result.tsx`), so the sender column is the ONLY fixed
+       measure on the line and the subject takes everything after it: 216 px in
+       the 400 px list card, 340 in the palette. */
     --wren-result-sender-w: 96px;
     /* The inset rounded row (AMIE-STUDY §5): every row is its own rounded rect
        with a small gap, hover and selection fill THAT rect, and no divider is
@@ -652,14 +671,39 @@
        rect is that minus the gap, so nothing about the virtualizer moves. */
     --wren-row-inset-x: 8px;
     --wren-row-gap: 4px;
-    /* The hover cluster, and the lane the row's second line gives up to it —
-       issue #32. ONE number, because the two are the same number: the cluster
-       is opaque and absolutely positioned over that line, so a lane narrower
-       than the cluster hides the row's own text under a control the pointer
-       summoned. Five 32 px actions. The 4 px of visible clearance between the
-       truncated text and the cluster's edge is the difference between the
-       cluster's `right-3` and the row's own `px-2`, not a sixth constant. */
-    --wren-row-cluster-w: 160px;
+    /* The right-aligned date column, shared by the list row and the search
+       row so subjects across the two row kinds start at the same x.
+
+       Fixed, not shrink-to-fit: "02:30", "Sat" and "Yesterday" are three
+       different widths, and a column that sizes to its content leaves the left
+       edge of the timestamps ragged down the list — the one thing DIRECTION §1
+       says a column may never do. 64 px holds the longest value.
+
+       The hover cluster is measured off it, below. */
+    --wren-row-date-w: 64px;
+    /* The hover cluster — issue #32, twice.
+       It is opaque and absolutely positioned, so wherever it sits it takes
+       that region of the row away for as long as the pointer is on it. The
+       first answer put it on line TWO and had the line give up a lane of this
+       width on hover; the lane was honestly reserved, and the row's own text
+       paid for it — the subject dropped 186.7 → 124 px and the preview went to
+       zero, so hovering a row still deleted the line you were reading.
+
+       It now sits on line ONE, in the lane that line already leaves empty: the
+       flexible gap between the fixed sender column and the right-aligned date,
+       plus the date itself. That is the only region of a row no text ever
+       spreads into, and the cost is the timestamp, which is the trailing
+       metadatum and the cheapest thing on the row to cover for as long as a
+       pointer rests on it. Line two reserves nothing and never reflows.
+
+       The lane at the list's own 400 px measure is a 68 px gap, the 8 px
+       between them and the date column — so it is derived from
+       `--wren-row-date-w` rather than restated, and widening the date column
+       cannot leave the cluster overhanging the sender's name. It comes to
+       140 px today. Five actions at 28 px rather than 32 — the number the lane
+       allows, on a mouse-only cluster with keyboard equivalents for all
+       five. */
+    --wren-row-cluster-w: calc(68px + 8px + var(--wren-row-date-w));
     /* Amie's coloured squircle: a category tile in settings and label rows. */
     --wren-tile: 28px;
     --wren-read-px: 32px;

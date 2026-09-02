@@ -14,12 +14,33 @@
 import { over } from './color.mjs'
 import { tokenReader } from './tokens.mjs'
 
-const { token } = tokenReader()
+const { token, alphaOf } = tokenReader()
 
 const rgb = (name, theme) => token(name, theme).rgb
 
-/** The alpha DIRECTION §3 gives the selected-row wash, per theme. */
-export const SELECTED_ALPHA = { light: 0.08, dark: 0.14 }
+/**
+ * The alpha DIRECTION §3 gives the selected-row wash, per theme.
+ *
+ * Read off `--wren-fill-selected` rather than restated, because the whole point
+ * of this file is that the gate measures what ships.
+ */
+export const SELECTED_ALPHA = {
+  light: alphaOf('wren-fill-selected', 'light'),
+  dark: alphaOf('wren-fill-selected', 'dark'),
+}
+
+/**
+ * The neutral hover fill, composited on a backdrop.
+ *
+ * It was left off this list for a wave because it is *neutral* and reads as no
+ * fill at all — and in dark it is the one under the **highlighted** row of a
+ * menu. See `--wren-text-on-fill` for the measurements (issue #55).
+ *
+ * The alpha comes off the token, like the wash's.
+ */
+export function hoverOver(theme, backdrop) {
+  return over(rgb('wren-fill-hover', theme), backdrop, alphaOf('wren-fill-hover', theme))
+}
 
 /**
  * The character's halo, in light only.
@@ -41,6 +62,12 @@ export function fillsFor(theme) {
     ['sunken', rgb('wren-surface-sunken', theme)],
     ['selected wash over surface', over(accent, rgb('wren-surface', theme), alpha)],
     ['selected wash over base', over(accent, rgb('wren-surface-base', theme), alpha)],
+    // The hover fill sits on all three certified surfaces: list rows on
+    // `surface`, menu and popover rows on `raised`, sidebar rows on the card.
+    // `raised` is the picker's, and it is the one that failed.
+    ['hover fill over surface', hoverOver(theme, rgb('wren-surface', theme))],
+    ['hover fill over base', hoverOver(theme, rgb('wren-surface-base', theme))],
+    ['hover fill over raised', hoverOver(theme, rgb('wren-surface-raised', theme))],
     ...(theme === 'light' ? [['halo (sampled)', HALO]] : []),
   ]
 }

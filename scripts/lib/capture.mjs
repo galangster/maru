@@ -14,6 +14,13 @@
 // Shot-specific waits stay with their shot. This is only the part that is the
 // same in every script, because it is the same question in every script.
 
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import sharp from 'sharp'
+
+import { ORIGIN } from '../dev-server.mjs'
+
 /** en-US, Pacific, no motion. The clock is frozen separately by `?screenshot=1`. */
 export const DETERMINISTIC_CONTEXT = {
   locale: 'en-US',
@@ -38,4 +45,66 @@ export async function gotoReady(page, url) {
 export async function parkPointer(page, viewport) {
   await page.mouse.move(viewport.width - 4, viewport.height - 4)
   await page.waitForLoadState('networkidle')
+}
+
+/**
+ * Take one frame per shot, into `out`.
+ *
+ * A shot is `{ file, act?, theme?, live?, keepPointer?, width? }`. Everything
+ * a wave script owns is in its own SHOTS array — which surfaces, under which
+ * names, at which widths. Everything that would make two waves' frames
+ * incomparable is here, once.
+ *
+ *   - `live` drops `?screenshot=1`, which is what freezes the clock and
+ *     removes every transition. A frame needs the live clock only when the
+ *     surface under test is about the future: under the frozen clock every
+ *     Later preset is already due.
+ *   - `keepPointer` says do not MOVE the pointer, because the frame IS a
+ *     hover state. It does not say do not wait: the settle is awaited either
+ *     way, or the shutter can catch a row mid-load.
+ *   - `width` overrides the run's viewport width for the one shot that was
+ *     bracketed at another size.
+ *
+ * One context per WIDTH, reused across every shot at that width — a context
+ * per shot would re-pay the browser profile and let two frames disagree about
+ * locale or motion, and one context for everything cannot change viewport.
+ */
+export async function runShots(browser, shots, { out, viewport, fileWidth }) {
+  await mkdir(out, { recursive: true })
+  const lanes = new Map()
+
+  const laneFor = async (width) => {
+    let lane = lanes.get(width)
+    if (!lane) {
+      const size = { ...viewport, width }
+      const context = await newCaptureContext(browser, { viewport: size })
+      lane = { context, page: await context.newPage(), viewport: size }
+      lanes.set(width, lane)
+    }
+    return lane
+  }
+
+  try {
+    for (const shot of shots) {
+      const { page, viewport: size } = await laneFor(shot.width ?? viewport.width)
+      const flags = shot.live ? '' : '&screenshot=1'
+      await gotoReady(page, `${ORIGIN}/?demo=1${flags}&theme=${shot.theme ?? 'light'}`)
+      if (shot.act) await shot.act(page)
+      await page.waitForLoadState('networkidle')
+      // Off every row unless the frame is a hover state: a click leaves the
+      // cursor where it landed, and the row's hover cluster would then cover
+      // the very text some of these frames exist to show.
+      if (!shot.keepPointer) await parkPointer(page, size)
+      const buffer = await page.screenshot({ type: 'png' })
+      // Palette-encoded, no dithering — what keeps a flat interface capture
+      // under a tenth of a truecolour one. `fileWidth` is the wave's written
+      // width, where it differs from the width it was driven at.
+      const shrunk = fileWidth ? sharp(buffer).resize({ width: fileWidth }) : sharp(buffer)
+      const encoded = await shrunk.png({ palette: true, dither: 0 }).toBuffer()
+      await writeFile(join(out, shot.file), encoded)
+      console.log(`${shot.file}  ${(encoded.length / 1024).toFixed(0)} KB`)
+    }
+  } finally {
+    for (const { context } of lanes.values()) await context.close()
+  }
 }

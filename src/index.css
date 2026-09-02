@@ -76,9 +76,10 @@
     /* Maru surfaces and text tiers as utilities. Named for what they are, so
        `bg-surface` / `text-ink-2` read as the system, not as hex. */
     --color-canvas: var(--wren-surface-base);
-    /* `--color-sunken` and `--color-fill-selected` are deliberately NOT here.
-       The two tinted fills are `@utility` blocks further down, because painting
-       one has to carry the tier that is certified on it — see there. */
+    /* `--color-sunken`, `--color-fill-selected` and `--color-fill-hover` are
+       deliberately NOT here. The three tinted fills are `@utility` blocks
+       further down, because painting one has to carry the tier that is
+       certified on it — see there. */
     --color-surface: var(--wren-surface);
     --color-raised: var(--wren-surface-raised);
     --color-hairline: var(--wren-hairline);
@@ -97,7 +98,6 @@
     --color-brand-fill: var(--wren-accent-on-fill);
     --color-star: var(--wren-star);
     --color-success: var(--wren-success);
-    --color-fill-hover: var(--wren-fill-hover);
     --color-fill-active: var(--wren-fill-active);
 
     /* The category hue family as utilities — `bg-hue-green`, `text-hue-fg`.
@@ -168,7 +168,7 @@
     }
 }
 
-/* The app's two tinted fills, each carrying the tier that is certified on it.
+/* The app's three tinted fills, each carrying the tier that is certified on it.
    Painting a fill and certifying the text on it are ONE act, so they are one
    utility: `bg-sunken` cannot be written without the tier arriving with it.
 
@@ -197,6 +197,19 @@
 
 @utility bg-fill-selected {
     background-color: var(--wren-fill-selected);
+    --wren-text-3: var(--wren-text-on-fill);
+}
+
+/* The hover fill was the third one, left out of the first pass because it is
+   neutral rather than tinted — see `--wren-text-on-fill` for what that cost the
+   highlighted row of the Save for later menu (issue #55).
+
+   It is a variant-only class in practice — `hover:`, `group-hover:`,
+   `focus-visible:` — and that is exactly why the utility is the right shape:
+   Tailwind compiles the re-point into the same state selector as the fill, so
+   the tier arrives with the fill and leaves with it. */
+@utility bg-fill-hover {
+    background-color: var(--wren-fill-hover);
     --wren-text-3: var(--wren-text-on-fill);
 }
 
