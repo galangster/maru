@@ -81,6 +81,25 @@ const CHANNEL_HANDLE =
 const SNAP_SLACK = 8
 
 /**
+ * One arrow press, in pixels — issue #56.
+ *
+ * The panel library steps the keyboard by **5% of the group**, which is 80 px
+ * at a 1600 px window and 64 at 1280. The sidebar's whole range is 120 px, so a
+ * single step crossed most of it: from the 260 px it opens at, one right arrow
+ * clamped to the 332 px maximum and one left arrow then took a full step down
+ * from there to 252. Right-then-left did not put the pane back, and nothing on
+ * the keyboard returned it to where it started. It is the same handler on both
+ * channels, so the thread list only escaped because its range is wider than one
+ * step.
+ *
+ * A fixed pixel step is what makes the two arrows opposites. 16 px is four on
+ * the 4 px grid and gives the sidebar's 120 px range seven and a half stops —
+ * fine enough to place the pane, coarse enough to cross it without holding the
+ * key. Home and End still go to the ends, and are untouched.
+ */
+const ARROW_STEP = 16
+
+/**
  * A shell card: the sidebar and the list, which are the two things that float
  * on the ground. (The reading region is the ground, so it is not one.)
  *
@@ -112,6 +131,8 @@ export function AppShell() {
   const setCollapsed = useUi((s) => s.setSidebarCollapsed)
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
   const listRef = useRef<PanelImperativeHandle | null>(null)
+  const sidebarHandle = useRef<HTMLDivElement | null>(null)
+  const listHandle = useRef<HTMLDivElement | null>(null)
 
   // Sidebar and list measures are CARD widths (tokens.css says so at each
   // group). A panel is its card plus the padding below, and that padding is
@@ -138,6 +159,42 @@ export function AppShell() {
   // handle (5px), because the reading region contributes no padding of its own.
   const SIDEBAR_PAD = measures.gutter + measures.seam
   const LIST_PAD = measures.seam * 2
+
+  /**
+   * The arrow keys on both channels, stepped symmetrically — issue #56.
+   *
+   * The library binds its own `keydown` on each separator element, so this
+   * listener is on the DOCUMENT in the capture phase: capture on an ancestor
+   * runs before a listener on the target itself, and the library's handler
+   * opens with `if (event.defaultPrevented) return`. That is the whole
+   * handshake — preventing the default here is what stands the 5% step down,
+   * rather than unbinding anything or forking the component.
+   *
+   * A collapsed sidebar is left to the library: the arrows are a resize, and
+   * the panel is not at a width the user placed it at. Enter, and the footer
+   * button, are what expand it.
+   */
+  useEffect(() => {
+    const lanes = [
+      [sidebarHandle, sidebarRef],
+      [listHandle, listRef],
+    ] as const
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+      const lane = lanes.find(([handle]) => handle.current === event.target)
+      if (!lane) return
+      const panel = lane[1].current
+      if (!panel || panel.isCollapsed()) return
+      event.preventDefault()
+      // From the ROUNDED current width, so a step never inherits a fractional
+      // origin and the two directions cannot land 0.4 px apart.
+      const from = Math.round(panel.getSize().inPixels)
+      panel.resize(`${from + (event.key === 'ArrowRight' ? ARROW_STEP : -ARROW_STEP)}px`)
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [])
 
   // The footer button drives the panel; dragging the handle past the min
   // drives the store. Both end up at the same place.
@@ -190,7 +247,11 @@ export function AppShell() {
             this one sits between. Removing the stop was the other option and
             was rejected: the arrow keys genuinely resize the panes, so these
             are useful stops, and every other control in the app is named. */}
-        <ResizableHandle aria-label="Resize the sidebar" className={CHANNEL_HANDLE} />
+        <ResizableHandle
+          aria-label="Resize the sidebar"
+          elementRef={sidebarHandle}
+          className={CHANNEL_HANDLE}
+        />
         <ResizablePanel
           panelRef={listRef}
           defaultSize={measures.list + LIST_PAD}
@@ -201,7 +262,11 @@ export function AppShell() {
         >
           <ThreadList />
         </ResizablePanel>
-        <ResizableHandle aria-label="Resize the thread list" className={CHANNEL_HANDLE} />
+        <ResizableHandle
+          aria-label="Resize the thread list"
+          elementRef={listHandle}
+          className={CHANNEL_HANDLE}
+        />
         {/* No padding, no card. The reading region IS the ground — it runs
             full-bleed to the window's top, right and bottom edges, and it is
             what the other two float on. Rounding it would delete the ~610 px
