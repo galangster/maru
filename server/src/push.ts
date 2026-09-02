@@ -116,7 +116,9 @@ export function registerPushRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       const decoded: unknown = JSON.parse(Buffer.from(message.data, "base64").toString("utf8"));
       if (!isRecord(decoded)) throw new Error("Invalid data");
       const data = decoded;
-      if (typeof data.emailAddress !== "string" || typeof data.historyId !== "string") throw new Error("Invalid data");
+      // Gmail sends historyId as a JSON number in real notifications and as a
+      // string in its documentation; accept both.
+      if (typeof data.emailAddress !== "string" || !["string", "number"].includes(typeof data.historyId)) throw new Error("Invalid data");
       const email = normalizeEmail(data.emailAddress);
       setImmediate(() => {
         void fanOut(email, deps).catch((cause) => {

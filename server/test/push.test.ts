@@ -60,6 +60,17 @@ describe("Gmail push relay", () => {
       body,
     });
     expect(good.status).toBe(204);
+    // Gmail's real notifications carry historyId as a JSON number.
+    const numeric = await value.app.request("/v1/push/gmail", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        message: { data: Buffer.from(JSON.stringify({ emailAddress: "gmail@example.com", historyId: 6493 })).toString("base64") },
+      }),
+    });
+    expect(numeric.status).toBe(204);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(send).toHaveBeenCalledTimes(2);
     await vi.waitFor(() => expect(send).toHaveBeenCalledWith(["apns-device-token"]));
   });
 
@@ -77,3 +88,4 @@ describe("Gmail push relay", () => {
     expect(pushSender.send).not.toHaveBeenCalled();
   });
 });
+
