@@ -26,6 +26,7 @@ export function ThreadResult({
 }: ThreadResultProps) {
   const people = correspondents(thread.participants, selfEmails)
   const lead = people[0] ?? { email: '?' }
+  const subject = thread.subject || '(no subject)'
 
   return (
     <span className={cn('flex w-full min-w-0 items-center gap-3', className)}>
@@ -77,8 +78,21 @@ export function ThreadResult({
           reader was re-reading. The full stamp is the better announcement
           anyway: a result list is scanned out of order, and "Sep 2, 2026 at
           14:03" does not depend on when it is read. */}
-      <span className="text-ink-2 min-w-0 flex-1 truncate text-sm">
-        {thread.subject || '(no subject)'}
+      {/* The row stays one line and the sender column stays fixed — DIRECTION
+          §5, and scannability is the point of both. So the two subjects in
+          nine that still reach the ellipsis do not LOSE anything: `truncate`
+          is a paint, not a cut, so the whole subject is still in the DOM and
+          still in the row's accessible name, and `title` hands the same string
+          to a sighted reader on hover.
+
+          `title` is the right instrument here and the wrong one on an icon
+          button (UI-REVIEW-2026-08-28 S12, and N7 in the composer): the
+          objection there is that a native tooltip is a poor SUBSTITUTE for a
+          visible label. This is not a substitute. The label is on screen, in
+          full, in the accessible name; the tooltip only un-clips what the
+          column had to clip. */}
+      <span className="text-ink-2 min-w-0 flex-1 truncate text-sm" title={subject}>
+        {subject}
       </span>
       <time className="sr-only" dateTime={new Date(thread.lastMessageAt).toISOString()}>
         {fullTimestamp(thread.lastMessageAt)}
