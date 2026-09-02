@@ -64,6 +64,40 @@ These are the buttons only you can press, in the order they unblock work.
 
 ## Blocking the submission path
 
+**0. TestFlight is one toggle away** (added 2026-09-01). The first "Maru Mail"
+archive is built on this Mac and is correct — real Gmail client id, export
+compliance answered in the binary, version 0.1.8, build number 0.1.8. The
+internal tester group `Maru internal` exists and is set to take every new
+build automatically. The upload cannot happen because the API key
+`PTF7XH7JWF` is not allowed to sign:
+
+> Cloud signing permission error … You haven't been given access to
+> cloud-managed distribution certificates. Please contact your team's Account
+> Holder or an Admin to give you access.
+
+and creating a certificate over the API answers `403 FORBIDDEN_ERROR`. There
+is no iOS distribution identity in any keychain on this Mac, so there is no way
+around it from here. Your button, either one:
+
+- App Store Connect → Users and Access → Integrations → App Store Connect API
+  → the `PTF7XH7JWF` row → enable **Access to Cloud Managed Distribution
+  Certificate**. This is the better one: it keeps the whole path scriptable
+  and it is the same key CI would use.
+- Or Xcode → Settings → Accounts → sign in → the team → Manage Certificates →
+  **+** → Apple Distribution.
+
+After either, an agent re-runs the block in `docs/APP-STORE.md` §6 verbatim and
+the export, the upload and TestFlight follow with no further owner step. While
+you are in TestFlight, add yourself to `Maru internal` — the group has no
+testers yet, and internal builds skip Beta App Review, so it installs within
+minutes of processing.
+
+The good news buried in this: `~/.wren-release/AuthKey_PTF7XH7JWF.p8` **is** an
+App Store Connect key, not a notarization key, and the issuer id is
+`52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`. It uploads builds and it runs
+TestFlight. That was the last unrecorded value on the I6 page.
+
+
 1. **getmaru.app is the domain** (renamed Wren → Maru, 2026-08-30;
    you already own it — no purchase). Your buttons now:
    - ~~DNS + site~~ — done 2026-08-30: https://getmaru.app live on
