@@ -55,8 +55,11 @@
     color: var(--wren-text-2);
 }
 
+/* The accent as a word, so it takes the accent-text tier and not the mark —
+   owner ruling 2026-09-02. A link in a composed body sits on the field's own
+   ground, where the plain light accent measures 4.31. */
 .wren-editor .ProseMirror a {
-    color: var(--wren-accent);
+    color: var(--wren-accent-text);
     text-decoration: underline;
     text-underline-offset: 2px;
 }

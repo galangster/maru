@@ -50,7 +50,7 @@ export async function parkPointer(page, viewport) {
 /**
  * Take one frame per shot, into `out`.
  *
- * A shot is `{ file, act?, theme?, live?, keepPointer?, width? }`. Everything
+ * A shot is `{ file, act?, theme?, live?, keepPointer?, width?, query? }`. Everything
  * a wave script owns is in its own SHOTS array — which surfaces, under which
  * names, at which widths. Everything that would make two waves' frames
  * incomparable is here, once.
@@ -64,6 +64,11 @@ export async function parkPointer(page, viewport) {
  *     way, or the shutter can catch a row mid-load.
  *   - `width` overrides the run's viewport width for the one shot that was
  *     bracketed at another size.
+ *   - `query` appends demo flags the surface itself needs — `&images=block`
+ *     is the only door onto the blocked-images notice, because the demo
+ *     service ships `imagePolicy: 'allow'` and the notice is then never
+ *     drawn. It is a shot's own setup, not the wave's, so it rides here
+ *     rather than in a second copy of this loop.
  *
  * One context per WIDTH, reused across every shot at that width — a context
  * per shot would re-pay the browser profile and let two frames disagree about
@@ -88,7 +93,10 @@ export async function runShots(browser, shots, { out, viewport, fileWidth }) {
     for (const shot of shots) {
       const { page, viewport: size } = await laneFor(shot.width ?? viewport.width)
       const flags = shot.live ? '' : '&screenshot=1'
-      await gotoReady(page, `${ORIGIN}/?demo=1${flags}&theme=${shot.theme ?? 'light'}`)
+      await gotoReady(
+        page,
+        `${ORIGIN}/?demo=1${flags}&theme=${shot.theme ?? 'light'}${shot.query ?? ''}`,
+      )
       if (shot.act) await shot.act(page)
       await page.waitForLoadState('networkidle')
       // Off every row unless the frame is a hover state: a click leaves the

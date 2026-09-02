@@ -209,14 +209,14 @@ it is the one to re-measure first if the ground ever lightens.
 `--wren-text-1` on `--wren-fill-selected` (the accent at 8% light / 14% dark,
 composited over its backdrop): **14.77 / 16.10** light, **14.43 / 12.26** dark.
 
-**One measured failure, and it is an open owner decision rather than a silent pass.**
-`accent` on `base` is **4.31**, under the 4.5 floor. On `surface` it is 4.73 and fine —
-the ground is the case nobody measured when P14 landed, and the reading region IS the
-ground. Nothing ships accent-as-body-text there today, so this is a latent trap and not
-a live defect. The three options are in `wayfinder/NICK-QUEUE.md`: darken the light
-accent slightly (costing a little of the coral), forbid accent text on the ground here
-in DIRECTION, or accept it as decorative-only. **Until it is ruled, do not put accent
-text on the ground.**
+**Accent as text takes its own step; accent as a mark does not — ruled 2026-09-02.**
+The palette above stays. The plain light `accent` measures **4.31** on `base`, under
+the 4.5 floor, and the reading region IS the ground — so a coloured word draws in
+`--wren-accent-text` (`text-brand-ink`), which resolves to the certified on-fill step
+in light (**5.10** on `base`, **5.59** on `surface`, worst fill 4.62) and to the plain
+accent in dark (**8.11 / 7.17 / 6.03**, worst fill 5.16). Accent as a **fill, icon,
+ring or border** is unchanged and takes the 3.0 a non-text mark takes. `contrast:check`
+gates both floors, so the earlier 4.31 failure is closed rather than waived.
 
 **One licensed exception, unchanged.** The light solids for green, teal, orange and
 yellow measure 2.6–2.9:1 against white. They are permitted only as marks sitting

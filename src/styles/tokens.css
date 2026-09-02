@@ -222,6 +222,29 @@
     --wren-text-on-fill: oklch(0.515 0.004 50); /* #696765                    */
     --wren-accent-on-fill: oklch(0.535 0.149 13); /* #B24054                  */
 
+    /* --- The accent as a WORD ----------------------------------------------
+       Owner ruling, 2026-09-02. The palette in DIRECTION §3 stays exactly as
+       ruled; what moves is the tier a coloured LABEL draws in. The plain light
+       accent measures 4.31 on `base`, under the 4.5 small text needs, and the
+       ground is the reading region — so the accent may not be a word there.
+
+       This is not a new colour. It is the on-fill step the app already ships
+       and already certifies: same hue, same chroma, one notch of lightness.
+
+         light  #B24054  base 5.10 · surface 5.59 · raised 5.59 · sunken 4.80
+                         worst fill (selected wash over base) 4.62
+         dark   #EE8B97  base 8.11 · surface 7.17 · raised 6.03 · sunken 8.56
+                         worst fill (hover fill over raised) 5.16
+
+       Dark already cleared 4.5 on every surface and every fill, so dark keeps
+       the plain accent rather than paying a shade of coral it does not owe.
+
+       The accent as a FILL, an icon, a ring or a border is untouched: those
+       are non-text marks at the 3.0 floor, and re-pointing them would move the
+       palette this ruling exists to keep. The utility is `text-brand-ink`
+       (index.css); `text-brand` stays the mark. */
+    --wren-accent-text: var(--wren-accent-on-fill);
+
     /* --- The focus ring ----------------------------------------------------
        ONE token, because there is one ring and it is drawn on every control in
        the app — the sidebar, the toolbars, the composer, the palette, the
@@ -445,6 +468,12 @@
        palette, and still under text-2 at 0.742. */
     --wren-text-on-fill: oklch(0.700 0.004 50); /* #A09E9C                    */
     --wren-accent-on-fill: oklch(0.775 0.12 13); /* #F895A0                   */
+
+    /* Dark's plain accent clears 4.5 on all three surfaces and on every fill
+       — worst is 5.16, the hover fill over `raised` — so accent-as-text is the
+       accent here. The ruling and the light measurements are in the light
+       block. */
+    --wren-accent-text: var(--wren-accent);
 
     /* Same rule, same one token. See the light block for the measurements. */
     --wren-focus-ring: var(--wren-accent);

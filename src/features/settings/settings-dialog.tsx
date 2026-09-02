@@ -745,7 +745,7 @@ function GoogleSection({ highlight }: { highlight: boolean }) {
           type="button"
           onClick={() => setGuideOpen(!guideOpen)}
           aria-expanded={guideOpen}
-          className="font-ui text-brand hover:text-brand-hover focus-ring flex h-8 w-fit items-center gap-1 rounded-md text-base font-medium"
+          className="font-ui text-brand-ink hover:text-brand-hover focus-ring flex h-8 w-fit items-center gap-1 rounded-md text-base font-medium"
         >
           <Icon name={guideOpen ? 'chevronDown' : 'chevronRight'} size={16} />
           Setup guide
