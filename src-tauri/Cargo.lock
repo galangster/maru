@@ -5207,6 +5207,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-maru-auth"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "tauri-plugin-notification"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6855,6 +6865,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-http",
  "tauri-plugin-log",
+ "tauri-plugin-maru-auth",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",

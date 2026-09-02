@@ -398,6 +398,9 @@ pub fn run() {
     .plugin(tauri_plugin_process::init())
     .manage(gateway::GatewayState::default());
 
+  #[cfg(target_os = "ios")]
+  let builder = builder.plugin(tauri_plugin_maru_auth::init());
+
   #[cfg(desktop)]
   let builder = builder.invoke_handler(tauri::generate_handler![
     secret_set,

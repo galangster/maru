@@ -23,5 +23,7 @@ export interface Platform {
    * Start this BEFORE opening the auth URL. Rejects after 180 s.
    */
   oauthListen(port: number): Promise<string>
+  /** Presents the native iOS browser session and returns its callback URL. */
+  authSession?(url: string, callbackScheme: string): Promise<string>
   notify(title: string, body: string): Promise<void>
 }

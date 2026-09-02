@@ -8,6 +8,7 @@ import { GMAIL_MODIFY_SCOPE,
   generateCodeVerifier,
   generateState,
   pickLoopbackPort,
+  parseOAuthCallback,
   redirectUriFor,
   refreshAccessToken,
   runAuthFlow,
@@ -102,7 +103,29 @@ describe('loopback port', () => {
   })
 
   it('builds a 127.0.0.1 loopback redirect uri', () => {
-    expect(redirectUriFor(50123)).toBe('http://127.0.0.1:50123/callback')
+    expect(redirectUriFor('desktop', CLIENT_ID, 50123)).toBe('http://127.0.0.1:50123/callback')
+  })
+
+  it('builds the reversed-client custom redirect uri on iOS', () => {
+    expect(redirectUriFor('ios', CLIENT_ID)).toBe(
+      'com.googleusercontent.apps.1234-abc:/oauth2redirect',
+    )
+  })
+})
+
+describe('OAuth callback parsing', () => {
+  it('reads code and state from a loopback request path', () => {
+    const callback = parseOAuthCallback('/callback?code=desktop-code&state=desktop-state')
+    expect(callback.get('code')).toBe('desktop-code')
+    expect(callback.get('state')).toBe('desktop-state')
+  })
+
+  it('reads code and state from an iOS custom-scheme URL', () => {
+    const callback = parseOAuthCallback(
+      'com.googleusercontent.apps.1234-abc:/oauth2redirect?code=ios-code&state=ios-state',
+    )
+    expect(callback.get('code')).toBe('ios-code')
+    expect(callback.get('state')).toBe('ios-state')
   })
 })
 
@@ -420,6 +443,39 @@ describe('runAuthFlow', () => {
     expect(result.tokens.refreshToken).toBe('rt-1')
     expect(result.historyId).toBe('5150')
     expect(authUrl.startsWith('https://accounts.google.com/o/oauth2/v2/auth?')).toBe(true)
+  })
+
+  it('uses the native iOS session with a custom redirect and no client secret', async () => {
+    const p = new NodePlatform()
+    goodHandler(p)
+    let callbackScheme = ''
+    let authUrl = ''
+    p.authResponder = async (url, scheme) => {
+      authUrl = url
+      callbackScheme = scheme
+      const state = new URL(url).searchParams.get('state')
+      return `${scheme}:/oauth2redirect?code=auth-ios&state=${state}`
+    }
+
+    await runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { family: 'ios' })
+
+    expect(p.calls).toContain('authSession')
+    expect(p.calls).not.toContain('oauthListen')
+    expect(p.calls).not.toContain('openExternal')
+    expect(callbackScheme).toBe('com.googleusercontent.apps.1234-abc')
+    expect(new URL(authUrl).searchParams.get('redirect_uri')).toBe(
+      'com.googleusercontent.apps.1234-abc:/oauth2redirect',
+    )
+    expect(new URLSearchParams(p.requests[0].body).has('client_secret')).toBe(false)
+  })
+
+  it('maps a dismissed iOS auth sheet to a stable cancellation error', async () => {
+    const p = new NodePlatform()
+    p.authResponder = async () => { throw { code: 'cancelled', message: 'cancelled' } }
+    await expect(runAuthFlow(p, CLIENT_ID, undefined, { family: 'ios' })).rejects.toMatchObject({
+      code: 'cancelled',
+      message: 'Sign-in cancelled',
+    })
   })
 
   // `login_hint` was declared in AuthUrlParams and written into the authorize

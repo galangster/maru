@@ -52,8 +52,12 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.1.7
-        CFBundleVersion: "0.1.7"
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - com.googleusercontent.apps.PLACEHOLDER
+        CFBundleShortVersionString: 0.1.8
+        CFBundleVersion: "0.1.8"
     entitlements:
       path: wren_iOS/wren_iOS.entitlements
     scheme:

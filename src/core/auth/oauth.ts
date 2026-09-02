@@ -6,8 +6,10 @@
 // Nothing in this file logs a token, a code, or a secret.
 
 import type { Platform } from '../platform'
+import type { PlatformFamily } from '../service/vault-port'
 import { base64UrlEncodeBytes } from '../mime'
 import type { OAuthClientSource } from './client-config'
+import { accountDeviceIdentity } from '@/lib/env'
 
 export const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 export const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
@@ -108,7 +110,23 @@ export function pickLoopbackPort(random: () => number = Math.random): number {
   return PORT_MIN + Math.floor(random() * (PORT_MAX - PORT_MIN + 1))
 }
 
-export function redirectUriFor(port: number): string {
+const GOOGLE_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com'
+
+export function iosCallbackScheme(clientId: string): string {
+  const normalized = clientId.trim()
+  const clientName = normalized.endsWith(GOOGLE_CLIENT_ID_SUFFIX)
+    ? normalized.slice(0, -GOOGLE_CLIENT_ID_SUFFIX.length)
+    : normalized
+  return `com.googleusercontent.apps.${clientName}`
+}
+
+export function redirectUriFor(
+  family: PlatformFamily,
+  clientId: string,
+  port?: number,
+): string {
+  if (family === 'ios') return `${iosCallbackScheme(clientId)}:/oauth2redirect`
+  if (port === undefined) throw new Error('A loopback port is required on desktop')
   return `http://127.0.0.1:${port}/callback`
 }
 
@@ -402,9 +420,19 @@ export interface AuthFlowResult {
   tokens: OAuthTokens
 }
 
-function parseCallback(path: string): URLSearchParams {
-  const q = path.indexOf('?')
-  return new URLSearchParams(q === -1 ? '' : path.slice(q + 1))
+export function parseOAuthCallback(callbackUrl: string): URLSearchParams {
+  const q = callbackUrl.indexOf('?')
+  return new URLSearchParams(q === -1 ? '' : callbackUrl.slice(q + 1))
+}
+
+function authSessionFailure(error: unknown): OAuthError {
+  const record = typeof error === 'object' && error !== null
+    ? error as { code?: unknown; message?: unknown }
+    : null
+  const text = `${String(record?.code ?? '')} ${String(record?.message ?? error ?? '')}`.toLowerCase()
+  return text.includes('cancelled') || text.includes('canceled')
+    ? new OAuthError('cancelled', 'Sign-in cancelled')
+    : new OAuthError('auth_session_failed', 'Sign-in failed')
 }
 
 /**
@@ -436,30 +464,41 @@ export async function runAuthFlow(
      * verified rather than assumed.
      */
     expectEmail?: string
+    family?: PlatformFamily
   } = {},
 ): Promise<AuthFlowResult> {
-  const port = pickLoopbackPort(opts.random)
-  const redirectUri = redirectUriFor(port)
+  const family = opts.family ?? (await accountDeviceIdentity()).family
+  const port = family === 'desktop' ? pickLoopbackPort(opts.random) : undefined
+  const redirectUri = redirectUriFor(family, clientId, port)
   const verifier = generateCodeVerifier()
   const challenge = await deriveCodeChallenge(verifier)
   const state = generateState()
 
-  const callback = platform.oauthListen(port)
-  // Swallow nothing, but do not leave an unhandled rejection if openExternal
-  // throws before we await the listener.
-  callback.catch(() => undefined)
+  const authUrl = buildAuthUrl({
+    clientId,
+    redirectUri,
+    state,
+    codeChallenge: challenge,
+    loginHint: opts.expectEmail,
+  })
+  let callbackUrl: string
+  if (family === 'ios') {
+    if (!platform.authSession) throw new OAuthError('auth_session_failed', 'Sign-in failed')
+    try {
+      callbackUrl = await platform.authSession(authUrl, iosCallbackScheme(clientId))
+    } catch (error) {
+      throw authSessionFailure(error)
+    }
+  } else {
+    const callback = platform.oauthListen(port as number)
+    // Swallow nothing, but do not leave an unhandled rejection if openExternal
+    // throws before we await the listener.
+    callback.catch(() => undefined)
+    await platform.openExternal(authUrl)
+    callbackUrl = await callback
+  }
 
-  await platform.openExternal(
-    buildAuthUrl({
-      clientId,
-      redirectUri,
-      state,
-      codeChallenge: challenge,
-      loginHint: opts.expectEmail,
-    }),
-  )
-
-  const params = parseCallback(await callback)
+  const params = parseOAuthCallback(callbackUrl)
   const error = params.get('error')
   if (error) {
     if (CLIENT_FAILURE_CODES.has(error)) throw new OAuthClientError(error)
@@ -473,7 +512,7 @@ export async function runAuthFlow(
 
   const tokens = await exchangeCode(platform, {
     clientId,
-    clientSecret,
+    clientSecret: family === 'ios' ? undefined : clientSecret,
     code,
     codeVerifier: verifier,
     redirectUri,

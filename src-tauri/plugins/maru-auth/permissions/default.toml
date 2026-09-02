@@ -1,0 +1,3 @@
+[default]
+description = "Allows Maru to start its iOS browser authentication session"
+permissions = ["allow-start-auth-session"]

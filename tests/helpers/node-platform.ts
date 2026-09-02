@@ -81,6 +81,8 @@ export class NodePlatform implements Platform {
   handler: FetchHandler = () => errorResponse(500, 'no fetch handler installed')
   /** Resolves the pending oauthListen; a test sets this before runAuthFlow. */
   oauthResponder: (port: number) => Promise<string> = async () => '/callback'
+  /** Resolves the native iOS auth session in OAuth seam tests. */
+  authResponder: (url: string, callbackScheme: string) => Promise<string> = async () => ''
 
   private db: NodeSqlDb | null = null
 
@@ -131,6 +133,11 @@ export class NodePlatform implements Platform {
     // responder must not run before openExternal has been called.
     await new Promise((r) => setTimeout(r, 0))
     return this.oauthResponder(port)
+  }
+
+  async authSession(url: string, callbackScheme: string): Promise<string> {
+    this.calls.push('authSession')
+    return this.authResponder(url, callbackScheme)
   }
 
   async notify(title: string, body: string): Promise<void> {

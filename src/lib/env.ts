@@ -79,12 +79,25 @@ export async function accountDeviceIdentity(
   return { name, platform: 'macos', family: 'desktop' }
 }
 
+export const IOS_GOOGLE_CLIENT_ID_PLACEHOLDER = 'PLACEHOLDER.apps.googleusercontent.com'
+
+export const iosGoogleClientId =
+  import.meta.env.VITE_MARU_IOS_GOOGLE_CLIENT_ID?.trim() || IOS_GOOGLE_CLIENT_ID_PLACEHOLDER
+
+/** iOS remains on fixtures only for the exact, non-working default client id. */
+export function iosClientForcesDemo(clientId = iosGoogleClientId): boolean {
+  return clientId.trim() === IOS_GOOGLE_CLIENT_ID_PLACEHOLDER
+}
+
 /** Build-time switch used by the iOS target until its OAuth client ships. */
 const buildForcesDemo = import.meta.env.VITE_MARU_DEMO === '1'
 
 /** `?demo=1` or `VITE_MARU_DEMO=1` forces demo; browsers only have demo. */
 export const isDemo =
-  platformOS === 'ios' || buildForcesDemo || params.get('demo') === '1' || !isTauri()
+  (platformOS === 'ios' && iosClientForcesDemo()) ||
+  buildForcesDemo ||
+  params.get('demo') === '1' ||
+  !isTauri()
 
 /** `?screenshot=1` freezes the clock and removes motion. */
 export const isScreenshot = params.get('screenshot') === '1'

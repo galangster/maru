@@ -47,3 +47,6 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSButton", "NSView", "NSResponder", "NSToolbar", "NSGraphics"] }
 objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+tauri-plugin-maru-auth = { path = "plugins/maru-auth" }

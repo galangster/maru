@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import type { Entitlement } from '@/core/account'
 import { entitlementCopy, passwordMeter } from '@/features/settings/account/entitlement-copy'
-import { accountDeviceIdentity } from '@/lib/env'
+import {
+  IOS_GOOGLE_CLIENT_ID_PLACEHOLDER,
+  accountDeviceIdentity,
+  iosClientForcesDemo,
+} from '@/lib/env'
 import { syncLabel, syncTitle } from '@/mobile/screens/account/account-logic'
 
 const formatter = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
@@ -51,5 +55,16 @@ describe('account device identity', () => {
     await expect(accountDeviceIdentity('mac', 'Macintosh', 'MacIntel')).resolves.toEqual({ name: 'MacIntel', platform: 'macos', family: 'desktop' })
     await expect(accountDeviceIdentity('windows', 'Windows', 'Win32')).resolves.toEqual({ name: 'Win32', platform: 'windows', family: 'desktop' })
     await expect(accountDeviceIdentity('other', 'X11; Linux x86_64', 'Linux x86_64')).resolves.toEqual({ name: 'Linux x86_64', platform: 'linux', family: 'desktop' })
+  })
+})
+
+describe('iOS Gmail demo gate', () => {
+  it('forces demo for the exact built-in placeholder', () => {
+    expect(iosClientForcesDemo(IOS_GOOGLE_CLIENT_ID_PLACEHOLDER)).toBe(true)
+  })
+
+  it('allows real mode for a non-default test or production client id', () => {
+    expect(iosClientForcesDemo('PLACEHOLDER-TEST.apps.googleusercontent.com')).toBe(false)
+    expect(iosClientForcesDemo('123-real.apps.googleusercontent.com')).toBe(false)
   })
 })

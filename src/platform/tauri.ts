@@ -94,6 +94,14 @@ export class TauriPlatform implements Platform {
     return invoke<string>('oauth_listen', { port })
   }
 
+  async authSession(url: string, callbackScheme: string): Promise<string> {
+    const result = await invoke<{ callbackUrl: string }>(
+      'plugin:maru-auth|start_auth_session',
+      { url, callbackScheme },
+    )
+    return result.callbackUrl
+  }
+
   async notify(title: string, body: string): Promise<void> {
     if (this.notificationsAllowed === null) {
       this.notificationsAllowed = await isPermissionGranted()
