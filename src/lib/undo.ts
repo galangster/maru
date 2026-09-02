@@ -48,6 +48,21 @@ export const UNDO_DEPTH = 10
 export const UNDO_TOAST_ID = 'wren-undo'
 
 /**
+ * The id every undo offer on the PHONE is drawn under — one, for all of them.
+ *
+ * Beside `UNDO_TOAST_ID` because it is the third member of the same family and
+ * the difference between the three is the only thing worth reading in one
+ * place. Sonner replaces a toast that carries an id it already has, so a burst
+ * of archives rewrites one line instead of building a pile of offers the phone
+ * cannot reach behind (issue 65).
+ *
+ * It is deliberately NOT `UNDO_TOAST_ID`: that id belongs to the *answer*
+ * ("Undone", "Nothing to undo"), and an offer that overwrote the answer would
+ * take away the only confirmation the press gives.
+ */
+export const MOBILE_UNDO_TOAST_ID = 'wren-undo-mobile'
+
+/**
  * The toast id for one entry's own offer. Per entry, not shared.
  *
  * The shared id used to be load-bearing: the button ran *the registry's*

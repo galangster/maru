@@ -32,8 +32,12 @@ export function MobileMessageCard({
       <button className="mobile-message-header" type="button" onClick={onToggle} aria-expanded={expanded}>
         <span className="mobile-avatar">{displayName(message.from).slice(0, 1).toUpperCase()}</span>
         <span className="mobile-message-meta">
-          <strong>{displayName(message.from)}</strong>
-          <span>{expanded ? `to ${message.to.map(displayName).join(', ') || 'me'}` : message.snippet}</span>
+          {/* Each string reads its own direction. A card whose sender is
+              Hebrew and whose snippet is English is one card with two, and a
+              direction set on the meta block around them would give both the
+              first one it found. */}
+          <strong dir="auto">{displayName(message.from)}</strong>
+          <span dir="auto">{expanded ? `to ${message.to.map(displayName).join(', ') || 'me'}` : message.snippet}</span>
         </span>
         <time>{relativeTime(message.date, now)}</time>
         <MobileIcon name="chevronRight" className="mobile-message-chevron" />

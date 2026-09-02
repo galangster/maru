@@ -26,3 +26,38 @@ export function useListSearch() {
   const query = useDebounced(useSurfaces((s) => s.searchQuery))
   return { query, ...useQuerySearch(searchOpen ? query : '') }
 }
+
+/**
+ * A search field with an IME in front of it.
+ *
+ * Typing Japanese, Chinese or Korean goes through a composition: the field
+ * fills with intermediate syllables that the person has not chosen yet and is
+ * still deciding between, and each of them fires `change` exactly as a typed
+ * letter does. A field that searches on every change therefore sends a query
+ * for に, then にほ, then にほん — none of which was asked for, and the last of
+ * which arrives before the candidate is picked. `compositionend` is the event
+ * that says the text is finally what was meant.
+ *
+ * Two strings, because they are two different facts and the field needs both:
+ * `text` is what is drawn, and it must follow every keystroke or the field
+ * would fight the IME for the caret. `query` is what is worth searching for,
+ * and it stands still until the composition settles.
+ *
+ * Pure, and a function of the current pair rather than a hook, so both shells
+ * can hold the pair wherever they already hold their query — the desktop in
+ * the surface store, the phone in the shell above a screen that unmounts
+ * (issue 49) — and the rule itself is checked without a keyboard.
+ */
+export interface SearchInput {
+  /** What the field shows. Every keystroke, composed or not. */
+  text: string
+  /** What to actually search for: the last text that was not mid-composition. */
+  query: string
+}
+
+export function searchInput(
+  current: SearchInput,
+  next: { text: string; composing: boolean },
+): SearchInput {
+  return { text: next.text, query: next.composing ? current.query : next.text }
+}

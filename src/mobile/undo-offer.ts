@@ -19,24 +19,23 @@
 // The one door is a real door onto the whole registry: `undoAndSay` is the
 // same body ⌘Z runs, so a phone tapping Undo four times and a desktop pressing
 // ⌘Z four times walk back the same four actions in the same order.
+//
+// **Where the fork lives.** At the one seam every inline Undo already passes
+// through — `showUndoToast` — and nowhere else. The phone used to let each
+// per-entry toast go up and then sweep it away again, from four call sites in
+// the shell, so every new surface that offered an Undo was a new pile the
+// sweep had to be taught about. `setUndoPresenter` replaces the draw instead
+// of chasing it, which is why `runBatchAction` and `runBatchDefer` need no
+// phone branch of their own: they offer through `offerUndo`, `offerUndo` draws
+// through `showUndoToast`, and the phone never builds the pile in the first
+// place.
 
+import { useEffect } from 'react'
 import { toast } from 'sonner'
 
-import { registerActionUndo, undoAndSay } from '@/features/mail/queries'
+import { setUndoPresenter, undoAndSay } from '@/features/mail/queries'
 import { useUi } from '@/features/mail/ui-store'
-import type { MailAction } from '@/core/types'
-import { UNDO_WINDOW_MS, isLive, undoToastId, type UndoStack } from '@/lib/undo'
-
-/**
- * The one id every undo offer on the phone is drawn under.
- *
- * Sonner replaces a toast that carries an id it already has, so a burst of
- * archives rewrites one line instead of building a pile. It is deliberately
- * NOT `UNDO_TOAST_ID` — that id belongs to the *answer* ("Undone", "Nothing to
- * undo"), and an offer that overwrote the answer would take away the only
- * confirmation the press gives.
- */
-export const MOBILE_UNDO_TOAST_ID = 'wren-undo-mobile'
+import { MOBILE_UNDO_TOAST_ID, UNDO_WINDOW_MS, isLive, type UndoStack } from '@/lib/undo'
 
 export interface MobileUndoOffer {
   /** The entry this offer's button reverses: the newest still inside its window. */
@@ -78,22 +77,15 @@ export function coalescedOffer(stack: UndoStack, now: number): MobileUndoOffer |
 }
 
 /**
- * Draw the one offer, and take every other one off the screen.
+ * Draw the one offer, from whatever the registry holds right now.
  *
- * The sweep is what makes this the phone's ONLY undo door. A bulk archive and
- * a Later batch raise their own per-entry toasts from `bulk.ts`, which is
- * right on the desktop and is a second pile here — so every per-entry offer
- * the registry knows about is dismissed and this one is raised over all of
- * them. Nothing is lost by that: the entries themselves are untouched and this
- * button reaches all of them.
- *
- * With nothing live the offer is withdrawn rather than drawn empty, which is
- * also what makes the last press of a burst clear the screen.
+ * It reads the stack rather than being told about one entry, because the whole
+ * point is that the offer is about all of them. With nothing live it is
+ * withdrawn rather than drawn empty, which is also what makes the last press of
+ * a burst clear the screen.
  */
-export function showMobileUndoOffer(description?: string, now = Date.now()): void {
-  const stack = useUi.getState().undoStack
-  for (const entry of stack) toast.dismiss(undoToastId(entry.id))
-  const offer = coalescedOffer(stack, now)
+function showMobileUndoOffer(description?: string, now = Date.now()): void {
+  const offer = coalescedOffer(useUi.getState().undoStack, now)
   if (!offer) {
     toast.dismiss(MOBILE_UNDO_TOAST_ID)
     return
@@ -126,31 +118,74 @@ export function showMobileUndoOffer(description?: string, now = Date.now()): voi
 }
 
 /**
- * Walk back one action, then re-draw whatever is left under it.
+ * Walk back one action, then draw whatever is left under it.
  *
  * By the entry's identity rather than by "the newest", so the offer that was on
  * screen when the finger landed is the one that is reversed even if something
  * registered in between. `undoAndSay` says what happened, exactly as ⌘Z does,
  * and the re-draw either counts down or withdraws the offer.
+ *
+ * **After the answer, never before.** Sonner draws the newest toast in FRONT,
+ * and on a 393 px screen the front toast covers the ones behind it — which is
+ * the whole of issue 65. This offer is the phone's one undo door, so it has to
+ * end up in front of "Undone" rather than behind it, and `undoAndSay` raises
+ * "Undone" partway through its own body.
+ *
+ * The subscription below will already have redrawn the count by the time this
+ * runs, because running an entry takes it off the stack. That update is in
+ * place and idempotent; this call is here for the ordering above, and for the
+ * one ending the subscription cannot see — a press that finds nothing live
+ * changes no stack, and the spent offer still has to come off the screen.
  */
+let popping = false
+
 export function popMobileUndo(now = Date.now()): void {
   const offer = coalescedOffer(useUi.getState().undoStack, now)
-  undoAndSay(offer?.entryId)
+  // ONE draw per press, and it is the one below. Running the entry changes the
+  // stack, which the subscription is watching, so without this flag a press
+  // draws the offer twice: once from inside `undoAndSay` before it has raised
+  // "Undone", and once here after. Measured at 393x852 with injected touch,
+  // that cost the second press of a burst — the offer was created before the
+  // answer and stayed behind it, so the finger landed on "Undone" instead of
+  // on the button, and five conversations came back out of six.
+  popping = true
+  try {
+    undoAndSay(offer?.entryId)
+  } finally {
+    popping = false
+  }
   showMobileUndoOffer()
 }
 
 /**
- * Register a single-thread action's undo and put the phone's one offer up.
+ * Make this shell the one that draws undo offers, for as long as it is mounted.
  *
- * `registerUndoable`'s phone-shaped twin: same registration, different door.
- * The registration is the desktop's own `registerActionUndo`, so what the
- * entry reverses and what it is called are not decided twice.
+ * Two halves, and they answer different questions:
+ *
+ *   - The **presenter** is what makes the phone's offer the only offer. It
+ *     replaces the desktop's per-entry draw at the seam every inline Undo
+ *     passes through, so a pile is never raised rather than being raised and
+ *     swept.
+ *   - The **subscription** is what keeps the count true. The stack also moves
+ *     when nobody is offering anything new — an Undo runs an entry, a
+ *     registration sweeps the expired ones out from under it — and the number
+ *     on the button has to come down with it.
+ *
+ * Keyed on the stack's identity alone, so the offer is redrawn when the
+ * registry moves and at no other time: `useUi` holds the selection, the
+ * checkmarks and the reading expansion too, and every one of those changes
+ * several times per screenful.
  */
-export function offerMobileUndo(
-  mutate: (action: MailAction) => void,
-  action: MailAction,
-  description?: string,
-): void {
-  registerActionUndo(mutate, action)
-  showMobileUndoOffer(description)
+export function useMobileUndoOffer(): void {
+  useEffect(() => {
+    setUndoPresenter((_entryId, _label, description) => showMobileUndoOffer(description))
+    const unsubscribe = useUi.subscribe((state, previous) => {
+      if (popping) return
+      if (state.undoStack !== previous.undoStack) showMobileUndoOffer()
+    })
+    return () => {
+      setUndoPresenter(null)
+      unsubscribe()
+    }
+  }, [])
 }

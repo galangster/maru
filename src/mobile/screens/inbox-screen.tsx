@@ -151,10 +151,11 @@ export function InboxScreen({
     parked.current = threads.map((thread) => ({ thread, model: buildMobileRowModel(thread, selfEmails, now) }))
     return parked.current
   }, [paused, threads, selfEmails, now])
-  // What this mailbox's rows actually answer to a finger. Memoized with the
-  // rows because it resolves every one of them, and it is read by the hidden
-  // help below the list (issue 63).
-  const hint = useMemo(() => gestureHint(batchActions(rows.map((row) => row.thread))), [rows])
+  // What this mailbox's rows actually answer to a finger, read by the hidden
+  // help below the list (issue 63). Keyed on the threads rather than on the
+  // rows: `rows` is rebuilt by the minute tick for its relative times, and
+  // what a mailbox's gestures are does not change on the clock.
+  const hint = useMemo(() => gestureHint(batchActions(threads)), [threads])
   // The window, not a container. UIKit minimizes the Liquid Glass tab bar off
   // the WKWebView's own scroll view, so the inbox has to move the document
   // (mobile.css). `scrollMargin` is what tells the virtualizer how far the list

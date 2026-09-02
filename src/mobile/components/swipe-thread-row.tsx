@@ -74,8 +74,8 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
   const drag = usePointerDrag({
     // The hook now owns the axis. This row only ever hears about a gesture
     // that locked horizontal, so a scroll cannot move it and a swipe of its
-    // own cannot scroll the page — `touch-action: pan-y` on the row is the
-    // other half of that, and mobile.css explains why it was not applying.
+    // own cannot scroll the page — `data-gesture="pan-y"` below is the other
+    // half of that, and mobile.css explains why it was not applying.
     axis: 'horizontal',
     onMove: ({ dx }) => {
       if (editing) return
@@ -147,6 +147,10 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
         type="button"
         className={`mobile-thread-row${model.unread ? ' is-unread' : ''}${selected ? ' is-selected' : ''}${settling ? ' is-settling' : ''}`}
         style={{ transform: `translateX(${offset}px)` }}
+        // Vertical is the page scroller's, horizontal is this row's. Claimed
+        // here rather than named in a list in mobile.css, so the row that
+        // takes the axis is the row that says so.
+        data-gesture="pan-y"
         {...drag}
         onPointerDown={pointerDown}
         onContextMenu={(event) => { event.preventDefault(); onContext() }}
@@ -168,14 +172,20 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
           <span className="mobile-unread-slot" aria-hidden>{model.unread && <span />}</span>
         )}
         <div className="mobile-row-copy">
-          <div className="mobile-row-topline"><strong>{model.sender}</strong><time>{model.time}</time></div>
-          <div className="mobile-row-subject"><span>{model.subject}</span>{model.messageCount > 1 && <small>{model.messageCount}</small>}</div>
+          {/* `dir="auto"` on each of the three, and not on the row around
+              them: a Hebrew subject under an English sender is one row with
+              two directions, and a direction set on the container would give
+              the whole row the first one it found. The browser reads each
+              string's own first strong character, which is exactly the
+              question being asked. */}
+          <div className="mobile-row-topline"><strong dir="auto">{model.sender}</strong><time>{model.time}</time></div>
+          <div className="mobile-row-subject"><span dir="auto">{model.subject}</span>{model.messageCount > 1 && <small>{model.messageCount}</small>}</div>
           {/* When it comes back. The phone's list has no date group headers
               anywhere, so the desktop Later view's "Tomorrow" headers have no
               counterpart here — the exact moment on the row is the same fact
               at a higher resolution, and it travels into search results too. */}
           {model.until && <p className="mobile-row-until"><MobileIcon name="calendar" scale="small" />Back {model.until}</p>}
-          <p>{model.snippet}</p>
+          <p dir="auto">{model.snippet}</p>
         </div>
         <span />
       </button>

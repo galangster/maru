@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest'
 
 import type { Thread } from '../src/core/types'
 import { applyListPrefs, filterEmptyCopy, nextAfterRemoval } from '../src/features/list/list-prefs'
+import { searchInput, type SearchInput } from '../src/features/list/list-search'
 import { DEFAULT_LIST_PREFS } from '../src/features/mail/ui-store'
 
 function thread(key: string, at: number, flags: Partial<Thread> = {}): Thread {
@@ -105,5 +106,50 @@ describe('nextAfterRemoval', () => {
   it('selects nothing when the only thread goes, or the key is unknown', () => {
     expect(nextAfterRemoval([MAILBOX[0]], 'a')).toBeNull()
     expect(nextAfterRemoval(MAILBOX, 'nope')).toBeNull()
+  })
+})
+
+/**
+ * The search field with an IME in front of it.
+ *
+ * Typing Japanese fills the field with intermediate syllables nobody has
+ * chosen yet, and each of them fires `change` exactly as a typed letter does.
+ * A field that searched on every change sent a query for に, then にほ, then
+ * にほん — none of which was asked for.
+ */
+describe('searchInput', () => {
+  const start: SearchInput = { text: '', query: '' }
+
+  it('searches for what is typed when nothing is composing', () => {
+    expect(searchInput(start, { text: 'walk', composing: false })).toEqual({
+      text: 'walk',
+      query: 'walk',
+    })
+  })
+
+  it('draws every composed keystroke and searches for none of them', () => {
+    // The field must follow the IME or it would fight it for the caret; the
+    // query must not move or it would search for a syllable.
+    let state = searchInput(start, { text: 'に', composing: true })
+    state = searchInput(state, { text: 'にほ', composing: true })
+    expect(state).toEqual({ text: 'にほ', query: '' })
+  })
+
+  it('searches once the composition settles', () => {
+    const composing = searchInput(start, { text: 'にほ', composing: true })
+    expect(searchInput(composing, { text: '日本', composing: false })).toEqual({
+      text: '日本',
+      query: '日本',
+    })
+  })
+
+  it('holds the previous query rather than emptying it mid-composition', () => {
+    // A second word composed after a settled first one must not take the
+    // results off the screen while it is being chosen.
+    const settled: SearchInput = { text: 'walk', query: 'walk' }
+    expect(searchInput(settled, { text: 'walk に', composing: true })).toEqual({
+      text: 'walk に',
+      query: 'walk',
+    })
   })
 })

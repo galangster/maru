@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
 import type { BulkActionType } from '@/features/list/bulk'
+import { searchInput, type SearchInput } from '@/features/list/list-search'
 import { MIN_SEARCH_LENGTH, useAccountsById, useSearch } from '@/features/mail/queries'
 import { useNow } from '@/lib/use-now'
 import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
@@ -58,65 +59,81 @@ export function SearchScreen({
   const { selfEmails } = useAccountsById()
   const now = useNow()
   /**
-   * The results this screen has already put away.
+   * What the field shows, and what is worth searching for.
    *
-   * Nothing patches `keys.search`, so an archived result used to sit in the
-   * list unchanged and offer to be archived again (issue 64). This is the same
-   * optimistic drop the inbox gets from `patchLists`, made where the search
-   * screen can make it.
+   * Two strings rather than one, because an IME fills the field with syllables
+   * nobody has chosen yet — `searchInput` in features/list is the rule, and it
+   * is the desktop's own. Seeded from the query the shell is holding, so
+   * coming back to this screen finds the field as it was left (issue 49).
+   */
+  const [input, setInput] = useState<SearchInput>(() => ({ text: query, query }))
+  const [composing, setComposing] = useState(false)
+  const enter = (text: string, stillComposing = composing) => {
+    const next = searchInput(input, { text, composing: stillComposing })
+    setInput(next)
+    if (next.query !== query) onQuery(next.query)
+  }
+  /**
+   * The results this screen has already put away, until the cache agrees.
+   *
+   * `patchLists` drops an acted-on result from `keys.search` now, and the
+   * events that follow refetch it — so this is no longer the mechanism, it is
+   * the frame in front of it. It covers the one gap the cache cannot: the
+   * refetch is a round trip, and a row that stayed put for it would offer to
+   * be archived a second time in the meantime (issue 64).
    */
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
   const putAway = (key: string) => setRemoved((current) => new Set(current).add(key))
   // A new query is a new list. Nothing that was dropped from the old one has
   // anything to say about it.
   useEffect(() => setRemoved(new Set()), [query])
-  /**
-   * Ask again on the way back in.
-   *
-   * The query and its results survive a conversation round trip on purpose
-   * (issue 49) — but "the results are still here" must not mean "the results
-   * are still what they were before you acted on them". This screen unmounts
-   * whenever anything covers it, so mounting IS returning, and the local drops
-   * above are replaced by the answer rather than added to it.
-   */
-  const refetch = results.refetch
-  useEffect(() => {
-    if (query.trim().length >= MIN_SEARCH_LENGTH) void refetch()
-    // Once, on the way in. A refetch per keystroke is what `useSearch`'s own
-    // key already does.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  // Built once per result set, the way the inbox builds its own. `useNow`
-  // ticks every minute and every relative time on the screen comes off it, so
-  // without this the whole list of models — and every callback closed over one
-  // — was rebuilt each minute for rows that had not changed.
-  const rows = useMemo(
+  // Built once per result set. `useNow` ticks every minute and every relative
+  // time on the screen comes off it, so without this the whole list of models
+  // — and every callback closed over one — was rebuilt each minute for rows
+  // that had not changed.
+  const models = useMemo(
     () =>
-      visibleResults(
-        (results.data ?? []).map((thread) => ({
-          thread,
-          model: buildMobileRowModel(thread, selfEmails, now),
-        })),
-        removed,
-      ),
-    [results.data, selfEmails, now, removed],
+      (results.data ?? []).map((thread) => ({
+        thread,
+        model: buildMobileRowModel(thread, selfEmails, now),
+      })),
+    [results.data, selfEmails, now],
   )
+  // The subtraction is its own memo, so putting one row away rebuilds the
+  // filter and not every model behind it.
+  const rows = useMemo(() => visibleResults(models, removed), [models, removed])
   // A result set holds inbox mail, sent mail and trashed mail at once, so the
-  // help is the intersection: only the gestures every row on screen will
-  // answer to (issue 63).
-  const hint = useMemo(() => gestureHint(batchActions(rows.map((row) => row.thread))), [rows])
+  // help is the intersection: only the gestures every row in the answer will
+  // answer to (issue 63). Off the answer rather than off `rows`, which the
+  // minute tick rebuilds: what the search FOUND is what the help describes.
+  const hint = useMemo(() => gestureHint(batchActions(results.data ?? [])), [results.data])
   return (
     <section className="mobile-screen" aria-label="Search">
       <header className="mobile-nav mobile-search-nav">
         <h1>Search</h1>
         <label className="mobile-search-input">
           <MobileIcon name="search" /><span className="sr-only">Search mail</span>
-          <input type="search" value={query} onChange={(event) => onQuery(event.target.value)} placeholder={`Search mail (${SEARCH_OPERATOR_HINTS[0]})`} spellCheck={false} autoComplete="off" />
-          {query && <button type="button" onClick={() => onQuery('')} aria-label="Clear search"><MobileIcon name="close" scale="small" /></button>}
+          <input
+            type="search"
+            value={input.text}
+            onChange={(event) => enter(event.target.value)}
+            // The composition is the IME's, and these two are the only way to
+            // know it is running. Its end carries the settled text, which is
+            // the first thing worth searching for since it started.
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={(event) => {
+              setComposing(false)
+              enter(event.currentTarget.value, false)
+            }}
+            placeholder={`Search mail (${SEARCH_OPERATOR_HINTS[0]})`}
+            spellCheck={false}
+            autoComplete="off"
+          />
+          {input.text && <button type="button" onClick={() => enter('', false)} aria-label="Clear search"><MobileIcon name="close" scale="small" /></button>}
         </label>
         <div className="mobile-operator-strip" aria-label="Search operators">
           {SEARCH_OPERATOR_HINTS.map((operator) => (
-            <button key={operator} type="button" onClick={() => onQuery(`${query}${query && !query.endsWith(' ') ? ' ' : ''}${operator}`)}>{operator}</button>
+            <button key={operator} type="button" onClick={() => enter(`${input.text}${input.text && !input.text.endsWith(' ') ? ' ' : ''}${operator}`, false)}>{operator}</button>
           ))}
         </div>
       </header>

@@ -146,8 +146,8 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
               </div>
             ) : recipientField
           })}
-          <label className="mobile-compose-field"><span>Subject</span><input type="text" value={draft.subject} onChange={(event) => edit({ subject: event.target.value })} /></label>
-          <label className="mobile-compose-body"><span className="sr-only">Message</span><textarea value={draft.bodyText} onChange={(event) => edit({ bodyText: event.target.value })} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void send() }} placeholder="Write a message…" /></label>
+          <label className="mobile-compose-field"><span>Subject</span><input type="text" dir="auto" value={draft.subject} onChange={(event) => edit({ subject: event.target.value })} /></label>
+          <label className="mobile-compose-body"><span className="sr-only">Message</span><textarea dir="auto" value={draft.bodyText} onChange={(event) => edit({ bodyText: event.target.value })} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void send() }} placeholder="Write a message…" /></label>
           {draft.attachments.length > 0 && <div className="mobile-draft-attachments">{draft.attachments.map((attachment) => <span key={attachment.id}><MobileIcon name="attachment" scale="small" />{attachment.filename}<button type="button" aria-label={`Remove ${attachment.filename}`} onClick={() => edit({ attachments: draft.attachments.filter((item) => item.id !== attachment.id) })}><MobileIcon name="close" scale="small" /></button></span>)}</div>}
           {error && <p className="mobile-form-error" role="alert">{error}</p>}
           <div className="mobile-compose-footer">

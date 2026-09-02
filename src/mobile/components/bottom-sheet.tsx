@@ -1,8 +1,8 @@
-import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { MobileIcon } from './mobile-icon'
-import { scrimTap, sheetDismisses, sheetDragOffset } from '../state'
+import { sheetDismisses, sheetDragOffset } from '../state'
 import { useDismissDrag } from '../use-dismiss-drag'
 import { useEdgeBack } from '../use-edge-back'
 import { useHapticBoundary } from '../use-native-shell'
@@ -33,14 +33,14 @@ import { useModalFocus } from '../use-modal-focus'
  *   the two of them add up to.
  *
  * The edge back needed two more things before it ran at all (issue 53,
- * reopened). The layer had to CLAIM the horizontal axis — `touch-action` on
- * the scrim, on the sheet body and on the controls inside it, or WebKit's own
- * scroller takes the gesture after one `pointermove` — and the scrim had to
- * stop dismissing on `pointerdown`, which closed a short sheet before the
- * finger that started the gesture had moved. The scrim dismisses on release
- * now, and only when the release was a tap by `scrimTap`'s reading, so a
- * gesture that starts on the dimmed area is a gesture and a partial one
- * springs back.
+ * reopened). The layer had to CLAIM the horizontal axis — `data-gesture` on
+ * the layer, which mobile.css turns into `touch-action` for it and everything
+ * inside it, or WebKit's own scroller takes the gesture after one
+ * `pointermove` — and the scrim had to stop dismissing on `pointerdown`, which
+ * closed a short sheet before the finger that started the gesture had moved.
+ * The scrim dismisses on release now, and only when the release was a tap by
+ * the axis lock's own reading, so a gesture that starts on the dimmed area is
+ * a gesture and a partial one springs back.
  *
  * Both are `useDismissDrag`, which is what the two of them have in common: a
  * surface that follows a finger and leaves if the finger goes far enough. The
@@ -59,7 +59,17 @@ export function BottomSheet({
 }) {
   const dialogRef = useModalFocus<HTMLElement>(onClose)
   useHapticBoundary()
-  const edge = useEdgeBack(onClose)
+  // Both ways out of the dimmed area, from one gesture. A tap is what
+  // `usePointerDrag` calls a release that never declared an axis, so the scrim
+  // asks the drag it already has rather than tracking its own origin and delta
+  // to reach the same answer — and the tap and the drag underneath it can no
+  // longer disagree about which one a movement was.
+  //
+  // `currentTarget` is the layer and `target` is what the finger was actually
+  // on, so this fires for the dimmed area and not for a tap on the sheet.
+  const edge = useEdgeBack(onClose, (event) => {
+    if (event.target === event.currentTarget) onClose()
+  })
   // Down only, and only from the grab area. Both rules are pure functions in
   // state.ts, so what the handle does can be checked without a finger.
   const down = useDismissDrag({
@@ -70,34 +80,15 @@ export function BottomSheet({
     haptic: true,
   })
 
-  // Where a gesture on the scrim itself started, so its release can be read as
-  // a tap or as the end of a drag. `null` for anything that started on the
-  // sheet: the scrim only dismisses for its own touches.
-  const fromScrim = useRef<{ x: number; y: number } | null>(null)
-  const endScrim = (event: ReactPointerEvent<HTMLElement>, tapped: boolean) => {
-    const from = fromScrim.current
-    fromScrim.current = null
-    if (from && tapped && scrimTap(event.clientX - from.x, event.clientY - from.y)) onClose()
-  }
-
   const layer = (
     <div
       className="mobile-sheet-layer mobile-bottom-layer"
       role="presentation"
+      // Vertical is the sheet's scroller's, horizontal is the edge back's —
+      // for the layer and everything inside it, which is the half that was
+      // missing when the gesture ran nowhere (issue 53).
+      data-gesture="pan-y"
       {...edge.handlers}
-      onPointerDown={(event) => {
-        edge.handlers.onPointerDown(event)
-        fromScrim.current =
-          event.target === event.currentTarget ? { x: event.clientX, y: event.clientY } : null
-      }}
-      onPointerUp={(event) => {
-        edge.handlers.onPointerUp(event)
-        endScrim(event, true)
-      }}
-      onPointerCancel={(event) => {
-        edge.handlers.onPointerCancel(event)
-        endScrim(event, false)
-      }}
     >
       <section
         ref={dialogRef}
@@ -111,7 +102,10 @@ export function BottomSheet({
         aria-label={title}
         tabIndex={-1}
       >
-        <div className="mobile-sheet-grip" {...down.handlers}>
+        {/* Both axes, inside a layer that had claimed one: the grip is dragged
+            down and must not hand the vertical to the sheet's own scroller.
+            The inner claim wins by source order in mobile.css. */}
+        <div className="mobile-sheet-grip" data-gesture="none" {...down.handlers}>
           <span className="mobile-sheet-grabber" aria-hidden />
           <header>
             <h2>{title}</h2>

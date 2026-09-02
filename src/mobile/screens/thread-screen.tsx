@@ -102,6 +102,10 @@ export function ThreadScreen({
             // Open, the text IS the subject and a second name would be a
             // second answer to the same question.
             aria-label={title.open ? undefined : threadTitleName(thread.subject)}
+            // A subject in Arabic or Hebrew reads right to left, and nothing
+            // above this element knows which — the browser reads the string's
+            // own first strong character, which is the only thing that can.
+            dir="auto"
           >
             {thread.subject || '(No subject)'}
           </h1>

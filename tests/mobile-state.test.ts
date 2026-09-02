@@ -22,7 +22,6 @@ import {
   hasListToSelect,
   resolveDragAxis,
   resolveSwipeIntent,
-  scrimTap,
   sheetDismisses,
   sheetDragOffset,
   tabAtIndex,
@@ -669,29 +668,24 @@ describe('sheet drag to dismiss', () => {
  * than dismissing on touch-down, so a gesture that starts on the dimmed area
  * above a short sheet is a gesture; and the layer declares its axis, which is
  * CSS and so is proved by the injected touch paths rather than here.
+ *
+ * "Was that a tap" is now `usePointerDrag`'s own answer — a release that never
+ * declared an axis — and the scrim asks it rather than holding a copy. What is
+ * left to check here is the rule underneath both: what counts as declaring.
  */
 describe('edge back out of a sheet', () => {
-  it('treats a release that never declared an axis as a tap on the scrim', () => {
-    expect(scrimTap(0, 0)).toBe(true)
-    expect(scrimTap(4, 3)).toBe(true)
-    expect(scrimTap(9, 9)).toBe(true)
+  it('declares no axis for a release that never travelled — the scrim\'s tap', () => {
+    expect(resolveDragAxis(0, 0)).toBeNull()
+    expect(resolveDragAxis(4, 3)).toBeNull()
+    expect(resolveDragAxis(9, 9)).toBeNull()
   })
 
-  it('treats a release that did declare one as the end of a gesture', () => {
+  it('declares one for a release that did travel — the end of a gesture', () => {
     // The whole of the reopened bug: this release used to close the sheet on
     // its way DOWN, before the finger had moved at all, so the gesture that
     // followed had nothing left to move.
-    expect(scrimTap(60, 4)).toBe(false)
-    expect(scrimTap(0, 60)).toBe(false)
-  })
-
-  it('shares the axis lock threshold, so the scrim and the drag agree', () => {
-    // A movement the drag underneath is still calling a drag must not be
-    // called a tap by the surface it started on.
-    const declared = (dx: number, dy: number) => resolveDragAxis(dx, dy) !== null
-    for (const [dx, dy] of [[0, 0], [9, 9], [12, 0], [0, 12], [60, 4]] as const) {
-      expect(scrimTap(dx, dy)).toBe(!declared(dx, dy))
-    }
+    expect(resolveDragAxis(60, 4)).toBe('horizontal')
+    expect(resolveDragAxis(0, 60)).toBe('vertical')
   })
 
   it('starts at the edge and commits further in than a row swipe does', () => {

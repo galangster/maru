@@ -188,35 +188,45 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
  * is the scroll view's, horizontal is ours, and the split is made in the
  * compositor rather than by a JS handler racing it.
  *
- * A bottom sheet is the second exception, and it is the same fault a layer up
- * (issue 53). The sheet layer carries the edge-back gesture, so horizontal has
- * to be ours everywhere on it — including on the sheet rows, which are
- * `<button>`s exactly as a thread row is. The exclusion is written as a
- * descendant test rather than as a class on each row, because the layer owns
- * the gesture and every control inside it is in the way of one.
+ * The exception is `[data-gesture]`, and it is written that way so this list
+ * never grows again. It had been an enumeration — the thread row, then the
+ * sheet layer's descendants when the same fault turned up a layer up (issue
+ * 53) — and a third gesture surface would have been a third name to remember
+ * to add here, in a file nothing about that surface makes anyone open. The
+ * attribute goes on the element that CLAIMS the axis, so claiming it and being
+ * excused from the reset are the same act.
  *
- * Both exclusions ride in a single `:not()` so this rule keeps the (0,2,1) it
- * needs to outrank nothing in particular and be outranked by nothing either.
+ * `:not()` takes its highest argument's specificity, so this rule keeps the
+ * (0,2,1) it needs to outrank nothing in particular and be outranked by
+ * nothing either.
  */
-.mobile-app :is(button, a, input, textarea, select, label):not(.mobile-thread-row, .mobile-bottom-layer *) {
+.mobile-app :is(button, a, input, textarea, select, label):not([data-gesture], [data-gesture] *) {
   touch-action: manipulation;
 }
 
 /*
- * The sheet layer's axes: vertical is the scroller's, horizontal is the edge
- * back's.
+ * The axis a surface claims, and everything inside it.
  *
- * Declared on the scrim, on the sheet body and on every control inside it,
- * because the gesture can start on any of the three and the browser decides
- * what to do with it from the element the finger lands on. Without this the
- * edge back received exactly one `pointermove` on the Mailboxes sheet and was
- * then cancelled by WebKit's own scroller — the sheet never moved, on any
- * sheet tall enough for the finger to land on it (issue 53).
+ * Declared on the claimant and on its descendants, because a gesture can start
+ * on any of them and the browser decides what to do with it from the element
+ * the finger lands on. Without the descendant half the edge back received
+ * exactly one `pointermove` on the Mailboxes sheet and was then cancelled by
+ * WebKit's own scroller — the sheet never moved, on any sheet tall enough for
+ * the finger to land on it (issue 53).
+ *
+ * `none` is written second on purpose. A grip sits INSIDE the sheet layer, so
+ * both rules reach it at (0,1,0) and source order is what settles it: the
+ * inner claim wins, which is the only reading that makes a nested claim mean
+ * anything.
  */
-.mobile-bottom-layer,
-.mobile-bottom-layer .mobile-bottom-sheet,
-.mobile-bottom-layer :is(button, a, input, textarea, select, label) {
+[data-gesture='pan-y'],
+[data-gesture='pan-y'] * {
   touch-action: pan-y;
+}
+
+[data-gesture='none'],
+[data-gesture='none'] * {
+  touch-action: none;
 }
 
 /*
@@ -750,7 +760,6 @@ html[data-input-modality='keyboard']
   font: inherit;
   text-align: start;
   transition: background-color var(--wren-dur-fast) var(--wren-ease-out);
-  touch-action: pan-y;
 }
 
 .mobile-thread-row.is-settling {
@@ -1950,15 +1959,11 @@ html[data-input-modality='keyboard']
  *
  * The drag lives here rather than on the whole sheet because a sheet scrolls —
  * the mailbox picker is nearly full height — and a dismissal that starts
- * anywhere would be fighting that scroll for every gesture. `touch-action` is
- * what stops WebKit claiming the drag for the sheet's own scroller before the
- * axis lock has had a chance to read it.
+ * anywhere would be fighting that scroll for every gesture. The grip claims
+ * both axes with `data-gesture="none"` in bottom-sheet.tsx, which is what
+ * stops WebKit taking the drag for the sheet's own scroller before the axis
+ * lock has had a chance to read it.
  */
-.mobile-sheet-grip,
-.mobile-sheet-grip :is(button, a, input, label) {
-  touch-action: none;
-}
-
 .mobile-sheet-grabber {
   display: block;
   width: 36px;

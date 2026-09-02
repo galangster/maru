@@ -316,24 +316,6 @@ export function resolveDragAxis(deltaX: number, deltaY: number): DragAxis | null
 }
 
 /**
- * Whether releasing after this much movement was a TAP on the sheet's scrim.
- *
- * The dimmed area outside a sheet closes it, and it used to close it on
- * `pointerdown` — which meant the edge back could never run on a short sheet,
- * because the finger that starts the gesture on the scrim has already
- * dismissed the sheet before it moves. Wave 3 read that as "the back gesture
- * works on Labels and Move"; it was the tap, every time (issue 53).
- *
- * The rule is the axis lock's own: below `AXIS_LOCK_THRESHOLD` on both axes a
- * gesture has not declared itself, and `usePointerDrag` already treats that as
- * a tap. Sharing the answer is what keeps the scrim from calling a movement a
- * tap that the drag underneath it is still calling a drag.
- */
-export function scrimTap(deltaX: number, deltaY: number): boolean {
-  return resolveDragAxis(deltaX, deltaY) === null
-}
-
-/**
  * What a finished horizontal drag asked for, if anything.
  *
  * The axis test is `resolveDragAxis` rather than a second copy of the ratio:

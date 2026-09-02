@@ -35,6 +35,8 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
+import { PHONE_VIEWPORT, newPhoneContext, phoneReady, writeFrame } from './lib/capture.mjs'
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'wayfinder/captures/store')
 const DEVICE_OUT = join(OUT, 'device')
@@ -44,11 +46,10 @@ const DEVICE_OUT = join(OUT, 'device')
 const PORT = 1436
 const ORIGIN = `http://localhost:${PORT}`
 
-// iPhone 16: 393×852 points at 3×. Every capture is 1179×2556 real pixels.
-const VIEWPORT = { width: 393, height: 852 }
-const SCALE = 3
-const IPHONE_UA =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+// iPhone 16: 393×852 points at 3×. Every capture is 1179×2556 real pixels —
+// the phone `newPhoneContext` drives, shared with the QA wave scripts so a
+// store frame and a proof frame are the same device.
+const VIEWPORT = PHONE_VIEWPORT
 
 /** DIRECTION §3, light: base, text-1, text-2. §4: the two families. */
 const INK = '#191716'
@@ -265,26 +266,17 @@ function sourceDirFromArgv(argv) {
 async function captureFromBrowser(browser) {
   const server = await startServer()
   try {
-    const phone = await browser.newContext({
-      viewport: VIEWPORT,
-      deviceScaleFactor: SCALE,
-      userAgent: IPHONE_UA,
-      isMobile: true,
-      hasTouch: true,
-      locale: 'en-US',
-      timezoneId: 'America/Los_Angeles',
-      reducedMotion: 'reduce',
-    })
+    const phone = await newPhoneContext(browser)
     const page = await phone.newPage()
 
     for (const shot of SHOTS) {
       await page.goto(`${ORIGIN}/?mobile=1&demo=1&screenshot=1&theme=light`, { waitUntil: 'load' })
-      // The mobile shell has no readiness attribute; the first virtualized row
-      // existing is the same signal — the thread query has resolved.
-      await page.locator('.mobile-thread-row').first().waitFor({ timeout: 30_000 })
+      await phoneReady(page)
       if (shot.act) await shot.act(page)
       await page.waitForLoadState('networkidle')
-      await page.screenshot({ path: join(DEVICE_OUT, shot.file) })
+      // No written width: a store frame is composed onto a canvas later and is
+      // only ever scaled DOWN, so it is kept exactly as Chromium produced it.
+      await writeFrame(page, DEVICE_OUT, shot.file)
       console.log(`captured ${shot.file}`)
     }
     await phone.close()

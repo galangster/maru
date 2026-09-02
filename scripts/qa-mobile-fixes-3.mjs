@@ -10,19 +10,27 @@
 // them are the evidence a machine reads: the sheet's own transform mid-drag,
 // after a partial drag, and after a commit.
 
-import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { chromium } from 'playwright'
-import sharp from 'sharp'
 
-import { ROOT, DETERMINISTIC_CONTEXT } from './lib/capture.mjs'
+import { PHONE_VIEWPORT, ROOT, newPhoneContext, phoneReady, saveFrame, writeFrame } from './lib/capture.mjs'
 import { ORIGIN, startServerIfNeeded } from './dev-server.mjs'
 
 const OUT = join(ROOT, 'wayfinder/captures/qa-mobile-fixes-3')
-const VIEWPORT = { width: 393, height: 852 }
-const IPHONE_UA =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+const VIEWPORT = PHONE_VIEWPORT
+
+/**
+ * `UNDO_WINDOW_MS` from src/lib/undo.ts, which this script cannot import — it
+ * drives a built page, not the module.
+ *
+ * It is here because the issue-65 run is ON THIS CLOCK: the offer is a door
+ * onto entries that expire, so six presses have to fit inside one window, and
+ * a harness that spends the window on its own bookkeeping proves less than it
+ * says it does. The run below reports the time it actually took against this
+ * number rather than assuming it fits.
+ */
+const UNDO_WINDOW_MS = 10_000
 
 const findings = []
 const note = (line) => {
@@ -34,15 +42,10 @@ async function shoot(page, file, { fast = false } = {}) {
   // A frame of a toast cannot wait for the network: the offer is on a timer,
   // and `networkidle` outlives it.
   if (!fast) await page.waitForLoadState('networkidle')
-  const buffer = await page.screenshot({ type: 'png' })
   // Written at the viewport's own 393 px, not the 1179 px the ×3 screen
   // renders at — the same width waves 1 to 3 wrote, so the frames compare.
-  const encoded = await sharp(buffer)
-    .resize({ width: VIEWPORT.width })
-    .png({ palette: true, dither: 0 })
-    .toBuffer()
-  await writeFile(join(OUT, file), encoded)
-  console.log(`  → ${file}  ${(encoded.length / 1024).toFixed(0)} KB`)
+  const bytes = await writeFrame(page, OUT, file, { width: VIEWPORT.width })
+  console.log(`  → ${file}  ${(bytes / 1024).toFixed(0)} KB`)
 }
 
 /** One finger, from `from` to `to`, released at the end unless told otherwise. */
@@ -82,7 +85,10 @@ async function tapUndo(page, cdp) {
   const point = [{ x: rect.x, y: rect.y, radiusX: 6, radiusY: 6, force: 1 }]
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: point })
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-  await page.waitForTimeout(400)
+  // Long enough for the reversal and the toast's re-draw, and no longer. Six
+  // presses share one ten-second window, and this used to be 400 ms with a PNG
+  // encoded in the middle of them.
+  await page.waitForTimeout(200)
 }
 
 const SHEET = '.mobile-bottom-sheet'
@@ -99,9 +105,6 @@ async function openMailboxes(page) {
   await page.locator(`${SHEET}[aria-label="Mailboxes"]`).waitFor({ timeout: 10_000 })
 }
 
-/** The phone's own "the list has rendered" signal: a row. */
-const ready = (page) => page.locator('.mobile-thread-row').first().waitFor({ timeout: 20_000 })
-
 /** A left swipe on the first row: the shortest sheet the phone draws. */
 async function openLaterSheet(page, cdp) {
   const row = await page.locator('.mobile-thread-row').first().boundingBox()
@@ -111,24 +114,16 @@ async function openLaterSheet(page, cdp) {
 }
 
 async function main() {
-  await mkdir(OUT, { recursive: true })
   const server = await startServerIfNeeded(ROOT)
   const browser = await chromium.launch()
-  const context = await browser.newContext({
-    viewport: VIEWPORT,
-    deviceScaleFactor: 3,
-    isMobile: true,
-    hasTouch: true,
-    userAgent: IPHONE_UA,
-    ...DETERMINISTIC_CONTEXT,
-  })
+  const context = await newPhoneContext(browser)
   const page = await context.newPage()
   const cdp = await context.newCDPSession(page)
 
   try {
     // ─── issue 53, the tall sheet ────────────────────────────────────────────
     await page.goto(`${ORIGIN}/?mobile=1&demo=1&screenshot=1&theme=light`, { waitUntil: 'load' })
-    await ready(page)
+    await phoneReady(page)
 
     await openMailboxes(page)
     const tall = await page.locator(SHEET).boundingBox()
@@ -208,7 +203,7 @@ async function main() {
 
     // ─── issue 65 ────────────────────────────────────────────────────────────
     await page.goto(`${ORIGIN}/?mobile=1&demo=1&theme=light`, { waitUntil: 'load' })
-    await ready(page)
+    await phoneReady(page)
     // The list is virtualized, so its row COUNT is the window and not the
     // mailbox. What the top of the list is, is the honest reading.
     const topRow = () => page.locator('.mobile-thread-row').first().getAttribute('aria-label')
@@ -223,19 +218,39 @@ async function main() {
     const title = await page.locator('[data-sonner-toast] [data-title]').first().innerText()
     note(`65 · top of the inbox was ${JSON.stringify(atRest.slice(0, 40))}, after six archives ${JSON.stringify((await topRow()).slice(0, 40))}`)
     note(`65 · six archives → ${toasts} toast(s) on screen, the front one reads ${JSON.stringify(title)}`)
-    await shoot(page, '65-undo-six-coalesced.png', { fast: true })
+    // The buffer, not the file. Everything from here to the last press is
+    // inside the undo window, and a palette encode costs a tenth of it.
+    const coalescedFrame = await page.screenshot({ type: 'png' })
 
     // Tapped, not clicked: the whole complaint in issue 65 is about what a
     // FINGER can reach, so the proof has to be a finger. Six presses on the
     // one control, and the count comes down each time.
+    const pressedFrom = Date.now()
+    let afterTwoFrame = null
     for (let i = 1; i <= 6; i += 1) {
       await tapUndo(page, cdp)
       const seen = await page.locator('[data-sonner-toast] [data-title]').allInnerTexts()
-      note(`65 · undo ${i} → ${JSON.stringify(seen)}`)
-      if (i === 2) await shoot(page, '65-undo-after-two.png', { fast: true })
+      note(`65 · undo ${i} at ${Date.now() - pressedFrom} ms → ${JSON.stringify(seen)}`)
+      if (i === 2) afterTwoFrame = await page.screenshot({ type: 'png' })
     }
-    note(`65 · after six Undos the top of the inbox is ${JSON.stringify((await topRow()).slice(0, 40))} — back to where it started: ${(await topRow()) === atRest}`)
-    await shoot(page, '65-undo-all-six-recovered.png', { fast: true })
+    const spent = Date.now() - pressedFrom
+    const recoveredFrame = await page.screenshot({ type: 'png' })
+    // Said out loud rather than assumed. If a slow machine spends the window
+    // on the run itself, the entries expire underneath it and the reading
+    // below is about the harness rather than about the phone — so the harness
+    // reports its own cost beside the result it is claiming.
+    note(`65 · the six presses took ${spent} ms of the ${UNDO_WINDOW_MS} ms window: ${spent < UNDO_WINDOW_MS}`)
+    const ended = await topRow()
+    note(`65 · after six Undos the top of the inbox is ${JSON.stringify(ended.slice(0, 40))} — back to where it started: ${ended === atRest}`)
+
+    for (const [file, buffer] of [
+      ['65-undo-six-coalesced.png', coalescedFrame],
+      ['65-undo-after-two.png', afterTwoFrame],
+      ['65-undo-all-six-recovered.png', recoveredFrame],
+    ]) {
+      const bytes = await saveFrame(buffer, OUT, file, { width: VIEWPORT.width })
+      console.log(`  → ${file}  ${(bytes / 1024).toFixed(0)} KB`)
+    }
   } finally {
     await browser.close()
     if (server) server.kill()

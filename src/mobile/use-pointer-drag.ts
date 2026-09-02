@@ -22,6 +22,19 @@ interface PointerDragOptions {
    * a tap, or WebKit took it. Whatever the drag was showing must spring back.
    */
   onCancel?: () => void
+  /**
+   * The gesture was released without ever declaring an axis: a TAP.
+   *
+   * The lock already knows this — below `AXIS_LOCK_THRESHOLD` on both axes a
+   * gesture has not declared itself, which is the same reading that decides
+   * whether a drag is a drag — so the answer is reported rather than worked
+   * out a second time by whoever wants it. The sheet's scrim wanted it, and
+   * had been tracking its own origin, its own delta and its own release to get
+   * an answer this hook was already holding.
+   *
+   * Released only, never cancelled: WebKit taking the gesture is not a tap.
+   */
+  onTap?: (event: ReactPointerEvent<HTMLElement>) => void
 }
 
 interface PointerDragHandlers {
@@ -75,12 +88,12 @@ function release(event: ReactPointerEvent<HTMLElement>): void {
  * fires it when its own scroll view takes the gesture, and a swipe cancelled
  * that way must spring back rather than commit — it was a scroll.
  */
-export function usePointerDrag({ axis, onMove, onCommit, onCancel }: PointerDragOptions): PointerDragHandlers {
+export function usePointerDrag({ axis, onMove, onCommit, onCancel, onTap }: PointerDragOptions): PointerDragHandlers {
   const gesture = useRef<Gesture | null>(null)
   // One ref for everything the handlers read from the render, the axis
   // included, so the handlers themselves never have to be rebuilt.
-  const options = useRef({ axis, onMove, onCommit, onCancel })
-  options.current = { axis, onMove, onCommit, onCancel }
+  const options = useRef({ axis, onMove, onCommit, onCancel, onTap })
+  options.current = { axis, onMove, onCommit, onCancel, onTap }
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     gesture.current = {
@@ -112,8 +125,12 @@ export function usePointerDrag({ axis, onMove, onCommit, onCancel }: PointerDrag
     if (!active || active.pointerId !== event.pointerId) return
     gesture.current = null
     release(event)
-    if (active.axis === options.current.axis) options.current.onCommit(active.delta)
-    else options.current.onCancel?.()
+    if (active.axis === options.current.axis) return options.current.onCommit(active.delta)
+    // Not ours: it went the other way, or it never went anywhere. Either way
+    // whatever the drag was showing springs back first, and a gesture that
+    // never declared an axis then reports itself as the tap it was.
+    options.current.onCancel?.()
+    if (!active.axis) options.current.onTap?.(event)
   }, [])
 
   const onPointerCancel = useCallback((event: ReactPointerEvent<HTMLElement>) => {

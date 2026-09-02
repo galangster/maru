@@ -27,7 +27,13 @@ import { playSound } from '@/lib/sound'
 import { dedupeAddresses } from '@/lib/compose'
 import { correspondents } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
-import { NOTHING_TO_UNDO, UNDO_LABELS, undoToastId, type Undoable } from '@/lib/undo'
+import {
+  LEAVES_THE_LIST,
+  NOTHING_TO_UNDO,
+  UNDO_LABELS,
+  undoToastId,
+  type Undoable,
+} from '@/lib/undo'
 
 import { useMailService } from './service'
 import { useUi, viewKey } from './ui-store'
@@ -272,6 +278,13 @@ export function useMailEvents() {
           // Folder membership can change for any list, so those always refetch.
           void client.invalidateQueries({ queryKey: ['threads'] })
           void client.invalidateQueries({ queryKey: ['unread'] })
+          // Results are a list of threads like any other, and they were the one
+          // list nothing refreshed: a search that reached a conversation went
+          // on showing it exactly as it had been after it was acted on, so the
+          // list offered to archive it a second time (issue 64). Held results
+          // stay on screen while the answer resolves — `useSearch` keeps the
+          // previous data — so this costs no blink between keystrokes.
+          void client.invalidateQueries({ queryKey: ['search'] })
           // A reply, an archive and a trash all end a deferral, so the Later
           // count moves on events that never mention Later.
           void client.invalidateQueries({ queryKey: keys.deferred })
@@ -343,27 +356,58 @@ interface ActionContext {
 }
 
 /**
+ * Whether the acted-on thread still belongs in one cached list.
+ *
+ * A mailbox list is answered by `threadMatchesView`, off the view riding in its
+ * own key. A SEARCH list has no view and never could have one — a result set
+ * holds inbox mail, sent mail and trashed mail at once — so the only thing that
+ * can take a result off it is the verb: an action that puts the conversation
+ * away puts it away here too, and one that leaves it where it is (a star, a
+ * deferral) leaves it on the list wearing the change.
+ */
+function stillBelongs(
+  queryKey: readonly unknown[],
+  thread: Thread,
+  now: number,
+  leaves: boolean,
+): boolean {
+  if (queryKey[0] === 'search') return !leaves
+  const view = queryKey[2] as MailView | undefined
+  return !view || threadMatchesView(thread, view, now)
+}
+
+/**
  * Patch one thread in every cached list, and drop it from any list it no longer
  * belongs to. Returns the lists AS THEY WERE, which is what the rollback needs.
  *
  * Shared by the two optimistic mutations. "Does this thread still belong in
- * this list" has exactly one answer — `threadMatchesView` — and asking it from
- * two near-identical loops is how the archive rule and the Later rule would
+ * this list" has exactly one answer — `stillBelongs` — and asking it from two
+ * near-identical loops is how the archive rule and the Later rule would
  * eventually disagree about the same list.
+ *
+ * Search results are patched here with everything else rather than being
+ * dropped by hand in the screen that drew them. They were the one list outside
+ * this function, so the phone's search screen kept a set of keys it had acted
+ * on and subtracted them itself — a second optimistic frame, in a component,
+ * for the same fact this loop already holds (issue 64).
  */
 function patchLists(
   client: QueryClient,
   threadKey: string,
   transform: (thread: Thread) => Thread,
   now: number,
+  /** Whether this action takes the thread out of the list it was in. */
+  leaves = false,
 ): [readonly unknown[], Thread[] | undefined][] {
-  const lists = client.getQueriesData<Thread[]>({ queryKey: ['threads'] })
+  const lists = [
+    ...client.getQueriesData<Thread[]>({ queryKey: ['threads'] }),
+    ...client.getQueriesData<Thread[]>({ queryKey: ['search'] }),
+  ]
   for (const [queryKey, threads] of lists) {
     if (!threads) continue
-    const view = queryKey[2] as MailView | undefined
     const updated = threads
       .map((t) => (t.key === threadKey ? transform(t) : t))
-      .filter((t) => t.key !== threadKey || !view || threadMatchesView(t, view, now))
+      .filter((t) => t.key !== threadKey || stillBelongs(queryKey, t, now, leaves))
     client.setQueryData(queryKey, updated)
   }
   return lists
@@ -379,9 +423,37 @@ function restore(client: QueryClient, threadKey: string, context: ActionContext 
 type NewUndoable = Omit<Undoable, 'at'>
 
 /**
+ * How a shell draws an offer, when the desktop's per-entry toast is not it.
+ *
+ * It is handed the whole offer rather than only what it draws, because a shell
+ * that coalesces reads the registry for itself and this is the moment it has to
+ * look — see `src/mobile/undo-offer.ts`.
+ */
+export type UndoPresenter = (entryId: string, label: string, description?: string) => void
+
+let presentUndo: UndoPresenter | null = null
+
+/**
+ * Hand every inline Undo to this shell instead of raising the desktop's toast.
+ *
+ * ONE seam, set once by the shell at mount. The phone previously reached round
+ * the outside — it let the per-entry toast go up and then swept it away again,
+ * from four call sites, and a fifth surface that offered an Undo would have
+ * been a fifth pile the sweep did not know about (issue 65). Everything that
+ * offers an inline Undo already passes through `showUndoToast`, so that is
+ * where the fork belongs.
+ *
+ * `null` puts the desktop's toast back, which is what the shell's unmount does.
+ */
+export function setUndoPresenter(presenter: UndoPresenter | null): void {
+  presentUndo = presenter
+}
+
+/**
  * One entry's undo toast. Every surface that offers an inline Undo goes
  * through here, so the id, the action wiring and the wording cannot drift
- * apart.
+ * apart — including `runBatchAction` and `runBatchDefer`, which reach it
+ * through `offerUndo`.
  *
  * The button is `undoAndSay` with a name, which is the whole point: the toast,
  * ⌘Z and `z` are three doors onto one body, so the button reverses the entry
@@ -389,6 +461,7 @@ type NewUndoable = Omit<Undoable, 'at'>
  * — and still says what it did, exactly as the keyboard does (issue 40).
  */
 export function showUndoToast(entryId: string, label: string, description?: string): void {
+  if (presentUndo) return presentUndo(entryId, label, description)
   toast(label, undoToastOptions(entryId, description, () => undoAndSay(entryId)))
 }
 
@@ -579,6 +652,7 @@ export function usePerformAction() {
         action.threadKey,
         (t) => applyActionToThread(t, action.type),
         Date.now(),
+        LEAVES_THE_LIST.has(action.type),
       )
 
       if (detail) {

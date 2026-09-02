@@ -33,10 +33,85 @@ export const DETERMINISTIC_CONTEXT = {
   reducedMotion: 'reduce',
 }
 
+/**
+ * The phone every mobile script drives: iPhone 16, 393×852 points at 3×.
+ *
+ * Beside `DETERMINISTIC_CONTEXT` because it is the same kind of fact — the
+ * thing that must not differ between two runs, or between two scripts whose
+ * frames are compared. Two scripts had written their own, and they had already
+ * drifted to two iOS versions.
+ */
+export const IPHONE_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+
+/** The phone's own viewport, in points. Frames are written at this width. */
+export const PHONE_VIEWPORT = { width: 393, height: 852 }
+
 /** One pinned context. One, because a context per shot re-pays the browser
  *  profile and lets two frames disagree about locale or motion. */
 export function newCaptureContext(browser, { viewport, deviceScaleFactor = 1 }) {
   return browser.newContext({ viewport, deviceScaleFactor, ...DETERMINISTIC_CONTEXT })
+}
+
+/**
+ * A pinned context that is a PHONE, not a narrow desktop.
+ *
+ * `hasTouch` and `isMobile` are the part that matters and the part a narrow
+ * viewport does not give you: without them there is no touch to dispatch, and
+ * every gesture in issue 53 is invisible to a mouse — a mouse never hands a
+ * drag to WebKit's scroll view, so the bug cannot be reproduced or disproved
+ * with one.
+ */
+export function newPhoneContext(browser) {
+  return browser.newContext({
+    viewport: PHONE_VIEWPORT,
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
+    userAgent: IPHONE_UA,
+    ...DETERMINISTIC_CONTEXT,
+  })
+}
+
+/**
+ * The phone's own "the list has rendered" signal.
+ *
+ * The mobile shell has no readiness attribute of its own — `[data-ready]` is
+ * the desktop list's — so the first virtualized row existing is the same
+ * statement: the thread query has resolved and the app is drawing it.
+ */
+export function phoneReady(page, timeout = 30_000) {
+  return page.locator('.mobile-thread-row').first().waitFor({ timeout })
+}
+
+/**
+ * Save a frame already taken. Returns its size in bytes.
+ *
+ * `width` re-encodes the frame at a written width — palette-encoded and
+ * undithered, which is what keeps a flat interface capture under a tenth of a
+ * truecolour one — and is how a ×3 run writes the 393 px frames that compare
+ * against every earlier wave. WITHOUT it the shot is written exactly as
+ * Chromium produced it, which is what a store asset needs: those are composed
+ * onto a canvas later and must never be re-encoded on the way.
+ *
+ * Split from the shutter because the encode is the slow half, and a script
+ * driving a surface that is ON A CLOCK cannot afford it mid-run: the phone's
+ * undo offer expires at `UNDO_WINDOW_MS`, and a PNG written between two presses
+ * spends a tenth of that window. Those scripts take the buffer inside the run
+ * and save it afterwards.
+ */
+export async function saveFrame(buffer, out, file, { width } = {}) {
+  const encoded = width
+    ? await sharp(buffer).resize({ width }).png({ palette: true, dither: 0 }).toBuffer()
+    : buffer
+  await mkdir(out, { recursive: true })
+  await writeFile(join(out, file), encoded)
+  return encoded.length
+}
+
+/** Shutter and save in one, which is what a script not racing a clock wants. */
+export async function writeFrame(page, out, file, options = {}) {
+  return saveFrame(await page.screenshot({ type: 'png' }), out, file, options)
 }
 
 /** Navigate, and wait for the app to say it has rendered its list. */

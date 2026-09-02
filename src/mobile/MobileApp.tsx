@@ -4,6 +4,7 @@ import type { Account, MailActionType, MailView } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import {
+  registerUndoable,
   useDefer,
   useLabels,
   useMailEvents,
@@ -46,7 +47,7 @@ import { useInputModality } from './use-input-modality'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
 import { usePushAccountNudge } from './use-push-account-nudge'
 import { useRouteScroll } from './use-route-scroll'
-import { offerMobileUndo, showMobileUndoOffer } from './undo-offer'
+import { useMobileUndoOffer } from './undo-offer'
 import '@/features/shell/toast.css'
 import './mobile.css'
 
@@ -59,6 +60,13 @@ export function MobileApp() {
   useMailEvents()
   useWakeSweep()
   useInputModality()
+  // The phone's one undo door rather than the desktop's per-entry offers. The
+  // registry underneath is the same ten-deep stack; what a burst of archives
+  // must not do on a 393 px screen is raise six toasts, five of them behind
+  // the newest and none of those tappable (issue 65). Installed once, at the
+  // seam every inline Undo passes through, so nothing below has to remember
+  // it — see undo-offer.ts.
+  useMobileUndoOffer()
 
   const [navigation, dispatch] = useReducer(mobileRouteReducer, initialMobileRoute)
   // Which mailbox the list screen is showing. Shell state rather than route
@@ -128,11 +136,9 @@ export function MobileApp() {
 
   const act = (threadKey: string, type: MailActionType) => {
     const action = { threadKey, type }
-    // The phone's one undo door rather than the desktop's per-entry offer. The
-    // registry underneath is the same ten-deep stack; what a burst of archives
-    // must not do on a 393 px screen is raise six toasts, five of them behind
-    // the newest and none of those tappable (issue 65) — see undo-offer.ts.
-    offerMobileUndo((next) => perform.mutate(next), action)
+    // The desktop's own registration and the desktop's own offer. What the
+    // phone changes about it is upstream of here, in the presenter.
+    registerUndoable((next) => perform.mutate(next), action)
     perform.mutate(action)
     // The archive haptic rides usePerformAction with the completion sound, so
     // every surface gets it and a bulk archive stays one tap.
@@ -163,10 +169,6 @@ export function MobileApp() {
     if (threadKeys.length === 0) return
     if (threadKeys.length === 1) return act(threadKeys[0], type)
     announce(runBatchAction((next) => perform.mutate(next), threadKeys, type, 'conversation'))
-    // The batch registers one entry and raises its own per-entry toast. On the
-    // phone that toast is swept into the single offer, so a batch and the
-    // archives around it are one control and not three (issue 65).
-    showMobileUndoOffer()
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
   /**
@@ -289,9 +291,6 @@ export function MobileApp() {
                 'conversation',
               ),
             )
-            // Same sweep as the bulk bar: Later's own offer joins the phone's
-            // one undo control rather than sitting beside it.
-            showMobileUndoOffer()
             // Saving for later takes the conversation out of the inbox, so the
             // screen reading it goes with it — the same rule Archive follows.
             closeAfterRemoval()

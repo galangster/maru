@@ -112,13 +112,21 @@ export function rowActions(thread: ThreadActionSource): MobileThreadActions {
  */
 export function batchActions(threads: readonly Thread[]): MobileThreadActions {
   if (threads.length === 0) return NOTHING
-  const each = threads.map(rowActions)
-  const remove = each[0].remove
-  return {
-    remove: each.every((one) => one.remove === remove) ? remove : null,
-    defer: each.every((one) => one.defer),
-    trash: each.every((one) => one.trash),
+  let shared = rowActions(threads[0])
+  for (let index = 1; index < threads.length; index += 1) {
+    const one = rowActions(threads[index])
+    shared = {
+      remove: shared.remove === one.remove ? shared.remove : null,
+      defer: shared.defer && one.defer,
+      trash: shared.trash && one.trash,
+    }
+    // Narrowed to nothing, and an intersection cannot widen again — so the
+    // rest of the list is not asked. Search is why it is worth not asking:
+    // one answer holds every mailbox at once and is the longest list the
+    // phone draws, and this runs for all of it on every result set.
+    if (!shared.remove && !shared.defer && !shared.trash) return NOTHING
   }
+  return shared
 }
 
 /**
