@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support — Maru Mail</title>
+<meta name="description" content="How to get help with Maru Mail, what support can and cannot do, and the answers to the questions people ask first.">
+<style>
+  :root { --ink:#1a1a1e; --ink2:#55555e; --bg:#fdfdfc; --card:#f4f4f2; --accent:#5b5bd6; --line:#e6e6e2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#ececef; --ink2:#a2a2ab; --bg:#141416; --card:#1e1e21; --accent:#8f8fe8; --line:#2a2a2e; }
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font:16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:640px; margin:0 auto; padding:64px 24px; }
+  h1 { font-size:28px; letter-spacing:-0.02em; margin-bottom:4px; }
+  h2 { font-size:19px; margin:36px 0 8px; }
+  h3 { font-size:16px; margin:20px 0 4px; }
+  p, li { color:var(--ink2); margin:10px 0; }
+  li { margin:6px 0; }
+  ul, ol { padding-left:22px; }
+  strong { color:var(--ink); }
+  a { color:var(--accent); }
+  code { font-size:14px; }
+  .updated, footer { color:var(--ink2); font-size:14px; }
+  .updated { margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin:16px 0; }
+  .card p { margin:6px 0; font-size:15px; }
+  footer { margin-top:48px; padding-top:16px; border-top:1px solid var(--line); }
+  footer a { margin-right:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Maru Mail support</h1>
+  <p class="updated">Last updated September 1, 2026</p>
+
+  <p>Write to <a href="mailto:support@getmaru.app">support@getmaru.app</a>. One person reads that inbox, and usually answers within two business days. Send the request from the address on your Maru account when it is about your account, and never send a password, a recovery key, or card details.</p>
+
+  <div class="card">
+    <p><strong>Maru is in a private beta.</strong> The iPhone app is new, Gmail sign-in needs an invitation, and some things below are honest about not working yet. If something is broken, the report is welcome — it is how the list gets shorter.</p>
+  </div>
+
+  <h2>Bug reports</h2>
+  <p>Tell us what you did, what happened, and what you expected. Add your app version — it is at the bottom of Settings — and your operating system. Maru sends no telemetry, so nothing reaches us unless you send it.</p>
+  <p>Public issues, and the source for every claim on this site: <a href="https://github.com/galangster/maru">github.com/galangster/maru</a>. Security reports go to <a href="mailto:security@getmaru.app">security@getmaru.app</a> instead, and are described in <a href="https://github.com/galangster/maru/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+
+  <h2>The questions people ask first</h2>
+
+  <h3>Google says Maru is unverified</h3>
+  <p>Google can show an unverified-app warning until it finishes reviewing Maru's OAuth client. The warning is about that client. It does not mean Maru received your Google password.</p>
+  <p>Continue only if you got Maru from getmaru.app or the official GitHub repository <em>and</em> you have a private-beta invitation. Otherwise stop and write to support. If both are true, choose <strong>Advanced</strong>, then the link that continues to Maru Mail.</p>
+
+  <h3>I lost my recovery key</h3>
+  <p>Maru cannot retrieve or replace it, and support cannot recover your vault. The service holds no key that opens it. If you still know your password, keep it somewhere safe and generate a new recovery key from account settings. If both are gone, the vault is unrecoverable — the app still works, and you can sign in to your Gmail accounts again from scratch.</p>
+
+  <h3>I want to remove a device</h3>
+  <p>Open Maru account settings on a device you are still signed in on, find the old device, and choose <strong>Sign out</strong>. That revokes its Maru session the next time it contacts the service. It does not delete the Google tokens already stored on that device — use <strong>Delete local data</strong> there if you still hold it. If you do not recognise a device, revoke it now and then change your Maru password.</p>
+
+  <h3>Later did not follow me to my other device</h3>
+  <p>It does not yet. A thread you defer on your Mac is still in your iPhone's inbox, because Later is stored on the device that deferred it. Encrypted Later sync is planned. Until it ships, manage Later separately on each device.</p>
+
+  <h3>Notifications on the iPhone</h3>
+  <p>Background push is not in the current iPhone build. Mail arrives when you open the app or pull to refresh.</p>
+
+  <h3>Billing, refunds, and cancelling</h3>
+  <p>The app is free and open source. The optional Maru account costs $5 a month or $50 a year after a 14-day trial with no card up front, and is billed through Stripe on the web at <a href="https://getmaru.app/account">getmaru.app/account</a> — never inside the app. You can cancel or change the plan in that billing portal at any time.</p>
+  <p>We refund on request within fourteen days of the first charge. Email support from your account address with the charge date and whether the plan is monthly or yearly.</p>
+
+  <h3>Deleting your data</h3>
+  <p>Everything is in the app: remove a Gmail account, revoke Maru at Google, export your data, and delete your Maru account. The step-by-step list is on <a href="/support/google-data">Deleting your data</a>. We purge deleted account data from the service within 30 days.</p>
+
+  <h2>What support cannot do</h2>
+  <ul>
+    <li>Recover a vault when both the password and the recovery key are lost.</li>
+    <li>Read your mail. Mail syncs between your device and Google, and never reaches the Maru service.</li>
+    <li>Change anything in your Google account, or lift Google's own limits on an unverified app.</li>
+    <li>Ask you for your password, your recovery key, or a payment detail. Nobody from Maru will.</li>
+  </ul>
+
+  <footer>
+    <a href="/">Maru Mail</a>
+    <a href="/privacy">Privacy policy</a>
+    <a href="/terms">Terms</a>
+    <a href="/security">Security &amp; data flow</a>
+    <a href="/support/google-data">Delete your data</a>
+    <a href="mailto:support@getmaru.app">support@getmaru.app</a>
+  </footer>
+</main>
+</body>
+</html>
