@@ -57,7 +57,7 @@ the audit (nothing retired; fourteen unraised items decided or queued).
 | --- | --- |
 | `getmaru.app` | Pages deploys from `main`; today's push put the draft privacy/terms/status pages and the README live |
 | `https://sync-production-c0b0.up.railway.app` | the sync service, healthy, allowlisted to Nick's three addresses, comped |
-| `sync.getmaru.app` | attached on Railway; DNS records in Nick's queue |
+| `sync.getmaru.app` | **live with certificate**; Pub/Sub endpoint moved to it; relay has the APNs secret |
 | Installed Maru.app | 0.1.7 on this Mac; it will offer 0.1.8 on its next update check |
 | GitHub Releases / updater | **v0.1.8 published** (DMG, tarball, .sig, latest.json); `releases/latest` and `latest.json` both report 0.1.8; Windows `.exe` and `.msi` attached from CI run 33559691464 |
 

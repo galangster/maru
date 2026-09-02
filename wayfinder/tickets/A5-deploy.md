@@ -62,3 +62,12 @@ MARU_LIVE_MODE=setup MARU_LIVE_SYNC_URL=… MARU_LIVE_EMAIL=… MARU_LIVE_PASSWO
 railway ssh --service Postgres -- sh -c 'U="$DATABASE_URL"; D="${U%/*}/maru_drill"; pg_dump -Fc "$U" -f /tmp/maru.dump && psql -q "$U" -c "CREATE DATABASE maru_drill" && pg_restore --no-owner -d "$D" /tmp/maru.dump && psql -At "$D" -c "SELECT user_id, version, left(ciphertext,14) FROM vaults"; psql -q "$U" -c "DROP DATABASE maru_drill"; rm -f /tmp/maru.dump'
 MARU_LIVE_MODE=teardown … npx vitest run tests/live
 ```
+
+## Custom domain live — 2026-09-02 (UTC)
+
+`sync.getmaru.app` resolves, Railway issued the certificate, `/healthz`
+answers over it. The Pub/Sub push subscription now targets
+`https://sync.getmaru.app/v1/push/gmail` (a delivery after the switch got
+204). The relay redeployed with `APNS_KEY_P8` and logs pushes as relayed.
+The Railway domain keeps working; the desktop 0.1.8 was built against it
+and the next desktop release drops the `VITE_MARU_SYNC_URL` override.
