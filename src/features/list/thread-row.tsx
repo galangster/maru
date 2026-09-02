@@ -227,24 +227,20 @@ export const ThreadRow = memo(function ThreadRow({
           </time>
         </div>
 
-        {/* The hover cluster's lane — issue #32. The cluster is opaque and
-            absolutely positioned over this line's right end, so hovering "Bike
-            service — ready Thursday" hid "Thursday" and the whole preview
-            behind it: the row's own text, covered by a control that was
-            summoned by pointing at it.
+        {/* This line gives the hover cluster nothing — issue #32, second pass.
 
-            The line now reserves the lane while the cluster is there, off the
-            same `--wren-row-cluster-w` the cluster is sized by, so the lane
-            cannot be narrower than the thing it is holding room for. Reserved
-            only on hover, because reserving it at rest would spend 160 px of
-            every row in the list on a state that is true for one row at a time.
+            It used to reserve a 160 px lane on hover, off the same token the
+            cluster was sized by, so that an opaque control could not sit on the
+            row's own words. The lane was honest and the row paid for it out of
+            the only two things on this line: the subject's box dropped
+            186.7 → 124 px and the preview's dropped to zero. Covering the text
+            and evicting the text look the same to the person hovering the row,
+            which is why the issue came back with the same title.
 
-            The padding SNAPS. It is layout, and animating it re-flows and
-            re-truncates the subject and the snippet on every frame of the
-            cluster's fade — the text visibly crawling left under a control
-            that is only crossfading in. The cluster keeps its own transition;
-            the lane is simply there before it is. */}
-        <div className="flex items-baseline gap-2 leading-5 group-hover:pr-(--wren-row-cluster-w)">
+            The cluster moved to line one instead, into the empty lane between
+            the sender column and the date — see `QuickActions`. Nothing here
+            reflows, at rest or on hover. */}
+        <div className="flex items-baseline gap-2 leading-5">
           <span
             className={cn(
               'truncate text-sm leading-5',
@@ -368,12 +364,31 @@ function ArchiveTick() {
  * unaffected at every width, which is what makes hiding the strip acceptable
  * rather than a loss of function.
  *
- * It sits on the row's *second* line. Centred, it covered the timestamp
- * column exactly (S2) — the row's right-hand anchor, hidden precisely when the
- * cursor is on the row being read. There is no room in a 400 px pane to reserve
- * 130 px of gutter, so the cluster moved down instead of the content moving
- * over: nothing reflows, nothing animates but opacity and a 4 px slide, and the
- * time stays visible.
+ * **It sits in the empty lane at the end of the row's FIRST line**, right-
+ * aligned with the date column: the flexible gap the fixed sender column leaves
+ * before the timestamp, plus the timestamp itself. That gap is the only region
+ * of a row no text ever spreads into, so the cluster can be opaque there and
+ * evict nothing.
+ *
+ * It has been in three places, and the two before this one are why:
+ *
+ *   - Centred on the row, it covered the timestamp column exactly (S2).
+ *   - On line two, it covered the subject's tail and the whole preview (#32).
+ *     Reserving a lane on line two instead stopped the covering and started
+ *     evicting: subject 186.7 → 124 px, preview to zero, which is the same row
+ *     with the same words missing (#32, reopened).
+ *
+ * So the cost is back on the timestamp, deliberately. A date is the trailing
+ * metadatum: it is the same on the row above and below, it is not what a
+ * sentence needs to finish, and it comes back the moment the pointer leaves.
+ * The subject and the preview are the row, and they now measure the same
+ * hovered as at rest.
+ *
+ * 140 px, five actions at 28 px rather than 32. The lane is what it is —
+ * 68 px of gap, the 8 px between, and the 64 px date column at the list's own
+ * measure — and a cluster wider than its lane is a cluster back on the sender's
+ * name. 28 px is a mouse target on a desktop-only surface whose five actions
+ * all have keys.
  *
  * The five buttons are bare, styled by `iconButtonClass` rather than rendered
  * as <IconButton>. IconButton brings a tooltip, and a tooltip inside an
@@ -419,11 +434,15 @@ function QuickActions({
     <div
       aria-hidden
       className={cn(
-        // The width is the token, not the sum of what happens to be inside:
-        // the lane the row's second line gives up is the same number, and a
-        // sixth action would otherwise widen the cluster without widening the
-        // lane and put us back under issue #32.
-        'bg-raised absolute right-3 bottom-1 w-(--wren-row-cluster-w) items-center justify-center overflow-hidden rounded-md shadow-md',
+        // The width is the token, not the sum of what happens to be inside: a
+        // sixth action would otherwise widen the cluster past the lane it is
+        // allowed to cover and put it back on the sender's name.
+        //
+        // `right-2` is the row's own `px-2`, so the cluster's right edge is the
+        // date column's right edge and the two together are exactly the lane.
+        // `top-1.5` centres the 28 px cluster on the first line, which sits at
+        // 10..30 inside a 64 px row.
+        'bg-raised absolute top-1.5 right-2 w-(--wren-row-cluster-w) items-center justify-center overflow-hidden rounded-md shadow-md',
         // Below `--container-row` the cluster is not shown at all — see the
         // note above. `hidden` rather than `pointer-events-none`, because a
         // strip a click passes through is still a strip sitting on the words
@@ -454,7 +473,9 @@ function QuickActions({
               if (spec.kind === 'later') onLater()
               else onAction(spec.type)
             }}
-            className={iconButtonClass(spec.tone)}
+            // 28 px, not the 32 px of every other icon button in the app:
+            // five of them are what the lane holds. See the note above.
+            className={iconButtonClass(spec.tone, 'size-7')}
           >
             <span
               key={spec.pop ? presses : 0}

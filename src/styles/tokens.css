@@ -666,14 +666,26 @@
        rect is that minus the gap, so nothing about the virtualizer moves. */
     --wren-row-inset-x: 8px;
     --wren-row-gap: 4px;
-    /* The hover cluster, and the lane the row's second line gives up to it —
-       issue #32. ONE number, because the two are the same number: the cluster
-       is opaque and absolutely positioned over that line, so a lane narrower
-       than the cluster hides the row's own text under a control the pointer
-       summoned. Five 32 px actions. The 4 px of visible clearance between the
-       truncated text and the cluster's edge is the difference between the
-       cluster's `right-3` and the row's own `px-2`, not a sixth constant. */
-    --wren-row-cluster-w: 160px;
+    /* The hover cluster — issue #32, twice.
+       It is opaque and absolutely positioned, so wherever it sits it takes
+       that region of the row away for as long as the pointer is on it. The
+       first answer put it on line TWO and had the line give up a lane of this
+       width on hover; the lane was honestly reserved, and the row's own text
+       paid for it — the subject dropped 186.7 → 124 px and the preview went to
+       zero, so hovering a row still deleted the line you were reading.
+
+       It now sits on line ONE, in the lane that line already leaves empty: the
+       flexible gap between the fixed sender column and the right-aligned date,
+       plus the date itself. That is the only region of a row no text ever
+       spreads into, and the cost is the timestamp, which is the trailing
+       metadatum and the cheapest thing on the row to cover for as long as a
+       pointer rests on it. Line two reserves nothing and never reflows.
+
+       140 px is that lane at the list's own 400 px measure: a 68 px gap, the
+       8 px between them and the 64 px date column. Five actions at 28 px
+       rather than 32 — the number the lane allows, on a mouse-only cluster
+       with keyboard equivalents for all five. */
+    --wren-row-cluster-w: 140px;
     /* Amie's coloured squircle: a category tile in settings and label rows. */
     --wren-tile: 28px;
     --wren-read-px: 32px;
