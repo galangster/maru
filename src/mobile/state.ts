@@ -2,7 +2,7 @@ import type { IconName } from '@/components/ui/icon'
 import type { VaultHistoryEntry } from '@/core/account'
 import { isDeferred } from '@/core/defaults'
 import type { Thread } from '@/core/types'
-import { correspondents, participantLine, relativeTime, wakeTime } from '@/lib/format'
+import { clip, correspondents, participantLine, relativeTime, wakeTime } from '@/lib/format'
 import type { NativeTab } from '@/platform/shell'
 
 export type MobileTab = 'inbox' | 'search' | 'settings'
@@ -224,6 +224,36 @@ export function sheetDismisses(offset: number): boolean {
   return offset >= SHEET_DISMISS_THRESHOLD
 }
 
+/**
+ * How much of a subject the conversation ANNOUNCES itself by.
+ *
+ * A subject has no length limit and a pasted paragraph is a legal one. Five
+ * thousand characters printed a 6,113 px title, so the first message started
+ * seven and a half screens down and a screen reader read the whole paragraph
+ * before it said anything else about the conversation (issue 62).
+ *
+ * 120 characters is about two spoken seconds and comfortably more than the
+ * three lines the title draws, so the ear gets the same sentence the eye does
+ * and neither gets the paragraph. `clip` breaks on a word where it can, so
+ * what is announced is the beginning of a sentence rather than half a word.
+ */
+export const THREAD_TITLE_CLIP = 120
+
+/** How many lines of subject the conversation shows before it offers the rest. */
+export const THREAD_TITLE_LINES = 3
+
+/**
+ * What the conversation is CALLED — the screen's accessible name, and the
+ * title's own when the title is still clamped.
+ *
+ * One function for both, because the eye and the ear must not be given two
+ * different names for the same conversation. The blank case is here too: a
+ * mail with no subject is "(No subject)" on the screen, so it is "(No
+ * subject)" to VoiceOver rather than an unnamed heading.
+ */
+export function threadTitleName(subject: string): string {
+  return subject.trim() ? clip(subject, THREAD_TITLE_CLIP) : '(No subject)'
+}
 export const EDGE_BACK_START_PX = 28
 export const EDGE_BACK_THRESHOLD = 72
 export const PULL_MAX_OFFSET = 92

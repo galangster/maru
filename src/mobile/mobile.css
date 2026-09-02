@@ -1019,6 +1019,7 @@ html[data-input-modality='keyboard']
 
 .mobile-thread-heading h1 {
   margin: 0;
+  overflow-wrap: anywhere;
   font-family: var(--wren-font-ui);
   font-size: var(--mobile-text-title);
   line-height: var(--mobile-leading-tight);
@@ -1026,6 +1027,36 @@ html[data-input-modality='keyboard']
   letter-spacing: -0.025em;
   text-wrap: balance;
 }
+
+/*
+ * Three lines of subject, and then a way to see the rest.
+ *
+ * A subject has no length limit. A pasted paragraph of five thousand
+ * characters drew a 6,113 px title, so the first message of the conversation
+ * started seven and a half screens below the fold and nothing on the screen
+ * said it was down there (issue 62). The mailbox row had always shortened the
+ * same subject; the conversation was the one surface that printed it whole.
+ *
+ * `overflow-wrap: anywhere` above it, because the other way a subject is
+ * hostile is one unbroken 5,000-character token, which a line clamp alone
+ * would let scroll sideways.
+ */
+.mobile-thread-heading h1.is-clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.mobile-thread-title-more {
+  min-height: 44px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--wren-accent-text);
+  font-family: var(--wren-font-ui);
+  font-size: var(--mobile-text-footnote);
+  font-weight: 600;
 }
 
 .mobile-thread-heading p {

@@ -6,6 +6,7 @@ import { wakeTime } from '@/lib/format'
 import {
   EDGE_BACK_START_PX,
   EDGE_BACK_THRESHOLD,
+  THREAD_TITLE_CLIP,
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
   SHEET_DISMISS_THRESHOLD,
@@ -25,6 +26,7 @@ import {
   sheetDismisses,
   sheetDragOffset,
   tabAtIndex,
+  threadTitleName,
   visibleScreen,
   type MobileRoute,
   type MobileStackEntry,
@@ -695,5 +697,45 @@ describe('edge back out of a sheet', () => {
     // the same distance of a sheet that it asks of a screen.
     expect(EDGE_BACK_START_PX).toBeLessThan(EDGE_BACK_THRESHOLD)
     expect(EDGE_BACK_THRESHOLD).toBe(SWIPE_ACTION_THRESHOLD)
+  })
+})
+
+/**
+ * What a conversation is called, when its subject is a pasted paragraph.
+ *
+ * The visible clamp is CSS and is measured on the element, so it is proved by
+ * capture. The NAME is a pure rule and is proved here: it is what the screen,
+ * the heading and VoiceOver all answer with, and issue 62 is what happens when
+ * the answer is the whole subject.
+ */
+describe('the conversation title', () => {
+  const paragraph = 'Quarterly planning '.repeat(300)
+
+  it('announces a clipped form of a very long subject', () => {
+    const name = threadTitleName(paragraph)
+    expect(name.length).toBeLessThanOrEqual(THREAD_TITLE_CLIP)
+    expect(name.endsWith('…')).toBe(true)
+    expect(paragraph.length).toBeGreaterThan(5_000)
+  })
+
+  it('leaves a normal subject exactly as it is', () => {
+    expect(threadTitleName('Plans for Friday')).toBe('Plans for Friday')
+  })
+
+  it('breaks on a word rather than mid-word where it can', () => {
+    const body = threadTitleName(paragraph).slice(0, -1)
+    expect(paragraph.startsWith(body)).toBe(true)
+    expect(paragraph[body.length]).toBe(' ')
+  })
+
+  it('names a blank subject the way the screen draws it', () => {
+    // The eye reads "(No subject)", so the ear must not be handed an unnamed
+    // heading instead.
+    expect(threadTitleName('')).toBe('(No subject)')
+    expect(threadTitleName('   ')).toBe('(No subject)')
+  })
+
+  it('flattens the whitespace a pasted paragraph brings with it', () => {
+    expect(threadTitleName('Two\n\nlines')).toBe('Two lines')
   })
 })
