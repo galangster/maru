@@ -111,6 +111,22 @@
     box-shadow: var(--wren-shadow-lg);
 }
 
+/* The description is two lines, whatever it is naming — issue 41.
+
+   The helper already clamps the string it is given (send-toast.ts), and that
+   is the guarantee about content. This is the guarantee about geometry: a
+   pasted subject with no spaces in it has nothing to break on, so a clamped
+   140 characters could still be a tall narrow column of one character per
+   line. `anywhere` lets it break, and the two-line box stops it whatever it
+   breaks into. A toast names what happened; reading is what the pane is for. */
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
 /* Sonner hangs its dismiss button off the top-left corner at 20 px, half
    outside the toast. DIRECTION §2 (Superhuman 5) wants the × inline, and
    DIRECTION §5 wants a 32 px interactive box. Both, on the trailing edge. */
