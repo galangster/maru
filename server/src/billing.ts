@@ -19,6 +19,9 @@ export function createStripeClient(secretKey: string): BillingClient {
       client_reference_id: accountId,
       line_items: [{ price: priceId, quantity: 1 }],
       automatic_tax: { enabled: true },
+      // Stripe Tax needs an address on the customer; let Checkout save the one it collects.
+      customer_update: { address: "auto", name: "auto" },
+      billing_address_collection: "required",
       subscription_data: { metadata: { accountId } },
       success_url: SUCCESS_URL,
       cancel_url: CANCEL_URL,
