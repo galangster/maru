@@ -29,9 +29,9 @@ These are the buttons only you can press, in the order they unblock work.
    - ~~Pub/Sub topic, publisher grant, service account, OIDC push
      subscription~~ — done 2026-09-01 by gcloud with your go-ahead; a real
      Pub/Sub delivery reached the relay and got 204.
-   - **Second Owner**: IAM → Grant access → `galangsterr@gmail.com` → Owner →
-     Save, then accept the invite from that account. The API refuses this
-     for a consumer address, so it is the console only. Verify the double-r.
+   - **Second Owner**: invitation sent 2026-09-01 (Nick, console). **Accept
+     it from galangsterr@gmail.com**; the project's Owner list shows two
+     owners only after acceptance.
    - ~~iOS OAuth client~~ — created 2026-09-01 by the agent in your Chrome
      with your go-ahead: `537601059334-302klho3gdlj3kloseb6akr96o26r855.apps.googleusercontent.com`
      (name "Maru for iPhone", bundle `app.getmaru.ios`, team 2M8UE59WH7).
