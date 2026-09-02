@@ -50,3 +50,10 @@ objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tauri-plugin-maru-auth = { path = "plugins/maru-auth" }
+tauri-plugin-maru-push = { path = "plugins/maru-push" }
+# The iOS keychain default is `WhenUnlocked`, which a push-woken background
+# fetch after a reboot cannot read. These write the items directly so the
+# accessibility attribute can be set. See `ios_keychain.rs`.
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+security-framework-sys = "2.17"

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-schedule-local-notification"
+description = "Enables the schedule_local_notification command without any pre-configured scope."
+commands.allow = ["schedule_local_notification"]
+
+[[permission]]
+identifier = "deny-schedule-local-notification"
+description = "Denies the schedule_local_notification command without any pre-configured scope."
+commands.deny = ["schedule_local_notification"]

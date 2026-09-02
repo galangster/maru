@@ -41,6 +41,7 @@ targets:
       path: wren_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
+        UIBackgroundModes: [remote-notification]
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
@@ -67,6 +68,14 @@ targets:
     settings:
       base:
         ENABLE_BITCODE: false
+      configs:
+        # `aps-environment` in the entitlements reads this. A debug build talks
+        # to the APNs sandbox; a release build talks to production, which is
+        # where the relay's key (T89G5MWVBQ) sends.
+        debug:
+          APS_ENVIRONMENT: development
+        release:
+          APS_ENVIRONMENT: production
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
         LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)

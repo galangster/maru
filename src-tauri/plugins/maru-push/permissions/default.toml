@@ -1,0 +1,11 @@
+[default]
+description = "Allows Maru to register for push, read its notification permission, and post the local notification it composes on the phone"
+permissions = [
+  "allow-start",
+  "allow-permission-state",
+  "allow-request-permission",
+  "allow-token",
+  "allow-set-badge-count",
+  "allow-schedule-local-notification",
+  "allow-complete-push",
+]
