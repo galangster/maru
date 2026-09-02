@@ -1,5 +1,4 @@
 import Foundation
-import ObjectiveC
 import Tauri
 import UIKit
 import UserNotifications
@@ -83,7 +82,7 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       self.claimNotificationCenterDelegate()
-      AppDelegateHooks.install()
+      MaruAppDelegateProxy.install()
     }
   }
 
@@ -104,6 +103,7 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
     buffered = []
     let token = deviceToken
     lock.unlock()
+    Logger.info("channel open, \(pending.count) buffered event(s)", category: "maru-push")
 
     for event in pending {
       try? args.onEvent.send(event)
@@ -145,6 +145,7 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
   @objc public func setBadgeCount(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(BadgeArgs.self)
     let count = max(0, args.count)
+    Logger.info("badge set to \(count)", category: "maru-push")
     // The application is iOS 17 only, but swift-rs compiles the package
     // against its own lower deployment target, so the check is spelled out.
     if #available(iOS 16.0, *) {
@@ -177,6 +178,7 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
       // scheduled and delay it past the wake we are already inside.
       trigger: nil
     )
+    Logger.info("local notification posted", category: "maru-push")
     UNUserNotificationCenter.current().add(request) { error in
       if let error {
         invoke.reject(error.localizedDescription, code: "failed")
@@ -188,6 +190,8 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
 
   @objc public func completePush(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(CompletePushArgs.self)
+    Logger.info(
+      "sync finished for push \(args.id), newData=\(args.newData)", category: "maru-push")
     finish(args.id, result: args.newData ? .newData : .noData)
     invoke.resolve(OkResponse(ok: true))
   }
@@ -196,6 +200,8 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
 
   fileprivate func didRegister(token: Data) {
     let hex = token.map { String(format: "%02x", $0) }.joined()
+    // The first bytes only: the whole token identifies the device.
+    Logger.info("APNs token registered (\(hex.prefix(8))…)", category: "maru-push")
     lock.lock()
     deviceToken = hex
     lock.unlock()
@@ -203,11 +209,13 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
   }
 
   fileprivate func didFailToRegister(error: Error) {
+    Logger.error("APNs registration failed: \(error)", category: "maru-push")
     emit(PushEvent(event: "pushFailed", message: error.localizedDescription))
   }
 
   fileprivate func didReceiveRemotePush(completion: @escaping (UIBackgroundFetchResult) -> Void) {
     let id = UUID().uuidString
+    Logger.info("pushReceived \(id)", category: "maru-push")
     lock.lock()
     completions[id] = completion
     lock.unlock()
@@ -319,100 +327,91 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
   }
 }
 
-// MARK: - App delegate hooks
+// MARK: - App delegate
 
 /// Tauri owns the `UIApplicationDelegate` and its iOS plugin API exposes no
-/// lifecycle hook of any kind — `Plugin` offers `load(webview:)` and nothing
-/// else (tauri 2.11, `mobile/ios-api/Sources/Tauri/Plugin/Plugin.swift`). The
-/// Android half of the same API does have delegate hooks; the iOS half does
-/// not, so the three `UIApplicationDelegate` callbacks push needs are added to
-/// the live delegate class at runtime.
+/// lifecycle hook of any kind — the Swift `Plugin` base class offers
+/// `load(webview:)` and nothing else (tauri 2.11,
+/// `mobile/ios-api/Sources/Tauri/Plugin/Plugin.swift`). The Android half of the
+/// same API does have delegate hooks; the iOS half does not. So the three
+/// `UIApplicationDelegate` callbacks push needs have to come from somewhere
+/// else.
 ///
-/// `class_addMethod` is the normal case: Tauri's delegate implements none of
-/// these, and adding one is what makes `respondsToSelector` true so iOS starts
-/// delivering. If a future Tauri does implement one, the original IMP is kept
-/// and called after Maru has handled it, so nothing is stolen.
-private typealias FetchCompletion = (UIBackgroundFetchResult) -> Void
+/// Grafting them onto the live delegate class with `class_addMethod` is the
+/// obvious answer and it is the wrong one, quietly. `UIApplication` reads which
+/// optional delegate methods exist when the delegate is assigned and keeps the
+/// answer: after the graft `respondsToSelector:` returns true and iOS still
+/// does not call the method. Re-assigning the same object does not refresh that
+/// table; assigning `nil` first does, and takes wry's window with it. Both were
+/// measured on an iPhone 16 simulator, 2026-09-01.
+///
+/// What works is putting a different object in front, which `UIApplication`
+/// inspects afresh: this proxy implements the three push callbacks and forwards
+/// every other message — and every other `respondsToSelector:` question — to
+/// Tauri's delegate untouched. Verified live: the APNs device token and the
+/// application lifecycle callbacks both arrive through it.
+private final class MaruAppDelegateProxy: NSObject, UIApplicationDelegate {
+  /// Strong on purpose. `UIApplication.delegate` does not own what it points
+  /// at, so the proxy holds Tauri's delegate alive, and `installed` below holds
+  /// the proxy.
+  private let target: UIApplicationDelegate
 
-private enum AppDelegateHooks {
-  private static var installed = false
-  private static var originalDidRegister: IMP?
-  private static var originalDidFail: IMP?
-  private static var originalDidReceive: IMP?
+  static var installed: MaruAppDelegateProxy?
 
-  static func install() {
-    guard !installed else { return }
-    guard let delegate = UIApplication.shared.delegate else { return }
-    installed = true
-    let cls: AnyClass = type(of: delegate)
-
-    let didRegister: @convention(block) (AnyObject, UIApplication, NSData) -> Void = {
-      selfObj, app, token in
-      MaruPushPlugin.current?.didRegister(token: token as Data)
-      if let original = originalDidRegister {
-        typealias Fn = @convention(c) (AnyObject, Selector, UIApplication, NSData) -> Void
-        unsafeBitCast(original, to: Fn.self)(
-          selfObj,
-          #selector(UIApplicationDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:)),
-          app, token)
-      }
-    }
-    originalDidRegister = graft(
-      cls,
-      #selector(UIApplicationDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:)),
-      didRegister, "v@:@@")
-
-    let didFail: @convention(block) (AnyObject, UIApplication, NSError) -> Void = {
-      selfObj, app, error in
-      MaruPushPlugin.current?.didFailToRegister(error: error)
-      if let original = originalDidFail {
-        typealias Fn = @convention(c) (AnyObject, Selector, UIApplication, NSError) -> Void
-        unsafeBitCast(original, to: Fn.self)(
-          selfObj,
-          #selector(UIApplicationDelegate.application(_:didFailToRegisterForRemoteNotificationsWithError:)),
-          app, error)
-      }
-    }
-    originalDidFail = graft(
-      cls,
-      #selector(UIApplicationDelegate.application(_:didFailToRegisterForRemoteNotificationsWithError:)),
-      didFail, "v@:@@")
-
-    let didReceive:
-      @convention(block) (AnyObject, UIApplication, NSDictionary, @escaping FetchCompletion) -> Void = {
-        selfObj, app, userInfo, completion in
-        guard let plugin = MaruPushPlugin.current else {
-          completion(.noData)
-          return
-        }
-        plugin.didReceiveRemotePush(completion: completion)
-        if let original = originalDidReceive {
-          typealias Fn = @convention(c) (
-            AnyObject, Selector, UIApplication, NSDictionary, @escaping FetchCompletion
-          ) -> Void
-          unsafeBitCast(original, to: Fn.self)(
-            selfObj,
-            #selector(UIApplicationDelegate.application(_:didReceiveRemoteNotification:fetchCompletionHandler:)),
-            app, userInfo, { _ in })
-        }
-      }
-    originalDidReceive = graft(
-      cls,
-      #selector(UIApplicationDelegate.application(_:didReceiveRemoteNotification:fetchCompletionHandler:)),
-      didReceive, "v@:@@@")
+  init(target: UIApplicationDelegate) {
+    self.target = target
   }
 
-  /// Adds `selector` to `cls`, or replaces it and returns the implementation
-  /// that was there.
-  private static func graft(
-    _ cls: AnyClass, _ selector: Selector, _ block: Any, _ types: String
-  ) -> IMP? {
-    let imp = imp_implementationWithBlock(block)
-    if let existing = class_getInstanceMethod(cls, selector) {
-      return method_setImplementation(existing, imp)
+  static func install() {
+    guard installed == nil, let delegate = UIApplication.shared.delegate else { return }
+    if delegate is MaruAppDelegateProxy { return }
+    let proxy = MaruAppDelegateProxy(target: delegate)
+    installed = proxy
+    UIApplication.shared.delegate = proxy
+    Logger.info(
+      "delegate proxy installed in front of \(NSStringFromClass(type(of: delegate)))",
+      category: "maru-push")
+  }
+
+  override func responds(to aSelector: Selector!) -> Bool {
+    super.responds(to: aSelector) || target.responds(to: aSelector)
+  }
+
+  override func forwardingTarget(for aSelector: Selector!) -> Any? {
+    target.responds(to: aSelector) ? target : nil
+  }
+
+  func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    MaruPushPlugin.current?.didRegister(token: deviceToken)
+    target.application?(
+      application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    MaruPushPlugin.current?.didFailToRegister(error: error)
+    target.application?(application, didFailToRegisterForRemoteNotificationsWithError: error)
+  }
+
+  func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    Logger.info("proxy received remote notification", category: "maru-push")
+    guard let plugin = MaruPushPlugin.current else {
+      completionHandler(.noData)
+      return
     }
-    class_addMethod(cls, selector, imp, types)
-    return nil
+    // Maru owns this completion handler: it answers when the sync it starts
+    // finishes, or at the 25 s cap. Tauri's delegate does not implement this
+    // callback at all, so there is nothing to forward to.
+    plugin.didReceiveRemotePush(completion: completionHandler)
   }
 }
 

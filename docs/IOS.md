@@ -113,6 +113,122 @@ For that reason, a standalone `flowdeck build` cannot compile this generated pro
 Use the Tauri CLI for builds and deployment.
 Use FlowDeck for simulator state, touch automation, appearance, and screenshots.
 
+## Push
+
+Maru's push is content-free, by design and permanently
+(`docs/spec/MARU-ACCOUNT.md` §1 and §9). The relay says only "something
+changed for this address". The phone then fetches from Gmail with its own
+token and composes every word a person reads.
+
+The chain is Gmail → Pub/Sub → the Maru relay → APNs → this device.
+
+### What runs where
+
+- `src-tauri/plugins/maru-push` is the iOS-only Tauri plugin. It registers for
+  remote notifications, hands the APNs device token up as lowercase hex,
+  receives the background push, posts the local notification, and sets the
+  badge.
+- `src/core/push` holds the decisions: when a watch is due, what the
+  notification says, what number the badge shows, and what one wake does.
+  It has no native or network dependency and is unit-tested in Node.
+- `src/platform/push.ts` is the seam. On iOS it is the plugin. Everywhere else
+  it reports `unsupported` and does nothing.
+- `src/features/notifications/use-push.ts` starts the runtime in the phone
+  shell and routes a notification tap into the mobile reducer.
+
+### The application delegate
+
+Tauri owns the `UIApplicationDelegate`. Its iOS plugin API exposes no
+lifecycle hook — the Swift `Plugin` base class offers `load(webview:)` and
+nothing else, while the Android half of the same API does have delegate
+hooks. maru-push therefore installs a **forwarding proxy** in front of Tauri's
+`AppDelegate`. The proxy implements three methods and forwards every other
+message, and every other `respondsToSelector:` question, to Tauri's delegate:
+
+- `application(_:didRegisterForRemoteNotificationsWithDeviceToken:)`
+- `application(_:didFailToRegisterForRemoteNotificationsWithError:)`
+- `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)`
+
+Do not replace this with `class_addMethod` on the live delegate class. That
+was tried and it fails silently: `UIApplication` reads which optional delegate
+methods exist when the delegate is assigned and keeps the answer, so after the
+graft `respondsToSelector:` returns true and iOS still never calls the method.
+Re-assigning the same delegate object does not refresh that table. Assigning
+`nil` first does refresh it, and takes wry's window down with it — the app
+returns to the home screen. All three were measured on an iPhone 16 simulator
+on 2026-09-01.
+
+`tauri-plugin-notification` claims `UNUserNotificationCenter.delegate` and
+force-unwraps its own map for a notification it did not schedule. maru-push
+takes the delegate and forwards everything that is not its own, which keeps
+that plugin working and keeps it away from that crash.
+
+### What the Simulator cannot show
+
+`simctl push` (via `flowdeck simulator push`) reaches the Simulator's
+user-notification system — an alert payload draws its banner — but it never
+invokes the application delegate. Neither
+`application(_:didReceiveRemoteNotification:fetchCompletionHandler:)` nor the
+legacy `application(_:didReceiveRemoteNotification:)` fires, with the app in
+the foreground or the background, with `UIBackgroundModes` set and
+`aps-environment` present in the simulated entitlements. The Simulator has no
+background-wake path to simulate.
+
+So the wake half of push — `pushReceived` → history sync → local notification →
+badge → completion handler — is verified by unit test (`tests/push.test.ts`)
+and is owed one run on a physical iPhone. Everything up to the delegate is
+verified live on the Simulator: the proxy installs, the permission alert
+appears, `registerForRemoteNotifications` runs, and the APNs device token
+arrives **through the proxy**, which is the same delegate path the push
+callback uses.
+
+### Keychain accessibility
+
+iOS writes its keychain items with `kSecAttrAccessibleAfterFirstUnlock`
+(`src-tauri/src/ios_keychain.rs`). The `keyring` crate takes the system
+default, `WhenUnlocked`, which a push-woken background fetch cannot read after
+a reboot. The item shape — class, service, account — is unchanged, so entries
+written by an earlier build are still found and re-stamp themselves on the
+next write. Desktop keeps `keyring` untouched.
+
+### Project settings
+
+- `UIBackgroundModes: remote-notification` is in `project.yml`,
+  `wren_iOS/Info.plist`, and the plist that `prepare-ios-oauth.mjs` generates
+  for the Tauri merge.
+- `aps-environment` in `wren_iOS/wren_iOS.entitlements` reads the
+  `APS_ENVIRONMENT` build setting: `development` for debug, `production` for
+  release. The relay's APNs key is `T89G5MWVBQ`, production.
+- The relay's Pub/Sub topic is `projects/maru-mail-prod/topics/gmail-push`.
+
+### The loop
+
+1. On iOS with notifications granted, the device registers with APNs and
+   reports the token with `POST /v1/push/register`.
+2. For each Gmail account the client calls `users.watch` — INBOX only, so a
+   sent message or a label sweep does not spend a wake — and reports the
+   expiration with `POST /v1/push/watch`. Google grants seven days; Maru
+   renews on app open, on every return to the foreground, and after every
+   push, whenever the remaining life is under a day.
+3. A push wakes the app. The relay names no address and never could, so every
+   account runs an incremental history sync.
+4. Each arrival pass becomes one local notification, composed on the phone
+   from the sender and subject this device just fetched. Tapping it opens the
+   conversation.
+5. The badge is set to the unread count of the unified inbox.
+6. The completion handler iOS gave us is answered when the sync finishes, and
+   in any case within 25 seconds.
+
+Off iOS, and with no Maru account signed in, every one of these is a no-op.
+
+### Settings
+
+Settings → Notifications carries the permission state and a toggle that shows
+the system alert. iOS shows that alert once ever, so once the answer is
+granted or denied the row says so and points at iPhone Settings rather than
+offering a switch that would do nothing. The footnote states that new mail
+reaches the phone only with a Maru account signed in.
+
 ## Current behavior
 
 The following behavior is real in the iOS application:
@@ -135,7 +251,9 @@ The following behavior uses demo fixtures:
 - Archive, Later, read state, stars, and settings reset after process restart.
 - Maru account operations stay inside `DemoAccountClient` memory.
 - Demo account data resets after process restart.
-- Background Gmail sync and remote notifications do not run.
+- Background Gmail sync does not run. Remote notifications need a Maru
+  account and a Gmail account, so demo mode arms no watch; the plugin, the
+  permission prompt, the badge and the local notification are all live.
 
 ## Phone accessibility verification
 
@@ -187,6 +305,12 @@ npm run typecheck && npm test && npm run build
 
 Simulator proof lives in `wayfinder/captures/ios`.
 The folder contains Inbox, Thread, Compose, Later, Settings, account, and empty-state captures in both themes.
+
+The I4 push proof files are:
+
+- `ios-notifications-permission-light.png` — the system permission alert over
+  Settings → Notifications, with the row reading "Waiting for your answer…".
+- `ios-notifications-granted-light.png` — the row after Allow, reading "On".
 
 The I3 native session proof is `wayfinder/captures/ios/ios-auth-session-light.png`.
 It shows `accounts.google.com` inside the system sheet and Google's expected
