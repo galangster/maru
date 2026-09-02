@@ -1,6 +1,6 @@
 # Handoff — 2026-09-01, grill 4: the account, the phone, and production
 
-Baseline `395608e` → **`2839c74`** on `main`, pushed to `galangster/maru`.
+Baseline `395608e` → **see `git log`, HEAD after the I4 and store-shots merges** on `main`, pushed to `galangster/maru`.
 Working tree clean. **660 tests pass** (638 at the baseline), `tsc` clean,
 `vite build` clean; server: 34 tests, typecheck, build. Orchestrated by one
 Fable 5.1 session as planner and auditor; seven Codex `gpt-5.6-sol` lanes
@@ -136,7 +136,26 @@ worktree; use `git show rev:path > path`.
    hit-testing of empty hosts, bar z-order, StrictMode channel, bar inset to
    CSS, drag-vs-long-press). Deferred: keep `InboxScreen` mounted across a
    thread push. Captures `native-tabbar-*.png`, `ios-auth-real-client-light.png`.
-6. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
+6. **I4 merged**: push on the phone. `maru-push` (iOS-only plugin: APNs
+   registration through a forwarding delegate proxy — `class_addMethod` on
+   Tauri's live AppDelegate is silently ignored by UIKit — background push
+   with a 25 s cap, badge, local notification with thread tap), iOS keychain
+   items at `AfterFirstUnlock`, `src/core/push/*` (watch renewal decision,
+   arrival composition, `onRelayAvailable`), Gmail `users.watch`, Settings →
+   Notifications. Proven on the simulator up to token registration and the
+   permission flow; **the silent-push wake cannot be exercised on a simulator**
+   (queued as a physical-device run). The completion handler now waits for
+   the notification to post (found by review). 727 tests.
+7. **Store screenshots retaken natively** (`wayfinder/captures/store/`), glass
+   bar visible; `scripts/store-screenshots.mjs --from-dir`. FlowDeck capture
+   trap recorded in the I6 ticket.
+8. **Owner items done in Nick's accounts 2026-09-01/02** (agent-driven Chrome
+   with his go-ahead): Google Cloud (Pub/Sub, service account, OIDC
+   subscription, iOS OAuth client, Owner invite sent), Apple (App ID with
+   Push, APNs key T89G5MWVBQ production topic-specific, App Store Connect
+   "Maru Mail" 6807633550), GoDaddy DNS; `sync.getmaru.app` live; the relay
+   holds the APNs secret. See `wayfinder/NICK-QUEUE.md` for what remains.
+9. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
    of the day (resets 2026-09-06 19:28 PT). Two lanes died mid-run; both
    were sealed from the orchestrator after re-running the gates, and the
    simulator proofs ran on Claude Opus subagents. Memory
@@ -147,10 +166,11 @@ worktree; use `git show rev:path > path`.
 ```
 Resume wren from handoffs/2026-09-01-grill-4-account-iphone.md. Main is at
 bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
-I5, the A5 drill, the I2 polish and I3's client side are done. Everything
-left on maps 4 and 5 waits on an owner item (iOS client id, APNs key,
-Pub/Sub, Stripe, DNS, A9) — check wayfinder/NICK-QUEUE.md for what landed
-and do that first; Codex is out of credits until 2026-09-06, so lanes run
-on Opus subagents until then. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
+Maps 4 and 5 are code-complete except: TestFlight upload (I6; needs the
+distribution profile and an archive from this Mac), the physical-device push
+wake (Nick's iPhone), Stripe (Nick), A9 (Nick's decision), the second Owner
+acceptance (Nick), and the deferred I8 item (keep InboxScreen mounted across a
+thread push). Start with the TestFlight archive path in docs/APP-STORE.md §6.
+Codex is out of credits until 2026-09-06; lanes run on Opus subagents. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
 order: work autonomously.
 ```
