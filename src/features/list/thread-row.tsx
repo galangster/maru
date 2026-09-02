@@ -172,9 +172,17 @@ export const ThreadRow = memo(function ThreadRow({
               name, so it never floats in the gap before the timestamp. */}
           <span className="flex w-(--wren-list-sender-w) shrink-0 items-baseline gap-2">
             <span
+              // Weight, not colour — DIRECTION §1: "Unread is a dot and a
+              // weight change." The read state used to drop the sender to the
+              // meta tier as well, which put the name at 6.84 above a subject
+              // at 17.87 on the same row: the name read as failed to load while
+              // the subject beneath it was at full strength, and the row's own
+              // hierarchy was inverted on read mail, which is most of a mailbox
+              // (issue #34). The subject already changed weight alone; the
+              // sender now does the same, so the two lines recede together.
               className={cn(
-                'font-ui min-w-0 truncate text-base',
-                thread.unread ? 'text-ink font-semibold' : 'text-ink-2 font-medium',
+                'font-ui text-ink min-w-0 truncate text-base',
+                thread.unread ? 'font-semibold' : 'font-medium',
               )}
             >
               {sender}
