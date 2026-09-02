@@ -147,6 +147,12 @@ export function EmptyState({
         // Markless empty states (search, a filter with no hits) take neither,
         // so no pink column ever appears beside the reading pane.
         showMark && (earned ? 'wren-stage' : 'wren-empty'),
+        // Where there is a mark there is a halo under the copy, and the
+        // subtitle's grey measured 4.46 on it — the illustration's own glow
+        // took a certified tier under the floor (issue #30). `on-fill` is the
+        // step certified against the app's tinted fills; away from the halo it
+        // is one notch darker than the tier it replaces and nothing else.
+        showMark && 'on-fill',
         className,
       )}
     >

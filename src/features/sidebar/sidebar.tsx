@@ -224,7 +224,9 @@ function NavRow({
       'rounded-row font-ui group flex h-9 w-full items-center text-base outline-none',
       'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
       'focus-ring',
-      active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
+      // `on-fill` rides with the wash, as it does on a thread row: the tiers
+      // inside an active row stand on the accent at 8%, not on the card.
+      active ? 'on-fill bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
       collapsed ? 'justify-center px-0' : 'gap-2 px-2',
       indent && !collapsed && 'pl-8',
     ),
@@ -317,7 +319,12 @@ function UnreadCount({ value, active }: { value: number; active: boolean }) {
       data-wren-pop={pops.current > 0 ? '' : undefined}
       className={cn(
         'shrink-0 text-xs tabular-nums',
-        active ? 'text-brand font-medium' : 'text-ink-3',
+        // The one number on the sidebar, on screen the whole time the app is
+        // open, and the accent drawn on a wash of itself: 4.26 at 11.5 px
+        // (issue #29). `text-brand-fill` is the accent's on-fill step, which
+        // measures 5.04 on the same wash. Inactive, the count sits on the plain
+        // white card, where text-3 already clears the floor.
+        active ? 'text-brand-fill font-medium' : 'text-ink-3',
       )}
     >
       {value}
