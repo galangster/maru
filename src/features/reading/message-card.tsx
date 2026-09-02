@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react'
 import { Icon } from '@/components/ui/icon'
 import { AccountAvatar, META_TEXT } from '@/components/wren-controls'
 import type { Message } from '@/core/types'
+import { textDirection } from '@/lib/direction'
 import { displayName, fullTimestamp, relativeTime } from '@/lib/format'
 import { hueFor } from '@/lib/hue'
 import { cn } from '@/lib/utils'
@@ -56,10 +57,18 @@ export function MessageCard({
         )}
       >
         <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
-        <span className="font-ui text-ink-2 shrink-0 text-base font-medium">
+        <span
+          dir={textDirection(displayName(message.from))}
+          className="font-ui text-ink-2 shrink-0 text-base font-medium"
+        >
           {displayName(message.from)}
         </span>
-        <span className="text-ink-3 min-w-0 flex-1 truncate text-sm">{message.snippet}</span>
+        <span
+          dir={textDirection(message.snippet)}
+          className="text-ink-3 min-w-0 flex-1 truncate text-sm"
+        >
+          {message.snippet}
+        </span>
         <span className={META_TEXT}>
           {relativeTime(message.date, now)}
         </span>
@@ -80,7 +89,13 @@ export function MessageCard({
       >
         <AccountAvatar address={message.from} hue={hueFor(message.from.email)} />
         <div className="min-w-0 flex-1">
-          <p className="font-ui text-ink truncate text-base font-semibold">
+          <p
+            // Issue #59. The address below it is deliberately left LTR: an
+            // email address is an identifier, not prose, and it reads the same
+            // way in every language.
+            dir={textDirection(displayName(message.from))}
+            className="font-ui text-ink truncate text-base font-semibold"
+          >
             {displayName(message.from)}
           </p>
           <p className="text-ink-3 truncate text-sm">{message.from.email}</p>

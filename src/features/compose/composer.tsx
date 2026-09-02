@@ -437,6 +437,13 @@ function ComposerSheet() {
           type="text"
           value={draft.subject}
           onChange={(event) => edit({ subject: event.target.value })}
+          // Issue #59, from the writing end: an Arabic subject types and reads
+          // right to left in the field it is written in, the way it will in
+          // the list and the reading pane once it is sent. `auto` rather than
+          // a measured direction because a field is live — the base direction
+          // has to follow the first word as it is typed, and the browser's own
+          // first-strong pass is what does that per keystroke.
+          dir="auto"
           className="text-ink placeholder:text-ink-3 h-6 min-w-0 flex-1 bg-transparent text-base outline-none"
         />
       </div>

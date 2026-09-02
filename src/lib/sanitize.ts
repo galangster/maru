@@ -31,7 +31,12 @@ import DOMPurify from 'dompurify'
 export function escapeText(text: string): string {
   const div = document.createElement('div')
   div.textContent = text
-  return `<div style="white-space:pre-wrap">${div.innerHTML.replace(/\n/g, '<br>')}</div>`
+  // `dir="auto"` — issue #59. A plain-text body in Arabic or Hebrew was laid
+  // out left to right, so its paragraphs aligned to the wrong edge of the
+  // sheet and every line's punctuation sat on the wrong end. Per BLOCK rather
+  // than per document, because a plain-text reply quoting an English original
+  // has both languages in it and each part should read the way it was written.
+  return `<div dir="auto" style="white-space:pre-wrap">${div.innerHTML.replace(/\n/g, '<br>')}</div>`
 }
 
 export interface SanitizeOptions {
@@ -573,5 +578,5 @@ export function buildSrcdoc(bodyHtml: string, opts?: { allowRemoteImages?: boole
     border-left: 2px solid #E7E5E4;
     color: #5D5A59;
   }
-</style></head><body>${bodyHtml}</body></html>`
+</style></head><body dir="auto">${bodyHtml}</body></html>`
 }

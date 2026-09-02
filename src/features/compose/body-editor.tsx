@@ -51,7 +51,11 @@ export function useBodyEditor({ initialHtml, onChange }: UseBodyEditorOptions): 
 export function BodyEditor({ editor }: { editor: Editor | null }) {
   return (
     <div className="wren-editor bg-sunken rounded-md focus-within:ring-ring min-h-0 flex-1 overflow-y-auto px-3 py-3 focus-within:ring-3">
-      <EditorContent editor={editor} className="h-full" />
+      {/* `dir="auto"` — issue #59. The draft is prose, and prose written in
+          Arabic or Hebrew has to be laid out the way it reads while it is
+          being written, not only once it has been sent. Per block: a reply
+          that quotes an English original keeps each part on its own edge. */}
+      <EditorContent editor={editor} dir="auto" className="h-full" />
     </div>
   )
 }

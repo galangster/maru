@@ -22,6 +22,7 @@ import { Icon } from '@/components/ui/icon'
 import { AVATAR_CHIP, AccountAvatar, DATE_COLUMN, META_TEXT, iconButtonClass } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import { THREAD_ACTION_ORDER, threadActions } from '@/features/mail/thread-actions'
+import { textDirection } from '@/lib/direction'
 import { correspondents, participantLine, relativeTime, wakeStamp, wakeTime } from '@/lib/format'
 import { hueFor, hueSolid } from '@/lib/hue'
 import { useNow } from '@/lib/use-now'
@@ -191,6 +192,11 @@ export const ThreadRow = memo(function ThreadRow({
               // hierarchy was inverted on read mail, which is most of a mailbox
               // (issue #34). The subject already changed weight alone; the
               // sender now does the same, so the two lines recede together.
+              // A sender written in Arabic or Hebrew reads right to left, and
+              // its truncation ellipsis belongs on the other end — issue #59.
+              // The row's own chrome is untouched: the name gets a direction,
+              // the column it sits in does not.
+              dir={textDirection(sender)}
               className={cn(
                 'font-ui text-ink min-w-0 truncate text-base',
                 thread.unread ? 'font-semibold' : 'font-medium',
@@ -228,6 +234,10 @@ export const ThreadRow = memo(function ThreadRow({
             issue #32, second pass. See `--wren-row-cluster-w`. */}
         <div className="flex items-baseline gap-2 leading-5">
           <span
+            // Issue #59. "(no subject)" is Maru's own words and takes the
+            // chrome's direction, which is what an empty subject resolves to
+            // anyway — the fallback is `ltr`.
+            dir={textDirection(thread.subject)}
             className={cn(
               'truncate text-sm leading-5',
               thread.unread ? 'text-ink font-medium' : 'text-ink font-normal',
@@ -239,7 +249,10 @@ export const ThreadRow = memo(function ThreadRow({
               one or two characters and an ellipsis, which is noise, not
               preview. It is dropped outright at that width and the row falls
               back to sender plus subject. */}
-          <span className="text-ink-3 hidden min-w-0 flex-1 truncate text-sm leading-5 @min-row:block">
+          <span
+            dir={textDirection(thread.snippet)}
+            className="text-ink-3 hidden min-w-0 flex-1 truncate text-sm leading-5 @min-row:block"
+          >
             {thread.snippet}
           </span>
           <span className="min-w-0 flex-1 @min-row:hidden" />
