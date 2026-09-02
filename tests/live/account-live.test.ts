@@ -83,6 +83,31 @@ describe.skipIf(!url || !email || mode !== 'teardown')('A5 drill teardown', () =
   }, 60_000)
 })
 
+
+describe.skipIf(!url || !email || mode !== 'billing')('billing probe', () => {
+  it('returns a real Stripe Checkout URL and a portal URL, then deletes itself', async () => {
+    const client = new AccountClient(platform, url!)
+    const password = `billing-probe-${Date.now()}-correct-horse`
+    const { body, keys } = await signupBody(password)
+    const signup = await client.signup(body)
+    client.setToken(signup.token)
+    try {
+      const me = await client.me()
+      expect(['comped', 'trialing']).toContain(me.entitlement.state)
+      const checkout = await client.checkout('monthly')
+      expect(checkout.url).toMatch(/^https:\/\/checkout\.stripe\.com\//u)
+      const yearly = await client.checkout('yearly')
+      expect(yearly.url).toMatch(/^https:\/\/checkout\.stripe\.com\//u)
+      const portal = await client.portal()
+      expect(portal.url).toMatch(/^https:\/\/billing\.stripe\.com\//u)
+    } finally {
+      await client.deleteAccount(base64UrlEncodeBytes(keys.authKey)).catch((cleanup: unknown) => {
+        console.error('cleanup delete failed:', cleanup)
+      })
+    }
+  }, 60_000)
+})
+
 describe.skipIf(!url || !email || mode !== 'full')('Maru account against the live service', () => {
   it('signs up, syncs a vault, signs in from a second device, and deletes itself', async () => {
     const first = new AccountClient(platform, url!)

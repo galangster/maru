@@ -5,14 +5,16 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from 'react'
 
-import { nativeShell } from '@/platform/shell'
 import {
   PULL_DISTANCE_FACTOR,
   PULL_MAX_OFFSET,
   PULL_REFRESH_OFFSET,
   PULL_REFRESH_THRESHOLD,
+  resolveDragAxis,
+  type DragAxis,
 } from './state'
 import { usePointerDrag } from './use-pointer-drag'
+import { useThresholdTick } from './use-threshold-tick'
 
 function writePull(node: HTMLElement | null, offset: number, settling: boolean, refreshing: boolean): void {
   if (!node) return
@@ -36,34 +38,30 @@ export function usePullRefresh(
 ) {
   const [refreshing, setRefreshing] = useState(false)
   const eligible = useRef(false)
-  const ready = useRef(false)
-  const touch = useRef<{ identifier: number; y: number } | null>(null)
+  const touch = useRef<{ identifier: number; x: number; y: number; axis: DragAxis | null } | null>(null)
   const usingTouch = useRef(false)
+  // The tap at "Release to refresh", shared with the swipe rows.
+  const tick = useThresholdTick()
 
   /** Every gesture entry point starts here, so neither flag can be forgotten. */
   const begin = () => {
     eligible.current = window.scrollY <= 0
-    ready.current = false
-    // The start of the drag, not the crossing: the tap at the threshold is the
-    // one that has to land the instant the copy changes, and `prepare()` needs
-    // the head start to give it that.
-    if (eligible.current) void nativeShell.prepareHaptics()
+    // An ineligible gesture still has to forget the last one's crossing, so
+    // the reset comes first and the warm-up only when there is a tap to warm
+    // up for.
+    tick.report(false)
+    if (eligible.current) tick.prepare()
   }
   const offsetFor = (dy: number) => dy <= 0 ? 0 : Math.min(PULL_MAX_OFFSET, dy * PULL_DISTANCE_FACTOR)
   const move = (dy: number) => {
     if (!eligible.current) return
     const offset = offsetFor(dy)
-    // The tap on the threshold, on the way past it only. This is the moment the
-    // copy changes to "Release to refresh", and the whole point of the haptic
-    // is that a thumb covering that copy can still feel it.
-    const crossed = offset >= PULL_REFRESH_THRESHOLD
-    if (crossed && !ready.current) void nativeShell.impact('light')
-    ready.current = crossed
+    tick.report(offset >= PULL_REFRESH_THRESHOLD)
     writePull(region.current, offset, false, false)
   }
   const commit = (dy: number) => {
     const offset = offsetFor(dy)
-    ready.current = false
+    tick.report(false)
     if (!eligible.current || offset < PULL_REFRESH_THRESHOLD) {
       writePull(region.current, 0, true, false)
       return
@@ -75,12 +73,24 @@ export function usePullRefresh(
       writePull(region.current, 0, true, false)
     })
   }
+  /** The gesture was never ours, or never finished. Put the indicator back. */
+  const abandon = () => {
+    tick.report(false)
+    writePull(region.current, 0, true, false)
+  }
   const drag = usePointerDrag({
+    // Vertical, so a horizontal swipe across a row at the top of the list no
+    // longer drags the refresh indicator down with it.
+    axis: 'vertical',
     onMove: ({ dy }) => {
       if (!usingTouch.current) move(dy)
     },
     onCommit: ({ dy }) => {
       if (!usingTouch.current) commit(dy)
+    },
+    onCancel: () => {
+      if (usingTouch.current) return
+      abandon()
     },
   })
 
@@ -110,24 +120,39 @@ export function usePullRefresh(
         if (!point) return
         usingTouch.current = true
         begin()
-        touch.current = { identifier: point.identifier, y: point.clientY }
+        touch.current = { identifier: point.identifier, x: point.clientX, y: point.clientY, axis: null }
       },
+      // Both branches consult one rule. `resolveDragAxis` is what the pointer
+      // branch locks on inside `usePointerDrag`, so a horizontal swipe across
+      // a row at the top of the list cannot drag the indicator down here
+      // either -- which is exactly what it did while only the pointer branch
+      // was gated.
       onTouchMove: (event: ReactTouchEvent<HTMLElement>) => {
         const point = trackedTouch(event)
-        if (!point || !touch.current) return
-        const dy = point.clientY - touch.current.y
-        if (eligible.current && dy > 0) event.preventDefault()
+        const active = touch.current
+        if (!point || !active) return
+        const dx = point.clientX - active.x
+        const dy = point.clientY - active.y
+        if (!active.axis) active.axis = resolveDragAxis(dx, dy)
+        // Held until the lock says otherwise, because WebKit decides whether
+        // the gesture is its own in the first few points and a `preventDefault`
+        // that arrives after the scroll view has claimed it arrives too late.
+        if (active.axis !== 'horizontal' && eligible.current && dy > 0) event.preventDefault()
+        if (active.axis !== 'vertical') return
         move(dy)
       },
       onTouchEnd: (event: ReactTouchEvent<HTMLElement>) => {
         const point = trackedTouch(event)
-        if (point && touch.current) commit(point.clientY - touch.current.y)
+        const active = touch.current
+        if (point && active) {
+          if (active.axis === 'vertical') commit(point.clientY - active.y)
+          else abandon()
+        }
         touch.current = null
         usingTouch.current = false
       },
       onTouchCancel: () => {
-        ready.current = false
-        writePull(region.current, 0, true, false)
+        abandon()
         touch.current = null
         usingTouch.current = false
       },

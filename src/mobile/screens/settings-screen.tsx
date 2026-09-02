@@ -5,6 +5,7 @@ import { useAccountsById, useSaveSettings, useSettings } from '@/features/mail/q
 import { registrationLabel, type PushPermission } from '@/core/push'
 import { usePushUi } from '@/features/notifications/push-store'
 import { useMailMode, useMailService } from '@/features/mail/service'
+import { useMaruAccount } from '@/features/settings/account/account-store'
 import { useBusyAction } from '@/features/settings/account/use-busy-action'
 import { MobileIcon } from '../components/mobile-icon'
 import './settings-screen.css'
@@ -21,8 +22,10 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
   const pushPermission = usePushUi((state) => state.permission)
   const pushRequesting = usePushUi((state) => state.requesting)
   const requestPush = usePushUi((state) => state.requestPermission)
-  // The relay registers devices against a Maru account, so a test push has
-  // nowhere to go without one — MARU-ACCOUNT.md §9.
+  // The relay is what wakes this phone, and the relay is reached through the
+  // Maru account. Without one the toggle cannot do anything at all, so the row
+  // says the requirement rather than offering a switch that does nothing.
+  const maruEmail = useMaruAccount((state) => state.email)
   const { isBusy, run } = useBusyAction((error) => {
     const code = 'code' in error ? error.code : undefined
     toast.error(code === 'cancelled' ? 'Sign-in cancelled' : error.message)
@@ -60,17 +63,21 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
           <SettingsToggle icon={<MobileIcon name="sliders" scale="action" />} title="Sounds" checked={current?.sounds ?? false} onChange={(sounds) => save.mutate({ sounds })} />
         </SettingsGroup>
         {pushAvailable && (
-          <SettingsGroup title="Notifications" note="New mail can only reach this phone with a Maru account signed in.">
+          <SettingsGroup title="Notifications">
             <SettingsToggle
               icon={<MobileIcon name="unread" scale="action" />}
               title="New mail"
-              detail={notificationsDetail(pushPermission, pushRequesting)}
-              checked={pushPermission === 'granted'}
+              // The requirement is the row's own detail text, not a footnote
+              // under the group. A footnote explains a control; this is the
+              // reason the control is off, and it belongs where the eye lands
+              // when it asks why the switch will not move.
+              detail={maruEmail ? notificationsDetail(pushPermission, pushRequesting) : 'Sign in to your Maru account to turn this on'}
+              checked={Boolean(maruEmail) && pushPermission === 'granted'}
               // Granted and denied are both final from in here: iOS shows its
               // alert once ever, and only iPhone Settings can change the
-              // answer afterwards. The row says so rather than offering a
-              // switch that would silently do nothing.
-              disabled={pushRequesting || pushPermission !== 'prompt'}
+              // answer afterwards. No Maru account is the third way this
+              // switch cannot move, and the only one Maru can fix.
+              disabled={!maruEmail || pushRequesting || pushPermission !== 'prompt'}
               onChange={() => void requestPush()}
             />
             <PushDiagnosticsRow />

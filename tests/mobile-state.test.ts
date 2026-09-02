@@ -11,6 +11,7 @@ import {
   initialMobileRoute,
   mobileRouteReducer,
   nativeTabs,
+  resolveDragAxis,
   resolveSwipeIntent,
   tabAtIndex,
   visibleScreen,
@@ -124,6 +125,38 @@ describe('visible screen', () => {
   })
 })
 
+describe('mobile drag axis lock', () => {
+  it('refuses to guess until the finger has travelled', () => {
+    // The first pointermove of every gesture, including every tap, lands
+    // here. Answering it would send half the taps in the inbox sideways.
+    expect(resolveDragAxis(0, 0)).toBeNull()
+    expect(resolveDragAxis(4, 3)).toBeNull()
+    expect(resolveDragAxis(9, 9)).toBeNull()
+  })
+
+  it('locks on the axis the finger is actually using', () => {
+    expect(resolveDragAxis(12, 1)).toBe('horizontal')
+    expect(resolveDragAxis(-12, 1)).toBe('horizontal')
+    expect(resolveDragAxis(1, 12)).toBe('vertical')
+    expect(resolveDragAxis(0, -40)).toBe('vertical')
+  })
+
+  it('gives a shallow drag to the scroller', () => {
+    // A mail list is scrolled far more often than it is swiped, so anything
+    // outside roughly 36 degrees of the horizontal belongs to the page.
+    expect(resolveDragAxis(40, 40)).toBe('vertical')
+    expect(resolveDragAxis(40, 20)).toBe('horizontal')
+  })
+
+  it('locks vertical for a scroll that starts with a sideways twitch', () => {
+    // Nine points across is under the threshold, so the gesture is still
+    // undecided when the finger turns down the page. This is the shape of a
+    // thumb scrolling a list, and it must never move a row.
+    expect(resolveDragAxis(9, 4)).toBeNull()
+    expect(resolveDragAxis(9, 60)).toBe('vertical')
+  })
+})
+
 describe('mobile swipe intent', () => {
   it('maps a right swipe to archive and a left swipe to Later', () => {
     expect(resolveSwipeIntent(72, 4)).toBe('archive')
@@ -133,6 +166,15 @@ describe('mobile swipe intent', () => {
   it('uses the real vertical delta to reject diagonal gestures', () => {
     expect(resolveSwipeIntent(60, 2)).toBeNull()
     expect(resolveSwipeIntent(90, 80)).toBeNull()
+  })
+
+  it('agrees with the axis lock, so a moved row always commits', () => {
+    // The gesture that moved the row and the gesture that fires the action
+    // are the same gesture. A row cannot follow a finger 100 points and then
+    // refuse the archive it was plainly promising.
+    const swipe = { dx: 100, dy: 30 }
+    expect(resolveDragAxis(swipe.dx, swipe.dy)).toBe('horizontal')
+    expect(resolveSwipeIntent(swipe.dx, swipe.dy)).toBe('archive')
   })
 })
 

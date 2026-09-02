@@ -66,6 +66,7 @@ export type MobileSheet =
   | { kind: 'later'; threadKeys: string[] }
   | { kind: 'threadActions'; thread: Thread }
   | { kind: 'move'; thread: Thread }
+  | { kind: 'pushAccount' }
   | { kind: 'accountRestore'; entry: VaultHistoryEntry }
   | { kind: 'accountPassword' }
   | { kind: 'accountDelete' }
@@ -140,8 +141,15 @@ function topEntry(route: MobileRoute): MobileStackEntry {
 export const SWIPE_ACTION_THRESHOLD = 72
 export const SWIPE_AXIS_RATIO = 0.72
 export const SWIPE_OFFSET_LIMIT = 104
-export const LONG_PRESS_MOVE_THRESHOLD = 8
 export const LONG_PRESS_DELAY_MS = 480
+/**
+ * How far a finger travels before a gesture commits to an axis.
+ *
+ * Ten points is UIKit's own pan threshold, and it is deliberately short. A
+ * lock that waits any longer lets the row lurch sideways during what turns out
+ * to be a scroll, which is the tell that a swipe is a web page pretending.
+ */
+export const AXIS_LOCK_THRESHOLD = 10
 export const EDGE_BACK_START_PX = 28
 export const EDGE_BACK_THRESHOLD = 72
 export const PULL_MAX_OFFSET = 92
@@ -151,8 +159,40 @@ export const PULL_REFRESH_OFFSET = 52
 
 export type SwipeIntent = 'archive' | 'later' | null
 
+/** The two ways a one-finger drag can go once it has made up its mind. */
+export type DragAxis = 'horizontal' | 'vertical'
+
+/**
+ * Which way a gesture is going, or `null` while it is still too short to say.
+ *
+ * This is the whole of the axis lock, and it is a pure function so the rule
+ * can be tested without a finger — tests/mobile-state.test.ts. Two properties
+ * matter and neither is obvious from the arithmetic:
+ *
+ * - It answers `null` below `AXIS_LOCK_THRESHOLD` on *both* axes, so the
+ *   caller reports nothing at all until the gesture has declared itself. A
+ *   lock taken on the first pointermove would follow the noise in a fingertip
+ *   landing and send half of every tap somewhere.
+ * - The tie goes to horizontal, but only just: `SWIPE_AXIS_RATIO` means a
+ *   drag has to stay inside about 36 degrees of the horizontal to count as a
+ *   swipe. Everything shallower is a scroll, because on a mail list a scroll
+ *   is what a finger is nearly always doing.
+ */
+export function resolveDragAxis(deltaX: number, deltaY: number): DragAxis | null {
+  if (Math.abs(deltaX) < AXIS_LOCK_THRESHOLD && Math.abs(deltaY) < AXIS_LOCK_THRESHOLD) return null
+  return Math.abs(deltaY) > Math.abs(deltaX) * SWIPE_AXIS_RATIO ? 'vertical' : 'horizontal'
+}
+
+/**
+ * What a finished horizontal drag asked for, if anything.
+ *
+ * The axis test is `resolveDragAxis` rather than a second copy of the ratio:
+ * the gesture that moved the row and the gesture that commits an action have
+ * to be the same gesture, or a row can follow a finger and then refuse the
+ * action it was clearly promising.
+ */
 export function resolveSwipeIntent(deltaX: number, deltaY: number): SwipeIntent {
-  if (Math.abs(deltaY) > Math.abs(deltaX) * SWIPE_AXIS_RATIO) return null
+  if (resolveDragAxis(deltaX, deltaY) !== 'horizontal') return null
   if (deltaX >= SWIPE_ACTION_THRESHOLD) return 'archive'
   if (deltaX <= -SWIPE_ACTION_THRESHOLD) return 'later'
   return null
