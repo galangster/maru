@@ -27,10 +27,12 @@ export function resolveOAuthClient({
   issuingClient,
   settings,
   officialClientId = OFFICIAL_GOOGLE_CLIENT_ID,
+  allowCustomClient = true,
 }: {
   issuingClient?: IssuingClient | null
   settings: Pick<Settings, 'googleClientId' | 'googleClientSecret'>
   officialClientId?: string
+  allowCustomClient?: boolean
 }): OAuthClientConfig | null {
   const customClientId = nonEmpty(settings.googleClientId)
   const customClientSecret = nonEmpty(settings.googleClientSecret)
@@ -46,7 +48,7 @@ export function resolveOAuthClient({
     }
   }
 
-  if (customClientId) {
+  if (customClientId && allowCustomClient) {
     return {
       source: 'custom',
       clientId: customClientId,

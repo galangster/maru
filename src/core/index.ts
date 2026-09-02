@@ -2,6 +2,7 @@
 // ./types only — nothing under gmail/, store/, sync/ or auth/ is UI surface.
 
 import type { Platform } from './platform'
+import type { PlatformFamily } from './service/vault-port'
 import type { MailService } from './types'
 import { Store } from './store/db'
 import { RealMailService } from './service/real'
@@ -15,6 +16,10 @@ export interface CreateMailServiceOptions {
   demo: boolean
   /** Frozen clock for screenshots and tests. Demo mode only. */
   now?: number
+  family: PlatformFamily
+  officialClientId?: string
+  imagePreview?: 'block' | null
+  syncPreview?: string | null
 }
 
 /**
@@ -28,10 +33,21 @@ export async function createMailService(
   platform: Platform | null,
   opts: CreateMailServiceOptions,
 ): Promise<MailService> {
-  if (opts.demo) return new DemoMailService({ now: opts.now })
+  if (opts.demo) {
+    return new DemoMailService({
+      now: opts.now,
+      imagePreview: opts.imagePreview,
+      syncPreview: opts.syncPreview,
+    })
+  }
   if (!platform) throw new Error('A Platform is required outside demo mode')
   const store = await Store.open(platform)
-  return RealMailService.create({ platform, store })
+  return RealMailService.create({
+    platform,
+    store,
+    family: opts.family,
+    officialClientId: opts.officialClientId,
+  })
 }
 
 /**

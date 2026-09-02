@@ -1,10 +1,8 @@
 import { MaruApiError, type AccountClient, type VaultConflict } from './client'
 import { openText, seal } from './crypto'
-import type { LocalCredential } from '../service/vault-port'
-import type { PlatformFamily } from '../service/vault-port'
+import type { LocalCredential, PlatformFamily } from '../service/vault-port'
 import type { AccountSessionAccess } from './session'
 import { applyVault, buildVault, mergeVault, type ApplyVaultSummary, type VaultDocument, type VaultLocal } from './vault'
-import { accountDeviceIdentity } from '@/lib/env'
 
 export type AccountSyncState =
   | { kind: 'idle'; lastSyncAt?: number; summary?: ApplyVaultSummary }
@@ -16,6 +14,7 @@ export interface AccountSyncOptions {
   client: AccountClient
   session: AccountSessionAccess
   local: VaultLocal
+  family: PlatformFamily
   debounceMs?: number
   pullIntervalMs?: number
   now?: () => number
@@ -31,7 +30,7 @@ export class AccountSync {
   private pushInFlight: Promise<void> | null = null
   private credentialCache: Map<string, LocalCredential> | null = null
   private credentialCacheInFlight: Promise<Map<string, LocalCredential>> | null = null
-  private deviceFamilyPromise: Promise<PlatformFamily> | null = null
+  private lastRemoteDocument: VaultDocument | null = null
   private applying = false
   private stopped = true
   private readonly now: () => number
@@ -105,11 +104,6 @@ export class AccountSync {
     this.credentialCacheInFlight = null
   }
 
-  private deviceFamily(): Promise<PlatformFamily> {
-    this.deviceFamilyPromise ??= accountDeviceIdentity().then((identity) => identity.family)
-    return this.deviceFamilyPromise
-  }
-
   private credentials(): Promise<Map<string, LocalCredential>> {
     if (this.credentialCache) return Promise.resolve(this.credentialCache)
     if (this.credentialCacheInFlight) return this.credentialCacheInFlight
@@ -170,17 +164,18 @@ export class AccountSync {
         this.publish({ kind: 'idle', lastSyncAt: this.now() })
         return
       }
+      const key = await this.accountKey()
+      const remoteDoc = JSON.parse(await openText(key, remote.ciphertext, `maru-vault-v1:${remote.version}`)) as VaultDocument
+      this.lastRemoteDocument = remoteDoc
       const localVersion = await this.version()
       if (remote.version <= localVersion) {
         this.publish({ kind: 'idle', lastSyncAt: this.now() })
         return
       }
-      const key = await this.accountKey()
-      const remoteDoc = JSON.parse(await openText(key, remote.ciphertext, `maru-vault-v1:${remote.version}`)) as VaultDocument
       this.applying = true
       let summary: ApplyVaultSummary
       try {
-        summary = await applyVault(remoteDoc, this.options.local, await this.deviceFamily())
+        summary = await applyVault(remoteDoc, this.options.local, this.options.family)
       } finally {
         this.applying = false
       }
@@ -206,16 +201,18 @@ export class AccountSync {
       let baseVersion = await this.version()
       let doc = await buildVault(
         this.options.local,
+        this.options.family,
         undefined,
         await this.credentials(),
-        await this.deviceFamily(),
       )
       const key = await this.accountKey()
       for (let round = 0; round < 3; round += 1) {
         try {
+          this.carryRemoteCredentials(doc)
           const ciphertext = await seal(key, JSON.stringify(doc), `maru-vault-v1:${baseVersion + 1}`)
           const result = await this.options.client.putVault(baseVersion, ciphertext)
           await this.options.session.setMeta('vault-version', String(result.version))
+          this.lastRemoteDocument = doc
           this.publish({ kind: 'idle', lastSyncAt: this.now() })
           return
         } catch (error) {
@@ -223,11 +220,21 @@ export class AccountSync {
           const conflict = error.details as VaultConflict | undefined
           if (!conflict || typeof conflict.version !== 'number' || typeof conflict.ciphertext !== 'string') throw error
           const remote = JSON.parse(await openText(key, conflict.ciphertext, `maru-vault-v1:${conflict.version}`)) as VaultDocument
+          this.lastRemoteDocument = remote
           doc = mergeVault(remote, doc)
           baseVersion = conflict.version
         }
       }
       this.publish({ kind: 'paused', reason: 'conflict', message: 'Sync paused after three conflicts. Retry to merge again.' })
     } catch (error) { await this.handle(error) }
+  }
+
+  private carryRemoteCredentials(doc: VaultDocument): void {
+    const otherFamily: PlatformFamily = this.options.family === 'ios' ? 'desktop' : 'ios'
+    const remoteCredentials = this.lastRemoteDocument?.credentials[otherFamily] ?? {}
+    const activeEmails = new Set(doc.accounts.map((account) => account.email))
+    doc.credentials[otherFamily] = Object.fromEntries(
+      Object.entries(remoteCredentials).filter(([email]) => activeEmails.has(email)),
+    )
   }
 }

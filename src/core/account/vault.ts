@@ -1,7 +1,6 @@
 import type { Account, Settings } from '../types'
 import type { LocalCredential, PlatformFamily, VaultLocal } from '../service/vault-port'
 import type { TransferSettings } from '@/features/settings/transfer'
-import { accountDeviceIdentity } from '@/lib/env'
 
 export type { LocalCredential, VaultLocal } from '../service/vault-port'
 
@@ -19,7 +18,7 @@ export interface VaultDocument {
   updatedAt: number
   settings: VaultSettings
   accounts: { email: string; label: string }[]
-  credentials: Record<'desktop' | 'ios', Record<string, VaultCredential>>
+  credentials: Record<PlatformFamily, Record<string, VaultCredential>>
 }
 
 const encoder = new TextEncoder()
@@ -41,11 +40,10 @@ function vaultSettings(settings: Settings): VaultSettings {
 
 export async function buildVault(
   local: VaultLocal,
+  family: PlatformFamily,
   updatedAt = local.now?.() ?? Date.now(),
   cachedCredentials?: ReadonlyMap<string, LocalCredential>,
-  family?: PlatformFamily,
 ): Promise<VaultDocument> {
-  const currentFamily = family ?? (await accountDeviceIdentity()).family
   const [settings, accounts] = await Promise.all([local.getSettings(), local.listAccounts()])
   const credentials: VaultDocument['credentials'] = { desktop: {}, ios: {} }
   await Promise.all(accounts.map(async (account) => {
@@ -53,7 +51,7 @@ export async function buildVault(
       ? cachedCredentials.get(account.id)
       : await local.loadCredential(account.id)
     if (!stored) return
-    credentials[currentFamily][normalizeEmail(account.email)] = {
+    credentials[family][normalizeEmail(account.email)] = {
       clientId: stored.clientId,
       refreshToken: stored.refreshToken,
       scope: 'https://www.googleapis.com/auth/gmail.modify',
@@ -117,10 +115,9 @@ export interface ApplyVaultSummary {
 export async function applyVault(
   doc: VaultDocument,
   local: VaultLocal,
-  family?: PlatformFamily,
+  family: PlatformFamily,
 ): Promise<ApplyVaultSummary> {
   if (doc.v !== 1) throw new Error(`Unsupported Maru vault version: ${String(doc.v)}`)
-  const currentFamily = family ?? (await accountDeviceIdentity()).family
   const now = local.now?.() ?? Date.now()
   const currentSettings = await local.getSettings()
   const nextSettings = { ...doc.settings, googleClientSecret: currentSettings.googleClientSecret }
@@ -158,7 +155,7 @@ export async function applyVault(
       await local.upsertAccount(account)
       added += 1
     }
-    const credential = doc.credentials[currentFamily][email]
+    const credential = doc.credentials[family][email]
     if (credential) {
       const stored = await local.loadCredential(account.id)
       if (!stored || (stored.issuedAt ?? 0) < credential.issuedAt) {

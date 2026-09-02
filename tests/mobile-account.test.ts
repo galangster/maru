@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
 import type { Entitlement } from '@/core/account'
 import { entitlementCopy, passwordMeter } from '@/features/settings/account/entitlement-copy'
 import {
-  IOS_GOOGLE_CLIENT_ID_PLACEHOLDER,
   accountDeviceIdentity,
   iosClientForcesDemo,
 } from '@/lib/env'
+import { IOS_GOOGLE_CLIENT_ID_PLACEHOLDER } from '@/lib/ios-oauth'
 import { syncLabel, syncTitle } from '@/mobile/screens/account/account-logic'
 
 const formatter = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
@@ -59,11 +59,8 @@ describe('account device identity', () => {
 })
 
 describe('iOS Gmail demo gate', () => {
-  it('forces demo for the exact built-in placeholder', () => {
+  it('forces only the exact built-in placeholder into demo mode', () => {
     expect(iosClientForcesDemo(IOS_GOOGLE_CLIENT_ID_PLACEHOLDER)).toBe(true)
-  })
-
-  it('allows real mode for a non-default test or production client id', () => {
     expect(iosClientForcesDemo('PLACEHOLDER-TEST.apps.googleusercontent.com')).toBe(false)
     expect(iosClientForcesDemo('123-real.apps.googleusercontent.com')).toBe(false)
   })

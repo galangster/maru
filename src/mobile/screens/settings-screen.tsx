@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { useAccountsById, useSaveSettings, useSettings } from '@/features/mail/queries'
 import { useMailMode, useMailService } from '@/features/mail/service'
-import { iosGoogleClientId } from '@/lib/env'
+import { useBusyAction } from '@/features/settings/account/use-busy-action'
 import { MobileIcon } from '../components/mobile-icon'
 import './settings-screen.css'
 
@@ -13,29 +13,19 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
   const save = useSaveSettings()
   const service = useMailService()
   const { demo } = useMailMode()
-  const [addingGmail, setAddingGmail] = useState(false)
+  const { isBusy, run } = useBusyAction((error) => {
+    const code = 'code' in error ? error.code : undefined
+    toast.error(code === 'cancelled' ? 'Sign-in cancelled' : error.message)
+  })
+  const addingGmail = isBusy('add-gmail')
   const current = settings.data
 
-  const addGmailAccount = async () => {
-    if (demo || addingGmail) return
-    setAddingGmail(true)
-    const previous = await service.getSettings()
-    try {
-      // RealMailService selects new-account clients from Settings. Keep the
-      // iOS build client scoped to this consent and restore desktop BYO data.
-      await service.setSettings({ googleClientId: iosGoogleClientId, googleClientSecret: undefined })
+  const addGmailAccount = () => {
+    if (demo) return
+    void run('add-gmail', async () => {
       const account = await service.addAccount()
       toast.success(`Added ${account.email}`)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      toast.error(message.includes('cancelled') ? 'Sign-in cancelled' : message)
-    } finally {
-      await service.setSettings({
-        googleClientId: previous.googleClientId,
-        googleClientSecret: previous.googleClientSecret,
-      })
-      setAddingGmail(false)
-    }
+    })
   }
   return (
     <section className="mobile-screen mobile-settings" aria-label="Settings">
@@ -47,7 +37,7 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
             icon={<MobileIcon name="add" scale="action" />}
             title={addingGmail ? 'Opening Google…' : 'Add Gmail account'}
             detail={demo ? 'Gmail sign-in on the phone arrives with the iOS client id' : 'Sign in with Google'}
-            onClick={demo ? undefined : () => void addGmailAccount()}
+            onClick={demo ? undefined : addGmailAccount}
           />
         </SettingsGroup>
         <SettingsGroup title="Appearance">

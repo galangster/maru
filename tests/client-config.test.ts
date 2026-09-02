@@ -33,6 +33,14 @@ describe('resolveOAuthClient', () => {
     })
   })
 
+  it('uses the official iOS client instead of a synced desktop override', () => {
+    expect(resolveOAuthClient({
+      settings,
+      officialClientId: 'ios-client',
+      allowCustomClient: false,
+    })).toEqual({ source: 'official', clientId: 'ios-client' })
+  })
+
   it('leaves source builds on the BYO setup path', () => {
     expect(resolveOAuthClient({ settings: {}, officialClientId: undefined })).toBeNull()
   })

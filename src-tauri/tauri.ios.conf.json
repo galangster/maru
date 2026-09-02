@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "identifier": "app.getmaru.ios",
   "build": {
-    "beforeBuildCommand": "node src-tauri/scripts/prepare-ios-oauth.mjs && npm run build"
+    "beforeBuildCommand": "node --import tsx src-tauri/scripts/prepare-ios-oauth.mjs && npm run build"
   },
   "bundle": {
     "iOS": {

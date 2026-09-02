@@ -4,8 +4,10 @@
 // MailService or through openExternalUrl() below.
 
 import { isUnifiedFolder } from '@/core/defaults'
+import type { PlatformFamily } from '@/core/service/vault-port'
 import type { MailView } from '@/core/types'
 import { hostname as osHostname, type as osType } from '@tauri-apps/plugin-os'
+import { IOS_GOOGLE_CLIENT_ID_PLACEHOLDER } from './ios-oauth'
 
 const rawParams = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
 
@@ -62,6 +64,8 @@ export const platformOS: 'ios' | 'mac' | 'windows' | 'other' = (() => {
   return 'other'
 })()
 
+export const deviceFamily: PlatformFamily = platformOS === 'ios' ? 'ios' : 'desktop'
+
 /** The iPhone shell, or the gated `?mobile=1` browser-development seam. */
 export const isMobileShell = platformOS === 'ios' || params.get('mobile') === '1'
 
@@ -73,13 +77,12 @@ export async function accountDeviceIdentity(
   const nativeName = deviceName ?? (isTauri() ? await osHostname().catch(() => null) : null)
   const browserName = typeof navigator === 'undefined' ? '' : navigator.platform
   const name = nativeName || browserName || (os === 'ios' ? 'iPhone' : 'Desktop')
-  if (os === 'ios') return { name, platform: 'ios', family: 'ios' }
-  if (os === 'windows') return { name, platform: 'windows', family: 'desktop' }
-  if (os === 'other' && userAgent.includes('Linux')) return { name, platform: 'linux', family: 'desktop' }
-  return { name, platform: 'macos', family: 'desktop' }
+  const family = os === platformOS ? deviceFamily : os === 'ios' ? 'ios' : 'desktop'
+  if (os === 'ios') return { name, platform: 'ios', family }
+  if (os === 'windows') return { name, platform: 'windows', family }
+  if (os === 'other' && userAgent.includes('Linux')) return { name, platform: 'linux', family }
+  return { name, platform: 'macos', family }
 }
-
-export const IOS_GOOGLE_CLIENT_ID_PLACEHOLDER = 'PLACEHOLDER.apps.googleusercontent.com'
 
 export const iosGoogleClientId =
   import.meta.env.VITE_MARU_IOS_GOOGLE_CLIENT_ID?.trim() || IOS_GOOGLE_CLIENT_ID_PLACEHOLDER

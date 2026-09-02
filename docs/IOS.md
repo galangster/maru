@@ -51,6 +51,9 @@ export VITE_MARU_IOS_GOOGLE_CLIENT_ID="<client-id>.apps.googleusercontent.com"
 
 The build derives and registers
 `com.googleusercontent.apps.<client-id>` as the callback scheme.
+The build hook runs `prepare-ios-oauth.mjs` through `node --import tsx`.
+That lets the hook and application import the same validated callback helper
+from `src/lib/ios-oauth.ts`.
 
 The mobile shell also supports browser development at `?mobile=1`.
 Use a 390 by 844 point viewport for that path.
@@ -184,7 +187,7 @@ npm run typecheck && npm test && npm run build
 Simulator proof lives in `wayfinder/captures/ios`.
 The folder contains Inbox, Thread, Compose, Later, Settings, account, and empty-state captures in both themes.
 
-The I3 native session proof is `docs/captures/ios-auth-session-light.png`.
+The I3 native session proof is `wayfinder/captures/ios/ios-auth-session-light.png`.
 It shows `accounts.google.com` inside the system sheet and Google's expected
 `invalid_client` result for `PLACEHOLDER-TEST.apps.googleusercontent.com`.
 FlowDeck also verified that cancelling the sheet returns to Settings with

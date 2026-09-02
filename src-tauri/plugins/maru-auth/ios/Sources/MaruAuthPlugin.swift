@@ -1,5 +1,4 @@
 import AuthenticationServices
-import SwiftRs
 import Tauri
 import UIKit
 import WebKit
@@ -11,10 +10,10 @@ private final class StartAuthSessionArgs: Decodable {
 
 final class MaruAuthPlugin: Plugin, ASWebAuthenticationPresentationContextProviding {
   private var session: ASWebAuthenticationSession?
-  private weak var webViewWindow: UIWindow?
+  private weak var webView: WKWebView?
 
   @objc public override func load(webview: WKWebView) {
-    webViewWindow = webview.window
+    self.webView = webview
   }
 
   @objc public func startAuthSession(_ invoke: Invoke) throws {
@@ -61,7 +60,10 @@ final class MaruAuthPlugin: Plugin, ASWebAuthenticationPresentationContextProvid
       .compactMap { $0 as? UIWindowScene }
       .flatMap(\.windows)
       .first(where: \.isKeyWindow)
-    return keyWindow ?? webViewWindow ?? UIWindow()
+    guard let anchor = keyWindow ?? webView?.window else {
+      preconditionFailure("Maru auth requires a connected presentation window")
+    }
+    return anchor
   }
 }
 

@@ -48,7 +48,7 @@ const document = (patch: Partial<VaultDocument> = {}): VaultDocument => ({
 
 describe('vault document', () => {
   it('excludes googleClientSecret and includes desktop credentials', async () => {
-    const vault = await buildVault(new FakeLocal(), 20, undefined, 'desktop')
+    const vault = await buildVault(new FakeLocal(), 'desktop', 20)
     expect(vault.settings).not.toHaveProperty('googleClientSecret')
     expect(vault.credentials.desktop['nick@example.com']).toMatchObject({
       clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10,
@@ -57,7 +57,7 @@ describe('vault document', () => {
   })
 
   it('writes the same local credentials only to the iOS family on iOS', async () => {
-    const vault = await buildVault(new FakeLocal(), 20, undefined, 'ios')
+    const vault = await buildVault(new FakeLocal(), 'ios', 20)
     expect(vault.credentials.desktop).toEqual({})
     expect(vault.credentials.ios['nick@example.com']).toMatchObject({
       clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10,
@@ -145,7 +145,7 @@ describe('vault document', () => {
         ios: {},
       },
     })
-    const result = await applyVault(vault, local)
+    const result = await applyVault(vault, local, 'desktop')
     expect(result).toMatchObject({ added: 0, removed: 0, tokensFiled: 0 })
     expect(local.settingsWrites).toBe(0)
     expect(local.credentialWrites).toBe(0)

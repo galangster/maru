@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AccountClient } from '../src/core/account/client'
-import { seal } from '../src/core/account/crypto'
+import { openText, seal } from '../src/core/account/crypto'
 import { AccountSessionStore, ACCOUNT_KEY_SECRET, ACCOUNT_SESSION_SECRET } from '../src/core/account/session'
 import { AccountSync } from '../src/core/account/sync'
 import type { VaultDocument } from '../src/core/account/vault'
@@ -46,7 +46,7 @@ describe('AccountSync', () => {
     let request = 0
     platform.handler = () => jsonResponse({ error: 'conflict', ...conflicts[request++] }, 409)
     const client = new AccountClient(platform, 'https://sync.test', 'session-token')
-    const sync = new AccountSync({ client, session, local: local(), debounceMs: 1 })
+    const sync = new AccountSync({ client, session, local: local(), family: 'desktop', debounceMs: 1 })
     await sync.push()
     expect(platform.requests).toHaveLength(3)
     expect(sync.currentState()).toMatchObject({ kind: 'paused', reason: 'conflict' })
@@ -55,7 +55,7 @@ describe('AccountSync', () => {
   it('clears the Maru session and account key after remote revoke', async () => {
     platform.handler = () => jsonResponse({ error: 'revoked', message: 'This device was signed out' }, 401)
     const client = new AccountClient(platform, 'https://sync.test', 'session-token')
-    const sync = new AccountSync({ client, session, local: local() })
+    const sync = new AccountSync({ client, session, local: local(), family: 'desktop' })
     await sync.pull()
     expect(sync.currentState()).toEqual({
       kind: 'signed_out',
@@ -75,7 +75,7 @@ describe('AccountSync', () => {
         : new Response(null, { status: 204 })
     }
     const client = new AccountClient(platform, 'https://sync.test', 'session-token')
-    const sync = new AccountSync({ client, session, local: local() })
+    const sync = new AccountSync({ client, session, local: local(), family: 'desktop' })
     await sync.push()
     expect(sync.currentState()).toMatchObject({ kind: 'paused', reason: 'subscription_needed' })
     await sync.pull()
@@ -86,7 +86,7 @@ describe('AccountSync', () => {
     vi.useFakeTimers()
     platform.handler = () => new Response(null, { status: 204 })
     const client = new AccountClient(platform, 'https://sync.test', 'session-token')
-    const sync = new AccountSync({ client, session, local: local(), debounceMs: 1 })
+    const sync = new AccountSync({ client, session, local: local(), family: 'desktop', debounceMs: 1 })
     const first = sync.pull()
     const second = sync.pull()
     expect(second).toBe(first)
@@ -108,7 +108,7 @@ describe('AccountSync', () => {
     const vaultLocal = local()
     vaultLocal.getSettings = async () => ({ ...settings, theme: 'light' })
     vaultLocal.setSettings = async () => { sync.schedulePush() }
-    sync = new AccountSync({ client, session, local: vaultLocal, debounceMs: 1, pullIntervalMs: 60_000 })
+    sync = new AccountSync({ client, session, local: vaultLocal, family: 'desktop', debounceMs: 1, pullIntervalMs: 60_000 })
     await sync.start()
     await vi.advanceTimersByTimeAsync(2)
     sync.stop()
@@ -133,6 +133,7 @@ describe('AccountSync', () => {
       client: new AccountClient(platform, 'https://sync.test', 'session-token'),
       session,
       local: vaultLocal,
+      family: 'desktop',
     })
     await sync.push()
     await sync.push()
@@ -140,5 +141,94 @@ describe('AccountSync', () => {
     sync.invalidateCredentialCache()
     await sync.push()
     expect(credentialReads).toBe(2)
+  })
+
+  it('preserves desktop credentials when iOS pushes without a conflict', async () => {
+    const email = 'nick@example.com'
+    const desktopCredential = {
+      clientId: 'desktop-client',
+      refreshToken: 'desktop-token',
+      scope: 'https://www.googleapis.com/auth/gmail.modify',
+      issuedAt: 10,
+    }
+    const remote: VaultDocument = {
+      ...doc(10),
+      accounts: [{ email, label: 'Nick' }],
+      credentials: { desktop: { [email]: desktopCredential }, ios: {} },
+    }
+    const ciphertext = await seal(key, JSON.stringify(remote), 'maru-vault-v1:1')
+    let pushed = ''
+    platform.handler = (request) => {
+      if (request.method === 'GET') return jsonResponse({ version: 1, ciphertext, updatedAt: 10 })
+      pushed = String((JSON.parse(request.body ?? '{}') as { ciphertext?: string }).ciphertext ?? '')
+      return jsonResponse({ version: 2 })
+    }
+    const vaultLocal = {
+      ...local(),
+      listAccounts: async () => [{ id: 'mail', email, displayName: 'Nick', color: '#123', addedAt: 1 }],
+      loadCredential: async () => ({ clientId: 'ios-client', refreshToken: 'ios-token', issuedAt: 20 }),
+    }
+    const sync = new AccountSync({
+      client: new AccountClient(platform, 'https://sync.test', 'session-token'),
+      session,
+      local: vaultLocal,
+      family: 'ios',
+    })
+
+    await sync.pull()
+    await sync.push()
+
+    const pushedDoc = JSON.parse(await openText(key, pushed, 'maru-vault-v1:2')) as VaultDocument
+    expect(pushedDoc.credentials.desktop[email]).toEqual(desktopCredential)
+    expect(pushedDoc.credentials.ios[email]).toMatchObject({
+      clientId: 'ios-client',
+      refreshToken: 'ios-token',
+    })
+  })
+
+  it('drops both credential families when an account is removed', async () => {
+    const email = 'nick@example.com'
+    const credential = {
+      clientId: 'client',
+      refreshToken: 'token',
+      scope: 'https://www.googleapis.com/auth/gmail.modify',
+      issuedAt: 10,
+    }
+    const remote: VaultDocument = {
+      ...doc(10),
+      accounts: [{ email, label: 'Nick' }],
+      credentials: {
+        desktop: { [email]: credential },
+        ios: { [email]: credential },
+      },
+    }
+    const ciphertext = await seal(key, JSON.stringify(remote), 'maru-vault-v1:1')
+    let accounts = [{ id: 'mail', email, displayName: 'Nick', color: '#123', addedAt: 1 }]
+    let pushed = ''
+    platform.handler = (request) => {
+      if (request.method === 'GET') return jsonResponse({ version: 1, ciphertext, updatedAt: 10 })
+      pushed = String((JSON.parse(request.body ?? '{}') as { ciphertext?: string }).ciphertext ?? '')
+      return jsonResponse({ version: 2 })
+    }
+    const vaultLocal = {
+      ...local(),
+      listAccounts: async () => accounts,
+      loadCredential: async () => ({ clientId: 'ios-client', refreshToken: 'ios-token', issuedAt: 20 }),
+    }
+    const sync = new AccountSync({
+      client: new AccountClient(platform, 'https://sync.test', 'session-token'),
+      session,
+      local: vaultLocal,
+      family: 'ios',
+    })
+
+    await sync.pull()
+    accounts = []
+    sync.invalidateCredentialCache()
+    await sync.push()
+
+    const pushedDoc = JSON.parse(await openText(key, pushed, 'maru-vault-v1:2')) as VaultDocument
+    expect(pushedDoc.accounts).toEqual([])
+    expect(pushedDoc.credentials).toEqual({ desktop: {}, ios: {} })
   })
 })

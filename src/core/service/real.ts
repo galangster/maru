@@ -20,6 +20,7 @@ import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } fro
 import { bodyTextOf, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
 import type { VaultLocal } from './vault-port'
+import type { PlatformFamily } from './vault-port'
 import type { GmailMessage, GmailThread } from '../gmail/types'
 import type {
   LabelChanges,
@@ -74,13 +75,15 @@ export class UnknownThreadError extends Error {
 export interface RealMailServiceOptions {
   platform: Platform
   store: Store
+  family: PlatformFamily
+  officialClientId?: string
   /** Overridable so tests can drive the service without a network. */
   createClient?: (accountId: string, clientId: string, clientSecret?: string) => MailGmailClient
   runAuthFlow?: (
     platform: Platform,
     clientId: string,
-    clientSecret?: string,
-    opts?: { expectEmail?: string },
+    clientSecret: string | undefined,
+    opts: { expectEmail?: string; family: PlatformFamily },
   ) => Promise<AuthFlowResult>
   /** False in tests: skip the backfill and the poll timer. */
   autoStart?: boolean
@@ -97,6 +100,8 @@ interface AccountRuntime {
 export class RealMailService implements MailService {
   private readonly platform: Platform
   private readonly store: Store
+  private readonly family: PlatformFamily
+  private readonly officialClientId: string | undefined
   private readonly tokenStore: TokenStore
   private readonly index = new ThreadSearchIndex()
   private readonly listeners = new Set<(e: MailEvent) => void>()
@@ -105,8 +110,8 @@ export class RealMailService implements MailService {
   private readonly authFlow: (
     platform: Platform,
     clientId: string,
-    clientSecret?: string,
-    opts?: { expectEmail?: string },
+    clientSecret: string | undefined,
+    opts: { expectEmail?: string; family: PlatformFamily },
   ) => Promise<AuthFlowResult>
   private readonly autoStart: boolean
   private readonly newId: () => string
@@ -117,6 +122,8 @@ export class RealMailService implements MailService {
   private constructor(opts: RealMailServiceOptions) {
     this.platform = opts.platform
     this.store = opts.store
+    this.family = opts.family
+    this.officialClientId = opts.officialClientId
     this.tokenStore = new TokenStore(opts.platform)
     this.autoStart = opts.autoStart ?? true
     this.newId = opts.newId ?? (() => crypto.randomUUID())
@@ -247,7 +254,12 @@ export class RealMailService implements MailService {
   private async attach(account: Account, settings: Settings): Promise<AccountRuntime> {
     if (this.runtimes.has(account.id)) return this.runtimes.get(account.id)!
     const stored = await this.tokenStore.load(account.id)
-    const oauthClient = resolveOAuthClient({ issuingClient: stored, settings })
+    const oauthClient = resolveOAuthClient({
+      issuingClient: stored,
+      settings,
+      officialClientId: this.officialClientId,
+      allowCustomClient: this.family === 'desktop',
+    })
     if (!oauthClient) throw new MissingOAuthClientError()
     const client = this.createClient(account.id, oauthClient.clientId, oauthClient.clientSecret)
     const engine = new SyncEngine({
@@ -343,14 +355,18 @@ export class RealMailService implements MailService {
    */
   async addAccount(expectEmail?: string): Promise<Account> {
     const settings = await this.store.getSettings()
-    const oauthClient = resolveOAuthClient({ settings })
+    const oauthClient = resolveOAuthClient({
+      settings,
+      officialClientId: this.officialClientId,
+      allowCustomClient: this.family === 'desktop',
+    })
     if (!oauthClient) throw new MissingOAuthClientError()
 
     const result = await this.authFlow(
       this.platform,
       oauthClient.clientId,
       oauthClient.clientSecret,
-      { expectEmail },
+      { expectEmail, family: this.family },
     )
 
     const existing = await this.store.listAccounts()
@@ -688,7 +704,7 @@ export class RealMailService implements MailService {
       saveCredential: (accountId, credential) => this.tokenStore.save(accountId, {
         refreshToken: credential.refreshToken,
         clientId: credential.clientId,
-        source: isOfficialGoogleClientId(credential.clientId) ? 'official' : 'custom',
+        source: isOfficialGoogleClientId(credential.clientId, this.officialClientId) ? 'official' : 'custom',
         issuedAt: credential.issuedAt,
       }),
       clearCredential: (accountId) => this.tokenStore.clear(accountId),

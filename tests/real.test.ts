@@ -90,12 +90,13 @@ function decodeRaw(raw: string): string {
   return Buffer.from(b64 + '='.repeat((4 - (b64.length % 4)) % 4), 'base64').toString('utf8')
 }
 
-async function harness(opts: { seed?: boolean } = {}) {
+async function harness(opts: { seed?: boolean; family?: 'desktop' | 'ios'; officialClientId?: string } = {}) {
   const platform = new NodePlatform()
   const store = await Store.open(platform)
   const client = new FakeClient()
   const events: MailEvent[] = []
   const clientBindings: { accountId: string; clientId: string; clientSecret?: string }[] = []
+  const authBindings: { clientId: string; clientSecret?: string; family: 'desktop' | 'ios' }[] = []
 
   if (opts.seed !== false) {
     await store.upsertAccount(makeAccount())
@@ -111,19 +112,24 @@ async function harness(opts: { seed?: boolean } = {}) {
   const svc = await RealMailService.create({
     platform,
     store,
+    family: opts.family ?? 'desktop',
+    officialClientId: opts.officialClientId,
     autoStart: false,
     createClient: (accountId, clientId, clientSecret) => {
       clientBindings.push({ accountId, clientId, clientSecret })
       return client
     },
-    runAuthFlow: async () => ({
-      email: 'new@gmail.com',
-      historyId: '2000',
-      tokens: { accessToken: 'at-new', refreshToken: 'rt-new', expiresAt: Date.now() + 3_600_000 },
-    }),
+    runAuthFlow: async (_platform, clientId, clientSecret, flowOpts) => {
+      authBindings.push({ clientId, clientSecret, family: flowOpts.family })
+      return {
+        email: 'new@gmail.com',
+        historyId: '2000',
+        tokens: { accessToken: 'at-new', refreshToken: 'rt-new', expiresAt: Date.now() + 3_600_000 },
+      }
+    },
   })
   svc.onEvent((e) => events.push(e))
-  return { platform, store, client, svc, events, clientBindings }
+  return { platform, store, client, svc, events, clientBindings, authBindings }
 }
 
 describe('addAccount', () => {
@@ -137,6 +143,23 @@ describe('addAccount', () => {
     const { store, svc } = await harness({ seed: false })
     await store.setSettings({ googleClientId: 'public-client', googleClientSecret: undefined })
     await expect(svc.addAccount()).resolves.toMatchObject({ email: 'new@gmail.com' })
+  })
+
+  it('uses the official iOS client instead of synced desktop client settings', async () => {
+    const { store, svc, authBindings } = await harness({
+      seed: false,
+      family: 'ios',
+      officialClientId: 'ios-client.apps.googleusercontent.com',
+    })
+    await store.setSettings({ googleClientId: 'desktop-client', googleClientSecret: 'desktop-secret' })
+
+    await svc.addAccount()
+
+    expect(authBindings).toEqual([{
+      clientId: 'ios-client.apps.googleusercontent.com',
+      clientSecret: undefined,
+      family: 'ios',
+    }])
   })
 
   it('stores the account, persists the refresh token and announces the change', async () => {
@@ -512,6 +535,7 @@ describe('startup order', () => {
     await RealMailService.create({
       platform,
       store,
+      family: 'desktop',
       // autoStart true is the production path — the one that used to block.
       // The fake client keeps the engine from touching a network.
       autoStart: true,

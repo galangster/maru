@@ -7,6 +7,7 @@ import { GMAIL_MODIFY_SCOPE,
   exchangeCode,
   generateCodeVerifier,
   generateState,
+  iosRedirectUri,
   pickLoopbackPort,
   parseOAuthCallback,
   redirectUriFor,
@@ -103,29 +104,27 @@ describe('loopback port', () => {
   })
 
   it('builds a 127.0.0.1 loopback redirect uri', () => {
-    expect(redirectUriFor('desktop', CLIENT_ID, 50123)).toBe('http://127.0.0.1:50123/callback')
+    expect(redirectUriFor(50123)).toBe('http://127.0.0.1:50123/callback')
   })
 
   it('builds the reversed-client custom redirect uri on iOS', () => {
-    expect(redirectUriFor('ios', CLIENT_ID)).toBe(
+    expect(iosRedirectUri(CLIENT_ID)).toBe(
       'com.googleusercontent.apps.1234-abc:/oauth2redirect',
     )
   })
 })
 
 describe('OAuth callback parsing', () => {
-  it('reads code and state from a loopback request path', () => {
+  it('reads code and state from loopback and iOS callbacks', () => {
     const callback = parseOAuthCallback('/callback?code=desktop-code&state=desktop-state')
     expect(callback.get('code')).toBe('desktop-code')
     expect(callback.get('state')).toBe('desktop-state')
-  })
 
-  it('reads code and state from an iOS custom-scheme URL', () => {
-    const callback = parseOAuthCallback(
+    const iosCallback = parseOAuthCallback(
       'com.googleusercontent.apps.1234-abc:/oauth2redirect?code=ios-code&state=ios-state',
     )
-    expect(callback.get('code')).toBe('ios-code')
-    expect(callback.get('state')).toBe('ios-state')
+    expect(iosCallback.get('code')).toBe('ios-code')
+    expect(iosCallback.get('state')).toBe('ios-state')
   })
 })
 
@@ -436,7 +435,7 @@ describe('runAuthFlow', () => {
       return `/callback?code=auth-1&state=${state}`
     }
 
-    const result = await runAuthFlow(p, CLIENT_ID, CLIENT_SECRET)
+    const result = await runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { family: 'desktop' })
 
     expect(p.calls.indexOf('oauthListen')).toBeLessThan(p.calls.indexOf('openExternal'))
     expect(result.email).toBe('nick@gmail.com')
@@ -476,6 +475,12 @@ describe('runAuthFlow', () => {
       code: 'cancelled',
       message: 'Sign-in cancelled',
     })
+
+    p.authResponder = async () => { throw { code: 'failed', message: 'request cancelled upstream' } }
+    await expect(runAuthFlow(p, CLIENT_ID, undefined, { family: 'ios' })).rejects.toMatchObject({
+      code: 'auth_session_failed',
+      message: 'Sign-in failed',
+    })
   })
 
   // `login_hint` was declared in AuthUrlParams and written into the authorize
@@ -505,7 +510,7 @@ describe('runAuthFlow', () => {
         const state = new URL(authUrl).searchParams.get('state')
         return `/callback?code=auth-1&state=${state}`
       }
-      const promise = runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { expectEmail })
+      const promise = runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { expectEmail, family: 'desktop' })
       return { promise, url: () => authUrl }
     }
 
@@ -549,7 +554,7 @@ describe('runAuthFlow', () => {
     const p = new NodePlatform()
     goodHandler(p)
     p.oauthResponder = async () => '/callback?code=auth-1&state=tampered'
-    await expect(runAuthFlow(p, CLIENT_ID, CLIENT_SECRET)).rejects.toBeInstanceOf(OAuthError)
+    await expect(runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { family: 'desktop' })).rejects.toBeInstanceOf(OAuthError)
   })
 
   it('surfaces a denied consent screen', async () => {
@@ -559,7 +564,7 @@ describe('runAuthFlow', () => {
       const state = new URL(p.opened[0]).searchParams.get('state')
       return `/callback?error=access_denied&state=${state}`
     }
-    await expect(runAuthFlow(p, CLIENT_ID, CLIENT_SECRET)).rejects.toMatchObject({ code: 'access_denied' })
+    await expect(runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { family: 'desktop' })).rejects.toMatchObject({ code: 'access_denied' })
   })
 
   it('never puts a token in an error message', async () => {
@@ -569,7 +574,7 @@ describe('runAuthFlow', () => {
       const state = new URL(p.opened[0]).searchParams.get('state')
       return `/callback?code=auth-secret-code&state=${state}`
     }
-    const err = await runAuthFlow(p, CLIENT_ID, CLIENT_SECRET).catch((e: Error) => e)
+    const err = await runAuthFlow(p, CLIENT_ID, CLIENT_SECRET, { family: 'desktop' }).catch((e: Error) => e)
     expect(String(err)).not.toContain('auth-secret-code')
     expect(String(err)).not.toContain(CLIENT_SECRET)
   })

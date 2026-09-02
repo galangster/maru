@@ -12,7 +12,17 @@ import type { AgentGateway } from '@/core/agents'
 import type { GatewayServer } from '@/core/gateway-server'
 import type { Platform } from '@/core/platform'
 import type { MailService } from '@/core/types'
-import { isDemo, isMobileShell, isTauri, now, NOW } from '@/lib/env'
+import {
+  deviceFamily,
+  imagePreview,
+  iosGoogleClientId,
+  isDemo,
+  isMobileShell,
+  isTauri,
+  now,
+  NOW,
+  syncPreview,
+} from '@/lib/env'
 
 const ServiceContext = createContext<MailService | null>(null)
 /**
@@ -57,8 +67,20 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
     void (async () => {
       try {
         const platform = !demo && isTauri() ? await loadTauriPlatform() : null
-        const service = await createMailService(platform, { demo, now: NOW })
-        const agents = await createAgentGateway(platform, { demo, now: NOW, mail: service })
+        const service = await createMailService(platform, {
+          demo,
+          now: NOW,
+          family: deviceFamily,
+          officialClientId: deviceFamily === 'ios' ? iosGoogleClientId : undefined,
+          imagePreview,
+          syncPreview,
+        })
+        const agents = await createAgentGateway(platform, {
+          demo,
+          now: NOW,
+          family: deviceFamily,
+          mail: service,
+        })
         if (!alive) return
         setRuntime({ service, agents, platform })
 
@@ -71,6 +93,7 @@ export function MailServiceProvider({ children }: { children: React.ReactNode })
           const stop = await startAccountSync({
             service,
             platform,
+            family: deviceFamily,
             demoBackend: demoAccount ? new demoAccount.DemoAccountBackend() : null,
           })
           if (alive) stopAccountSync = stop

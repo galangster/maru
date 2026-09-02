@@ -28,7 +28,7 @@ import {
 import type { DemoAccountBackend } from '@/core/demo/account-demo'
 import { base64UrlEncodeBytes } from '@/core/mime'
 import type { Platform } from '@/core/platform'
-import type { VaultLocal } from '@/core/service/vault-port'
+import type { PlatformFamily, VaultLocal } from '@/core/service/vault-port'
 import type { MailService } from '@/core/types'
 import { useUi } from '@/features/mail/ui-store'
 import { accountDeviceIdentity } from '@/lib/env'
@@ -70,6 +70,7 @@ interface AccountRuntime {
   session: AccountSessionAccess
   sync: AccountSync | null
   local: VaultLocal
+  family: PlatformFamily
   platform: Platform | null
   demoBackend: DemoAccountBackend | null
   unsubscribe: () => void
@@ -126,10 +127,12 @@ function stopRuntime(): void {
 export async function startAccountSync({
   service,
   platform,
+  family,
   demoBackend = null,
 }: {
   service: MailService
   platform: Platform | null
+  family: PlatformFamily
   demoBackend?: DemoAccountBackend | null
 }): Promise<() => void> {
   const id = ++runtimeId
@@ -150,7 +153,7 @@ export async function startAccountSync({
     if (event.type === 'accountsChanged') runtime?.sync?.invalidateCredentialCache()
     if (event.type === 'accountsChanged' || event.type === 'settingsChanged') runtime?.sync?.schedulePush()
   })
-  runtime = { client, session, sync: null, local, platform, demoBackend, unsubscribe }
+  runtime = { client, session, sync: null, local, family, platform, demoBackend, unsubscribe }
 
   const [saved, key] = await Promise.all([session.load(), session.accountKey()])
   if (runtimeId !== id) return () => {}
@@ -167,7 +170,12 @@ function startSession(session: AccountSession): void {
   const active = currentRuntime()
   active.client.setToken(session.token)
   active.sync?.stop()
-  const sync = new AccountSync({ client: active.client, session: active.session, local: active.local })
+  const sync = new AccountSync({
+    client: active.client,
+    session: active.session,
+    local: active.local,
+    family: active.family,
+  })
   active.sync = sync
   useMaruAccount.setState({ email: session.email, explanation: null, syncState: { kind: 'idle' } })
   sync.subscribe((state) => {

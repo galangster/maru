@@ -9,7 +9,7 @@ import type { Platform } from '../platform'
 import type { PlatformFamily } from '../service/vault-port'
 import { base64UrlEncodeBytes } from '../mime'
 import type { OAuthClientSource } from './client-config'
-import { accountDeviceIdentity } from '@/lib/env'
+import { iosCallbackScheme } from '@/lib/ios-oauth'
 
 export const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 export const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
@@ -110,24 +110,12 @@ export function pickLoopbackPort(random: () => number = Math.random): number {
   return PORT_MIN + Math.floor(random() * (PORT_MAX - PORT_MIN + 1))
 }
 
-const GOOGLE_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com'
-
-export function iosCallbackScheme(clientId: string): string {
-  const normalized = clientId.trim()
-  const clientName = normalized.endsWith(GOOGLE_CLIENT_ID_SUFFIX)
-    ? normalized.slice(0, -GOOGLE_CLIENT_ID_SUFFIX.length)
-    : normalized
-  return `com.googleusercontent.apps.${clientName}`
+export function redirectUriFor(port: number): string {
+  return `http://127.0.0.1:${port}/callback`
 }
 
-export function redirectUriFor(
-  family: PlatformFamily,
-  clientId: string,
-  port?: number,
-): string {
-  if (family === 'ios') return `${iosCallbackScheme(clientId)}:/oauth2redirect`
-  if (port === undefined) throw new Error('A loopback port is required on desktop')
-  return `http://127.0.0.1:${port}/callback`
+export function iosRedirectUri(clientId: string): string {
+  return `${iosCallbackScheme(clientId)}:/oauth2redirect`
 }
 
 // ---------------------------------------------------------------------------
@@ -429,10 +417,61 @@ function authSessionFailure(error: unknown): OAuthError {
   const record = typeof error === 'object' && error !== null
     ? error as { code?: unknown; message?: unknown }
     : null
-  const text = `${String(record?.code ?? '')} ${String(record?.message ?? error ?? '')}`.toLowerCase()
-  return text.includes('cancelled') || text.includes('canceled')
+  return record?.code === 'cancelled'
     ? new OAuthError('cancelled', 'Sign-in cancelled')
     : new OAuthError('auth_session_failed', 'Sign-in failed')
+}
+
+interface AuthFlowStrategy {
+  redirectUri: string
+  clientSecret: string | undefined
+  awaitCallback(authUrl: string): Promise<string>
+}
+
+export function loopbackStrategy(
+  platform: Platform,
+  random: () => number = Math.random,
+  clientSecret?: string,
+): AuthFlowStrategy {
+  const port = pickLoopbackPort(random)
+  return {
+    redirectUri: redirectUriFor(port),
+    clientSecret,
+    async awaitCallback(authUrl) {
+      const callback = platform.oauthListen(port)
+      callback.catch(() => undefined)
+      await platform.openExternal(authUrl)
+      return callback
+    },
+  }
+}
+
+export function authSessionStrategy(platform: Platform, clientId: string): AuthFlowStrategy {
+  const callbackScheme = iosCallbackScheme(clientId)
+  return {
+    redirectUri: iosRedirectUri(clientId),
+    clientSecret: undefined,
+    async awaitCallback(authUrl) {
+      if (!platform.authSession) throw new OAuthError('auth_session_failed', 'Sign-in failed')
+      try {
+        return await platform.authSession(authUrl, callbackScheme)
+      } catch (error) {
+        throw authSessionFailure(error)
+      }
+    },
+  }
+}
+
+function authFlowStrategy(
+  family: PlatformFamily,
+  platform: Platform,
+  clientId: string,
+  clientSecret: string | undefined,
+  random: (() => number) | undefined,
+): AuthFlowStrategy {
+  return family === 'ios'
+    ? authSessionStrategy(platform, clientId)
+    : loopbackStrategy(platform, random, clientSecret)
 }
 
 /**
@@ -442,7 +481,7 @@ function authSessionFailure(error: unknown): OAuthError {
 export async function runAuthFlow(
   platform: Platform,
   clientId: string,
-  clientSecret?: string,
+  clientSecret: string | undefined,
   opts: {
     random?: () => number
     now?: number
@@ -462,41 +501,24 @@ export async function runAuthFlow(
      * A hint is only ever a hint — Google is free to ignore it, and the user
      * is free to pick another account. That is exactly why the answer is
      * verified rather than assumed.
-     */
+    */
     expectEmail?: string
-    family?: PlatformFamily
-  } = {},
+    family: PlatformFamily
+  },
 ): Promise<AuthFlowResult> {
-  const family = opts.family ?? (await accountDeviceIdentity()).family
-  const port = family === 'desktop' ? pickLoopbackPort(opts.random) : undefined
-  const redirectUri = redirectUriFor(family, clientId, port)
+  const strategy = authFlowStrategy(opts.family, platform, clientId, clientSecret, opts.random)
   const verifier = generateCodeVerifier()
   const challenge = await deriveCodeChallenge(verifier)
   const state = generateState()
 
   const authUrl = buildAuthUrl({
     clientId,
-    redirectUri,
+    redirectUri: strategy.redirectUri,
     state,
     codeChallenge: challenge,
     loginHint: opts.expectEmail,
   })
-  let callbackUrl: string
-  if (family === 'ios') {
-    if (!platform.authSession) throw new OAuthError('auth_session_failed', 'Sign-in failed')
-    try {
-      callbackUrl = await platform.authSession(authUrl, iosCallbackScheme(clientId))
-    } catch (error) {
-      throw authSessionFailure(error)
-    }
-  } else {
-    const callback = platform.oauthListen(port as number)
-    // Swallow nothing, but do not leave an unhandled rejection if openExternal
-    // throws before we await the listener.
-    callback.catch(() => undefined)
-    await platform.openExternal(authUrl)
-    callbackUrl = await callback
-  }
+  const callbackUrl = await strategy.awaitCallback(authUrl)
 
   const params = parseOAuthCallback(callbackUrl)
   const error = params.get('error')
@@ -512,10 +534,10 @@ export async function runAuthFlow(
 
   const tokens = await exchangeCode(platform, {
     clientId,
-    clientSecret: family === 'ios' ? undefined : clientSecret,
+    clientSecret: strategy.clientSecret,
     code,
     codeVerifier: verifier,
-    redirectUri,
+    redirectUri: strategy.redirectUri,
     now: opts.now,
   })
 

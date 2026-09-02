@@ -1,20 +1,13 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import {
+  IOS_GOOGLE_CLIENT_ID_PLACEHOLDER,
+  iosCallbackScheme,
+} from '../../src/lib/ios-oauth.ts';
 
-const suffix = '.apps.googleusercontent.com';
-const placeholder = `PLACEHOLDER${suffix}`;
-const clientId = process.env.VITE_MARU_IOS_GOOGLE_CLIENT_ID?.trim() || placeholder;
-
-if (!clientId.endsWith(suffix)) {
-  throw new Error(`VITE_MARU_IOS_GOOGLE_CLIENT_ID must end with ${suffix}`);
-}
-
-const clientIdStem = clientId.slice(0, -suffix.length);
-if (!/^[A-Za-z0-9._-]+$/.test(clientIdStem)) {
-  throw new Error('VITE_MARU_IOS_GOOGLE_CLIENT_ID contains an invalid URL-scheme character');
-}
-
-const callbackScheme = `com.googleusercontent.apps.${clientIdStem}`;
+const clientId = process.env.VITE_MARU_IOS_GOOGLE_CLIENT_ID?.trim()
+  || IOS_GOOGLE_CLIENT_ID_PLACEHOLDER;
+const callbackScheme = iosCallbackScheme(clientId);
 const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

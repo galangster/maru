@@ -4,7 +4,6 @@
 // reviewer sees before they have set up a Google OAuth client. It implements
 // the same MailService contract as the real one, including events.
 
-import { imagePreview, now, syncPreview } from '@/lib/env'
 import { decodeBase64Url } from '../mime'
 import { searchWithOperators } from '../search/operators'
 import { ThreadSearchIndex } from '../search/index'
@@ -54,13 +53,21 @@ export class DemoMailService implements MailService {
   private readonly accountCredentials = new Map<string, LocalCredential>()
   // `?images=block` is the capture door onto the blocking surface — see
   // imagePreview in lib/env. Demo-only, so it can never reach real mail.
-  private settings: Settings = { ...DEFAULT_SETTINGS, ...(imagePreview ? { imagePolicy: imagePreview } : {}) }
+  private settings: Settings
   private readonly now: number
+  private readonly clock: () => number
+  private readonly syncPreview: string | null
   private extraAdded = false
   private sendCounter = 0
 
-  constructor(opts: { now?: number } = {}) {
+  constructor(opts: { now?: number; imagePreview?: 'block' | null; syncPreview?: string | null } = {}) {
     this.now = opts.now ?? Date.now()
+    this.clock = opts.now === undefined ? Date.now : () => opts.now as number
+    this.syncPreview = opts.syncPreview ?? null
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...(opts.imagePreview ? { imagePolicy: opts.imagePreview } : {}),
+    }
     const data = buildDemoData(this.now)
     this.accounts = data.accounts
     for (const t of data.threads) this.threads.set(t.key, t)
@@ -88,7 +95,7 @@ export class DemoMailService implements MailService {
    */
   private syncStatuses(): SyncStatus[] {
     const failure = (accountId: string): SyncStatus => {
-      switch (syncPreview) {
+      switch (this.syncPreview) {
         case 'signedout':
           return { accountId, state: 'error', error: 'invalid_grant', needsReauth: true }
         case 'nocreds':
@@ -116,22 +123,22 @@ export class DemoMailService implements MailService {
             noClientConfigured: true,
           }
         default:
-          return { accountId, state: 'error', error: 'network timeout', lastSyncAt: now() - 7_200_000 }
+          return { accountId, state: 'error', error: 'network timeout', lastSyncAt: this.clock() - 7_200_000 }
       }
     }
 
     const healthy = (id: string): SyncStatus => ({
       accountId: id,
       state: 'idle',
-      lastSyncAt: now() - 90_000,
+      lastSyncAt: this.clock() - 90_000,
     })
 
     return this.accounts.map((account, i) => {
-      if (!syncPreview) return healthy(account.id)
+      if (!this.syncPreview) return healthy(account.id)
       // `partial` signs out the FIRST account and leaves the rest healthy —
       // the case the old footer could not express at all, because it collapsed
       // every account into one word and could not say which.
-      if (syncPreview === 'partial') {
+      if (this.syncPreview === 'partial') {
         return i === 0
           ? { accountId: account.id, state: 'error', error: 'invalid_grant', needsReauth: true }
           : healthy(account.id)
