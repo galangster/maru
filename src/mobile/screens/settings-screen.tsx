@@ -15,7 +15,12 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
   const save = useSaveSettings()
   const service = useMailService()
   const { demo } = useMailMode()
-  const push = usePushUi()
+  // Field by field: the row redraws when the permission changes, not when
+  // an unrelated part of the push state does.
+  const pushAvailable = usePushUi((state) => state.available)
+  const pushPermission = usePushUi((state) => state.permission)
+  const pushRequesting = usePushUi((state) => state.requesting)
+  const requestPush = usePushUi((state) => state.requestPermission)
   const { isBusy, run } = useBusyAction((error) => {
     const code = 'code' in error ? error.code : undefined
     toast.error(code === 'cancelled' ? 'Sign-in cancelled' : error.message)
@@ -52,19 +57,19 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
           <SettingsToggle icon={<MobileIcon name="image" scale="action" />} title="Load images" checked={(current?.imagePolicy ?? 'allow') === 'allow'} onChange={(checked) => save.mutate({ imagePolicy: checked ? 'allow' : 'block' })} />
           <SettingsToggle icon={<MobileIcon name="sliders" scale="action" />} title="Sounds" checked={current?.sounds ?? false} onChange={(sounds) => save.mutate({ sounds })} />
         </SettingsGroup>
-        {push.available && (
+        {pushAvailable && (
           <SettingsGroup title="Notifications" note="New mail can only reach this phone with a Maru account signed in.">
             <SettingsToggle
               icon={<MobileIcon name="unread" scale="action" />}
               title="New mail"
-              detail={notificationsDetail(push.permission, push.requesting)}
-              checked={push.permission === 'granted'}
+              detail={notificationsDetail(pushPermission, pushRequesting)}
+              checked={pushPermission === 'granted'}
               // Granted and denied are both final from in here: iOS shows its
               // alert once ever, and only iPhone Settings can change the
               // answer afterwards. The row says so rather than offering a
               // switch that would silently do nothing.
-              disabled={push.requesting || push.permission !== 'prompt'}
-              onChange={() => void push.requestPermission()}
+              disabled={pushRequesting || pushPermission !== 'prompt'}
+              onChange={() => void requestPush()}
             />
           </SettingsGroup>
         )}

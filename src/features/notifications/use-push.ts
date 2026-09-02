@@ -7,14 +7,9 @@
 
 import { useEffect, useRef } from 'react'
 
-import { PushRuntime, localWatchStore, type PushMailService } from '@/core/push'
+import { PushRuntime, localWatchStore } from '@/core/push'
 import { useMailService } from '@/features/mail/service'
-import {
-  setPushAvailable,
-  setPushPermission,
-  setPushRequester,
-  setPushRequesting,
-} from '@/features/notifications/push-store'
+import { noPushRequest, setPushUi } from '@/features/notifications/push-store'
 import { useMaruAccount } from '@/features/settings/account/account-store'
 
 /**
@@ -35,61 +30,55 @@ export function usePush(openThread: (threadKey: string) => void): void {
 
   useEffect(() => {
     let alive = true
-    let runtime: PushRuntime | null = null
     let stopForeground: (() => void) | null = null
 
     void (async () => {
-      const [{ createPushPort }, { accountRelayClient }] = await Promise.all([
+      const [{ pushPort }, { accountRelayClient }] = await Promise.all([
         import('@/platform/push'),
         import('@/features/settings/account/account-store'),
       ])
       if (!alive) return
-      const port = createPushPort()
-      setPushAvailable(port.available)
+      const port = pushPort()
+      setPushUi({ available: port.available })
       if (!port.available) return
 
-      const mail: PushMailService = {
-        listAccounts: () => service.listAccounts(),
-        refresh: () => service.refresh(),
-        unreadCount: (view) => service.unreadCount(view),
-        onEvent: (cb) => service.onEvent(cb),
-        startPushWatch: (accountId, topic) =>
-          service.startPushWatch
-            ? service.startPushWatch(accountId, topic)
-            : Promise.reject(new Error('This build cannot watch a Gmail account')),
-      }
-
-      runtime = new PushRuntime({
+      runtimeRef.current = new PushRuntime({
         port,
-        mail,
+        // The mail service already is the surface push needs. `startPushWatch`
+        // is optional on both sides, which is how a build that cannot call
+        // Gmail's `users.watch` passes through here unremarked.
+        mail: service,
         relay: accountRelayClient,
         watches: localWatchStore(),
         openThread: (threadKey) => openRef.current(threadKey),
-        onPermission: setPushPermission,
+        onPermission: (permission) => setPushUi({ permission }),
         log: (message) => console.warn(`[push] ${message}`),
       })
 
-      setPushRequester(async () => {
-        setPushRequesting(true)
-        try {
-          await runtime?.requestPermission()
-        } finally {
-          setPushRequesting(false)
-        }
+      setPushUi({
+        requestPermission: async () => {
+          setPushUi({ requesting: true })
+          try {
+            await runtimeRef.current?.requestPermission()
+          } finally {
+            setPushUi({ requesting: false })
+          }
+        },
       })
 
-      runtimeRef.current = runtime
-      await runtime.start()
+      await runtimeRef.current.start()
       if (!alive) {
-        runtime.stop()
+        runtimeRef.current?.stop()
+        runtimeRef.current = null
         return
       }
 
       // Coming back to the app is the cheapest place to notice a watch that
       // lapsed while the phone was shut, and the only place a permission
-      // changed in iOS Settings can be seen.
+      // changed in iOS Settings can be seen. iOS raises both of these events
+      // on one return; the runtime collapses them into a single pass.
       const onForeground = () => {
-        if (document.visibilityState === 'visible') void runtime?.onForeground()
+        if (document.visibilityState === 'visible') void runtimeRef.current?.onForeground()
       }
       document.addEventListener('visibilitychange', onForeground)
       window.addEventListener('focus', onForeground)
@@ -102,8 +91,8 @@ export function usePush(openThread: (threadKey: string) => void): void {
     return () => {
       alive = false
       stopForeground?.()
-      setPushRequester(null)
-      runtime?.stop()
+      setPushUi({ requestPermission: noPushRequest })
+      runtimeRef.current?.stop()
       runtimeRef.current = null
     }
   }, [service])
@@ -114,6 +103,6 @@ export function usePush(openThread: (threadKey: string) => void): void {
   // was ready, and closing it would drop them.
   useEffect(() => {
     if (!accountEmail) return
-    void runtimeRef.current?.onForeground()
+    void runtimeRef.current?.onRelayAvailable()
   }, [accountEmail])
 }

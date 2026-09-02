@@ -44,8 +44,3 @@ pub struct CompletePushRequest {
   /// True when the sync that ran actually brought mail in.
   pub new_data: bool,
 }
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PushOk {
-  pub ok: bool,
-}

@@ -48,7 +48,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     commands::start,
     commands::permission_state,
     commands::request_permission,
-    commands::token,
     commands::set_badge_count,
     commands::schedule_local_notification,
     commands::complete_push

@@ -37,8 +37,11 @@ export interface PushMailService {
   refresh(): Promise<void>
   unreadCount(view: MailView): Promise<number>
   onEvent(cb: (event: MailEvent) => void): () => void
-  /** Calls Gmail `users.watch` for one account and returns its expiration. */
-  startPushWatch(accountId: string, topic: string): Promise<{ expiration: number }>
+  /**
+   * Calls Gmail `users.watch` for one account and returns its expiration.
+   * Optional: a build without it simply never arms a watch.
+   */
+  startPushWatch?(accountId: string, topic: string): Promise<{ expiration: number }>
 }
 
 /**
@@ -76,17 +79,24 @@ export class PushRuntime {
   private readonly now: () => number
   private stopEvents: (() => void) | null = null
   private running = false
-  private token: string | null = null
+  /** The last token APNs gave us, registered with the relay or not. */
+  private seenToken: string | null = null
+  /** The last token the relay accepted. */
+  private registeredToken: string | null = null
   private arrivals = 0
   private permission: PushPermission = 'unsupported'
+  /** The last count actually written to the app icon. */
+  private lastBadge: number | null = null
+  /** Notifications still being posted. A push waits for these. */
+  private readonly announcing = new Set<Promise<void>>()
+  /** Depth of the wakes in flight: while one is, it owns the badge write. */
+  private pushes = 0
+  /** The foreground pass in flight, so two events do not run two passes. */
+  private foreground: Promise<void> | null = null
 
   constructor(opts: PushRuntimeOptions) {
     this.opts = opts
     this.now = opts.now ?? Date.now
-  }
-
-  get permissionState(): PushPermission {
-    return this.permission
   }
 
   /**
@@ -104,7 +114,7 @@ export class PushRuntime {
     this.stopEvents = this.opts.mail.onEvent((event) => {
       if (event.type !== 'newMail') return
       this.arrivals += 1
-      void this.announce(event)
+      this.track(this.announce(event))
     })
 
     const status = await this.opts.port.start((event) => void this.onNativeEvent(event))
@@ -125,7 +135,7 @@ export class PushRuntime {
     const status = await this.opts.port.requestPermission()
     this.setPermission(status.permission)
     if (status.token) await this.registerToken(status.token)
-    if (status.permission === 'granted') await this.renewWatches()
+    await this.renewWatches()
     return status.permission
   }
 
@@ -142,8 +152,28 @@ export class PushRuntime {
    */
   async onForeground(): Promise<void> {
     if (!this.running) return
+    // iOS raises `visibilitychange` and `focus` together on every return, and
+    // two passes would mean two permission reads and two watch sweeps.
+    this.foreground ??= this.runForeground().finally(() => {
+      this.foreground = null
+    })
+    return this.foreground
+  }
+
+  private async runForeground(): Promise<void> {
     await this.refreshPermission()
     await Promise.all([this.renewWatches(), this.syncBadge()])
+  }
+
+  /**
+   * A Maru account signed in. That unlocks exactly two things — the device
+   * registration and the watches — so this does those and nothing else; the
+   * permission and the badge did not change when the account did.
+   */
+  async onRelayAvailable(): Promise<void> {
+    if (!this.running) return
+    if (this.seenToken) await this.registerToken(this.seenToken)
+    await this.renewWatches()
   }
 
   /**
@@ -153,11 +183,19 @@ export class PushRuntime {
   async handlePush(id: string | null): Promise<void> {
     const before = this.arrivals
     let ok = false
+    this.pushes += 1
     try {
-      await this.opts.mail.refresh()
-      ok = true
-    } catch (cause) {
-      this.opts.log?.(`push sync failed: ${String(cause)}`)
+      try {
+        await this.opts.mail.refresh()
+        ok = true
+      } catch (cause) {
+        this.opts.log?.(`push sync failed: ${String(cause)}`)
+      }
+      // The notification is what the wake is for. Telling iOS the work is done
+      // before it is posted invites the process being suspended mid-post.
+      await Promise.allSettled([...this.announcing])
+    } finally {
+      this.pushes -= 1
     }
     await this.syncBadge()
     // Answer iOS before renewing: the completion handler is on a clock and a
@@ -182,14 +220,16 @@ export class PushRuntime {
     const relay = this.opts.relay()
     if (!relay || !this.opts.port.available) return
     if (this.permission !== 'granted') return
-    const accounts = await this.opts.mail.listAccounts()
+    const mail = this.opts.mail
+    if (!mail.startPushWatch) return
+    const accounts = await mail.listAccounts()
     const stored = this.opts.watches.read()
     const due = accountsDueForWatch(accounts, stored, this.now())
     if (due.length === 0) return
     const next: WatchExpirations = { ...stored }
     for (const account of due) {
       try {
-        const { expiration } = await this.opts.mail.startPushWatch(account.id, GMAIL_PUSH_TOPIC)
+        const { expiration } = await mail.startPushWatch(account.id, GMAIL_PUSH_TOPIC)
         await relay.pushWatch(account.email, expiration)
         next[account.email] = expiration
       } catch (cause) {
@@ -202,8 +242,12 @@ export class PushRuntime {
   async syncBadge(): Promise<void> {
     if (!this.opts.port.available) return
     try {
-      const unread = await this.opts.mail.unreadCount(BADGE_VIEW)
-      await this.opts.port.setBadgeCount(badgeCount(unread))
+      const count = badgeCount(await this.opts.mail.unreadCount(BADGE_VIEW))
+      // The number on the icon is already right far more often than not, and
+      // the write is a hop into the native side.
+      if (count === this.lastBadge) return
+      await this.opts.port.setBadgeCount(count)
+      this.lastBadge = count
     } catch (cause) {
       this.opts.log?.(`badge update failed: ${String(cause)}`)
     }
@@ -227,17 +271,24 @@ export class PushRuntime {
   }
 
   private async registerToken(token: string): Promise<void> {
+    this.seenToken = token
     // The relay keys devices by token, so re-sending an unchanged one is only
     // noise. A token does change — restore, reinstall — so this is not "once".
-    if (token === this.token) return
+    if (token === this.registeredToken) return
     const relay = this.opts.relay()
     if (!relay) return
     try {
       await relay.pushRegister(token)
-      this.token = token
+      this.registeredToken = token
     } catch (cause) {
       this.opts.log?.(`push registration failed: ${String(cause)}`)
     }
+  }
+
+  /** Keeps a notification in flight visible to `handlePush`. */
+  private track(work: Promise<void>): void {
+    this.announcing.add(work)
+    void work.catch(() => {}).then(() => this.announcing.delete(work))
   }
 
   private async announce(event: Extract<MailEvent, { type: 'newMail' }>): Promise<void> {
@@ -246,7 +297,8 @@ export class PushRuntime {
     } catch (cause) {
       this.opts.log?.(`notification failed: ${String(cause)}`)
     }
-    await this.syncBadge()
+    // During a wake `handlePush` writes the badge once, after every arrival.
+    if (this.pushes === 0) await this.syncBadge()
   }
 
   private setPermission(permission: PushPermission): void {

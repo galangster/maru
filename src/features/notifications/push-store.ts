@@ -18,27 +18,17 @@ export interface PushUiState {
   requestPermission(): Promise<void>
 }
 
-const noRequest = async () => {}
+/** The requester while no runtime is up. */
+export const noPushRequest = async (): Promise<void> => {}
 
 export const usePushUi = create<PushUiState>(() => ({
   available: false,
   permission: 'unsupported',
   requesting: false,
-  requestPermission: noRequest,
+  requestPermission: noPushRequest,
 }))
 
-export function setPushRequester(request: (() => Promise<void>) | null): void {
-  usePushUi.setState({ requestPermission: request ?? noRequest })
-}
-
-export function setPushAvailable(available: boolean): void {
-  usePushUi.setState({ available })
-}
-
-export function setPushPermission(permission: PushPermission): void {
-  usePushUi.setState({ permission })
-}
-
-export function setPushRequesting(requesting: boolean): void {
-  usePushUi.setState({ requesting })
+/** The runtime's one way in. Every field is written through here. */
+export function setPushUi(patch: Partial<PushUiState>): void {
+  usePushUi.setState(patch)
 }

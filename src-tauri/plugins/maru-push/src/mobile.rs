@@ -45,15 +45,7 @@ impl<R: Runtime> MaruPush<R> {
       .map_err(Into::into)
   }
 
-  pub async fn token(&self) -> crate::Result<PushStatus> {
-    self
-      .0
-      .run_mobile_plugin_async("token", ())
-      .await
-      .map_err(Into::into)
-  }
-
-  pub async fn set_badge_count(&self, payload: BadgeRequest) -> crate::Result<PushOk> {
+  pub async fn set_badge_count(&self, payload: BadgeRequest) -> crate::Result<()> {
     self
       .0
       .run_mobile_plugin_async("setBadgeCount", payload)
@@ -64,7 +56,7 @@ impl<R: Runtime> MaruPush<R> {
   pub async fn schedule_local_notification(
     &self,
     payload: LocalNotificationRequest,
-  ) -> crate::Result<PushOk> {
+  ) -> crate::Result<()> {
     self
       .0
       .run_mobile_plugin_async("scheduleLocalNotification", payload)
@@ -72,7 +64,7 @@ impl<R: Runtime> MaruPush<R> {
       .map_err(Into::into)
   }
 
-  pub async fn complete_push(&self, payload: CompletePushRequest) -> crate::Result<PushOk> {
+  pub async fn complete_push(&self, payload: CompletePushRequest) -> crate::Result<()> {
     self
       .0
       .run_mobile_plugin_async("completePush", payload)

@@ -28,13 +28,30 @@ class TauriPushPort implements PushPort {
    * and flushes it the moment `start` lands, so a cold launch loses nothing.
    */
   private channel: Channel<PushEvent> | null = null
+  private started: Promise<PushStatus> | null = null
+  private listener: ((event: PushEvent) => void) | null = null
 
+  /**
+   * Opened once per process. A remount re-subscribes to the channel already
+   * open rather than opening a second one: a second native `start` is a second
+   * `registerForRemoteNotifications`, and the buffer flushes to whichever
+   * channel is current — so the first one's events would be gone.
+   */
   async start(onEvent: (event: PushEvent) => void): Promise<PushStatus> {
-    const channel = new Channel<PushEvent>()
-    channel.onmessage = onEvent
-    this.channel = channel
-    const native = await invoke<NativeStatus>('plugin:maru-push|start', { onEvent: channel })
-    return toStatus(native)
+    this.listener = onEvent
+    if (!this.started) {
+      const channel = new Channel<PushEvent>()
+      channel.onmessage = (event) => this.listener?.(event)
+      this.channel = channel
+      this.started = invoke<NativeStatus>('plugin:maru-push|start', { onEvent: channel })
+        .then(toStatus)
+        .catch((cause: unknown) => {
+          this.channel = null
+          this.started = null
+          throw cause
+        })
+    }
+    return this.started
   }
 
   async permissionState(): Promise<PushStatus> {
@@ -86,7 +103,15 @@ export function noopPushPort(): PushPort {
   }
 }
 
-export function createPushPort(): PushPort {
-  if (platformOS !== 'ios' || !isTauri()) return noopPushPort()
-  return new TauriPushPort()
+let port: PushPort | null = null
+
+/**
+ * The one port for this process. Lazy because `platformOS` and `isTauri()` are
+ * only answerable once the webview is up, and a singleton because the port owns
+ * the plugin's event channel — two of them would mean two APNs registrations
+ * and a buffer flushed to only one of the listeners.
+ */
+export function pushPort(): PushPort {
+  port ??= platformOS !== 'ios' || !isTauri() ? noopPushPort() : new TauriPushPort()
+  return port
 }

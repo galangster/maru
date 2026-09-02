@@ -7,7 +7,6 @@ Allows Maru to register for push, read its notification permission, and post the
 - `allow-start`
 - `allow-permission-state`
 - `allow-request-permission`
-- `allow-token`
 - `allow-set-badge-count`
 - `allow-schedule-local-notification`
 - `allow-complete-push`
@@ -173,32 +172,6 @@ Enables the start command without any pre-configured scope.
 <td>
 
 Denies the start command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`maru-push:allow-token`
-
-</td>
-<td>
-
-Enables the token command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`maru-push:deny-token`
-
-</td>
-<td>
-
-Denies the token command without any pre-configured scope.
 
 </td>
 </tr>

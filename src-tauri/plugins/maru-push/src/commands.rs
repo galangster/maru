@@ -23,12 +23,7 @@ pub(crate) async fn request_permission<R: Runtime>(app: AppHandle<R>) -> Result<
 }
 
 #[command]
-pub(crate) async fn token<R: Runtime>(app: AppHandle<R>) -> Result<PushStatus> {
-  app.maru_push().token().await
-}
-
-#[command]
-pub(crate) async fn set_badge_count<R: Runtime>(app: AppHandle<R>, count: i64) -> Result<PushOk> {
+pub(crate) async fn set_badge_count<R: Runtime>(app: AppHandle<R>, count: i64) -> Result<()> {
   app.maru_push().set_badge_count(BadgeRequest { count }).await
 }
 
@@ -38,7 +33,7 @@ pub(crate) async fn schedule_local_notification<R: Runtime>(
   title: String,
   body: String,
   thread_id: Option<String>,
-) -> Result<PushOk> {
+) -> Result<()> {
   app
     .maru_push()
     .schedule_local_notification(LocalNotificationRequest { title, body, thread_id })
@@ -50,7 +45,7 @@ pub(crate) async fn complete_push<R: Runtime>(
   app: AppHandle<R>,
   id: String,
   new_data: bool,
-) -> Result<PushOk> {
+) -> Result<()> {
   app
     .maru_push()
     .complete_push(CompletePushRequest { id, new_data })

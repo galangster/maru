@@ -4,7 +4,6 @@ permissions = [
   "allow-start",
   "allow-permission-state",
   "allow-request-permission",
-  "allow-token",
   "allow-set-badge-count",
   "allow-schedule-local-notification",
   "allow-complete-push",

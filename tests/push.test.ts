@@ -118,6 +118,7 @@ class FakePort implements PushPort {
   notifications: PushNotification[] = []
   badges: number[] = []
   completions: { id: string; newData: boolean }[] = []
+  permissionChecks = 0
   emit: (event: PushEvent) => void = () => {}
 
   async start(onEvent: (event: PushEvent) => void): Promise<PushStatus> {
@@ -125,6 +126,7 @@ class FakePort implements PushPort {
     return this.status
   }
   async permissionState(): Promise<PushStatus> {
+    this.permissionChecks += 1
     return this.status
   }
   async requestPermission(): Promise<PushStatus> {
@@ -294,6 +296,87 @@ describe('PushRuntime', () => {
     expect(port.completions).toEqual([{ id: 'push-3', newData: false }])
   })
 
+  it('answers iOS only once the notification is posted', async () => {
+    const runtime = build()
+    await runtime.start()
+    const order: string[] = []
+    let post = () => {}
+    const posted = new Promise<void>((resolve) => {
+      post = resolve
+    })
+    port.notify = async () => {
+      await posted
+      order.push('notified')
+    }
+    port.completePush = async () => void order.push('completed')
+    mail.arrivals = [newMail()]
+
+    const wake = runtime.handlePush('push-slow')
+    // Everything that can run without the notification, has.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(order).toEqual([])
+
+    post()
+    await wake
+    expect(order).toEqual(['notified', 'completed'])
+  })
+
+  it('answers iOS even when the notification fails', async () => {
+    const runtime = build()
+    await runtime.start()
+    port.notify = async () => {
+      throw new Error('notification centre said no')
+    }
+    mail.arrivals = [newMail()]
+    await runtime.handlePush('push-5')
+    expect(port.completions).toEqual([{ id: 'push-5', newData: true }])
+  })
+
+  it('writes the badge only when the number changed', async () => {
+    const runtime = build()
+    await runtime.start()
+    await runtime.handlePush('push-a')
+    expect(port.badges).toEqual([4])
+    mail.unread = 5
+    await runtime.handlePush('push-b')
+    expect(port.badges).toEqual([4, 5])
+  })
+
+  it('collapses two foreground events into one pass', async () => {
+    const runtime = build()
+    await runtime.start()
+    port.permissionChecks = 0
+    await Promise.all([runtime.onForeground(), runtime.onForeground()])
+    expect(port.permissionChecks).toBe(1)
+  })
+
+  it('registers the device and arms the watch when an account signs in', async () => {
+    let account: PushRelayClient | null = null
+    const runtime = build({ relay: () => account })
+    await runtime.start()
+    expect(relay.registered).toEqual([])
+    expect(mail.watchCalls).toEqual([])
+
+    account = relay
+    await runtime.onRelayAvailable()
+    expect(relay.registered).toEqual(['abcd'])
+    expect(relay.watched).toEqual([{ email: 'nick@gmail.com', expiration: NOW + 7 * DAY }])
+  })
+
+  it('arms no watch, and logs nothing, on a build that cannot call users.watch', async () => {
+    const log = vi.fn()
+    const bare: PushMailService = {
+      listAccounts: () => mail.listAccounts(),
+      refresh: () => mail.refresh(),
+      unreadCount: (view) => mail.unreadCount(view),
+      onEvent: (cb) => mail.onEvent(cb),
+    }
+    const runtime = build({ mail: bare, log })
+    await runtime.start()
+    expect(relay.watched).toEqual([])
+    expect(log).not.toHaveBeenCalled()
+  })
+
   it('opens the thread a tapped notification names', async () => {
     const openThread = vi.fn()
     const runtime = build({ openThread })
@@ -315,10 +398,11 @@ describe('PushRuntime', () => {
 
   it('does not arm a watch while notifications are refused', async () => {
     port.status = { permission: 'denied', token: null }
-    const runtime = build()
+    const onPermission = vi.fn()
+    const runtime = build({ onPermission })
     await runtime.start()
     expect(mail.watchCalls).toEqual([])
-    expect(runtime.permissionState).toBe('denied')
+    expect(onPermission).toHaveBeenCalledWith('denied')
   })
 
   it('arms the watch as soon as permission is granted', async () => {
