@@ -179,6 +179,34 @@ export const LONG_PRESS_DELAY_MS = 480
  * to be a scroll, which is the tell that a swipe is a web page pretending.
  */
 export const AXIS_LOCK_THRESHOLD = 10
+/**
+ * How far a sheet is dragged down before letting go closes it.
+ *
+ * Larger than `SWIPE_ACTION_THRESHOLD`, because the two gestures are answering
+ * different questions. A row's swipe is a deliberate flick at a target the
+ * finger is already on; a sheet is dismissed by a hand that is on its way
+ * somewhere else, and a sheet that leaves under a 72 px drag would also leave
+ * under the first half of a scroll that started on its header.
+ */
+export const SHEET_DISMISS_THRESHOLD = 96
+
+/**
+ * Where a sheet sits while a finger is on it.
+ *
+ * Down only. A bottom sheet is already at the bottom of the screen, so there
+ * is nothing above its resting place to drag it to — and an upward rubber band
+ * would be the one gesture on the phone that moves and then puts everything
+ * back with no possible outcome.
+ */
+export function sheetDragOffset(dy: number): number {
+  return Math.max(0, dy)
+}
+
+/** Whether letting go here closes the sheet. */
+export function sheetDismisses(offset: number): boolean {
+  return offset >= SHEET_DISMISS_THRESHOLD
+}
+
 export const EDGE_BACK_START_PX = 28
 export const EDGE_BACK_THRESHOLD = 72
 export const PULL_MAX_OFFSET = 92

@@ -423,7 +423,7 @@ html[data-input-modality='keyboard']
 .mobile-title-row,
 .mobile-thread-nav,
 .mobile-sheet-nav,
-.mobile-bottom-sheet > header {
+.mobile-sheet-grip > header {
   display: flex;
   align-items: center;
 }
@@ -1457,13 +1457,13 @@ html[data-input-modality='keyboard']
  * header is exactly the bar it was.
  */
 .mobile-sheet-nav,
-.mobile-bottom-sheet > header {
+.mobile-sheet-grip > header {
   flex-wrap: wrap;
   row-gap: 2px;
 }
 
 .mobile-sheet-nav h2,
-.mobile-bottom-sheet > header h2 {
+.mobile-sheet-grip > header h2 {
   flex: 1 1 auto;
   min-width: var(--mobile-wrap-title);
   overflow-wrap: anywhere;
@@ -1472,7 +1472,7 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-sheet-nav > button,
-.mobile-bottom-sheet > header button {
+.mobile-sheet-grip > header button {
   flex: 0 0 auto;
 }
 
@@ -1880,7 +1880,31 @@ html[data-input-modality='keyboard']
   padding-block: 8px env(safe-area-inset-bottom);
   background: var(--wren-surface);
   box-shadow: 0 -20px 60px oklch(0 0 0 / 0.18);
-  animation: mobile-sheet-in var(--wren-dur-celebrate) var(--wren-ease-spring) both;
+  /*
+   * `backwards`, not `both`. The entrance ends on `translateY(0)`, which is
+   * also this element's base state — so filling forwards changed nothing to
+   * look at and everything to work with: a filled animation outranks an inline
+   * style, so the drag-to-dismiss transform was written and never applied, on
+   * every sheet, for as long as the sheet was open (issue 53).
+   */
+  animation: mobile-sheet-in var(--wren-dur-celebrate) var(--wren-ease-spring) backwards;
+}
+
+.mobile-bottom-sheet.is-settling {
+  transition: transform var(--wren-dur-base) var(--wren-ease-out);
+}
+
+/*
+ * The grab area: the handle and the title row it sits above.
+ *
+ * The drag lives here rather than on the whole sheet because a sheet scrolls —
+ * the mailbox picker is nearly full height — and a dismissal that starts
+ * anywhere would be fighting that scroll for every gesture. `touch-action` is
+ * what stops WebKit claiming the drag for the sheet's own scroller before the
+ * axis lock has had a chance to read it.
+ */
+.mobile-sheet-grip {
+  touch-action: none;
 }
 
 .mobile-sheet-grabber {
@@ -1892,20 +1916,20 @@ html[data-input-modality='keyboard']
   background: var(--wren-hairline-strong);
 }
 
-.mobile-bottom-sheet > header {
+.mobile-sheet-grip > header {
   min-height: 48px;
   justify-content: space-between;
   padding-inline: 16px 10px;
 }
 
-.mobile-bottom-sheet > header h2 {
+.mobile-sheet-grip > header h2 {
   max-width: calc(100% - 50px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mobile-bottom-sheet > header button {
+.mobile-sheet-grip > header button {
   display: grid;
   width: 44px;
   height: 44px;

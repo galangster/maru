@@ -5,6 +5,8 @@ import { wakeTime } from '@/lib/format'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
+  SHEET_DISMISS_THRESHOLD,
+  SWIPE_ACTION_THRESHOLD,
   atRoot,
   buildMobileRowModel,
   inboxBadgeValue,
@@ -16,6 +18,8 @@ import {
   hasListToSelect,
   resolveDragAxis,
   resolveSwipeIntent,
+  sheetDismisses,
+  sheetDragOffset,
   tabAtIndex,
   visibleScreen,
   type MobileRoute,
@@ -547,5 +551,48 @@ describe('closing a conversation after an action that removed it', () => {
     // nothing above the root to pop.
     const closed = mobileRouteReducer(initialMobileRoute, { type: 'closeSheet' })
     expect(mobileRouteReducer(closed, { type: 'back' })).toBe(initialMobileRoute)
+  })
+})
+
+/**
+ * Getting out of a sheet (issue 53).
+ *
+ * Every sheet drew the grab handle iOS uses to say "drag me down to close" and
+ * dragging it did nothing. The two rules below are the whole of what the
+ * handle now does, as pure functions, so the gesture can be checked without a
+ * finger — the same bargain `resolveSwipeIntent` makes for a row.
+ */
+describe('sheet drag to dismiss', () => {
+  it('follows a finger downwards', () => {
+    expect(sheetDragOffset(0)).toBe(0)
+    expect(sheetDragOffset(40)).toBe(40)
+    expect(sheetDragOffset(400)).toBe(400)
+  })
+
+  it('does not follow one upwards', () => {
+    // A bottom sheet is already at the bottom of the screen. There is nothing
+    // above its resting place to drag it to, and a rubber band there would be
+    // the one gesture on the phone with no possible outcome.
+    expect(sheetDragOffset(-60)).toBe(0)
+  })
+
+  it('closes past the threshold and springs back below it', () => {
+    expect(sheetDismisses(SHEET_DISMISS_THRESHOLD - 1)).toBe(false)
+    expect(sheetDismisses(SHEET_DISMISS_THRESHOLD)).toBe(true)
+  })
+
+  it('asks more of a sheet than of a row', () => {
+    // A row's swipe is a deliberate flick at a target the finger is on. A
+    // sheet is dismissed by a hand on its way somewhere else, and a sheet that
+    // left under 72 px would also leave under the first half of a scroll.
+    expect(SHEET_DISMISS_THRESHOLD).toBeGreaterThan(SWIPE_ACTION_THRESHOLD)
+  })
+
+  it('is a vertical gesture, so a sideways drag is not one', () => {
+    // The sheet's dismissal and the edge back share one screen and one finger.
+    // The axis lock is what keeps them apart: each is locked to its own axis
+    // for the life of a gesture, so neither can be running while the other is.
+    expect(resolveDragAxis(0, 120)).toBe('vertical')
+    expect(resolveDragAxis(120, 0)).toBe('horizontal')
   })
 })
