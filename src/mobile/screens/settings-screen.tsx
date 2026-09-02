@@ -2,9 +2,8 @@ import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { useAccountsById, useSaveSettings, useSettings } from '@/features/mail/queries'
-import type { PushPermission, PushRegistration } from '@/core/push'
+import { registrationLabel, type PushPermission } from '@/core/push'
 import { usePushUi } from '@/features/notifications/push-store'
-import { useMaruAccount } from '@/features/settings/account/account-store'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import { useBusyAction } from '@/features/settings/account/use-busy-action'
 import { MobileIcon } from '../components/mobile-icon'
@@ -24,7 +23,6 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
   const requestPush = usePushUi((state) => state.requestPermission)
   // The relay registers devices against a Maru account, so a test push has
   // nowhere to go without one — MARU-ACCOUNT.md §9.
-  const signedIn = useMaruAccount((state) => Boolean(state.email))
   const { isBusy, run } = useBusyAction((error) => {
     const code = 'code' in error ? error.code : undefined
     toast.error(code === 'cancelled' ? 'Sign-in cancelled' : error.message)
@@ -75,7 +73,7 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
               disabled={pushRequesting || pushPermission !== 'prompt'}
               onChange={() => void requestPush()}
             />
-            <PushDiagnosticsRow signedIn={signedIn} />
+            <PushDiagnosticsRow />
           </SettingsGroup>
         )}
         <SettingsGroup title="Maru account"><SettingsRow icon={<MobileIcon name="unread" scale="action" />} title="Maru account" detail="Sync, devices and recovery" onClick={onAccount} /></SettingsGroup>
@@ -100,8 +98,7 @@ function notificationsDetail(permission: PushPermission, requesting: boolean): s
  * delegate callback, the relay refuses in a promise nobody reads, and a device
  * row with no token looks exactly like a working one from in here.
  */
-function PushDiagnosticsRow({ signedIn }: { signedIn: boolean }) {
-  const permission = usePushUi((state) => state.permission)
+function PushDiagnosticsRow() {
   const tokenPrefix = usePushUi((state) => state.tokenPrefix)
   const registration = usePushUi((state) => state.registration)
   const lastError = usePushUi((state) => state.lastError)
@@ -113,38 +110,20 @@ function PushDiagnosticsRow({ signedIn }: { signedIn: boolean }) {
       <span className="mobile-row-icon"><MobileIcon name="info" scale="action" /></span>
       <span>
         <strong>Push diagnostics</strong>
-        <small>Permission · {permissionLabel(permission)}</small>
         <small>Device token · {tokenPrefix ? `${tokenPrefix}…` : 'no token'}</small>
-        <small>Relay · {registrationLabel(registration, lastError, signedIn)}</small>
+        <small>Relay · {registrationLabel(registration, lastError)}</small>
         {lastTest && <small>Test push · {lastTest}</small>}
       </span>
       <button
         type="button"
         className="mobile-diagnostics-action mobile-press"
-        disabled={!signedIn || testing}
+        disabled={testing}
         onClick={() => void sendTestPush()}
       >
         {testing ? 'Sending…' : 'Send test push'}
       </button>
     </div>
   )
-}
-
-function permissionLabel(permission: PushPermission): string {
-  if (permission === 'granted') return 'granted'
-  if (permission === 'denied') return 'denied in iPhone Settings'
-  if (permission === 'prompt') return 'not asked yet'
-  return 'unavailable'
-}
-
-function registrationLabel(
-  registration: PushRegistration,
-  lastError: string | null,
-  signedIn: boolean,
-): string {
-  if (registration === 'registered') return 'registered'
-  if (registration === 'failed') return lastError ?? 'failed'
-  return signedIn ? 'not registered yet' : 'waiting for a Maru account'
 }
 
 function SettingsGroup({ title, note, children }: { title: string; note?: string; children: ReactNode }) {

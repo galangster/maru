@@ -1,9 +1,7 @@
 export { badgeCount } from './badge'
 export {
-  describeApiError,
-  describeTestResult,
   emptyPushDiagnostics,
-  tokenPrefix,
+  registrationLabel,
   type PushDiagnostics,
   type PushRegistration,
   type PushTestResponse,

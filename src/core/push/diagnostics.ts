@@ -5,8 +5,11 @@
 // `pushRegister` is a promise nobody reads. These are the plain-English
 // renderings of both, so Settings can show a person what actually happened.
 
-/** Where the device registration stands with the relay. */
-export type PushRegistration = 'none' | 'registered' | 'failed'
+/**
+ * Where the device registration stands with the relay. `waiting` is a token
+ * in hand and no Maru session to send it to.
+ */
+export type PushRegistration = 'none' | 'waiting' | 'registered' | 'failed'
 
 export interface PushDiagnostics {
   /** First 8 hex characters of the APNs token. The whole token identifies the device. */
@@ -27,6 +30,14 @@ export const emptyPushDiagnostics: PushDiagnostics = {
   tokenPrefix: null,
   registration: 'none',
   lastError: null,
+}
+
+/** The relay line in Settings. */
+export function registrationLabel(registration: PushRegistration, lastError: string | null): string {
+  if (registration === 'registered') return 'registered'
+  if (registration === 'failed') return lastError ?? 'failed'
+  if (registration === 'waiting') return 'waiting for a Maru account'
+  return 'not registered yet'
 }
 
 /** Enough of the token to match a relay device row, and no more. */

@@ -12,6 +12,8 @@ import {
 import {
   describeApiError,
   describeTestResult,
+  emptyPushDiagnostics,
+  registrationLabel,
   tokenPrefix,
   type PushDiagnostics,
   type PushTestResponse,
@@ -142,9 +144,19 @@ describe('diagnostic wording', () => {
     expect(describeTestResult({ ok: false, sent: false })).toBe('The relay did not send it')
     expect(describeTestResult(null)).toBe('The relay did not send it')
   })
+
+  it('words the relay line from the registration state', () => {
+    expect(registrationLabel('none', null)).toBe('not registered yet')
+    expect(registrationLabel('waiting', null)).toBe('waiting for a Maru account')
+    expect(registrationLabel('registered', null)).toBe('registered')
+    expect(registrationLabel('failed', 'HTTP 402 payment_required')).toBe('HTTP 402 payment_required')
+  })
 })
 
+const pristinePushUi = { ...emptyPushDiagnostics, testing: false, lastTest: null, sendTestPush: noPushRequest }
+
 describe('push UI store', () => {
+  beforeEach(() => usePushUi.setState(pristinePushUi))
   it('starts with nothing to report and no action to take', () => {
     expect(usePushUi.getState()).toMatchObject({
       tokenPrefix: null,
@@ -601,7 +613,15 @@ describe('PushRuntime', () => {
     expect(relay.tests).toBe(0)
   })
 
+  it('holds the token as waiting until a Maru account arrives', async () => {
+    const runtime = build({ relay: () => null })
+    await runtime.start()
+    expect(runtime.pushDiagnostics()).toMatchObject({ tokenPrefix: 'abcd', registration: 'waiting' })
+    expect(relay.registered).toEqual([])
+  })
+
   it('fills the Settings store through the diagnostics callback', async () => {
+    usePushUi.setState(pristinePushUi)
     const runtime = build({ onDiagnostics: (next) => setPushUi(next) })
     await runtime.start()
     expect(usePushUi.getState()).toMatchObject({

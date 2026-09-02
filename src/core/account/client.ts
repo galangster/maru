@@ -1,3 +1,4 @@
+import type { PushTestResponse } from '../push'
 import type { Platform } from '../platform'
 import type { KdfParams } from './crypto'
 
@@ -15,7 +16,6 @@ export interface AccountDevice { id: string; name: string; platform: string; fam
 export interface Entitlement { state: EntitlementState; plan: Plan | null; trialEndsAt: number | null; periodEndsAt: number | null; cancelAtPeriodEnd: boolean; graceEndsAt?: number | null }
 export interface MeResponse { email: string; accountId: string; entitlement: Entitlement }
 export interface VaultHistoryEntry { version: number; updatedAt: number }
-export interface PushTestResult { ok: boolean; sent: boolean; apns?: { status: number; reason: string } }
 
 export class MaruApiError extends Error {
   constructor(
@@ -86,7 +86,7 @@ export class AccountClient {
   pushRegister(apnsToken: string | null) { return this.request<{ ok: true }>('/v1/push/register', { method: 'POST', body: JSON.stringify({ apnsToken }) }) }
   pushWatch(email: string, expiration: number) { return this.request<{ ok: true }>('/v1/push/watch', { method: 'POST', body: JSON.stringify({ email, expiration }) }) }
   /** One visible test alert to this device's own token. An APNs rejection comes back as a 200 body — §9. */
-  pushTest() { return this.request<PushTestResult>('/v1/push/test', { method: 'POST' }) }
+  pushTest() { return this.request<PushTestResponse>('/v1/push/test', { method: 'POST' }) }
   health() { return this.request<{ ok: true; version: string }>('/healthz', {}, false) }
   me() { return this.request<MeResponse>('/v1/me') }
   checkout(plan: Plan) { return this.request<{ url: string }>('/v1/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }) }) }

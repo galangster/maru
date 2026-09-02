@@ -132,7 +132,7 @@ export class PushRuntime {
 
     const status = await this.opts.port.start((event) => void this.onNativeEvent(event))
     this.setPermission(status.permission)
-    if (status.token) await this.registerToken(status.token)
+    await this.registerDevice(status.token)
     await Promise.all([this.renewWatches(), this.syncBadge()])
   }
 
@@ -147,7 +147,7 @@ export class PushRuntime {
     if (!this.opts.port.available) return 'unsupported'
     const status = await this.opts.port.requestPermission()
     this.setPermission(status.permission)
-    if (status.token) await this.registerToken(status.token)
+    await this.registerDevice(status.token)
     await this.renewWatches()
     return status.permission
   }
@@ -212,7 +212,7 @@ export class PushRuntime {
     }
   }
 
-  /** What Settings shows. A copy, so a caller cannot edit the runtime's state. */
+  /** The diagnostics as last reported. A copy, so a caller cannot edit the runtime's state. */
   pushDiagnostics(): PushDiagnostics {
     return { ...this.diagnostics }
   }
@@ -297,7 +297,7 @@ export class PushRuntime {
   private async onNativeEvent(event: PushEvent): Promise<void> {
     switch (event.event) {
       case 'pushToken':
-        await this.registerToken(event.token)
+        await this.registerDevice(event.token)
         return
       case 'pushFailed':
         // APNs refuses for reasons the app cannot see any other way — a build
@@ -315,16 +315,25 @@ export class PushRuntime {
     }
   }
 
-  private async registerToken(token: string): Promise<void> {
+  /**
+   * Sends the token APNs gave us — the one passed in, else the last one seen —
+   * unless the relay has already accepted it. Idempotent and cheap, which is
+   * what lets every edge that could have unblocked a registration call it:
+   * start, consent, a new token, sign-in, and every return to the foreground.
+   */
+  private async registerDevice(token: string | null = this.seenToken): Promise<void> {
+    if (!token) return
     this.seenToken = token
     this.setDiagnostics({ tokenPrefix: tokenPrefix(token) })
     // The relay keys devices by token, so re-sending an unchanged one is only
     // noise. A token does change — restore, reinstall — so this is not "once".
     if (token === this.registeredToken) return
     const relay = this.opts.relay()
-    // No Maru session yet. The token is held in `seenToken` and `registerDevice`
-    // sends it the moment there is somewhere to send it to.
-    if (!relay) return
+    // No Maru session yet. The token is held and sent on the next edge.
+    if (!relay) {
+      this.setDiagnostics({ registration: 'waiting' })
+      return
+    }
     try {
       await relay.pushRegister(token)
       this.registeredToken = token
@@ -336,16 +345,6 @@ export class PushRuntime {
       this.opts.log?.(`push registration failed: ${text}`)
       this.setDiagnostics({ registration: 'failed', lastError: text })
     }
-  }
-
-  /**
-   * Sends the token APNs gave us, if the relay has not already accepted it.
-   * Idempotent and cheap, which is what lets every edge that could have
-   * unblocked a registration simply call it.
-   */
-  private async registerDevice(): Promise<void> {
-    if (!this.seenToken || this.seenToken === this.registeredToken) return
-    await this.registerToken(this.seenToken)
   }
 
   /** Keeps a notification in flight visible to `handlePush`. */
