@@ -468,7 +468,7 @@ The archive lands at `src-tauri/gen/apple/build/wren_iOS.xcarchive` and the
 | --- | --- |
 | `CFBundleIdentifier` | `app.getmaru.ios` |
 | `CFBundleShortVersionString` | `0.1.8` |
-| `CFBundleVersion` (the build number) | `0.1.8` for the first build. **Set it in `src-tauri/tauri.ios.conf.json` as `bundle.iOS.bundleVersion`.** `tauri ios build` rewrites `wren_iOS/Info.plist` on every run from the Tauri config, so an edit to `project.yml` or to the plist itself is overwritten and ships the old number (learned 2026-09-02: two build-2 uploads carried `0.1.8` again and App Store Connect dropped both without a build row). The second build is `2`, the third `3`. |
+| `CFBundleVersion` (the build number) | `0.1.8` for the first build. **Set it in `src-tauri/tauri.ios.conf.json` as `bundle.iOS.bundleVersion`.** `tauri ios build` rewrites `wren_iOS/Info.plist` on every run from the Tauri config, so an edit to `project.yml` or to the plist itself is overwritten and ships the old number (learned 2026-09-02: two build-2 uploads carried `0.1.8` again and App Store Connect dropped both without a build row). App Store Connect then **renumbered** the three uploads of 2026-09-02 on its own: the two `0.1.8` duplicates became builds `1` and `2`, and the archive that carried `2` became build `3` (delivery `4a86e502-300f-4edf-8721-13b352a23fbb`, `VALID`, in the internal group by automatic distribution). So TestFlight shows the second cut of the night as **0.1.8 (3)**. The next upload must carry a number above `3`; `bundle.iOS.bundleVersion` is set to `4` for it. |
 | `ITSAppUsesNonExemptEncryption` | `false` |
 | Real mode | `dist/assets/env-*.js` carries the real client id, and the Rust binary that embeds `dist/` was compiled after it (22:06:23 → 22:08:13) |
 

@@ -588,3 +588,18 @@ one client id.
   system setting and an owner action. Until it is fixed, iOS captures under
   `wayfinder/captures/ios/` cannot be refreshed;
   `native-inbox-return-light.png` is owed a re-shoot.
+
+## 2026-09-02 overnight
+
+- [ ] **Install TestFlight 0.1.8 (3)** — the second cut of the night (App
+  Store Connect renumbered it; the archive said 2). It carries the real Maru
+  icon, finger swipes (right archives, left is Later), keyboard-only focus
+  rings, the button and hairline fixes, the one-time "notifications need a
+  Maru account" sheet, and a **Push diagnostics** row under Settings →
+  Notifications. Sign in to your Maru account, open that row: the relay line
+  should read "registered" and **Send test push** should put a banner on the
+  lock screen within seconds. If it says anything else, screenshot the row —
+  the text is the diagnosis.
+- [ ] Send yourself a mail after that and confirm the banner arrives from
+  Gmail push, not only from the test button.
+
