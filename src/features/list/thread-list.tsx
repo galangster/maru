@@ -16,15 +16,14 @@ import { deferSortKey, isDeferred } from '@/core/defaults'
 import { SEARCH_WINDOW_DAYS } from '@/core/sync/engine'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
-  MIN_SEARCH_LENGTH,
   registerActionUndo,
   registerUndoable,
   showUndoToast,
   useAccountsById,
   useDefer,
   useLabels,
+  useListSearch,
   usePerformAction,
-  useSearch,
   useThreads,
   useWakeSweep,
 } from '@/features/mail/queries'
@@ -37,7 +36,6 @@ import { HeldMutations } from '@/lib/deferred'
 import { announcesItself, LEAVES_THE_LIST, UNDO_LABELS } from '@/lib/undo'
 import { dateGroup, wakeGroup, wakeTime, type DateGroup, type WakeGroup } from '@/lib/format'
 import { DUR } from '@/lib/motion'
-import { useDebounced } from '@/lib/use-debounced'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
@@ -109,10 +107,8 @@ export function ThreadList() {
   const service = useMailService()
 
   const searchOpen = useSurfaces((s) => s.searchOpen)
-  const searchQuery = useSurfaces((s) => s.searchQuery)
-  const debounced = useDebounced(searchQuery)
-  const searching = searchOpen && debounced.trim().length >= MIN_SEARCH_LENGTH
-  const results = useSearch(searchOpen ? debounced : '')
+  // One derivation, shared with the reading pane — see useListSearch.
+  const { searching, query: debounced, hits } = useListSearch()
 
   const threads = useThreads(view)
   const { accounts, byId: accountsById, selfEmails } = useAccountsById()
@@ -367,7 +363,6 @@ export function ThreadList() {
   )
 
   const showAccount = view.kind === 'unified' && accounts.length > 1
-  const hits = searching ? (results.data ?? []) : []
 
   // Whether the scroller is actually showing rows, which is the only state the
   // bottom-fade mask has a job in. Mirrors the branch tree below exactly.

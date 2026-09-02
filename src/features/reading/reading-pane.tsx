@@ -17,6 +17,7 @@ import {
   registerActionUndo,
   registerUndoable,
   useLabels,
+  useListSearch,
   usePerformAction,
   useSaveSettings,
   useSettings,
@@ -47,6 +48,7 @@ export function ReadingPane() {
   const now = useNow()
 
   const detail = useThread(selectedKey)
+  const search = useListSearch()
   const queryClient = useQueryClient()
   const action = usePerformAction()
   const settings = useSettings()
@@ -111,6 +113,9 @@ export function ReadingPane() {
     container.scrollTop = Math.max(0, top - 12)
   }, [thread?.key, messageCount, order])
 
+  // The list's own answer, not a second search: see useListSearch.
+  const noMatches = search.searching && search.hits.length === 0
+
   if (!selectedKey || !thread) {
     return (
       <section
@@ -134,11 +139,19 @@ export function ReadingPane() {
               was — the two birds are not duplicates, they are the same
               character in its two states, and the backgrounds now say which is
               which. A field is where Maru waits; the disc is where Maru flies. */}
+          {/* The subtitle answers the list, because the two panes are read
+              together. With results on the left, "pick a thread" and "press J"
+              are both true. With a search that matched nothing they are both
+              impossible, and the app was telling a person to do two
+              contradictory things at once (issue #33). The pane names the one
+              move that still works instead. */}
           <EmptyState
             mark
             copy={{
               title: 'Nothing open',
-              subtitle: 'Pick a thread on the left, or press J to open the first one.',
+              subtitle: noMatches
+                ? 'Nothing on the left to open — try a different search.'
+                : 'Pick a thread on the left, or press J to open the first one.',
             }}
           />
         </div>

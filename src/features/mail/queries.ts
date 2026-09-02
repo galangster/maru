@@ -26,6 +26,8 @@ import { playSound } from '@/lib/sound'
 import { dedupeAddresses } from '@/lib/compose'
 import { correspondents } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
+import { useDebounced } from '@/lib/use-debounced'
+import { useSurfaces } from '@/features/shell/surface-store'
 import { UNDO_LABELS, UNDO_TOAST_ID } from '@/lib/undo'
 
 import { useMailService } from './service'
@@ -206,6 +208,30 @@ export function useSearch(query: string) {
     enabled: term.length >= MIN_SEARCH_LENGTH,
     placeholderData: (previous) => previous,
   })
+}
+
+/**
+ * The list header's search, as ONE derivation.
+ *
+ * The list and the reading pane both need to know whether a search is running
+ * and whether it found anything: the pane was telling people to "pick a thread
+ * on the left" while the list said there was nothing there (issue #33). Two
+ * components deriving that from the same three inputs is two chances to
+ * disagree about what is on screen, so the debounce, the minimum length and the
+ * query all live here and both callers read the same answer.
+ */
+export function useListSearch() {
+  const searchOpen = useSurfaces((s) => s.searchOpen)
+  const searchQuery = useSurfaces((s) => s.searchQuery)
+  const debounced = useDebounced(searchQuery)
+  const results = useSearch(searchOpen ? debounced : '')
+  const searching = searchOpen && debounced.trim().length >= MIN_SEARCH_LENGTH
+  return {
+    searching,
+    /** The settled query — what the results on screen actually answer. */
+    query: debounced,
+    hits: searching ? (results.data ?? []) : [],
+  }
 }
 
 // -- events -----------------------------------------------------------------
