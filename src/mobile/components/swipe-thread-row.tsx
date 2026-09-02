@@ -6,7 +6,6 @@ import {
   LONG_PRESS_DELAY_MS,
   SWIPE_ACTION_THRESHOLD,
   SWIPE_OFFSET_LIMIT,
-  mobileRowLabel,
   resolveSwipeIntent,
   type MobileRowModel,
 } from '../state'
@@ -148,7 +147,7 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
           }
           editing ? onSelect() : onOpen()
         }}
-        aria-label={mobileRowLabel(model)}
+        aria-label={model.label}
         aria-pressed={editing ? selected : undefined}
       >
         {editing ? (

@@ -4,8 +4,6 @@ vi.mock('sonner', () => ({ toast: vi.fn() }))
 
 import type { MailAction } from '../src/core/types'
 import {
-  batchActionLabel,
-  batchDeferLabel,
   bulkAction,
   bulkDefer,
   checkedInView,
@@ -171,9 +169,11 @@ describe('runBatchAction', () => {
   })
 
   it('agrees with the number in singular and plural', () => {
-    expect(batchActionLabel('trash', 1)).toBe('1 thread moved to trash')
-    expect(batchActionLabel('trash', 2, 'conversation')).toBe('2 conversations moved to trash')
-    expect(batchActionLabel('markUnread', 4)).toBe('4 threads marked unread')
+    expect(runBatchAction(() => {}, KEYS.slice(0, 1), 'trash')).toBe('1 thread moved to trash')
+    expect(runBatchAction(() => {}, KEYS.slice(0, 2), 'trash', 'conversation')).toBe(
+      '2 conversations moved to trash',
+    )
+    expect(runBatchAction(() => {}, KEYS, 'markUnread')).toBe('3 threads marked unread')
   })
 })
 
@@ -181,13 +181,22 @@ describe('runBatchDefer', () => {
   const NOW = 1_800_000_000_000
   const WAKE = NOW + 86_400_000
 
+  const prior = new Map<string, number | null>([
+    [key('a'), null],
+    [key('b'), NOW + 5_000],
+  ])
+  const priorFor = (k: string) => prior.get(k) ?? null
+
   it('offers one undo that returns every thread to its own prior schedule', () => {
-    const before = new Map<string, number | null>([
-      [key('a'), null],
-      [key('b'), NOW + 5_000],
-    ])
     const sent: [string, number | null][] = []
-    const label = runBatchDefer((k, at) => sent.push([k, at]), before, WAKE, NOW, 'conversation')
+    const label = runBatchDefer(
+      (k, at) => sent.push([k, at]),
+      [...prior.keys()],
+      priorFor,
+      WAKE,
+      NOW,
+      'conversation',
+    )
 
     expect(label).toBe(`2 conversations saved for ${wakeTime(WAKE, NOW)}`)
     expect(sent).toEqual([
@@ -204,7 +213,32 @@ describe('runBatchDefer', () => {
   })
 
   it('says where the batch went in both directions', () => {
-    expect(batchDeferLabel(1, null, NOW, 'conversation')).toBe('1 conversation back in the inbox')
-    expect(batchDeferLabel(3, WAKE, NOW)).toBe(`3 threads saved for ${wakeTime(WAKE, NOW)}`)
+    expect(runBatchDefer(() => {}, [key('a')], priorFor, null, NOW, 'conversation')).toBe(
+      '1 conversation back in the inbox',
+    )
+    expect(runBatchDefer(() => {}, [key('a'), key('b'), key('c')], priorFor, WAKE, NOW)).toBe(
+      `3 threads saved for ${wakeTime(WAKE, NOW)}`,
+    )
+  })
+
+  it('reads each prior time before the batch overwrites it', () => {
+    // The undo has to hold what the threads were on when the batch STARTED. A
+    // `priorFor` that reaches into live state would answer with this batch's
+    // own wake time by the time anyone pressed Undo.
+    const live = new Map<string, number | null>([[key('a'), NOW + 5_000]])
+    const sent: [string, number | null][] = []
+    runBatchDefer(
+      (k, at) => {
+        live.set(k, at)
+        sent.push([k, at])
+      },
+      [key('a')],
+      (k) => live.get(k) ?? null,
+      WAKE,
+      NOW,
+    )
+    sent.length = 0
+    useUi.getState().runUndo()
+    expect(sent).toEqual([[key('a'), NOW + 5_000]])
   })
 })

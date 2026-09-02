@@ -15,19 +15,17 @@ export const SCROLL_RESTORE_TOLERANCE_PX = 1
 /** The first input that means the restore is no longer the page's business. */
 const GESTURES = ['touchstart', 'wheel', 'keydown', 'pointerdown'] as const
 
-export type RestoreStep = 'settled' | 'reassert' | 'abandon'
-
 /**
- * What a restore should do next: the page holds the offset (`settled`), it does
- * not and there are frames left to try (`reassert`), or it has had its budget
- * and the page wins (`abandon`).
+ * Whether a restore should assert the offset again: it should not once the page
+ * holds it, and it must not once the budget is spent — those are the same
+ * answer, because both mean the restore is over.
  *
  * A pure function so the rule can be tested without a page —
  * tests/mobile-state.test.ts.
  */
-export function restoreStep(scrollY: number, target: number, framesLeft: number): RestoreStep {
-  if (Math.abs(scrollY - target) <= SCROLL_RESTORE_TOLERANCE_PX) return 'settled'
-  return framesLeft > 0 ? 'reassert' : 'abandon'
+export function shouldReassert(scrollY: number, target: number, framesLeft: number): boolean {
+  if (Math.abs(scrollY - target) <= SCROLL_RESTORE_TOLERANCE_PX) return false
+  return framesLeft > 0
 }
 
 /**
@@ -106,8 +104,7 @@ export function useRouteScroll(routeKey: string): () => number {
       for (const type of GESTURES) window.removeEventListener(type, stop)
     }
     const settle = () => {
-      const step = restoreStep(window.scrollY, target, framesLeft)
-      if (step !== 'reassert') return stop()
+      if (!shouldReassert(window.scrollY, target, framesLeft)) return stop()
       framesLeft -= 1
       window.scrollTo(0, target)
       frame = requestAnimationFrame(settle)

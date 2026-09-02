@@ -8,6 +8,7 @@ import { useNow } from '@/lib/use-now'
 import { MobileMessageCard } from '../components/message-card'
 import { MobileIcon } from '../components/mobile-icon'
 import { MobileListSkeleton } from '../components/placeholders'
+import { deferTarget, type DeferTarget } from '../state'
 import { useEdgeBack } from '../use-edge-back'
 import './thread-screen.css'
 
@@ -23,7 +24,7 @@ export function ThreadScreen({
   onBack: () => void
   onReply: (detail: { thread: Thread; messages: Message[] }, mode: ReplyMode) => void
   onArchive: (key: string) => void
-  onLater: (key: string) => void
+  onLater: (target: DeferTarget) => void
   onMore: (thread: Thread) => void
 }) {
   const detail = useThread(threadKey)
@@ -53,7 +54,7 @@ export function ThreadScreen({
         <button className="mobile-nav-back" type="button" onClick={onBack} aria-label="Back to inbox"><MobileIcon name="chevronRight" className="mobile-icon-back" scale="large" /><span>Inbox</span></button>
         <div className="mobile-nav-actions">
           <button type="button" aria-label="Archive" onClick={() => onArchive(thread.key)}><MobileIcon name="archive" scale="action" /></button>
-          <button type="button" aria-label="Save for later" onClick={() => onLater(thread.key)}><MobileIcon name="calendar" scale="action" /></button>
+          <button type="button" aria-label="Save for later" onClick={() => onLater(deferTarget(thread))}><MobileIcon name="calendar" scale="action" /></button>
           <button type="button" aria-label="More actions" onClick={() => onMore(thread)}><MobileIcon name="sliders" scale="action" /></button>
         </div>
       </header>
@@ -79,7 +80,7 @@ export function ThreadScreen({
         <ToolbarButton label="Reply all" icon={<MobileIcon name="replyAll" scale="action" />} onClick={() => onReply(detail.data, 'replyAll')} />
         <ToolbarButton label="Forward" icon={<MobileIcon name="forward" scale="action" />} onClick={() => onReply(detail.data, 'forward')} />
         <ToolbarButton label="Archive" icon={<MobileIcon name="archive" scale="action" />} onClick={() => onArchive(thread.key)} />
-        <ToolbarButton label="Later" icon={<MobileIcon name="calendar" scale="action" />} onClick={() => onLater(thread.key)} />
+        <ToolbarButton label="Later" icon={<MobileIcon name="calendar" scale="action" />} onClick={() => onLater(deferTarget(thread))} />
         <ToolbarButton label="More" icon={<MobileIcon name="sliders" scale="action" />} onClick={() => onMore(thread)} />
       </div>
     </section>

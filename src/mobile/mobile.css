@@ -110,6 +110,23 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
      tracks Dynamic Type: as a fixed 54px the label overflowed its own box at
      the accessibility sizes and printed straight over the field beside it. */
   --mobile-field-label: 3.4rem;
+  /*
+   * Wrap floors: the width below which a flex item stops being squeezed and
+   * takes a line of its own instead.
+   *
+   * In `ch`, so each one is a floor in the text's OWN type and scales with
+   * Dynamic Type — a pixel guess stops meaning anything at 53px, which is
+   * where the accessibility sizes put a row's body text. Unregistered custom
+   * properties are substituted as tokens, so each `ch` is still resolved
+   * against the element that uses it, not against this one.
+   *
+   * At every size the phone ships at by default none of these floors is
+   * reached, and every line is exactly what it was.
+   */
+  --mobile-wrap-sender: 9ch;
+  --mobile-wrap-title: 4ch;
+  --mobile-wrap-recipient: 14ch;
+  --mobile-wrap-value: 12ch;
   position: relative;
   min-height: 100dvh;
   isolation: isolate;
@@ -755,11 +772,8 @@ html[data-input-modality='keyboard']
  * the preview below it were fine, so this was one line rather than a layout
  * giving up.
  *
- * `9ch` is a floor in the row's own type, so it scales with Dynamic Type
- * instead of being a pixel guess that stops meaning anything at 53px: below
- * nine characters of sender the line wraps and the timestamp takes the second
- * row on its own. At every size the phone actually ships at the default, that
- * floor is never reached and the line is exactly what it was.
+ * Below `--mobile-wrap-sender` the line wraps and the timestamp takes the
+ * second row on its own.
  */
 .mobile-row-topline {
   flex-wrap: wrap;
@@ -767,7 +781,7 @@ html[data-input-modality='keyboard']
 
 .mobile-row-topline strong {
   flex: 1 1 auto;
-  min-width: 9ch;
+  min-width: var(--mobile-wrap-sender);
   font-family: var(--wren-font-ui);
   font-size: var(--mobile-text-body);
   line-height: var(--mobile-leading-tight);
@@ -1456,7 +1470,7 @@ html[data-input-modality='keyboard']
 .mobile-sheet-nav h2,
 .mobile-bottom-sheet > header h2 {
   flex: 1 1 auto;
-  min-width: 4ch;
+  min-width: var(--mobile-wrap-title);
   overflow-wrap: anywhere;
   text-align: center;
   text-wrap: balance;
@@ -1531,7 +1545,7 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-compose-to-field > .mobile-recipient-row {
-  flex: 1 1 14ch;
+  flex: 1 1 var(--mobile-wrap-recipient);
   min-width: 0;
 }
 
@@ -1548,7 +1562,7 @@ html[data-input-modality='keyboard']
 
 /* Wrapping flex rather than a two-track grid, for the reason above: a grid
    track cannot move to the next line, so the value column went to nothing
-   instead. `12ch` is the floor below which the value takes a row of its own. */
+   instead. Below `--mobile-wrap-value` the value takes a row of its own. */
 .mobile-recipient-row {
   display: flex;
   flex-wrap: wrap;
@@ -1565,7 +1579,7 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-recipient-control {
-  flex: 1 1 12ch;
+  flex: 1 1 var(--mobile-wrap-value);
 }
 
 /*
@@ -1735,7 +1749,7 @@ html[data-input-modality='keyboard']
 .mobile-compose-field select {
   min-width: 0;
   min-height: 44px;
-  flex: 1 1 12ch;
+  flex: 1 1 var(--mobile-wrap-value);
   overflow: hidden;
   border: 0;
   outline: 0;

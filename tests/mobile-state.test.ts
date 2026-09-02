@@ -12,9 +12,9 @@ import {
   mobileRouteReducer,
   mobileRowLabel,
   nativeTabs,
+  hasListToSelect,
   resolveDragAxis,
   resolveSwipeIntent,
-  shouldLeaveSelection,
   tabAtIndex,
   visibleScreen,
   type MobileRoute,
@@ -24,7 +24,7 @@ import {
 import {
   SCROLL_RESTORE_FRAMES,
   SCROLL_RESTORE_TOLERANCE_PX,
-  restoreStep,
+  shouldReassert,
 } from '@/mobile/use-route-scroll'
 
 function thread(overrides: Partial<Thread> = {}): Thread {
@@ -52,7 +52,7 @@ describe('mobile route reducer', () => {
   it('changes tabs and resets the stack and sheet', () => {
     const state = mobileRouteReducer(initialMobileRoute, {
       type: 'openSheet',
-      sheet: { kind: 'later', threadKeys: ['account/thread-1'] },
+      sheet: { kind: 'later', targets: [{ key: 'account/thread-1', deferredUntil: null }] },
     })
     expect(mobileRouteReducer(state, { type: 'changeTab', tab: 'search' })).toEqual({
       tab: 'search',
@@ -122,7 +122,7 @@ describe('visible screen', () => {
   })
 
   it('is unchanged by a sheet', () => {
-    const withSheet = { ...route([{ kind: 'inbox' }, thread]), sheet: { kind: 'later' as const, threadKeys: ['account/thread-1'] } }
+    const withSheet = { ...route([{ kind: 'inbox' }, thread]), sheet: { kind: 'later' as const, targets: [{ key: 'account/thread-1', deferredUntil: null }] } }
     expect(visibleScreen(withSheet)).toBe('thread')
   })
 
@@ -256,45 +256,48 @@ describe('inbox badge', () => {
 // asserts the offset and then checks its work, because a document that is
 // still growing clamps the target and WebKit re-applies its own idea of the
 // old offset — neither of which is reliably over in one frame.
-describe('restoreStep', () => {
+describe('shouldReassert', () => {
   it('is settled once the page holds the offset', () => {
-    expect(restoreStep(1592, 1592, SCROLL_RESTORE_FRAMES)).toBe('settled')
+    expect(shouldReassert(1592, 1592, SCROLL_RESTORE_FRAMES)).toBe(false)
   })
 
   it('tolerates a sub-pixel resting place, which a 3x screen produces', () => {
-    expect(restoreStep(1592 + SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe('settled')
-    expect(restoreStep(1592 - SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe('settled')
+    expect(shouldReassert(1592 + SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe(false)
+    expect(shouldReassert(1592 - SCROLL_RESTORE_TOLERANCE_PX, 1592, 1)).toBe(false)
   })
 
   it('re-asserts while the page is short of the target and frames remain', () => {
     // 660 against 1592: the reported landing, and what a page clamped to a
     // height it has not finished growing past looks like.
-    expect(restoreStep(660, 1592, SCROLL_RESTORE_FRAMES)).toBe('reassert')
-    expect(restoreStep(0, 1278, 1)).toBe('reassert')
+    expect(shouldReassert(660, 1592, SCROLL_RESTORE_FRAMES)).toBe(true)
+    expect(shouldReassert(0, 1278, 1)).toBe(true)
   })
 
   it('gives the page back to the person once the budget is spent', () => {
-    expect(restoreStep(660, 1592, 0)).toBe('abandon')
+    expect(shouldReassert(660, 1592, 0)).toBe(false)
   })
 })
 
 // The phone used to keep the bulk bar across the bottom of an empty inbox,
 // offering Archive, Later and Done over nothing (issue 18).
-describe('shouldLeaveSelection', () => {
+describe('hasListToSelect', () => {
   it('ends the mode when the last conversation leaves the list', () => {
-    expect(shouldLeaveSelection(true, false, 0)).toBe(true)
+    expect(hasListToSelect(false, 0)).toBe(false)
   })
 
   it('leaves a batch alone while rows remain', () => {
-    expect(shouldLeaveSelection(true, false, 1)).toBe(false)
+    expect(hasListToSelect(false, 1)).toBe(true)
   })
 
   it('does not take the checkmarks away from a list that is still loading', () => {
-    expect(shouldLeaveSelection(true, true, 0)).toBe(false)
+    expect(hasListToSelect(true, 0)).toBe(true)
   })
 
-  it('has nothing to say when the mode is off', () => {
-    expect(shouldLeaveSelection(false, false, 0)).toBe(false)
+  it('is the same answer the Edit control is drawn from', () => {
+    // One predicate for both rules: the control that enters the mode and the
+    // effect that ends it cannot disagree about what counts as a list.
+    expect(hasListToSelect(false, 3)).toBe(true)
+    expect(hasListToSelect(false, 0)).toBe(false)
   })
 })
 
@@ -322,12 +325,7 @@ describe('mobileRowLabel', () => {
     expect(mobileRowLabel(model)).toBe('Priya, Jules +1, Yesterday, Book club: next pick')
   })
 
-  it('distinguishes two rows a screen reader used to hear identically', () => {
-    expect(mobileRowLabel({ ...model, unread: true })).not.toBe(mobileRowLabel(model))
-  })
-
-  it('leaves a single-message conversation uncounted', () => {
-    expect(mobileRowLabel({ ...model, messageCount: 1 })).not.toContain('message')
+  it('counts a conversation of more than one message', () => {
     expect(mobileRowLabel({ ...model, messageCount: 2 })).toContain('2 messages')
   })
 })

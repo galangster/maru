@@ -1,25 +1,20 @@
-import { lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
-import type { MailActionType } from '@/core/types'
+import type { Account, MailActionType } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import {
   registerUndoable,
   useDefer,
-  useDeferralsBefore,
   useMailEvents,
   usePerformAction,
   useAccountsById,
-  useSyncStatus,
   useWakeSweep,
 } from '@/features/mail/queries'
 import { runBatchAction, runBatchDefer } from '@/features/list/bulk'
-import { useMailMode } from '@/features/mail/service'
 import { usePush } from '@/features/notifications/use-push'
 import { useThemeEffect } from '@/features/shell/use-theme'
-import { describeSync } from '@/features/sidebar/sync-summary'
-import { syncPreview } from '@/lib/env'
-import { useNow } from '@/lib/use-now'
+import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
 import { InboxScreen } from './screens/inbox-screen'
@@ -34,6 +29,7 @@ import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
   atRoot,
+  deferTarget,
   initialMobileRoute,
   mobileRouteReducer,
   tabAtIndex,
@@ -78,29 +74,9 @@ export function MobileApp() {
   )
   const perform = usePerformAction()
   const defer = useDefer()
-  const deferralsBefore = useDeferralsBefore()
   const composerOpen = useComposer((state) => state.open)
   const { accounts } = useAccountsById()
-  const syncStatuses = useSyncStatus()
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
-  const { demo } = useMailMode()
-  const now = useNow()
-  // When this window started waiting, so "Starting…" can escalate rather than
-  // stand forever — the sidebar's own reason, and the same ref.
-  const startedAt = useRef(now)
-  /**
-   * The sync state, in the words the desktop already writes (issue 9).
-   *
-   * `demo && !syncPreview` mirrors the sidebar exactly: demo outranks every
-   * other state, but `?sync=` has to be allowed past it or the failure states
-   * could never be reviewed. Derived here rather than in the inbox screen
-   * because the sentence has two audiences — the banner and the live region —
-   * and they must not be two different sentences.
-   */
-  const sync = useMemo(
-    () => describeSync(accounts, syncStatuses, demo && !syncPreview, now, startedAt.current),
-    [accounts, syncStatuses, demo, now],
-  )
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
   const screen = visibleScreen(navigation)
@@ -115,17 +91,6 @@ export function MobileApp() {
   const announce = useCallback((text: string) => {
     setAnnouncement((current) => ({ text, alternate: !current.alternate }))
   }, [])
-  // The screen reader hears what the eye reads. It used to hear "Mail sync
-  // needs attention" for all six failure kinds and the eye was given nothing
-  // at all. Spoken on a change of KIND, not of sentence: `detail` carries an
-  // elapsed time that moves every minute, and an announcement per minute is
-  // how a live region teaches people to ignore it.
-  const spokenKind = useRef('')
-  useEffect(() => {
-    if (spokenKind.current === sync.kind) return
-    spokenKind.current = sync.kind
-    announce(sync.detail)
-  }, [announce, sync.kind, sync.detail])
 
   const act = (threadKey: string, type: MailActionType) => {
     const action = { threadKey, type }
@@ -183,10 +148,9 @@ export function MobileApp() {
           onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
           onCompose={compose}
           onSearch={() => changeTab('search')}
-          sync={sync}
           onSettings={() => changeTab('settings')}
           onArchive={archive}
-          onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
+          onLater={(targets) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets } })}
           onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
         />
@@ -204,7 +168,7 @@ export function MobileApp() {
             onBack={() => dispatch({ type: 'back' })}
             onReply={replyTo}
             onArchive={(key) => { archive([key]); dispatch({ type: 'back' }) }}
-            onLater={(key) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys: [key] } })}
+            onLater={(target) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets: [target] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           />
         ) : screen === 'search' ? (
@@ -218,7 +182,7 @@ export function MobileApp() {
       {composerOpen && <ComposeSheet onSent={() => announce('Sent')} />}
       {sheet?.kind === 'later' && (
         <LaterSheet
-          count={sheet.threadKeys.length}
+          count={sheet.targets.length}
           onClose={closeSheet}
           onPick={(wakeAt) => {
             // The haptic rides `useDefer`, beside the cache patch every Later
@@ -231,10 +195,14 @@ export function MobileApp() {
             // bar, so one pick is one confirmation and one undo however many
             // conversations it took, and the undo returns each of them to its
             // own prior schedule rather than to one shared guess.
+            // The prior wake times came in with the keys, from the surface
+            // that opened the sheet and already had the conversations in hand.
+            const prior = new Map(sheet.targets.map((t) => [t.key, t.deferredUntil]))
             announce(
               runBatchDefer(
                 (threadKey, at) => defer.mutate({ threadKey, wakeAt: at }),
-                deferralsBefore(sheet.threadKeys),
+                sheet.targets.map((t) => t.key),
+                (key) => prior.get(key) ?? null,
                 wakeAt,
                 Date.now(),
                 'conversation',
@@ -249,17 +217,53 @@ export function MobileApp() {
           thread={sheet.thread}
           onClose={closeSheet}
           onAction={(type) => { act(sheet.thread.key, type); closeSheet() }}
-          onLater={() => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys: [sheet.thread.key] } })}
+          onLater={() =>
+            dispatch({
+              type: 'openSheet',
+              sheet: { kind: 'later', targets: [deferTarget(sheet.thread)] },
+            })
+          }
           onMove={() => dispatch({ type: 'openSheet', sheet: { kind: 'move', thread: sheet.thread } })}
         />
       )}
       {sheet?.kind === 'move' && <MoveSheet onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
       {sheet?.kind === 'pushAccount' && <PushAccountSheet onClose={closeSheet} onAccount={openAccount} />}
+      <SyncAnnouncer accounts={accounts} announce={announce} />
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement.text}{announcement.alternate ? '\u200B' : ''}
       </div>
     </div>
   )
+}
+
+/**
+ * The sync state, spoken.
+ *
+ * A component of its own, drawing nothing, so the minute tick `useSyncSummary`
+ * subscribes to re-renders this and not the whole stage — `detail` carries an
+ * elapsed time that moves every minute, and re-rendering every screen and
+ * sheet for a sentence they do not draw is a frame budget a phone cannot
+ * spare. The live region stays in `MobileApp`, because Sent and Archived have
+ * to arrive in the same one.
+ *
+ * The eye reads the same summary in the inbox's sticky header, from the same
+ * hook over the same query and the same clock — so the two cannot be two
+ * different sentences (issue 9).
+ *
+ * Spoken on a change of KIND, not of sentence. VoiceOver used to hear "Mail
+ * sync needs attention" for all six failure kinds and the eye was given
+ * nothing at all; an announcement per minute is the opposite mistake, and it
+ * is how a live region teaches people to ignore it.
+ */
+function SyncAnnouncer({ accounts, announce }: { accounts: Account[]; announce: (text: string) => void }) {
+  const sync = useSyncSummary(accounts)
+  const spokenKind = useRef('')
+  useEffect(() => {
+    if (spokenKind.current === sync.kind) return
+    spokenKind.current = sync.kind
+    announce(sync.detail)
+  }, [announce, sync.kind, sync.detail])
+  return null
 }
 
 /**

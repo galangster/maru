@@ -10,7 +10,7 @@ import type { MailAction, MailActionType, Thread } from '@/core/types'
 import { showUndoToast } from '@/features/mail/queries'
 import { LEAVES_THE_LIST, UNDO_LABELS } from '@/lib/undo'
 import { useUi } from '@/features/mail/ui-store'
-import { wakeTime } from '@/lib/format'
+import { plural, wakeTime } from '@/lib/format'
 
 import { nextAfterRemoval } from './list-prefs'
 
@@ -20,6 +20,16 @@ import { nextAfterRemoval } from './list-prefs'
 const BULK_TYPES = new Set(['archive', 'trash', 'untrash', 'markRead', 'markUnread'] as const)
 
 export type BulkActionType = typeof BULK_TYPES extends ReadonlySet<infer T> ? T : never
+
+/**
+ * What a shell calls the object a batch acts on. The desktop list says thread,
+ * the phone says conversation, and nothing else about a batch differs between
+ * them — so the word is a parameter and the union is written down once.
+ */
+export type BatchNoun = 'thread' | 'conversation'
+
+/** The desktop's word, and the default every entry point below takes. */
+const DEFAULT_NOUN: BatchNoun = 'thread'
 
 /** A positive narrow, so no caller needs a cast to route a triage key here. */
 export function isBulkAction(type: MailActionType): type is BulkActionType {
@@ -60,7 +70,7 @@ export function bulkAction(
     ui.setSelected(nextAfterRemoval(visible, keys), 'keyboard')
   }
 
-  runBatchAction(mutate, [...keys], type)
+  runBatchAction(mutate, targets.map((t) => t.key), type)
   ui.clearChecked()
   return targets.length
 }
@@ -70,13 +80,13 @@ export function bulkAction(
  * moved to trash". The count leads, and the verb is the same past-tense
  * vocabulary every single-thread toast uses.
  *
- * The noun is a parameter because the two shells name the same object
- * differently — the desktop list calls it a thread, the phone calls it a
- * conversation — and nothing else about a batch differs between them.
+ * Module-private: the label is not a thing a caller composes, it is what a
+ * batch says, and `runBatchAction` returns it. Tested through that return
+ * value, so the sentence is checked where it is actually produced.
  */
-export function batchActionLabel(type: BulkActionType, count: number, noun = 'thread'): string {
+function batchActionLabel(type: BulkActionType, count: number, noun: BatchNoun): string {
   const verb = UNDO_LABELS[type]
-  return `${count} ${noun}${count === 1 ? '' : 's'} ${verb[0].toLowerCase() + verb.slice(1)}`
+  return `${plural(count, noun)} ${verb[0].toLowerCase() + verb.slice(1)}`
 }
 
 /**
@@ -98,7 +108,7 @@ export function runBatchAction(
   mutate: (action: MailAction) => void,
   threadKeys: readonly string[],
   type: BulkActionType,
-  noun = 'thread',
+  noun: BatchNoun = DEFAULT_NOUN,
 ): string {
   for (const key of threadKeys) mutate({ type, threadKey: key })
 
@@ -140,8 +150,8 @@ export function bulkDefer(
 ): number {
   const targets = checkedInView(visible)
   if (targets.length === 0) return 0
-  const before = new Map(targets.map((t) => [t.key, t.deferredUntil ?? null]))
-  const keys = new Set(before.keys())
+  const byKey = new Map(targets.map((t) => [t.key, t]))
+  const keys = new Set(byKey.keys())
 
   const ui = useUi.getState()
   // Both directions remove rows from the list on screen: saving takes them out
@@ -150,39 +160,59 @@ export function bulkDefer(
     ui.setSelected(nextAfterRemoval(visible, keys), 'keyboard')
   }
 
-  runBatchDefer(defer, before, wakeAt, now)
+  runBatchDefer(
+    defer,
+    targets.map((t) => t.key),
+    (key) => byKey.get(key)?.deferredUntil ?? null,
+    wakeAt,
+    now,
+  )
   ui.clearChecked()
   return targets.length
 }
 
-/** "3 threads saved for tomorrow morning", "2 conversations back in the inbox". */
-export function batchDeferLabel(
+/**
+ * "3 threads saved for tomorrow morning", "2 conversations back in the inbox".
+ *
+ * Module-private for `batchActionLabel`'s reason: `runBatchDefer` returns it.
+ */
+function batchDeferLabel(
   count: number,
   wakeAt: number | null,
   now: number,
-  noun = 'thread',
+  noun: BatchNoun,
 ): string {
-  const plural = `${count} ${noun}${count === 1 ? '' : 's'}`
-  return wakeAt === null ? `${plural} back in the inbox` : `${plural} saved for ${wakeTime(wakeAt, now)}`
+  const what = plural(count, noun)
+  return wakeAt === null ? `${what} back in the inbox` : `${what} saved for ${wakeTime(wakeAt, now)}`
 }
 
 /**
  * `runBatchAction`'s Later sibling, and the same promise: one undoable for the
  * whole batch, one toast, and the count said out loud.
  *
+ * It takes the keys and a function from key to prior wake time, rather than a
+ * map of one to the other, because the two shells hold that time in different
+ * shapes: the desktop has the `Thread` objects the list is drawn from, the
+ * phone has the rows the sheet was opened over. Each answers the question from
+ * what it already has, and neither has to build the other's map to ask.
+ *
  * The prior wake times are taken rather than assumed, so undoing puts each
  * thread back on its own schedule instead of on one shared guess.
  */
 export function runBatchDefer(
   defer: (threadKey: string, wakeAt: number | null) => void,
-  before: ReadonlyMap<string, number | null>,
+  threadKeys: readonly string[],
+  priorFor: (threadKey: string) => number | null,
   wakeAt: number | null,
   now: number,
-  noun = 'thread',
+  noun: BatchNoun = DEFAULT_NOUN,
 ): string {
-  for (const key of before.keys()) defer(key, wakeAt)
+  // Read before the deferrals land, not inside the undo: by the time anyone
+  // presses ⌘Z the prior time is whatever this batch just wrote.
+  const before = threadKeys.map((key) => [key, priorFor(key)] as const)
+  for (const key of threadKeys) defer(key, wakeAt)
 
-  const label = batchDeferLabel(before.size, wakeAt, now, noun)
+  const label = batchDeferLabel(threadKeys.length, wakeAt, now, noun)
   useUi.getState().registerUndo({
     id: 'bulk:later',
     label,

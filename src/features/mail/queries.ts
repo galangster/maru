@@ -2,7 +2,7 @@
 // performAction, and MailService.onEvent is what invalidates. No component
 // calls the service directly.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
 import { FOLDERS, threadMatchesView } from '@/core/defaults'
@@ -379,39 +379,6 @@ export function registerUndoable(
 interface DeferInput {
   threadKey: string
   wakeAt: number | null
-}
-
-/**
- * The wake times the cache currently holds for these threads.
- *
- * A batch undo has to put each thread back on ITS OWN schedule rather than on
- * one shared guess — the rule `bulkDefer` states — and the desktop reads it
- * off the `Thread` objects it already has in hand. A sheet that was handed
- * only keys has no such objects, so it asks the cache: the detail entry first,
- * because that is the freshest, and any cached list after it.
- *
- * A thread the cache has never seen answers `null`, which is the ordinary case
- * and the honest one: the inbox is where almost every Later starts, and a
- * thread in the inbox has no deferral to put back.
- */
-export function useDeferralsBefore(): (threadKeys: readonly string[]) => Map<string, number | null> {
-  const client = useQueryClient()
-  return useCallback(
-    (threadKeys) => {
-      const before = new Map<string, number | null>(threadKeys.map((key) => [key, null]))
-      for (const [, threads] of client.getQueriesData<Thread[]>({ queryKey: ['threads'] })) {
-        for (const thread of threads ?? []) {
-          if (before.has(thread.key)) before.set(thread.key, thread.deferredUntil ?? null)
-        }
-      }
-      for (const key of threadKeys) {
-        const detail = client.getQueryData<{ thread: Thread }>(keys.thread(key))
-        if (detail) before.set(key, detail.thread.deferredUntil ?? null)
-      }
-      return before
-    },
-    [client],
-  )
 }
 
 export function useDefer() {
