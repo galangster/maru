@@ -237,7 +237,16 @@ function PickerRow({
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {detail && <span className="text-ink-3 shrink-0 text-xs tabular-nums">{detail}</span>}
-      {hint && <Keycap>{hint}</Keycap>}
+      {/* The keycap's column, reserved whether or not this row has one — issue
+          #37. Four preset rows right-aligned their time at one x and put a
+          digit in a column beyond it; the fifth, "Pick a date…", has no digit,
+          so "up to 30 days" ran 28 px past where the four above it stop and
+          into the empty keycap column. In a five-row menu, one row broke the
+          column the other four establish. A slot rather than a conditional
+          keeps every meta value ending at the same x. */}
+      <span aria-hidden={!hint} className="flex w-5 shrink-0 justify-end">
+        {hint && <Keycap>{hint}</Keycap>}
+      </span>
     </button>
   )
 }
