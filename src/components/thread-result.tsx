@@ -41,13 +41,14 @@ export function ThreadResult({
           />
         </span>
       )}
-      {/* A *cap*, not a fixed column. The 152 px measure is right for the
-          two-line list row, where the subject lives on line 2 at full width; on
-          a one-line result the sender and the subject share the line, and the
-          fixed column left ~97 px of dead space inside it while the subject
-          truncated at 14 characters (S4). Alignment across results is carried
-          by the avatar on the left and the fixed time column on the right. */}
-      <span className="font-ui text-ink max-w-(--wren-list-sender-w) shrink-0 truncate text-base font-medium">
+      {/* A fixed column, like the inbox's — DIRECTION §1, columns line up
+          across every row of a list, always. It was a *cap* (S4), which let the
+          sender set the column: nine results started their subjects anywhere
+          across a 76 px band and seven of the nine truncated, in the one place
+          a person is hunting hardest (issue #23). The measure is its own token
+          rather than the list's 152, because this row is one line and the two
+          share it — see tokens.css for the 96 / 140 split. */}
+      <span className="font-ui text-ink w-(--wren-result-sender-w) shrink-0 truncate text-base font-medium">
         {participantLine(people)}
       </span>
       <span className="text-ink-2 min-w-0 flex-1 truncate text-sm">

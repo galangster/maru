@@ -601,6 +601,17 @@
     --wren-row-h: 68px;
     --wren-row-h-compact: 52px;
     --wren-list-sender-w: 152px;
+    /* The compact result row's sender column — issue #23.
+       Search rows and palette rows are ONE line, so sender and subject share
+       it; the 152 px measure above is sized for the two-line list row, where
+       the subject has line 2 to itself. Left uncapped, the sender set the
+       column and nine results started their subjects across a 76 px band with
+       seven of nine truncated. Given the 384 px list card at 1280, the 236 px
+       that sender and subject share splits 96 / 140: 96 holds six of the nine
+       demo senders whole, and every subject gets the same 140 px — where the
+       worst previously got 98. Fixed, so the subjects line up; smaller than
+       152, because 152 would have left the subject 84. */
+    --wren-result-sender-w: 96px;
     /* The inset rounded row (AMIE-STUDY §5): every row is its own rounded rect
        with a small gap, hover and selection fill THAT rect, and no divider is
        needed inside a group at all. --wren-row-h stays the pitch; the visible
