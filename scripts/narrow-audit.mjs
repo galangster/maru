@@ -86,11 +86,59 @@ const SHOTS = [
   },
 ]
 
+/**
+ * The row's centre must open the thread, at every width — issue 39.
+ *
+ * The hover cluster is absolutely positioned over the row's second line, so on
+ * a short enough row it reaches the middle and a click aimed at the subject
+ * fires Archive instead. This is the assertion rather than a frame, because
+ * the failure is invisible in a screenshot: at 800 px nothing overflows and
+ * nothing collides — only the meaning of a click has changed.
+ *
+ * Driven at the reported width (800) and at the window minimum (940).
+ */
+const HIT_WIDTHS = [800, 940]
+
+async function checkRowCentreOpens(browser, width) {
+  const page = await browser.newPage({ viewport: { width, height: 600 } })
+  try {
+    await page.goto(`${ORIGIN}/?demo=1&screenshot=1`)
+    await page.waitForSelector('[data-thread-key]', { timeout: 15_000 })
+    // Hover is what mounts the cluster's pointer events; without it the strip
+    // is `pointer-events-none` and the check would pass for the wrong reason.
+    await page.locator('[data-thread-key]').nth(2).hover()
+    await page.waitForTimeout(200)
+    const hit = await page.evaluate(() => {
+      const row = document.querySelectorAll('[data-thread-key]')[2]
+      const box = row.getBoundingClientRect()
+      const at = document.elementFromPoint(
+        Math.round(box.left + box.width / 2),
+        Math.round(box.top + box.height / 2),
+      )
+      return {
+        rowWidth: Math.round(box.width),
+        onRow: at instanceof Element && at.closest('[data-thread-key]') === row,
+        onButton: at instanceof Element && at.closest('button') !== null,
+      }
+    })
+    if (!hit.onRow || hit.onButton) {
+      throw new Error(
+        `row centre at ${width}px is a ${hit.onButton ? 'button' : 'non-row element'} ` +
+          `(row ${hit.rowWidth}px) — issue 39`,
+      )
+    }
+    console.log(`  hit ${width}px: row centre is the row (row ${hit.rowWidth}px)`)
+  } finally {
+    await page.close()
+  }
+}
+
 const server = await startServerIfNeeded()
 await mkdir(OUT, { recursive: true })
 const browser = await chromium.launch()
 
 try {
+  for (const width of HIT_WIDTHS) await checkRowCentreOpens(browser, width)
   for (const shot of SHOTS) {
     const page = await browser.newPage({ viewport: FLOOR, deviceScaleFactor: 2 })
     await page.goto(`${ORIGIN}/?demo=1&screenshot=1`)

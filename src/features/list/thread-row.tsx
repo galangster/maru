@@ -297,6 +297,23 @@ function ArchiveTick() {
  * input, so a hover-revealed affordance has no sticky-hover case to answer for.
  * Recorded so it is not rediscovered as a defect.
  *
+ * **It is not shown at all below a list width of 380 px** (issue 39), and that
+ * is a hit-target rule rather than a cosmetic one. The cluster is five 32 px
+ * buttons anchored 12 px off the row's trailing edge, so it starts 172 px in
+ * from that edge; once the row is narrower than 344 px the strip has reached
+ * the row's own midpoint, and a click aimed at the subject fires Archive
+ * instead of opening the thread. Measured: at an 800 px window the row is
+ * 334 px and `elementFromPoint` at its centre is a button; at 820 px it is
+ * 354 px and the centre is the row.
+ *
+ * The threshold is the container query the snippet already uses — 380 px of
+ * *list*, which is a 364 px row and leaves 10 px between the strip and the
+ * centre. One breakpoint rather than two: below it the row drops the snippet
+ * and the mouse's shortcut together, and falls back to sender plus subject
+ * with nothing over it. The keyboard equivalents (`e`, `h`, `#`, `u`, `s`) are
+ * unaffected at every width, which is what makes hiding the strip acceptable
+ * rather than a loss of function.
+ *
  * It sits on the row's *second* line. Centred, it covered the timestamp
  * column exactly (S2) — the row's right-hand anchor, hidden precisely when the
  * cursor is on the row being read. There is no room in a 400 px pane to reserve
@@ -348,7 +365,12 @@ function QuickActions({
     <div
       aria-hidden
       className={cn(
-        'bg-raised absolute right-3 bottom-1 flex items-center overflow-hidden rounded-md shadow-md',
+        'bg-raised absolute right-3 bottom-1 items-center overflow-hidden rounded-md shadow-md',
+        // Below 380 px of list the cluster is not shown at all — see the note
+        // above. `hidden` rather than `pointer-events-none`,
+        // because a strip a click passes through is still a strip sitting on
+        // the words (issue 39).
+        'hidden @min-[380px]:flex',
         'transition-[opacity,transform] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         // The 4 px slide is what makes the cluster read as arriving rather
         // than switching on. Reduced motion drops the offset, so there is no
