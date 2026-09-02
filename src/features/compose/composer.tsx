@@ -429,7 +429,7 @@ function ComposerSheet() {
         </>
       )}
 
-      <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
+      <div className="on-fill bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
         <label
           htmlFor="wren-subject"
           className={FIELD_LABEL}
@@ -454,7 +454,7 @@ function ComposerSheet() {
             {draft.attachments.map((attachment) => (
               <li
                 key={attachment.id}
-                className="bg-sunken text-ink-2 flex h-8 max-w-full items-center gap-2 rounded-full pr-1 pl-3 text-sm"
+                className="on-fill bg-sunken text-ink-2 flex h-8 max-w-full items-center gap-2 rounded-full pr-1 pl-3 text-sm"
               >
                 <Icon name="attachment" size={16} className="text-ink-3" />
                 <span className="truncate">{attachment.filename}</span>
@@ -577,7 +577,7 @@ function FromRow({
   onChange: (accountId: string) => void
 }) {
   return (
-    <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
+    <div className="on-fill bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
       <span className={FIELD_LABEL}>From</span>
       {accounts.length > 1 ? (
         <Select value={account?.id ?? ''} onValueChange={(value) => onChange(String(value))}>

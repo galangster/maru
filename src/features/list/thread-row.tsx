@@ -116,10 +116,15 @@ export const ThreadRow = memo(function ThreadRow({
         'group relative flex h-[calc(var(--wren-row-h)-var(--wren-row-gap))] w-[calc(100%-2*var(--wren-row-inset-x))]',
         'mx-(--wren-row-inset-x) cursor-default items-center gap-3 rounded-row px-2',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        // `on-fill` rides with every `bg-fill-selected`: the row paints the
+        // accent wash, and the tiers standing on it are certified against
+        // `surface`, not against the wash. In dark the date and the preview
+        // measured 4.28 on it — the row the reader is currently on was the
+        // least readable row in the list (issue #26).
         selected
-          ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring group-focus-visible/listbox:ring-inset'
+          ? 'on-fill bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring group-focus-visible/listbox:ring-inset'
           : checked
-            ? 'bg-fill-selected'
+            ? 'on-fill bg-fill-selected'
             : 'hover:bg-fill-hover',
         ticking && 'pointer-events-none',
       )}

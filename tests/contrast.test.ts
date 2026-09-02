@@ -40,6 +40,18 @@ const INDICATOR = 3
 /** DIRECTION §3: the selected row is the accent at 8% light, 14% dark. */
 const SELECTED_ALPHA: Record<Theme, number> = { light: 0.08, dark: 0.14 }
 
+/**
+ * The character's halo, in light only.
+ *
+ * It is a radial gradient of Maru's own pink over the pane, so no single token
+ * states it; this is the value the 2026-09-02 review sampled in the page under
+ * "Nothing open", where the subtitle measured 4.46 (issue #30). It is lighter
+ * than `sunken`, so `sunken` remains the governing light fill — the sampled
+ * value is here because it is the pair that was filed, not because it decides
+ * anything on its own.
+ */
+const HALO: Rgb = [251, 235, 236]
+
 /** Every backdrop beyond the three certified surfaces that carries small text. */
 function fills(theme: Theme): Array<[string, Rgb]> {
   const accent = rgb('wren-accent', theme)
@@ -48,6 +60,7 @@ function fills(theme: Theme): Array<[string, Rgb]> {
     ['sunken', rgb('wren-surface-sunken', theme)],
     ['selected wash over surface', over(accent, rgb('wren-surface', theme), alpha) as Rgb],
     ['selected wash over base', over(accent, rgb('wren-surface-base', theme), alpha) as Rgb],
+    ...(theme === 'light' ? ([['halo (sampled)', HALO]] as Array<[string, Rgb]>) : []),
   ]
 }
 
@@ -88,4 +101,51 @@ function focusRingUtility(): string {
   return match[0]
 }
 
-export { fills, TEXT }
+describe('the on-fill tier — issues #26, #27, #29, #30', () => {
+  // Every failure the review found was a certified tier standing on a fill
+  // DIRECTION §3's table does not cover. These are the fills, and this is the
+  // tier that is certified on them.
+  for (const theme of ['light', 'dark'] as const) {
+    it(`carries small ${theme} text on every tinted fill`, () => {
+      const ink = rgb('wren-text-on-fill', theme)
+      for (const [name, bg] of fills(theme)) {
+        expect(ratio(ink, bg), `on-fill ink on ${theme} ${name}`).toBeGreaterThanOrEqual(TEXT)
+      }
+    })
+
+    it(`carries the ${theme} accent on every tinted fill`, () => {
+      // The sidebar's unread count is the accent drawn on a wash of itself.
+      const ink = rgb('wren-accent-on-fill', theme)
+      for (const [name, bg] of fills(theme)) {
+        expect(ratio(ink, bg), `accent-on-fill on ${theme} ${name}`).toBeGreaterThanOrEqual(TEXT)
+      }
+    })
+  }
+
+  it('is a step of the same colour, not a second palette', () => {
+    // The guard against "fix the ratio, lose the palette": the on-fill tier
+    // must stay the same hue and chroma as the tier it steps from, so a future
+    // accent or neutral retune moves both together. DIRECTION's palette is
+    // ruled; this row of the table is execution.
+    const { raw } = tokenReader() as { raw: (n: string, t: Theme) => string }
+    const coords = (value: string) => value.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)/)!.slice(1)
+    for (const theme of ['light', 'dark'] as const) {
+      const [, textC, textH] = coords(raw('wren-text-3', theme))
+      const [, fillC, fillH] = coords(raw('wren-text-on-fill', theme))
+      expect([fillC, fillH], `${theme} on-fill ink hue and chroma`).toEqual([textC, textH])
+
+      const [, accentC, accentH] = coords(raw('wren-accent', theme))
+      const [, onFillC, onFillH] = coords(raw('wren-accent-on-fill', theme))
+      expect([onFillC, onFillH], `${theme} accent-on-fill hue and chroma`).toEqual([accentC, accentH])
+    }
+  })
+
+  it('leaves the ruled wash alphas alone', () => {
+    // DIRECTION §3 rules the selected row as the accent at 8% light and 14%
+    // dark. The trap was fixed by certifying a tier against those fills, not by
+    // weakening them, and this is the line that says so.
+    const { raw } = tokenReader() as { raw: (n: string, t: Theme) => string }
+    expect(raw('wren-fill-selected', 'light')).toContain('8%')
+    expect(raw('wren-fill-selected', 'dark')).toContain('14%')
+  })
+})

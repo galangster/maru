@@ -105,6 +105,12 @@ function fillsFor(theme) {
     ['sunken', token('wren-surface-sunken', theme).rgb],
     ['selected/surface', over(accent, surface, alpha)],
     ['selected/base', over(accent, base, alpha)],
+    // The character's halo, in light only. It is a radial gradient of the
+    // character's own pink over the pane, so no single token states it; this
+    // is the value the 2026-09-02 review sampled in the page under "Nothing
+    // open". It is listed because issue #30 was measured against it, and it is
+    // lighter than `sunken`, so `sunken` is still the governing case.
+    ...(theme === 'light' ? [['halo (sampled)', [251, 235, 236]]] : []),
   ]
 }
 
@@ -113,13 +119,24 @@ for (const theme of ['light', 'dark']) {
   const fills = fillsFor(theme)
   lines.push(`${theme}: ${fills.map(([n, rgb]) => `${n} ${hex(rgb)}`).join(' · ')}`)
 
-  const ink = token('wren-text-1', theme)
-  const cells = fills.map(([n, rgb]) => {
-    const v = ratio(ink.rgb, rgb)
-    if (v < 4.5) failures.push(`${theme}: text-1 on ${n} = ${r2(v)}`)
-    return `${n} ${r2(v)}${v < 4.5 ? ' ✗' : ''}`
-  })
-  lines.push(`  text-1  ${cells.join(' · ')}`)
+  for (const [label, name] of [
+    ['text-1', 'wren-text-1'],
+    ['text-3', 'wren-text-3'],
+    ['on-fill', 'wren-text-on-fill'],
+    ['accent-on-fill', 'wren-accent-on-fill'],
+  ]) {
+    const ink = token(name, theme)
+    // text-3 is reported for the record, not gated: it is the tier that fails
+    // on a fill, and `on-fill` is the answer. Gating it here would re-file
+    // issues #26 and #27 against a build that has already answered them.
+    const gated = label !== 'text-3'
+    const cells = fills.map(([n, rgb]) => {
+      const v = ratio(ink.rgb, rgb)
+      if (gated && v < 4.5) failures.push(`${theme}: ${label} on ${n} = ${r2(v)}`)
+      return `${n} ${r2(v)}${v < 4.5 ? ' ✗' : ''}`
+    })
+    lines.push(`  ${label.padEnd(15)} ${hex(ink.rgb)}  ${cells.join(' · ')}`)
+  }
 }
 
 // -- the focus ring, which is an indicator and takes the 3:1 floor -----------

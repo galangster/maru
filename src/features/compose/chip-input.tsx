@@ -83,7 +83,7 @@ export function ChipInput({
     // A field well, not a bordered row — Amie's sheet pattern (AMIE-STUDY §5).
     // `--wren-radius-md` is exactly the composer's 24 minus its 12 px inset,
     // so the well is concentric with the sheet by construction.
-    <div className="bg-sunken rounded-md flex min-h-9 items-start gap-3 px-3">
+    <div className="on-fill bg-sunken rounded-md flex min-h-9 items-start gap-3 px-3">
       <label
         htmlFor={id}
         className={cn(FIELD_LABEL, 'cursor-text py-2')}

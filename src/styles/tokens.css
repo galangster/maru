@@ -195,6 +195,33 @@
     --wren-hue-orange-fg: var(--wren-hue-fg); /* white 2.62 fails · ink 6.85  */
     --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.88 fails · ink 9.53  */
 
+    /* --- The on-fill tier --------------------------------------------------
+       DIRECTION §3 certifies text-1/2/3 against `base`, `surface` and
+       `raised`. It certifies nothing against the app's TINTED fills — the
+       sunken well, the selected row's accent wash, the halo behind the
+       character — and the 2026-09-02 desktop review found the same certified
+       tier failing on all three (issues #26, #27, #29, #30). The trap is one
+       missing row in a table, not four separate colour decisions, so this is
+       that row: ONE darker step of each ink, certified on every fill the app
+       paints, applied through the `on-fill` utility in index.css.
+
+       Light. text-3 #6F6D6B measured 4.42 on sunken, 4.46 on the halo. The
+       on-fill step measures:
+
+         sunken 4.84 · selected wash over surface 5.08 · over base 4.66
+         halo 4.88
+
+       and the accent, which the sidebar's unread count draws on its own row's
+       8% wash at 4.26:
+
+         selected wash over surface 5.04 · over base 4.62 · surface 5.59
+
+       These are steps of the SAME colours — same hue, same chroma, one notch
+       of lightness — not a second palette. The fills are untouched: DIRECTION
+       §3 rules the 8% / 14% wash and it stays ruled. */
+    --wren-text-on-fill: oklch(0.515 0.004 50); /* #696765                    */
+    --wren-accent-on-fill: oklch(0.535 0.149 13); /* #B24054                  */
+
     /* --- The focus ring ----------------------------------------------------
        ONE token, because there is one ring and it is drawn on every control in
        the app — the sidebar, the toolbars, the composer, the palette, the
@@ -397,6 +424,13 @@
     --wren-hue-red-fg: oklch(1 0 0); /* white 3.02                            */
     --wren-hue-orange-fg: var(--wren-hue-fg); /* white 2.17 fails · ink 8.27  */
     --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.59 fails · ink 11.29 */
+
+    /* The same row, dark. text-3 #949190 measured 4.28 on the selected row's
+       14% wash, which is the row the reader is on. The on-fill step measures
+       selected wash over surface 4.75 · surface 6.07 · raised 5.10 · sunken
+       7.24, and the accent step 6.27 on the same wash. */
+    --wren-text-on-fill: oklch(0.685 0.004 50); /* #9C9998                    */
+    --wren-accent-on-fill: oklch(0.775 0.12 13); /* #F895A0                   */
 
     /* Same rule, same one token. See the light block for the measurements. */
     --wren-focus-ring: var(--wren-accent);

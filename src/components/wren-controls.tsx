@@ -157,7 +157,9 @@ export function TextField({
         autoComplete="off"
         spellCheck={false}
         className={cn(
-          'bg-sunken text-ink placeholder:text-ink-3 focus-ring h-9 w-full rounded-sm px-3 text-base',
+          // `on-fill`: the placeholder is `text-ink-3` on the well's recessed
+          // fill, which is issue #27's pair.
+          'on-fill bg-sunken text-ink placeholder:text-ink-3 focus-ring h-9 w-full rounded-sm px-3 text-base',
           inputClassName,
         )}
         {...props}
@@ -348,7 +350,12 @@ export function OptionRow({
   )
 }
 
-/** A key, as printed. The palette's footer and the "?" sheet share it. */
+/** A key, as printed. The palette's footer and the "?" sheet share it.
+ *
+ *  `on-fill`, because the cap IS a recessed fill: `text-ink-3` on `bg-sunken`
+ *  measured 4.42 in light, under the 4.5 floor for 11.5 px text, everywhere a
+ *  cap is printed — the R / A / F reply tiles, the palette footer, the Later
+ *  picker's digits, the "?" sheet (issue #27). */
 export function Keycap({
   children,
   className,
@@ -359,7 +366,7 @@ export function Keycap({
   return (
     <kbd
       className={cn(
-        'font-ui text-ink-3 bg-sunken inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-xs px-1 text-xs',
+        'font-ui on-fill text-ink-3 bg-sunken inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-xs px-1 text-xs',
         className,
       )}
     >
