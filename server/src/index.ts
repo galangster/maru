@@ -7,7 +7,8 @@ import { seedAllowlist, seedComped } from "./allowlist.js";
 import { createStripeClient } from "./billing.js";
 import { createPostgresDb, migrate } from "./db.js";
 import { createPushServices } from "./push.js";
-import { TokenBucketRateLimiter } from "./ratelimit.js";
+import { KeyedRateLimiter, TokenBucketRateLimiter } from "./ratelimit.js";
+import { PUSH_TEST_RATE_LIMIT_CAPACITY, PUSH_TEST_RATE_LIMIT_REFILL_MS } from "./constants.js";
 
 const logger = pino();
 const databaseUrl = process.env.DATABASE_URL;
@@ -30,6 +31,7 @@ const app = createApp({
   clock: { now: () => new Date() },
   version: packageJson.version,
   rateLimiter: new TokenBucketRateLimiter(),
+  pushTestLimiter: new KeyedRateLimiter(Date.now, PUSH_TEST_RATE_LIMIT_CAPACITY, PUSH_TEST_RATE_LIMIT_REFILL_MS),
   pubSubVerifier,
   pushSender,
   billing,

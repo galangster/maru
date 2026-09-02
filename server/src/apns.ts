@@ -7,37 +7,34 @@ import { isRecord } from "./util.js";
 interface ApnsPush {
   payload: string;
   pushType: "background" | "alert";
-  priority: "5" | "10";
 }
 
 // The relay push carries no content and never wakes the screen.
 const BACKGROUND_PUSH: ApnsPush = {
   payload: JSON.stringify({ aps: { "content-available": 1 } }),
   pushType: "background",
-  priority: "5",
 };
 
 // An alert push carries a visible title and body, so it arrives on a locked
 // phone. `content-available` keeps the background wake the relay already sends.
-export function alertPush(alert: ApnsAlert): ApnsPush {
+function alertPush(alert: ApnsAlert): ApnsPush {
   return {
     payload: JSON.stringify({
       aps: { alert: { title: alert.title, body: alert.body }, "content-available": 1 },
     }),
     pushType: "alert",
-    priority: "10",
   };
 }
 
 // APNs answers a rejection with a small JSON body naming the reason.
 function apnsReason(body: string) {
-  if (!body) return undefined;
+  if (!body) return null;
   try {
     const parsed: unknown = JSON.parse(body);
-    const reason = isRecord(parsed) ? parsed.reason : undefined;
-    return typeof reason === "string" ? reason : undefined;
+    const reason = isRecord(parsed) ? parsed.reason : null;
+    return typeof reason === "string" ? reason : null;
   } catch {
-    return undefined;
+    return null;
   }
 }
 
@@ -50,6 +47,7 @@ export interface ApnsOptions {
 }
 
 export class ApnsSender implements PushSender {
+  readonly configured = true;
   private cachedToken: { value: string; issuedAt: number } | null = null;
   private session: ClientHttp2Session | null = null;
 
@@ -113,7 +111,9 @@ export class ApnsSender implements PushSender {
         authorization: `bearer ${providerToken}`,
         "apns-topic": this.options.bundleId,
         "apns-push-type": push.pushType,
-        "apns-priority": push.priority,
+        // Apple pairs the priority with the type: alerts go now, background
+        // pushes wait for a power-friendly moment.
+        "apns-priority": push.pushType === "alert" ? "10" : "5",
         "content-type": "application/json",
         "content-length": Buffer.byteLength(push.payload),
       });
@@ -123,13 +123,11 @@ export class ApnsSender implements PushSender {
       request.on("response", (headers) => {
         status = Number(headers[http2Constants.HTTP2_HEADER_STATUS] ?? 0);
       });
+      // An APNs error body is a few dozen bytes naming the reason.
       request.on("data", (chunk: string) => {
-        if (body.length < 1024) body += chunk;
+        body += chunk;
       });
-      request.on("end", () => {
-        const reason = apnsReason(body);
-        resolve(reason === undefined ? { status } : { status, reason });
-      });
+      request.on("end", () => resolve({ status, reason: apnsReason(body) }));
       request.on("error", reject);
       request.setTimeout(10_000, () => request.destroy(new Error("APNs request timed out")));
       request.end(push.payload);

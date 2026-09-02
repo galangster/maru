@@ -119,6 +119,7 @@ describe("billing", () => {
     ["POST", "/v1/vault/restore", { version: 1 }],
     ["POST", "/v1/push/register", { apnsToken: "apns-token" }],
     ["POST", "/v1/push/watch", { email: "mail@example.com", expiration: "2026-09-02T00:00:00Z" }],
+    ["POST", "/v1/push/test", {}],
   ] as const)("gates %s %s through entitlement middleware", async (method, path, body) => {
     const value = await fixture();
     close.push(() => value.db.close());
