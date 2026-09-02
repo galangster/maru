@@ -160,6 +160,28 @@ export function MobileApp() {
     announce(runBatchAction((next) => perform.mutate(next), threadKeys, type, 'conversation'))
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
+  /**
+   * Close up after an action that took the conversation out of the list.
+   *
+   * Any action that removes a conversation closes it and returns to the list,
+   * and the same action does the same thing wherever it is tapped. Archive in
+   * the thread's top bar and bottom toolbar already did; Later, More → Archive
+   * and Move → Trash did not, so one verb did two different things depending
+   * on which of three places you reached it from (issue 50). What it left
+   * behind was stale — the conversation had already gone from the list, and
+   * every control still on screen was offered against mail that is no longer
+   * there, including archiving it a second time.
+   *
+   * Two dispatches rather than a route action of its own: the sheet and the
+   * screen are two separate facts about where you are, and `back` on a stack
+   * whose top is not a thread is a no-op the reducer already owns — so a swipe
+   * from a list, or a Later picked over the inbox, passes through here
+   * unchanged.
+   */
+  const closeAfterRemoval = () => {
+    dispatch({ type: 'closeSheet' })
+    if (route.kind === 'thread') dispatch({ type: 'back' })
+  }
   const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
   const openPushSheet = useCallback(() => dispatch({ type: 'openSheet', sheet: { kind: 'pushAccount' } }), [])
   // Only from the inbox at rest. The offer is worth making once and worth
@@ -213,7 +235,7 @@ export function MobileApp() {
             backLabel={navigation.tab === 'inbox' ? mailboxName : MOBILE_TAB_CHROME[navigation.tab].label}
             onBack={() => dispatch({ type: 'back' })}
             onReply={replyTo}
-            onRemove={(key, type) => { actMany([key], type); dispatch({ type: 'back' }) }}
+            onRemove={(key, type) => { actMany([key], type); closeAfterRemoval() }}
             onLater={(target) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets: [target] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
             onLabels={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'labels', thread } })}
@@ -263,7 +285,9 @@ export function MobileApp() {
                 'conversation',
               ),
             )
-            closeSheet()
+            // Saving for later takes the conversation out of the inbox, so the
+            // screen reading it goes with it — the same rule Archive follows.
+            closeAfterRemoval()
           }}
         />
       )}
@@ -280,7 +304,13 @@ export function MobileApp() {
         <ThreadActionsSheet
           thread={sheet.thread}
           onClose={closeSheet}
-          onAction={(type) => { act(sheet.thread.key, type); closeSheet() }}
+          onAction={(type) => {
+            act(sheet.thread.key, type)
+            // Star and read/unread leave the conversation where it is, so the
+            // sheet closes over it; the rest take it out of the list.
+            if (announcesItself(type)) closeAfterRemoval()
+            else closeSheet()
+          }}
           onLater={() =>
             dispatch({
               type: 'openSheet',
@@ -290,7 +320,7 @@ export function MobileApp() {
           onMove={() => dispatch({ type: 'openSheet', sheet: { kind: 'move', thread: sheet.thread } })}
         />
       )}
-      {sheet?.kind === 'move' && <MoveSheet thread={sheet.thread} onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
+      {sheet?.kind === 'move' && <MoveSheet thread={sheet.thread} onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeAfterRemoval() }} />}
       {sheet?.kind === 'pushAccount' && <PushAccountSheet onClose={closeSheet} onAccount={openAccount} />}
       <SyncAnnouncer accounts={accounts} announce={announce} />
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">

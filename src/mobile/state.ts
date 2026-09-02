@@ -125,7 +125,10 @@ export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction
     case 'openSheet':
       return { ...state, sheet: action.sheet }
     case 'closeSheet':
-      return { ...state, sheet: null }
+      // The same state back when there is no sheet, so the shell can close a
+      // sheet and pop a screen in one gesture without paying a render for the
+      // half that had nothing to do.
+      return state.sheet === null ? state : { ...state, sheet: null }
     case 'back':
       if (state.sheet) return { ...state, sheet: null }
       if (state.stack.length > 1) return { ...state, stack: state.stack.slice(0, -1) }

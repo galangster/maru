@@ -508,3 +508,44 @@ describe('search across a thread push and pop', () => {
     expect(Object.keys(initialMobileRoute).sort()).toEqual(['sheet', 'stack', 'tab'])
   })
 })
+
+/**
+ * Putting a conversation away closes it (issue 50).
+ *
+ * The shell does this in two dispatches — close the sheet the action was
+ * tapped in, then pop the screen it was reading — so the two facts about where
+ * you are stay separate. These are the reducer's halves of that: a `back` over
+ * an open sheet takes the sheet and stops there, and a `closeSheet` with no
+ * sheet open costs nothing, which is what lets the pair be sent together from
+ * a surface that has no sheet.
+ */
+describe('closing a conversation after an action that removed it', () => {
+  const reading: MobileRoute = {
+    tab: 'inbox',
+    stack: [{ kind: 'inbox' }, { kind: 'thread', threadKey: 'account/thread-1' }],
+    sheet: null,
+  }
+
+  it('takes the sheet first and the screen second', () => {
+    const withSheet = mobileRouteReducer(reading, {
+      type: 'openSheet',
+      sheet: { kind: 'move', thread: thread() },
+    })
+    const closed = mobileRouteReducer(withSheet, { type: 'closeSheet' })
+    expect(closed).toEqual(reading)
+    expect(mobileRouteReducer(closed, { type: 'back' })).toEqual(initialMobileRoute)
+  })
+
+  it('hands the same state back when there is no sheet to close', () => {
+    // The shell sends `closeSheet` then `back` from every removing action,
+    // including the ones tapped on a screen with no sheet over it.
+    expect(mobileRouteReducer(reading, { type: 'closeSheet' })).toBe(reading)
+  })
+
+  it('leaves a list where it is', () => {
+    // The same pair sent from a swipe over the inbox: nothing to close, and
+    // nothing above the root to pop.
+    const closed = mobileRouteReducer(initialMobileRoute, { type: 'closeSheet' })
+    expect(mobileRouteReducer(closed, { type: 'back' })).toBe(initialMobileRoute)
+  })
+})
