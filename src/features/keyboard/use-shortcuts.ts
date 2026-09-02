@@ -35,16 +35,10 @@ import { bulkAction, isBulkAction } from '@/features/list/bulk'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
+import { isTyping } from '@/lib/typing'
 import { announcesItself, LEAVES_THE_LIST } from '@/lib/undo'
 
 import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
-
-function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable) return true
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
-}
 
 /** The per-render values a handler needs but must not close over. */
 interface Live {

@@ -288,10 +288,22 @@ export function isoDay(timestamp: number): string {
  * Both ends are stated to the reader under the field itself — a clamp the
  * confirmation reports but never explains is a confirmation about a day the
  * person did not choose.
+ *
+ * **A year still being typed is not a date, and must not be clamped into one**
+ * (issue #54). A date field reports every complete value it holds, and it holds
+ * one after the FIRST digit of the year: typing `12/24/2026` passes through
+ * `0002-12-24`, `0020-12-24` and `0202-12-24` on its way. Each of those is a
+ * date in the far past, each clamps to tomorrow, and the picker committed the
+ * first one — so a person typing a day in December was told "Back tomorrow,
+ * 9:00" before they had finished the year. Clamping is for a date somebody
+ * means; four digits is what makes it one.
  */
+export const MIN_TYPED_YEAR = 1000
+
 export function clampedDeferDay(value: string, now: number): number | null {
   const [year, month, day] = value.split('-').map(Number)
   if (!year || !month || !day) return null
+  if (year < MIN_TYPED_YEAR) return null
   const at = deferAtDate(year, month - 1, day)
   return Math.min(Math.max(at, minDeferAt(now)), maxDeferAt(now))
 }

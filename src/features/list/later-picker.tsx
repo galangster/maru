@@ -24,6 +24,7 @@ import {
 } from '@/core/defaults'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { wakeTime } from '@/lib/format'
+import { isTyping } from '@/lib/typing'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
@@ -125,8 +126,19 @@ function PickerBody({
   // 1..n pick a preset outright. Bound on the dialog rather than globally
   // because the keymap has already stood down — `anyDialogOpen()` — which is
   // what keeps `1` from meaning two things at once.
+  //
+  // And they are accelerators for the *rows*, so they stand down in turn the
+  // moment something inside this menu is taking typed text. "Pick a date…"
+  // replaces the four numbered rows with a date field, and the digits kept
+  // firing into the list that was no longer there: typing `09/10/2026` closed
+  // the menu on the `1` and saved the thread for this evening, with a toast
+  // confirming a time nobody had chosen (issue #54). The guard is the keymap's
+  // own — `@/lib/typing` — rather than a second spelling of it here, because
+  // one surface disagreeing about what counts as a field is how this defect
+  // came back.
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return
+    if (isTyping(event.target)) return
     const index = Number(event.key) - 1
     if (!Number.isInteger(index) || index < 0 || index >= presets.length) return
     event.preventDefault()

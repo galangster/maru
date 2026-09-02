@@ -11,6 +11,12 @@
 //  3. `thread_defer` reaching `deleteAccount` and `deleteThreads` — both
 //     one-word additions, and both data-leak bugs if missed.
 
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// @ts-expect-error -- jsdom is a devDependency of vite and ships no types.
+import { JSDOM } from 'jsdom'
 import { describe, it, expect, afterEach } from 'vitest'
 
 import { Store } from '../src/core/store/db'
@@ -30,6 +36,7 @@ import {
 } from '../src/core/defaults'
 import { applyListPrefs } from '../src/features/list/list-prefs'
 import { wakeTime } from '../src/lib/format'
+import { isTyping } from '../src/lib/typing'
 import type { GmailHistoryResponse, GmailMessage, GmailProfile, GmailThread } from '../src/core/gmail/types'
 import type { MailEvent, MailView } from '../src/core/types'
 import { NodePlatform } from './helpers/node-platform'
@@ -667,5 +674,91 @@ describe('clampedDeferDay', () => {
   it('rejects an empty or half-typed field rather than clamping it to a day', () => {
     expect(clampedDeferDay('', NOW)).toBeNull()
     expect(clampedDeferDay('2026-09', NOW)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The digit accelerators, and the field that replaces the rows they name
+// ---------------------------------------------------------------------------
+
+describe('the preset digits stand down inside the date field — issue #54', () => {
+  // The picker's `1`..`4` are accelerators for the four preset ROWS. "Pick a
+  // date…" swaps those rows for a date input, and the digits kept firing into
+  // the list that was no longer on screen: typing `09/10/2026` fired `1`,
+  // closed the menu and saved the thread for this evening, with a toast
+  // confirming a time nobody chose. Almost every date carries a 1, 2, 3 or 4,
+  // so almost every typed date did it.
+  //
+  // The guard is `isTyping`, which is the *keymap's* guard — one definition of
+  // "takes typed text" for the whole app. These cases are the ones the picker
+  // actually presents.
+  const dom = new JSDOM(`<!doctype html><body>
+    <div id="menu">
+      <button id="preset" type="button">This evening</button>
+      <span id="wrap"><input id="date" type="date" aria-label="Bring it back on"></span>
+      <p id="disclosure">Later follows your Maru account…</p>
+    </div>
+  </body>`)
+  // `isTyping` narrows with `instanceof HTMLElement`, exactly as it does in the
+  // browser, so the constructor under test has to be the one this document's
+  // nodes were built by.
+  Object.assign(globalThis, { HTMLElement: dom.window.HTMLElement })
+  const at = (id: string) => dom.window.document.getElementById(id)
+
+  it('suspends them while the date field has the caret', () => {
+    expect(isTyping(at('date'))).toBe(true)
+  })
+
+  it('leaves them live on a preset row, which is what they are for', () => {
+    expect(isTyping(at('preset'))).toBe(false)
+    expect(isTyping(at('disclosure'))).toBe(false)
+    expect(isTyping(null)).toBe(false)
+  })
+
+  it('reaches a field through whatever wrapper a surface put around it', () => {
+    // The picker wraps its input in a column with the range sentence under it,
+    // and Base UI adds its own nodes; the target of a keystroke is not always
+    // the input element itself.
+    const nested = at('date')!.parentElement
+    expect(isTyping(nested)).toBe(false)
+    expect(isTyping(at('date')!)).toBe(true)
+  })
+
+  it('is the guard the picker actually calls, before it reads the key', () => {
+    // The regression is not the predicate — it is a surface binding digits
+    // without asking it. This is the line that says the picker asks.
+    const source = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../src/features/list/later-picker.tsx'),
+      'utf8',
+    )
+    const handler = source.match(/const onKeyDown = \(event: React\.KeyboardEvent\) => \{[\s\S]*?\n  \}/)
+    expect(handler, 'the picker key handler moved out of later-picker.tsx').not.toBeNull()
+    expect(handler![0]).toContain('isTyping(event.target)')
+    expect(handler![0].indexOf('isTyping')).toBeLessThan(handler![0].indexOf('Number(event.key)'))
+  })
+})
+
+describe('a half-typed year is not a date — issue #54', () => {
+  // A date field reports a complete value after the FIRST digit of the year,
+  // so `12/24/2026` is typed through `0002-`, `0020-` and `0202-`. Every one
+  // of those is in the past, every one clamps to tomorrow, and the picker
+  // committed the first — the menu closed on the third keystroke of the year
+  // and the toast said "Back tomorrow, 9:00". Scoping the digit shortcuts got
+  // the keystrokes to the field; this is what stops the field answering before
+  // the person has finished.
+  it('refuses the years a date field reports while the year is being typed', () => {
+    expect(clampedDeferDay('0002-12-24', NOW)).toBeNull()
+    expect(clampedDeferDay('0020-12-24', NOW)).toBeNull()
+    expect(clampedDeferDay('0202-12-24', NOW)).toBeNull()
+  })
+
+  it('answers the moment the fourth digit lands, clamped as issue 43 ruled', () => {
+    expect(clampedDeferDay('2027-12-24', NOW)).toBe(maxDeferAt(NOW))
+  })
+
+  it('still clamps a real past date to tomorrow rather than refusing it', () => {
+    // The near-end clamp is a ruling, not a side effect of the guard above:
+    // a four-digit year that has gone is a date somebody meant.
+    expect(clampedDeferDay('1999-01-01', NOW)).toBe(minDeferAt(NOW))
   })
 })
