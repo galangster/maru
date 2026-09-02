@@ -1,6 +1,6 @@
 # Handoff — 2026-09-01, grill 4: the account, the phone, and production
 
-Baseline `395608e` → **see `git log`, HEAD after the I4 and store-shots merges** on `main`, pushed to `galangster/maru`.
+Baseline `395608e` → **`216050c`** on `main` (every lane merged, no worktrees left), pushed to `galangster/maru`.
 Working tree clean. **660 tests pass** (638 at the baseline), `tsc` clean,
 `vite build` clean; server: 34 tests, typecheck, build. Orchestrated by one
 Fable 5.1 session as planner and auditor; seven Codex `gpt-5.6-sol` lanes
@@ -188,7 +188,7 @@ bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
 Maps 4 and 5 are code-complete and live: TestFlight has build 0.1.8, Stripe
 is wired, A9 shipped, the second Owner accepted. Open: Nick's physical-device
 pass (install from TestFlight, push wake, VoiceOver), one real paid
-subscription run, the I8 lane-5 merge if it has not landed, the Google
+subscription run, the Google
 verification submission (map 3's last owner thread), and the dossier's
 frozen-build fields. Codex is out of credits until 2026-09-06; lanes run on
 Opus subagents. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
