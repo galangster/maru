@@ -47,7 +47,7 @@ export type IconName = keyof typeof ANRON_PATHS | keyof typeof HOLDOUTS
  * glyph's meaning, so it belongs here beside the twin map rather than at four
  * call sites free to disagree.
  *
- * Only the four names in ANRON_FILLED_PATHS can appear here: a glyph with no
+ * Only the names in ANRON_FILLED_PATHS can appear here: a glyph with no
  * Filled twin never draws as a solid, so it never has a fill to colour.
  *
  * It sets `color`, not `fill`, and it is applied through `style` — which means
@@ -70,6 +70,14 @@ const ICON_FILL: Partial<Record<IconName, string>> = {
   // Sent is outward motion: the sky the plane flies through. Blue also keeps
   // the old identity hue alive in one deliberate place.
   sent: 'var(--wren-hue-blue)',
+  // Later, the fifth mailbox. The accent, like the inbox — deliberately NOT a
+  // new colour. Sent and Trash are coloured because the thing they name has a
+  // colour already (outward motion, destruction); Later names a time, and the
+  // hue family is bound to senders and labels and to nothing else (lib/hue.ts).
+  // So it takes what "selected" means when a glyph has no colour of its own,
+  // and the pairing with the inbox is a real one: both are the mailbox you are
+  // standing in. Reversible in one line if the owner wants Later distinguished.
+  calendar: 'var(--wren-accent)',
 }
 
 /** The three permitted sizes. 24 is the icon *box*, never the glyph. */
@@ -83,7 +91,7 @@ export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'ref'> {
    * a sidebar folder when it is the current view. Filled *and* coloured is
    * what "selected" looks like in this system; Line is resting.
    *
-   * Only the four glyphs in ANRON_FILLED_PATHS have a twin. Anything else
+   * Only the glyphs in ANRON_FILLED_PATHS have a twin. Anything else
    * draws its Line paths unchanged and warns once in dev — see the `fill`
    * note below for why filling them is never the right fallback.
    */
