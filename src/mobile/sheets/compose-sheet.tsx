@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import {
   toComposeDraft,
@@ -8,6 +9,7 @@ import {
 } from '@/features/compose/compose-store'
 import { useAccountsById, useCorrespondents } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
+import { sendToastOptions } from '@/features/compose/send-toast'
 import { sendBlockReason } from '@/lib/compose'
 import { cue } from '@/lib/cue'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
@@ -77,6 +79,16 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
       // Both confirmations at one moment: the phone had the success notify and
       // no sound, and the two used to be written a screen apart.
       cue('sent')
+      // And one on screen (issue 19). Sending was the only action in the app
+      // that could not be taken back and the only one that said nothing —
+      // archiving, which is entirely reversible, got a toast and an Undo.
+      //
+      // `sendToastOptions` is the desktop's, for its one id and its rule that
+      // `action` is always a key: an omitted one leaves a previous Undo button
+      // standing over a message that has gone. This path awaits the send
+      // rather than holding it, so there is no window to offer and the option
+      // is correctly absent.
+      toast.success('Sent', sendToastOptions(outgoing.subject || '(no subject)'))
       onSent()
       closeStore()
     } catch (cause) {

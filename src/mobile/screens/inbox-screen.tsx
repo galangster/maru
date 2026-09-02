@@ -1,15 +1,23 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 
 import type { MailView, Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
 import { useAccountsById, useThreads } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
+import { isUrgent } from '@/features/sidebar/sync-summary'
+import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { useNow } from '@/lib/use-now'
 import { EmptyInbox, MobileListSkeleton } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
-import { buildMobileRowModel, type MobileRowModel } from '../state'
+import {
+  buildMobileRowModel,
+  deferTarget,
+  hasListToSelect,
+  type DeferTarget,
+  type MobileRowModel,
+} from '../state'
 import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
@@ -35,6 +43,7 @@ export function InboxScreen({
   onLater,
   onContext,
   onStar,
+  onSettings,
 }: {
   paused: boolean
   readScrollTop: () => number
@@ -42,16 +51,23 @@ export function InboxScreen({
   onCompose: () => void
   onSearch: () => void
   onArchive: (keys: string[]) => void
-  onLater: (keys: string[]) => void
+  onLater: (targets: DeferTarget[]) => void
   onContext: (thread: Thread) => void
   onStar: (thread: Thread) => void
+  onSettings: () => void
 }) {
   const { accounts, selfEmails } = useAccountsById()
+  // Read here rather than handed down: this screen already re-renders on the
+  // minute tick for its relative times, so the summary's own tick costs it
+  // nothing, and the stage above it is spared re-rendering every screen and
+  // sheet once a minute for a sentence only this header draws.
+  const sync = useSyncSummary(accounts)
   const [accountId, setAccountId] = useState('all')
   const [editing, setEditing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [rootFontSizePx, setRootFontSizePx] = useState(readRootFontSize)
   const region = useRef<HTMLDivElement>(null)
+  const header = useRef<HTMLElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const [listTop, setListTop] = useState(0)
   const now = useNow()
@@ -94,40 +110,66 @@ export function InboxScreen({
     initialOffset: readScrollTop,
     initialRect,
   })
-  // Measured rather than assumed: the header grows with Dynamic Type and with
-  // the Edit row. Those are the only things that move the list's top, so they
-  // are the dependencies — re-measuring on every render costs a layout read
-  // per frame of a scroll and never returns a different number. React bails
-  // out when the value is unchanged, so this settles in one pass.
-  // `paused` is a dependency and a guard: a paused screen has no box, so
-  // `offsetTop` reads zero, and a refetch that lands behind a thread would
-  // otherwise overwrite the real measurement with it. Re-measured on the way
-  // back, before the page is restored, because `offsetTop` does not depend on
-  // where the page is scrolled to.
-  useLayoutEffect(() => {
-    if (paused) return
-    const top = list.current?.offsetTop ?? 0
+  // Measured rather than assumed, and observed rather than enumerated.
+  //
+  // The list's top is whatever sits above it, and that is everything in the
+  // sticky header: Dynamic Type, the Edit row appearing, and — the one a list
+  // of dependencies had already forgotten — the sync banner wrapping onto a
+  // second line. So the header is observed instead of the causes being named,
+  // and nothing has to remember to add the next one. React bails out when the
+  // value is unchanged, so this settles in one pass.
+  //
+  // `list.current` is null while the screen is paused, while the skeleton is
+  // up, and over the empty state, and a missing box is skipped rather than
+  // measured as zero — a refetch landing behind a thread would otherwise
+  // overwrite the real measurement with it. The layout effect below covers the
+  // moments the list itself appears or comes back, which is the one thing a
+  // ResizeObserver on the header cannot see.
+  const measureListTop = useCallback(() => {
+    const top = list.current?.offsetTop
+    if (top === undefined) return
     setListTop((current) => (current === top ? current : top))
-  }, [paused, rootFontSizePx, editing, query.isPending, rows.length === 0])
+  }, [])
+  // Re-measured on the way back, before the page is restored, because
+  // `offsetTop` does not depend on where the page is scrolled to.
+  useLayoutEffect(measureListTop, [measureListTop, paused, query.isPending, rows.length === 0])
   useEffect(() => {
-    const update = () => setRootFontSizePx(readRootFontSize())
+    const update = () => {
+      setRootFontSizePx(readRootFontSize())
+      measureListTop()
+    }
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
     const probe = document.createElement('span')
     probe.className = 'mobile-root-font-probe'
     document.body.append(probe)
     observer?.observe(probe)
+    if (header.current) observer?.observe(header.current)
     window.addEventListener('resize', update)
     return () => {
       observer?.disconnect()
       window.removeEventListener('resize', update)
       probe.remove()
     }
-  }, [])
+  }, [measureListTop])
   useEffect(() => virtualizer.measure(), [rootFontSizePx, virtualizer])
   const { refreshing, drag } = usePullRefresh(region, async () => {
     await service.refresh()
     await query.refetch()
   })
+
+  const stopEditing = useCallback(() => {
+    setEditing(false)
+    setSelected(new Set())
+  }, [])
+  // The last conversation leaves and the mode goes with it (issue 18). The
+  // rule is the same pure predicate the Edit control is drawn from, so the two
+  // cannot disagree about what counts as a list — including the `pending`
+  // half, which is why a pull-to-refresh does not take a batch's checkmarks
+  // away.
+  const listToSelect = hasListToSelect(query.isPending, rows.length)
+  useEffect(() => {
+    if (editing && !listToSelect) stopEditing()
+  }, [editing, listToSelect, stopEditing])
 
   const toggle = (key: string) => setSelected((current) => {
     const next = new Set(current)
@@ -135,12 +177,16 @@ export function InboxScreen({
     else next.add(key)
     return next
   })
-  const stopEditing = () => { setEditing(false); setSelected(new Set()) }
-  const selectedKeys = [...selected]
+  // Derived from the rows, the way the desktop derives its own batch
+  // (bulk.ts, `checkedInView`): a checkmark on a conversation the list no
+  // longer shows is not part of the batch. Archive and Later therefore behave
+  // the same — whatever leaves the list leaves the selection with it — rather
+  // than one of them clearing up after itself and the other not.
+  const selectedRows = rows.filter((row) => selected.has(row.thread.key))
 
   return (
     <section className="mobile-screen" aria-label="Inbox" hidden={paused}>
-      <header className="mobile-nav mobile-inbox-nav">
+      <header ref={header} className="mobile-nav mobile-inbox-nav">
         <div className="mobile-nav-row">
           <label className="mobile-account-lens">
             <span className="sr-only">Account lens</span>
@@ -149,8 +195,11 @@ export function InboxScreen({
               {accounts.map((account) => <option key={account.id} value={account.id}>{account.displayName}</option>)}
             </select>
           </label>
-          {editing && threads.length > 0 && <button className="mobile-nav-text" type="button" onClick={() => setSelected(new Set(threads.map((thread) => thread.key)))}>Select All</button>}
-          <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>
+          {editing && rows.length > 0 && <button className="mobile-nav-text" type="button" onClick={() => setSelected(new Set(rows.map((row) => row.thread.key)))}>Select All</button>}
+          {/* No list, no mode to enter. Without this the empty inbox kept an
+              Edit control that could only put an all-disabled bulk bar on the
+              screen and then take it away again. */}
+          {(editing || listToSelect) && <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>}
         </div>
         <div className="mobile-title-row">
           <h1>Inbox</h1>
@@ -159,6 +208,28 @@ export function InboxScreen({
         <button className="mobile-search-field" type="button" onClick={onSearch}>
           <MobileIcon name="search" /><span>Search mail</span><kbd>{SEARCH_OPERATOR_HINTS[0]}</kbd>
         </button>
+        {/* Mail has stopped arriving, or is about to say why it has not
+            started. The sentence is `describeSync`'s — the same six the
+            desktop writes, naming the account and the way back — because the
+            phone had all six reaching it and drew none of them (issue 9).
+
+            `action !== null` is the whole test: a state that offers somewhere
+            to go is a state worth a row, and "Up to date" and "Syncing…" are
+            not. It sits in the sticky header rather than in the list, because
+            a notice you have to scroll to find is the state the report
+            described. Urgency is the colour and nothing else — `stalled` is
+            waiting, not an alarm, and sync-summary.ts says so. */}
+        {sync.action !== null && (
+          <button
+            className={`mobile-sync-banner${isUrgent(sync) ? ' is-urgent' : ''}`}
+            type="button"
+            onClick={onSettings}
+          >
+            <MobileIcon name={isUrgent(sync) ? 'error' : 'sync'} scale="action" />
+            <span>{sync.detail}</span>
+            <MobileIcon name="chevronRight" scale="small" />
+          </button>
+        )}
       </header>
 
       <div ref={region} className="mobile-scroll mobile-inbox-scroll" {...drag}>
@@ -191,7 +262,7 @@ export function InboxScreen({
                     onSelect={() => toggle(row.thread.key)}
                     onOpen={() => onOpen(row.thread.key)}
                     onArchive={() => onArchive([row.thread.key])}
-                    onLater={() => onLater([row.thread.key])}
+                    onLater={() => onLater([deferTarget(row.thread)])}
                     onContext={() => onContext(row.thread)}
                     onStar={() => onStar(row.thread)}
                   />
@@ -205,9 +276,9 @@ export function InboxScreen({
 
       {editing && (
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-          <button type="button" disabled={selected.size === 0} onClick={() => onArchive(selectedKeys)}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
-          <button type="button" disabled={selected.size === 0} onClick={() => onLater(selectedKeys)}><MobileIcon name="calendar" scale="action" /><span>Later</span></button>
-          <button type="button" disabled={selected.size === 0} onClick={stopEditing}><MobileIcon name="check" scale="action" /><span>Done</span></button>
+          <button type="button" disabled={selectedRows.length === 0} onClick={() => onArchive(selectedRows.map((row) => row.thread.key))}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
+          <button type="button" disabled={selectedRows.length === 0} onClick={() => onLater(selectedRows.map((row) => deferTarget(row.thread)))}><MobileIcon name="calendar" scale="action" /><span>Later</span></button>
+          <button type="button" disabled={selectedRows.length === 0} onClick={stopEditing}><MobileIcon name="check" scale="action" /><span>Done</span></button>
         </div>
       )}
     </section>

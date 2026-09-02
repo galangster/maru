@@ -143,6 +143,18 @@ export function wakeTime(ts: number, now: number): string {
   return `${dateFmt.format(ts)}, ${clock}`
 }
 
+/**
+ * "1 thread", "2 conversations", "3 messages".
+ *
+ * The count leads and the noun agrees with it. Written down once because the
+ * two shells name the same object differently and the same sentence is built
+ * in three places — a batch toast, a batch undo label, and the Later sheet's
+ * title — and the sheet said "threads" over a toast that said "conversations".
+ */
+export function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`

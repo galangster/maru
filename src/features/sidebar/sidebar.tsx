@@ -23,18 +23,15 @@ import {
   useAccounts,
   useDeferredCount,
   useLabels,
-  useSyncStatus,
   useUnreadCount,
 } from '@/features/mail/queries'
-import { useMailMode } from '@/features/mail/service'
 import { useUi, viewKey } from '@/features/mail/ui-store'
 import { SHELL_CARD } from '@/features/shell/app-shell'
 import { useSurfaces, type SettingsSection } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
-import { describeSync, isUrgent, type SyncSummary } from '@/features/sidebar/sync-summary'
-import { syncPreview } from '@/lib/env'
+import { isUrgent, type SyncSummary } from '@/features/sidebar/sync-summary'
+import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { hueFor, hueSolid, type Hue } from '@/lib/hue'
-import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 /** The row chrome both sidebar disclosure headers share; typography differs
@@ -433,13 +430,10 @@ function AccountSection({ account }: { account: Account }) {
 function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: Account[] }) {
   const toggleSidebar = useUi((s) => s.toggleSidebar)
   const { theme, toggle } = useThemeToggle()
-  const statuses = useSyncStatus()
-  const now = useNow()
   const themeIcon: IconName =
     theme === 'light' ? 'themeLight' : theme === 'dark' ? 'themeDark' : 'themeSystem'
   const themeLabel = `Switch theme, currently ${theme}`
 
-  const { demo } = useMailMode()
   const openSettings = useSurfaces((s) => s.openSettings)
   // Cached, and already read by the badge below — this asks the same query for
   // the same answer, not the gateway for a second one.
@@ -449,16 +443,9 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
   // truncated mid-word — "Demo data · 2 accou…" — which made the one line that
   // says what the app is doing the one line you cannot read. The state gets
   // the pixels; the sentence gets the tooltip. Derived in sync-summary.ts so
-  // the copy can be tested as data.
-  // `demo && !syncPreview`: demo outranks every other state, which is right —
-  // "Demo data" is the truest thing to say about a demo window. But the demo
-  // service is the only way to reach these states in a browser, so ?sync= has
-  // to be allowed past it or the flag could never show anything.
-  // When this window started waiting, so "Starting…" can escalate rather than
-  // stand forever. A ref, not state: it is read during render and never drives
-  // one, and it must survive the minute tick that re-renders this footer.
-  const startedAt = useRef(now)
-  const sync = describeSync(accounts, statuses, demo && !syncPreview, now, startedAt.current)
+  // the copy can be tested as data, and assembled in use-sync-summary.ts so
+  // the phone's banner says the same sentence this line does.
+  const sync = useSyncSummary(accounts)
 
   return (
     <div

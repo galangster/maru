@@ -147,7 +147,7 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
           }
           editing ? onSelect() : onOpen()
         }}
-        aria-label={`${model.sender}, ${model.subject}`}
+        aria-label={model.label}
         aria-pressed={editing ? selected : undefined}
       >
         {editing ? (

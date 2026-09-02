@@ -3,7 +3,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 vi.mock('sonner', () => ({ toast: vi.fn() }))
 
 import type { MailAction } from '../src/core/types'
-import { bulkAction, bulkDefer, checkedInView } from '../src/features/list/bulk'
+import {
+  bulkAction,
+  bulkDefer,
+  checkedInView,
+  runBatchAction,
+  runBatchDefer,
+} from '../src/features/list/bulk'
 import { useUi } from '../src/features/mail/ui-store'
 import { wakeTime } from '../src/lib/format'
 import { makeThread } from './fixtures/domain'
@@ -130,5 +136,109 @@ describe('bulkDefer', () => {
     useUi.setState({ checked: new Set([key('b')]), selected: key('b') })
     bulkDefer(() => {}, threads, WAKE, NOW)
     expect(useUi.getState().selected).toBe(key('c'))
+  })
+})
+
+// The mechanism the phone's bulk bar shares with this one (issue 8). The phone
+// keeps its checkmarks in the inbox screen rather than in `useUi`, so it hands
+// the keys in and clears its own — everything else about a batch is the same
+// batch, and these are the tests that say so.
+describe('runBatchAction', () => {
+  const KEYS = [key('a'), key('b'), key('c')]
+
+  it('registers ONE undoable for the whole batch, whatever its size', () => {
+    const sent: MailAction[] = []
+    runBatchAction((a) => sent.push(a), KEYS, 'archive')
+    expect(sent).toHaveLength(3)
+    expect(useUi.getState().undoable).toMatchObject({ id: 'bulk:archive' })
+
+    sent.length = 0
+    useUi.getState().runUndo()
+    expect(sent).toEqual(KEYS.map((threadKey) => ({ type: 'unarchive', threadKey })))
+  })
+
+  it('names the count, so the confirmation cannot say "Archived" over forty rows', () => {
+    expect(runBatchAction(() => {}, KEYS, 'archive')).toBe('3 threads archived')
+    expect(useUi.getState().undoable?.label).toBe('3 threads archived')
+  })
+
+  it('takes the shell\'s own noun for the same object', () => {
+    expect(runBatchAction(() => {}, KEYS, 'archive', 'conversation')).toBe(
+      '3 conversations archived',
+    )
+  })
+
+  it('agrees with the number in singular and plural', () => {
+    expect(runBatchAction(() => {}, KEYS.slice(0, 1), 'trash')).toBe('1 thread moved to trash')
+    expect(runBatchAction(() => {}, KEYS.slice(0, 2), 'trash', 'conversation')).toBe(
+      '2 conversations moved to trash',
+    )
+    expect(runBatchAction(() => {}, KEYS, 'markUnread')).toBe('3 threads marked unread')
+  })
+})
+
+describe('runBatchDefer', () => {
+  const NOW = 1_800_000_000_000
+  const WAKE = NOW + 86_400_000
+
+  const prior = new Map<string, number | null>([
+    [key('a'), null],
+    [key('b'), NOW + 5_000],
+  ])
+  const priorFor = (k: string) => prior.get(k) ?? null
+
+  it('offers one undo that returns every thread to its own prior schedule', () => {
+    const sent: [string, number | null][] = []
+    const label = runBatchDefer(
+      (k, at) => sent.push([k, at]),
+      [...prior.keys()],
+      priorFor,
+      WAKE,
+      NOW,
+      'conversation',
+    )
+
+    expect(label).toBe(`2 conversations saved for ${wakeTime(WAKE, NOW)}`)
+    expect(sent).toEqual([
+      [key('a'), WAKE],
+      [key('b'), WAKE],
+    ])
+
+    sent.length = 0
+    useUi.getState().runUndo()
+    expect(sent).toEqual([
+      [key('a'), null],
+      [key('b'), NOW + 5_000],
+    ])
+  })
+
+  it('says where the batch went in both directions', () => {
+    expect(runBatchDefer(() => {}, [key('a')], priorFor, null, NOW, 'conversation')).toBe(
+      '1 conversation back in the inbox',
+    )
+    expect(runBatchDefer(() => {}, [key('a'), key('b'), key('c')], priorFor, WAKE, NOW)).toBe(
+      `3 threads saved for ${wakeTime(WAKE, NOW)}`,
+    )
+  })
+
+  it('reads each prior time before the batch overwrites it', () => {
+    // The undo has to hold what the threads were on when the batch STARTED. A
+    // `priorFor` that reaches into live state would answer with this batch's
+    // own wake time by the time anyone pressed Undo.
+    const live = new Map<string, number | null>([[key('a'), NOW + 5_000]])
+    const sent: [string, number | null][] = []
+    runBatchDefer(
+      (k, at) => {
+        live.set(k, at)
+        sent.push([k, at])
+      },
+      [key('a')],
+      (k) => live.get(k) ?? null,
+      WAKE,
+      NOW,
+    )
+    sent.length = 0
+    useUi.getState().runUndo()
+    expect(sent).toEqual([[key('a'), NOW + 5_000]])
   })
 })
