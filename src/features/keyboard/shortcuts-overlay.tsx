@@ -30,7 +30,15 @@ export function ShortcutsOverlay() {
     >
       <DialogContent
         showCloseButton={false}
-        className="bg-raised rounded-xl shadow-lg w-[520px] max-w-[calc(100%-2rem)] gap-0 border-0 p-6 ring-0 sm:max-w-[520px]"
+        // 640, not 520 — issue #25. At 520 the two label columns were 140 px
+        // each and the sheet truncated two of the descriptions it exists to
+        // show: "Expand or collapse all messages" needs 194 and "Show or hide
+        // the sidebar" needs 150. The card had empty space below the last row,
+        // so nothing about the window forced it. 640 gives each column 280,
+        // which is 200 for the label after the 72 px keycap cluster and its
+        // gap, and clears the worst case by 6 px. This is the one surface whose
+        // whole job is to be read.
+        className="bg-raised rounded-xl shadow-lg w-[640px] max-w-[calc(100%-2rem)] gap-0 border-0 p-6 ring-0 sm:max-w-[640px]"
       >
         <DialogTitle className="font-ui text-ink pb-4 text-base font-semibold">
           Keyboard shortcuts

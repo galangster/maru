@@ -34,6 +34,20 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast",
+          // The Undo control — issue #36. Sonner ships it as a 4 px chip in
+          // 12 px type, and the app has neither: every other button here is a
+          // pill or carries one of DIRECTION §6's radii, and no other text in
+          // the app is 12 px. A sharp little rectangle inside a 14 px-radius
+          // toast reads as borrowed from somewhere else.
+          //
+          // It is a pill at the app's 11.5 px `text-xs`, which is what the bulk
+          // bar's verbs are — the same kind of control at the same size. The
+          // `!` is not decoration: sonner injects its own stylesheet at runtime
+          // and its rule is `[data-sonner-toast][data-styled='true']
+          // [data-button]`, which outranks a utility class and lands in an
+          // order this file cannot depend on.
+          actionButton:
+            "h-6! rounded-full! px-2.5! font-ui! text-xs! font-medium!",
         },
       }}
       {...props}

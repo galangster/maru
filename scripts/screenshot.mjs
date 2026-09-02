@@ -12,6 +12,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
+import { gotoReady, newCaptureContext, parkPointer } from './lib/capture.mjs'
+
 import { ORIGIN, startServerIfNeeded } from './dev-server.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -204,19 +206,15 @@ async function main() {
   const [server, browser] = await Promise.all([startServerIfNeeded(ROOT), chromium.launch()])
 
   try {
-    const context = await browser.newContext({
+    // Pinned locale, timezone and motion — see scripts/lib/capture.mjs.
+    const context = await newCaptureContext(browser, {
       viewport: VIEWPORT,
       deviceScaleFactor: SCALE,
-      // Relative dates and the 24-hour clock must not depend on the machine.
-      locale: 'en-US',
-      timezoneId: 'America/Los_Angeles',
-      reducedMotion: 'reduce',
     })
     const page = await context.newPage()
 
     for (const shot of SHOTS) {
-      await page.goto(`${ORIGIN}/?demo=1&screenshot=1${shot.query}`, { waitUntil: 'load' })
-      await page.waitForSelector('[data-ready="true"]', { timeout: 20_000 })
+      await gotoReady(page, `${ORIGIN}/?demo=1&screenshot=1${shot.query}`)
 
       if (shot.open) {
         const row = page.locator(`[data-thread-key="${shot.open}"]`)
@@ -228,9 +226,7 @@ async function main() {
 
       if (shot.act) await shot.act(page)
 
-      // Nothing should sit under the cursor in a capture.
-      await page.mouse.move(VIEWPORT.width - 4, VIEWPORT.height - 4)
-      await page.waitForLoadState('networkidle')
+      await parkPointer(page, VIEWPORT)
       await page.screenshot({ path: join(OUT, shot.file) })
       console.log(`captured ${shot.file}`)
     }

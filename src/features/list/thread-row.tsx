@@ -22,7 +22,7 @@ import { Icon } from '@/components/ui/icon'
 import { AVATAR_CHIP, AccountAvatar, DATE_COLUMN, META_TEXT, iconButtonClass } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import { THREAD_ACTION_ORDER, threadActions } from '@/features/mail/thread-actions'
-import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import { correspondents, participantLine, relativeTime, wakeStamp, wakeTime } from '@/lib/format'
 import { hueFor, hueSolid } from '@/lib/hue'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
@@ -56,6 +56,15 @@ export interface ThreadRowProps {
    */
   onLater: (thread: Thread) => void
   onCheck: (thread: Thread) => void
+  /**
+   * The Later list, where the row's date is the day the mail comes BACK.
+   *
+   * The list groups by that day, and the row printed the day the mail arrived
+   * instead — "Today" as a header over "Yesterday" on the row (issue #38).
+   * A flag rather than a formatted string, so the row keeps owning its own
+   * clock and the minute tick still re-renders only the timestamps.
+   */
+  showWake?: boolean
 }
 
 /** The DOM id of a row, so the listbox can point `aria-activedescendant` at it.
@@ -77,6 +86,7 @@ export const ThreadRow = memo(function ThreadRow({
   onAction,
   onLater,
   onCheck,
+  showWake = false,
 }: ThreadRowProps) {
   // The row owns its own clock. Held by the list, the minute tick re-rendered
   // every row in the viewport; here it re-renders only the timestamps.
@@ -84,6 +94,7 @@ export const ThreadRow = memo(function ThreadRow({
   const people = correspondents(thread.participants, selfEmails)
   const sender = participantLine(people)
   const lead = people[0] ?? { email: sender }
+  const wake = showWake ? (thread.deferredUntil ?? null) : null
   const act = useCallback((type: MailActionType) => onAction(thread, type), [onAction, thread])
   const later = useCallback(() => onLater(thread), [onLater, thread])
 
@@ -116,8 +127,13 @@ export const ThreadRow = memo(function ThreadRow({
         'group relative flex h-[calc(var(--wren-row-h)-var(--wren-row-gap))] w-[calc(100%-2*var(--wren-row-inset-x))]',
         'mx-(--wren-row-inset-x) cursor-default items-center gap-3 rounded-row px-2',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+        // `bg-fill-selected` carries its own certified tier (index.css): the
+        // row paints the accent wash, and the tiers standing on it were
+        // certified against `surface`, not against the wash. In dark the date
+        // and the preview measured 4.28 on it — the row the reader is
+        // currently on was the least readable row in the list (issue #26).
         selected
-          ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring/50 group-focus-visible/listbox:ring-inset'
+          ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring group-focus-visible/listbox:ring-inset'
           : checked
             ? 'bg-fill-selected'
             : 'hover:bg-fill-hover',
@@ -167,9 +183,17 @@ export const ThreadRow = memo(function ThreadRow({
               name, so it never floats in the gap before the timestamp. */}
           <span className="flex w-(--wren-list-sender-w) shrink-0 items-baseline gap-2">
             <span
+              // Weight, not colour — DIRECTION §1: "Unread is a dot and a
+              // weight change." The read state used to drop the sender to the
+              // meta tier as well, which put the name at 6.84 above a subject
+              // at 17.87 on the same row: the name read as failed to load while
+              // the subject beneath it was at full strength, and the row's own
+              // hierarchy was inverted on read mail, which is most of a mailbox
+              // (issue #34). The subject already changed weight alone; the
+              // sender now does the same, so the two lines recede together.
               className={cn(
-                'font-ui min-w-0 truncate text-base',
-                thread.unread ? 'text-ink font-semibold' : 'text-ink-2 font-medium',
+                'font-ui text-ink min-w-0 truncate text-base',
+                thread.unread ? 'font-semibold' : 'font-medium',
               )}
             >
               {sender}
@@ -186,12 +210,41 @@ export const ThreadRow = memo(function ThreadRow({
               left edge of the timestamps ragged down the list, which is the
               one thing DIRECTION §1 says a column may never do. 64 px holds
               the longest value. */}
-          <time className={DATE_COLUMN}>
-            {relativeTime(thread.lastMessageAt, now)}
+          {/* In the Later list this is when the thread comes back, not when it
+              arrived — and it says so to a screen reader, which reads the row
+              as one run of text and would otherwise hear two dates with nothing
+              between them. `wakeStamp` answers with what the group header does
+              not already say. */}
+          <time className={DATE_COLUMN} title={wake === null ? undefined : wakeTime(wake, now)}>
+            {wake === null ? (
+              relativeTime(thread.lastMessageAt, now)
+            ) : (
+              <>
+                <span className="sr-only">Back </span>
+                {wakeStamp(wake, now)}
+              </>
+            )}
           </time>
         </div>
 
-        <div className="flex items-baseline gap-2 leading-5">
+        {/* The hover cluster's lane — issue #32. The cluster is opaque and
+            absolutely positioned over this line's right end, so hovering "Bike
+            service — ready Thursday" hid "Thursday" and the whole preview
+            behind it: the row's own text, covered by a control that was
+            summoned by pointing at it.
+
+            The line now reserves the lane while the cluster is there, off the
+            same `--wren-row-cluster-w` the cluster is sized by, so the lane
+            cannot be narrower than the thing it is holding room for. Reserved
+            only on hover, because reserving it at rest would spend 160 px of
+            every row in the list on a state that is true for one row at a time.
+
+            The padding SNAPS. It is layout, and animating it re-flows and
+            re-truncates the subject and the snippet on every frame of the
+            cluster's fade — the text visibly crawling left under a control
+            that is only crossfading in. The cluster keeps its own transition;
+            the lane is simply there before it is. */}
+        <div className="flex items-baseline gap-2 leading-5 group-hover:pr-(--wren-row-cluster-w)">
           <span
             className={cn(
               'truncate text-sm leading-5',
@@ -366,7 +419,11 @@ function QuickActions({
     <div
       aria-hidden
       className={cn(
-        'bg-raised absolute right-3 bottom-1 items-center overflow-hidden rounded-md shadow-md',
+        // The width is the token, not the sum of what happens to be inside:
+        // the lane the row's second line gives up is the same number, and a
+        // sixth action would otherwise widen the cluster without widening the
+        // lane and put us back under issue #32.
+        'bg-raised absolute right-3 bottom-1 w-(--wren-row-cluster-w) items-center justify-center overflow-hidden rounded-md shadow-md',
         // Below `--container-row` the cluster is not shown at all — see the
         // note above. `hidden` rather than `pointer-events-none`, because a
         // strip a click passes through is still a strip sitting on the words

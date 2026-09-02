@@ -166,7 +166,13 @@ function SettingsBody({ section }: { section: SettingsSection }) {
     <>
       <nav
         aria-label="Settings sections"
-        className="border-hairline flex w-40 shrink-0 flex-col gap-1 border-r p-2"
+        // 176, not 160 — issue #28. At 160 the item's label box came to 91.0 px
+        // after the nav's padding, the item's padding, the 28 px tile and the
+        // 8 px gap, and "Maru account" needs 91.1: the first thing a person saw
+        // on opening Settings was the product's own name with an ellipsis on
+        // it. One step of the 4 px grid gives the label 108 px and every item
+        // in the menu room to spare. The dialog is 680 and the body keeps 504.
+        className="border-hairline flex w-44 shrink-0 flex-col gap-1 border-r p-2"
       >
         {SETTINGS_SECTIONS.map((item) => {
           const active = item.id === section

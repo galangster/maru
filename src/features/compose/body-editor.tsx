@@ -50,7 +50,7 @@ export function useBodyEditor({ initialHtml, onChange }: UseBodyEditorOptions): 
  */
 export function BodyEditor({ editor }: { editor: Editor | null }) {
   return (
-    <div className="wren-editor bg-sunken rounded-md focus-within:ring-ring/50 min-h-0 flex-1 overflow-y-auto px-3 py-3 focus-within:ring-3">
+    <div className="wren-editor bg-sunken rounded-md focus-within:ring-ring min-h-0 flex-1 overflow-y-auto px-3 py-3 focus-within:ring-3">
       <EditorContent editor={editor} className="h-full" />
     </div>
   )

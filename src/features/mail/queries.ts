@@ -236,6 +236,27 @@ export function useSearch(query: string) {
   })
 }
 
+/**
+ * A settled query, as ONE derivation: is a search running, and what did it
+ * find?
+ *
+ * The list and the reading pane both need that answer, and the pane was telling
+ * people to "pick a thread on the left" while the list said there was nothing
+ * there (issue #33). Two components deriving it from the same inputs is two
+ * chances to disagree about what is on screen, so the minimum length and the
+ * empty-while-typing rule live here and every caller reads the same answer.
+ *
+ * It takes the query rather than reading the shell store, because this module
+ * is the data layer: a hook here that knows the search field is open binds
+ * every consumer of the mail cache to the desktop shell. `useListSearch` in
+ * `features/list` is the two-line binding, and it is the only one.
+ */
+export function useQuerySearch(query: string) {
+  const results = useSearch(query)
+  const searching = query.trim().length >= MIN_SEARCH_LENGTH
+  return { searching, hits: searching ? (results.data ?? []) : [] }
+}
+
 // -- events -----------------------------------------------------------------
 
 /** Wires MailService events to cache invalidation. Mount once, at the root. */

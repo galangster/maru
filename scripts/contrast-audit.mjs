@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Measure the shipped palette. Reads src/styles/tokens.css and src/lib/hue.ts,
-// converts every OKLCH value the way a browser does, and prints the WCAG 2.x
-// ratios DIRECTION §3 certifies.
+// Measure the shipped palette. Reads src/styles/tokens.css, converts every
+// OKLCH value the way a browser does, and prints the WCAG 2.x ratios
+// DIRECTION §3 certifies.
 //
 // It exists because that section is headed "computed not estimated" and was
 // certifying a palette the build no longer has: DIRECTION documented hue-286
@@ -10,105 +10,19 @@
 // renders is worse than no table, because it is the one document somebody
 // would check a colour against.
 //
+// The colour maths and the token parser live in `scripts/lib/`, because
+// `tests/contrast.test.ts` asserts the same numbers and two copies of an sRGB
+// decode is how a palette gets certified by one formula and drawn by another.
+//
 // Run it after any token change:  node scripts/contrast-audit.mjs
 // `--check` exits non-zero if a text tier fails AA on a surface it is
 // permitted to sit on, so CI or a pre-seal gate can hold the line.
 
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { hex, r2, ratio } from './lib/color.mjs'
+import { backdropsFor, fillsFor } from './lib/fills.mjs'
+import { tokenReader } from './lib/tokens.mjs'
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-
-// -- colour ------------------------------------------------------------------
-
-/** OKLab → linear sRGB (Björn Ottosson's matrices). */
-function oklabToLinearSrgb(L, a, b) {
-  const l_ = L + 0.3963377774 * a + 0.2158037573 * b
-  const m_ = L - 0.1055613458 * a - 0.0638541728 * b
-  const s_ = L - 0.0894841775 * a - 1.291485548 * b
-  const l = l_ ** 3
-  const m = m_ ** 3
-  const s = s_ ** 3
-  return [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ]
-}
-
-const encode = (x) => (x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055)
-const decode = (x) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)
-
-/**
- * An OKLCH triple as the 8-bit sRGB a screen actually shows.
- *
- * Clamped and rounded on purpose: an out-of-gamut value is CLIPPED by the
- * browser, and a ratio computed from the unclipped maths would certify a colour
- * nobody can see. `clipped` reports when that happened, because DIRECTION
- * claims every value is in gamut and that claim should be checked rather than
- * repeated.
- */
-function oklchToRgb(L, C, h) {
-  const rad = (h * Math.PI) / 180
-  const linear = oklabToLinearSrgb(L, C * Math.cos(rad), C * Math.sin(rad))
-  const encoded = linear.map(encode)
-  const clipped = encoded.some((v) => v < -0.0005 || v > 1.0005)
-  const rgb = encoded.map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255))
-  return { rgb, clipped }
-}
-
-const hex = ([r, g, b]) =>
-  '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0').toUpperCase()).join('')
-
-/** WCAG relative luminance, from the 8-bit values a screen receives. */
-const luminance = ([r, g, b]) =>
-  0.2126 * decode(r / 255) + 0.7152 * decode(g / 255) + 0.0722 * decode(b / 255)
-
-function ratio(a, b) {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
-  return (hi + 0.05) / (lo + 0.05)
-}
-
-const r2 = (n) => Math.round(n * 100) / 100
-
-/**
- * Composite a translucent colour over its backdrop before measuring.
- *
- * A ratio taken against a colour with an alpha channel is meaningless — what
- * the eye receives is the blend, and that is what has to clear 4.5.
- */
-function over(fg, bg, alpha) {
-  return fg.map((c, i) => Math.round(c * alpha + bg[i] * (1 - alpha)))
-}
-
-// -- reading the shipped tokens ----------------------------------------------
-
-const css = readFileSync(join(ROOT, 'src/styles/tokens.css'), 'utf8')
-
-/**
- * Pull one token out of a theme block.
- *
- * The dark theme redefines the same names further down the file, so "which
- * block" is decided by position rather than by a smarter parser: everything
- * before the dark selector is light, everything after is dark.
- */
-const DARK_AT = css.search(/^\.dark\s*\{/m)
-if (DARK_AT === -1) throw new Error('no `.dark` block in tokens.css — the theme split moved')
-
-function token(name, theme) {
-  const pattern = new RegExp(`--${name}:\\s*oklch\\(([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)`, 'g')
-  let found = null
-  for (const m of css.matchAll(pattern)) {
-    const isDark = m.index > DARK_AT
-    if (isDark === (theme === 'dark')) {
-      found = [Number(m[1]), Number(m[2]), Number(m[3])]
-      if (theme === 'light') break
-    }
-  }
-  if (!found) throw new Error(`token --${name} not found for ${theme}`)
-  return oklchToRgb(...found)
-}
+const { token } = tokenReader()
 
 const HUES = ['green', 'teal', 'blue', 'violet', 'magenta', 'red', 'orange', 'yellow']
 
@@ -171,20 +85,51 @@ for (const theme of ['light', 'dark']) {
 }
 
 // -- the fills, which are translucent and must be composited ------------------
+//
+// The list itself is `scripts/lib/fills.mjs`, shared with the gate in
+// `tests/contrast.test.ts`, and it says there why it is one list. Here it is
+// only measured: every tier that is allowed to sit on a fill, against it.
 
-lines.push('\n## FILLS (composited over their backdrop)\n')
+lines.push('\n## TINTED FILLS (composited over their backdrop)\n')
 for (const theme of ['light', 'dark']) {
-  const accent = token('wren-accent', theme)
-  const base = token('wren-surface-base', theme)
-  const surface = token('wren-surface', theme)
-  const alpha = theme === 'light' ? 0.08 : 0.14
-  for (const [bgName, bg] of [['base', base], ['surface', surface]]) {
-    const filled = over(accent.rgb, bg.rgb, alpha)
-    const ink = token('wren-text-1', theme)
-    const v = ratio(ink.rgb, filled)
-    if (v < 4.5) failures.push(`${theme}: text-1 on fill-selected over ${bgName} = ${r2(v)}`)
-    lines.push(`${theme.padEnd(6)} text-1 on fill-selected over ${bgName.padEnd(8)} ${r2(v)}`)
+  const fills = fillsFor(theme)
+  lines.push(`${theme}: ${fills.map(([n, rgb]) => `${n} ${hex(rgb)}`).join(' · ')}`)
+
+  for (const [label, name] of [
+    ['text-1', 'wren-text-1'],
+    ['text-3', 'wren-text-3'],
+    ['on-fill', 'wren-text-on-fill'],
+    ['accent-on-fill', 'wren-accent-on-fill'],
+  ]) {
+    const ink = token(name, theme)
+    // text-3 is reported for the record, not gated: it is the tier that fails
+    // on a fill, and `on-fill` is the answer. Gating it here would re-file
+    // issues #26 and #27 against a build that has already answered them.
+    const gated = label !== 'text-3'
+    const cells = fills.map(([n, rgb]) => {
+      const v = ratio(ink.rgb, rgb)
+      if (gated && v < 4.5) failures.push(`${theme}: ${label} on ${n} = ${r2(v)}`)
+      return `${n} ${r2(v)}${v < 4.5 ? ' ✗' : ''}`
+    })
+    lines.push(`  ${label.padEnd(15)} ${hex(ink.rgb)}  ${cells.join(' · ')}`)
   }
+}
+
+// -- the focus ring, which is an indicator and takes the 3:1 floor -----------
+//
+// One token, one ring, every control. It is drawn on all three surfaces and on
+// the selected row's wash, so the worst of those four is the number that
+// matters. Issue #22: at 50% alpha it was 2.05 light and 2.77 dark.
+
+lines.push('\n## FOCUS RING (WCAG 2.2 SC 1.4.11, 3:1)\n')
+for (const theme of ['light', 'dark']) {
+  const ring = token('wren-focus-ring', theme)
+  const cells = backdropsFor(theme).map(([n, rgb]) => {
+    const v = ratio(ring.rgb, rgb)
+    if (v < 3) failures.push(`${theme}: focus ring on ${n} = ${r2(v)} (needs 3)`)
+    return `${n} ${r2(v)}${v < 3 ? ' ✗' : ''}`
+  })
+  lines.push(`${theme.padEnd(6)} ${hex(ring.rgb)}  ${cells.join(' · ')}`)
 }
 
 console.log(lines.join('\n'))

@@ -157,6 +157,8 @@ export function TextField({
         autoComplete="off"
         spellCheck={false}
         className={cn(
+          // The placeholder is `text-ink-3` on the well's recessed fill, which
+          // is issue #27's pair — `bg-sunken` re-certifies it (index.css).
           'bg-sunken text-ink placeholder:text-ink-3 focus-ring h-9 w-full rounded-sm px-3 text-base',
           inputClassName,
         )}
@@ -174,15 +176,25 @@ export function TextField({
 export const ICON_SLOT = 'flex w-(--wren-icon-box) shrink-0 items-center justify-center'
 
 /**
- * The send action's sizing, and its confirmation. One recipe for the composer
- * and the approval queue, because the queue's Approve promises to confirm
- * "exactly as the composer runs it" — a promise a shared constant keeps and a
- * second copy lets drift. `disabled:opacity-100` because both call sites
- * disable the button the moment it fires, and the confirmation must not grey.
+ * The trailing column the same repeated rows END with — a keycap where the row
+ * has one, and the same width where it does not. `ICON_SLOT`'s counterpart, and
+ * for the same reason: the Later picker's fifth row has no digit, so without a
+ * reserved slot its meta text ran 28 px past where the four above it stop
+ * (issue #37).
+ */
+export const KEYCAP_SLOT = 'flex w-5 shrink-0 justify-end'
+
+/**
+ * The send action's sizing. One recipe for the composer and the approval queue,
+ * because the queue's Approve promises to confirm "exactly as the composer runs
+ * it" — a promise a shared constant keeps and a second copy lets drift. The
+ * confirmation itself is `PrimaryButton`'s `confirming` prop, not a class here:
+ * both call sites disable the button the moment it fires, and a class that has
+ * to out-order the recipe's own `disabled:` fill is a race the caller cannot
+ * see.
  */
 export const SEND_BUTTON =
   'h-8 gap-2 px-4 transition-[background-color,color] duration-(--wren-dur-fast) ease-(--wren-ease-out)'
-export const SEND_CONFIRM = 'bg-hue-green text-hue-fg disabled:opacity-100'
 
 /**
  * The one primary action on a surface: compose, send, add account, get
@@ -191,8 +203,22 @@ export const SEND_CONFIRM = 'bg-hue-green text-hue-fg disabled:opacity-100'
  */
 export function PrimaryButton({
   className,
+  confirming = false,
   ...props
-}: React.ComponentProps<'button'>) {
+}: React.ComponentProps<'button'> & {
+  /**
+   * The action just landed — AMIE-STUDY §7(c).3. The button IS the
+   * celebration: its fill crossfades to the green solid and stays there while
+   * the caller disables it.
+   *
+   * A variant rather than a class the caller passes: both call sites disable
+   * the button the moment it fires, so the confirmation and the unavailable
+   * fill are the same declarations under the same variant, and whichever is
+   * emitted later in the stylesheet would win. Here only one of the two is
+   * ever written.
+   */
+  confirming?: boolean
+}) {
   return (
     <button
       type="button"
@@ -207,8 +233,22 @@ export function PrimaryButton({
         // Two ways to be unavailable, one look. `disabled` also drops pointer
         // events; `aria-disabled` deliberately keeps them, so a button that
         // has a reason to give can still be hovered and pressed for it.
-        'disabled:pointer-events-none disabled:opacity-40',
-        'aria-disabled:opacity-40',
+        //
+        // `recessed` is that look, named once in index.css — a muted fill with
+        // legible ink, not the live fill made transparent (issue #31).
+        // `opacity-40` took white on coral down to white on a pale coral:
+        // 1.78:1 in light and 2.71:1 in dark, so the word "Send" was legible
+        // only if you already knew it was there. The recessed fill with the
+        // on-fill tier measures 4.84 light and 7.24 dark, and it reads as
+        // unavailable more honestly than a faded primary does — a control that
+        // still looks like the primary action, only dimmer, invites the press
+        // it is refusing. The shadow goes with it: an unavailable control does
+        // not float.
+        'disabled:pointer-events-none',
+        !confirming && 'disabled:recessed aria-disabled:recessed aria-disabled:hover:recessed',
+        // The confirmation keeps the green through the disable that follows it.
+        confirming &&
+          'bg-hue-green text-hue-fg disabled:bg-hue-green disabled:text-hue-fg disabled:shadow-xs',
         className,
       )}
       {...props}
@@ -348,7 +388,13 @@ export function OptionRow({
   )
 }
 
-/** A key, as printed. The palette's footer and the "?" sheet share it. */
+/** A key, as printed. The palette's footer and the "?" sheet share it.
+ *
+ *  The cap IS a recessed fill, so its own `text-ink-3` is the pair that failed:
+ *  4.42 in light, under the 4.5 floor for 11.5 px text, everywhere a cap is
+ *  printed — the R / A / F reply tiles, the palette footer, the Later picker's
+ *  digits, the "?" sheet (issue #27). `bg-sunken` re-points the tier, so the
+ *  cap is certified by the fill it paints rather than by a second class. */
 export function Keycap({
   children,
   className,

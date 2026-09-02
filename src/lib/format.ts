@@ -84,15 +84,29 @@ const fullFmt = new Intl.DateTimeFormat(undefined, {
   hour12: false,
 })
 
+/**
+ * A calendar date in the meta column's width: "Sep 24" inside this year, "Sep
+ * 24, 2025" outside it.
+ *
+ * The tail both `relativeTime` and `wakeStamp` fall through to — one past a
+ * week, one future past a week, and the same answer either way. The year test
+ * is the whole of it, and it is the part that is easy to write twice and then
+ * fix once: a deferral can cross a New Year (MAX_DEFER_DAYS is 30) exactly as a
+ * received message can be from one.
+ */
+function calendarDate(ts: number, now: number): string {
+  return new Date(ts).getFullYear() === new Date(now).getFullYear()
+    ? dateFmt.format(ts)
+    : datedFmt.format(ts)
+}
+
 /** The list's right-hand meta column: short, tabular, never wider than 56px. */
 export function relativeTime(ts: number, now: number): string {
   const group = dateGroup(ts, now)
   if (group === 'Today') return timeFmt.format(ts)
   if (group === 'Yesterday') return 'Yesterday'
   if (group === 'This week') return weekdayFmt.format(ts)
-  return new Date(ts).getFullYear() === new Date(now).getFullYear()
-    ? dateFmt.format(ts)
-    : datedFmt.format(ts)
+  return calendarDate(ts, now)
 }
 
 /**
@@ -149,6 +163,28 @@ export function wakeGroup(ts: number, now: number): WakeGroup {
   if (days < 7) return 'This week'
   if (days < 14) return 'Next week'
   return 'Later this month'
+}
+
+/**
+ * When a saved thread comes back, in the list's 64 px meta column.
+ *
+ * The Later list groups by the day the mail is due back and every row showed
+ * the day it ARRIVED, so a thread saved until this evening sat under "Today"
+ * and printed "Yesterday" on its own row — two dates on screen with nothing to
+ * say which was which (issue #38). `relativeTime` cannot answer this: it
+ * buckets the past, and a future timestamp satisfies its first branch and comes
+ * back as a clock time whatever day it is on.
+ *
+ * The shape mirrors `relativeTime` exactly — clock, weekday, date — so the
+ * Later list's column reads like every other list's. It answers with what the
+ * group header does not already say: inside two days the header has the day, so
+ * the time is the new information; past that the day is.
+ */
+export function wakeStamp(ts: number, now: number): string {
+  const group = wakeGroup(ts, now)
+  if (group === 'Today' || group === 'Tomorrow') return timeFmt.format(ts)
+  if (group === 'This week') return weekdayFmt.format(ts)
+  return calendarDate(ts, now)
 }
 
 export function wakeTime(ts: number, now: number): string {

@@ -24,7 +24,6 @@ import {
   META_TEXT,
   PrimaryButton,
   SEND_BUTTON,
-  SEND_CONFIRM,
   SURFACE_TITLE,
   iconButtonClass,
 } from '@/components/wren-controls'
@@ -529,11 +528,10 @@ function ComposerSheet() {
                 // the celebration: its fill crossfades to the green solid over
                 // 120 ms, the arrow becomes a check, and it runs one gentle
                 // pop. No particles. Send repeats dozens of times a day, and
-                // frequency is what kills delight.
-                //
-                // `disabled:opacity-40` from the recipe would grey the whole
-                // confirmation out the moment `sending` goes true, so the
-                // sending state overrides it back to full opacity.
+                // frequency is what kills delight. `confirming` is what keeps
+                // the recipe's unavailable look off it while `sending` holds
+                // the button disabled.
+                confirming={sending}
                 style={
                   sending
                     ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
@@ -543,7 +541,7 @@ function ComposerSheet() {
                 // keeps its pointer events, which is what lets the tooltip and
                 // the press explain themselves. The dimming that goes with it
                 // is PrimaryButton's, not this call site's.
-                className={cn(SEND_BUTTON, sending && SEND_CONFIRM)}
+                className={SEND_BUTTON}
               />
             }
           >

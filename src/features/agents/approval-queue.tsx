@@ -32,7 +32,6 @@ import {
   PRESS,
   PrimaryButton,
   SEND_BUTTON,
-  SEND_CONFIRM,
   SurfaceEmpty,
   SurfaceHeader,
   textButtonClass,
@@ -379,14 +378,15 @@ function PendingRow({
           aria-label={`Approve and send “${draft.subject.trim() || '(no subject)'}”`}
           // The send celebration, exactly as the composer runs it: the fill
           // crossfades to the green solid, the glyph becomes a check, and the
-          // button pops once. `disabled:opacity-40` from the recipe would grey
-          // the confirmation out the moment it fires, so `sent` overrides it.
+          // button pops once. `confirming` keeps the recipe's unavailable fill
+          // off it while `busy` holds the button disabled.
+          confirming={sent}
           style={
             sent
               ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
               : undefined
           }
-          className={cn(SEND_BUTTON, PRESS, sent && SEND_CONFIRM)}
+          className={cn(SEND_BUTTON, PRESS)}
         >
           <Icon name={sent ? 'check' : 'sent'} size={16} key={sent ? 'sent' : 'send'} />
           <span key={sent ? 'sent-label' : 'send-label'} className="wren-swap">
