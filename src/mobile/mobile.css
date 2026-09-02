@@ -26,6 +26,16 @@
   user-select: none;
 }
 
+/*
+ * With the native shell there is no bar in the document to leave room for.
+ * UIKit folds the tab bar's height into the webview's safe-area inset instead,
+ * so `env(safe-area-inset-bottom)` already clears the glass and adding the web
+ * bar's height on top would leave a strip of dead space under every list.
+ */
+.mobile-app[data-native-shell='true'] {
+  --mobile-tab-height: 0px;
+}
+
 .mobile-app *,
 .mobile-app *::before,
 .mobile-app *::after {

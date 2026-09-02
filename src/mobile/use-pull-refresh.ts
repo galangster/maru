@@ -5,6 +5,7 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from 'react'
 
+import { nativeShell } from '@/platform/shell'
 import {
   PULL_DISTANCE_FACTOR,
   PULL_MAX_OFFSET,
@@ -27,16 +28,25 @@ export function usePullRefresh(
 ) {
   const [refreshing, setRefreshing] = useState(false)
   const eligible = useRef(false)
+  const ready = useRef(false)
   const touch = useRef<{ identifier: number; y: number } | null>(null)
   const usingTouch = useRef(false)
 
   const offsetFor = (dy: number) => dy <= 0 ? 0 : Math.min(PULL_MAX_OFFSET, dy * PULL_DISTANCE_FACTOR)
   const move = (dy: number) => {
     if (!eligible.current) return
-    writePull(scroller.current, offsetFor(dy), false, false)
+    const offset = offsetFor(dy)
+    // The tap on the threshold, on the way past it only. This is the moment the
+    // copy changes to "Release to refresh", and the whole point of the haptic
+    // is that a thumb covering that copy can still feel it.
+    const crossed = offset >= PULL_REFRESH_THRESHOLD
+    if (crossed && !ready.current) void nativeShell.impact('light')
+    ready.current = crossed
+    writePull(scroller.current, offset, false, false)
   }
   const commit = (dy: number) => {
     const offset = offsetFor(dy)
+    ready.current = false
     if (!eligible.current || offset < PULL_REFRESH_THRESHOLD) {
       writePull(scroller.current, 0, true, false)
       return
@@ -76,6 +86,7 @@ export function usePullRefresh(
       ...drag,
       onPointerDown: (event: Parameters<typeof drag.onPointerDown>[0]) => {
         eligible.current = (scroller.current?.scrollTop ?? 0) <= 0
+        ready.current = false
         drag.onPointerDown(event)
       },
       onTouchStart: (event: ReactTouchEvent<HTMLElement>) => {
@@ -83,6 +94,7 @@ export function usePullRefresh(
         if (!point) return
         usingTouch.current = true
         eligible.current = (scroller.current?.scrollTop ?? 0) <= 0
+        ready.current = false
         touch.current = { identifier: point.identifier, y: point.clientY }
       },
       onTouchMove: (event: ReactTouchEvent<HTMLElement>) => {
@@ -99,6 +111,7 @@ export function usePullRefresh(
         usingTouch.current = false
       },
       onTouchCancel: () => {
+        ready.current = false
         writePull(scroller.current, 0, true, false)
         touch.current = null
         usingTouch.current = false

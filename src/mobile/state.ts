@@ -3,6 +3,37 @@ import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
 
 export type MobileTab = 'inbox' | 'search' | 'settings'
+
+/**
+ * Tab order, and the only place it is written down. The native tab bar
+ * addresses its items by position, so this array is the contract between the
+ * Swift `UITabBarItem`s and the reducer's `tab`.
+ */
+export const MOBILE_TABS: readonly MobileTab[] = ['inbox', 'search', 'settings']
+
+export function tabAtIndex(index: number): MobileTab | null {
+  return MOBILE_TABS[index] ?? null
+}
+
+export function indexOfTab(tab: MobileTab): number {
+  return MOBILE_TABS.indexOf(tab)
+}
+
+/** Above this the badge stops counting and starts saying "a lot". */
+export const MOBILE_BADGE_LIMIT = 99
+
+/**
+ * What the Inbox tab's badge should read, or `null` for no badge at all.
+ *
+ * A UITabBarItem badge is a string, and an empty one draws an empty red pill,
+ * so zero has to become `null` rather than `'0'`. Past 99 the pill grows wide
+ * enough to crowd the neighbouring tab's label, which is why iOS caps it.
+ */
+export function inboxBadgeValue(unread: number): string | null {
+  if (!Number.isFinite(unread) || unread <= 0) return null
+  const count = Math.floor(unread)
+  return count > MOBILE_BADGE_LIMIT ? `${MOBILE_BADGE_LIMIT}+` : String(count)
+}
 export type MobileStackEntry =
   | { kind: 'inbox' }
   | { kind: 'thread'; threadKey: string }
