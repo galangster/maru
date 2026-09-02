@@ -304,12 +304,27 @@ function ArchiveTick() {
  * over: nothing reflows, nothing animates but opacity and a 4 px slide, and the
  * time stays visible.
  *
- * The four buttons are bare, styled by `iconButtonClass` rather than rendered
+ * The five buttons are bare, styled by `iconButtonClass` rather than rendered
  * as <IconButton>. IconButton brings a tooltip, and a tooltip inside an
  * `aria-hidden` cluster can never be read out or focused — so twenty-eight
- * visible rows were mounting ~112 tooltip roots, each with its own positioning
- * subscription, to describe buttons no assistive technology can reach. The
- * labels live on the keyboard equivalents and in the "?" sheet.
+ * visible rows were mounting ~140 tooltip roots, each with its own positioning
+ * subscription, to describe buttons no assistive technology can reach.
+ *
+ * They do each carry a name now (issue 6): `aria-label` from the descriptor,
+ * which is the same string the reading toolbar and the palette use, plus a
+ * `title` so a mouse hovering an unfamiliar glyph is told what it does without
+ * mounting a single tooltip root.
+ *
+ * The cluster stays `aria-hidden`, and that is the decision the names sit
+ * inside rather than one they overturn. `role="option"` is children-presentational
+ * in ARIA: a descendant of an option is never exposed as a control, and the
+ * only thing dropping `aria-hidden` would change is that all five labels would
+ * be appended to every row's spoken name — "…draft agenda, Archive, Save for
+ * later, Move to trash, Mark as read, Star", twenty-eight times down a
+ * viewport. That is UI-REVIEW-2026-08-28 B3, and it is a worse row than an
+ * unnamed button in a cluster no screen reader can reach. The keyboard
+ * equivalents — `e`, `h`, `#`, `u`, `s` — are the accessible path, and they are
+ * printed in the "?" sheet.
  */
 function QuickActions({
   thread,
@@ -347,6 +362,8 @@ function QuickActions({
             key={spec.id}
             type="button"
             tabIndex={-1}
+            aria-label={spec.label}
+            title={spec.label}
             disabled={spec.disabled}
             onClick={() => {
               if (spec.pop) setPresses((n) => n + 1)
