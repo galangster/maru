@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { useUnreadCount } from '@/features/mail/queries'
 import { attachNativeShell, nativeShell, nativeShellPossible } from '@/platform/shell'
 
-import { indexOfTab, nativeTabs } from './state'
+import { inboxBadgeValue, indexOfTab, nativeTabs, type MobileTab } from './state'
+
+const INBOX_VIEW = { kind: 'unified', folder: 'inbox' } as const
 
 /**
  * `null` while the probe is in flight, then `true` if the native tab bar is
@@ -38,7 +41,12 @@ export function useNativeShell(onTabSelected: (index: number) => void): boolean 
 }
 
 /**
- * Mirrors the web layer's state onto the native bar.
+ * Mirrors the web layer's state onto the native bar. The bar is a projection of
+ * the reducer, never a second source of truth: `tab` is sent the same way
+ * `hidden` and the badge are, so no caller has to remember to tell it.
+ *
+ * UIKit does not call its delegate back for a programmatic selection, so
+ * mirroring cannot loop.
  *
  * `hidden` is not a nicety. The bar draws over the webview, so anything the
  * web layer puts on top of the screen — a thread, the account route, a sheet,
@@ -46,8 +54,20 @@ export function useNativeShell(onTabSelected: (index: number) => void): boolean 
  */
 export function useNativeShellSync(
   present: boolean | null,
-  { hidden, badge }: { hidden: boolean; badge: string | null },
+  { tab, hidden }: { tab: MobileTab; hidden: boolean },
 ): void {
+  // The badge is the only thing the bar needs that is not already on screen,
+  // so the count that feeds it is asked for here and only while there is a bar
+  // to put it on. The effect depends on the badge string, not the raw count:
+  // 100 unread going to 150 sends no IPC.
+  const unread = useUnreadCount(INBOX_VIEW, { enabled: present === true })
+  const badge = inboxBadgeValue(unread.data ?? 0)
+  const index = indexOfTab(tab)
+
+  useEffect(() => {
+    if (present) void nativeShell.selectTab(index)
+  }, [present, index])
+
   useEffect(() => {
     if (present) void nativeShell.setTabBarHidden(hidden)
   }, [present, hidden])

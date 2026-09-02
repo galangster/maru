@@ -8,6 +8,7 @@ import {
 } from '@/features/compose/compose-store'
 import { useAccountsById, useCorrespondents } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
+import { cue } from '@/lib/cue'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
 import { MobileIcon } from '../components/mobile-icon'
 import { useBodyScrollLock } from '../use-body-scroll-lock'
@@ -73,6 +74,9 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
     try {
       await service.send(toComposeDraft(outgoing))
       remember(outgoing.accountId)
+      // Both confirmations at one moment: the phone had the success notify and
+      // no sound, and the two used to be written a screen apart.
+      cue('sent')
       onSent()
       closeStore()
     } catch (cause) {

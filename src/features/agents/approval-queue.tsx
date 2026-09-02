@@ -45,6 +45,7 @@ import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { attachmentIcon, formatBytes, elapsedTime, fullTimestamp } from '@/lib/format'
 import { now } from '@/lib/env'
 import { DUR, useMotionMode } from '@/lib/motion'
+import { cue } from '@/lib/cue'
 import { playSound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
@@ -245,7 +246,7 @@ function PendingRow({
     setBusy(true)
     try {
       await gateway.approvals.approve(approval.id)
-      playSound('sent')
+      cue('sent')
       setSent(true)
       announce(`Sent to ${spokenRecipients(recipients)}.`)
       // Focus moves now rather than with the row. `disabled` blurs the button

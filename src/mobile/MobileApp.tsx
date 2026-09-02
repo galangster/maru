@@ -10,11 +10,10 @@ import {
   usePerformAction,
   useAccountsById,
   useSyncStatus,
-  useUnreadCount,
   useWakeSweep,
 } from '@/features/mail/queries'
 import { useThemeEffect } from '@/features/shell/use-theme'
-import { nativeShell } from '@/platform/shell'
+import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
 import { InboxScreen } from './screens/inbox-screen'
 import { SearchScreen } from './screens/search-screen'
@@ -26,8 +25,6 @@ import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
-  inboxBadgeValue,
-  indexOfTab,
   initialMobileRoute,
   mobileRouteReducer,
   tabAtIndex,
@@ -41,8 +38,6 @@ const AccountScreen = lazy(() =>
   import('./screens/account/account-screen').then((module) => ({ default: module.AccountScreen })),
 )
 
-const INBOX_VIEW = { kind: 'unified', folder: 'inbox' } as const
-
 export function MobileApp() {
   useThemeEffect()
   useMailEvents()
@@ -55,19 +50,16 @@ export function MobileApp() {
   }, [])
   // `null` until the probe answers, so the web bar never flashes under the glass.
   const nativeTabBar = useNativeShell(onNativeTab)
+  // Nothing native here: the bar's selection is mirrored from the reducer by
+  // `useNativeShellSync`, so a move that starts in JS needs no second call.
   const changeTab = useCallback((tab: MobileTab) => {
     dispatch({ type: 'changeTab', tab })
-    // Keeps the native bar's selection in step when the move started in JS.
-    // UIKit does not call its delegate back for a programmatic selection, so
-    // this cannot loop.
-    void nativeShell.selectTab(indexOfTab(tab))
   }, [])
   const perform = usePerformAction()
   const defer = useDefer()
   const composerOpen = useComposer((state) => state.open)
   const { accounts } = useAccountsById()
   const syncStatuses = useSyncStatus()
-  const unread = useUnreadCount(INBOX_VIEW)
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
@@ -105,12 +97,18 @@ export function MobileApp() {
   const closeSheet = () => dispatch({ type: 'closeSheet' })
 
   useNativeShellSync(nativeTabBar, {
+    tab: navigation.tab,
     hidden: route.kind !== 'inbox' || globalModalOpen,
-    badge: inboxBadgeValue(unread.data ?? 0),
   })
 
+  // `data-native-shell` answers synchronously, so no strip of dead space is
+  // reserved under the glass on the first frame of a cold start while the probe
+  // is still in flight. The probe only ever corrects it downwards, and only on
+  // a phone where the plugin failed to install.
+  const nativeChrome = nativeTabBar ?? nativeShellPossible
+
   return (
-    <div className="mobile-app" data-testid="mobile-app" data-native-shell={nativeTabBar ? 'true' : undefined}>
+    <div className="mobile-app" data-testid="mobile-app" data-native-shell={nativeChrome ? 'true' : undefined}>
       <main className="mobile-stage" inert={globalModalOpen}>
         {route.kind === 'account' ? (
           <AccountScreen
@@ -144,14 +142,15 @@ export function MobileApp() {
       </main>
 
       {route.kind === 'inbox' && nativeTabBar === false && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={changeTab} />}
-      {composerOpen && <ComposeSheet onSent={() => { announce('Sent'); void nativeShell.notify('success') }} />}
+      {composerOpen && <ComposeSheet onSent={() => announce('Sent')} />}
       {sheet?.kind === 'later' && (
         <LaterSheet
           count={sheet.threadKeys.length}
           onClose={closeSheet}
           onPick={(wakeAt) => {
+            // The haptic rides `useDefer`, beside the cache patch every Later
+            // surface shares.
             sheet.threadKeys.forEach((threadKey) => defer.mutate({ threadKey, wakeAt }))
-            void nativeShell.impact('medium')
             closeSheet()
           }}
         />

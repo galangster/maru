@@ -21,8 +21,9 @@ import type {
 } from '@/core/types'
 import { toast } from 'sonner'
 
+import { cue } from '@/lib/cue'
 import { playSound } from '@/lib/sound'
-import { RATE_LIMIT_MS } from '@/lib/sound-policy'
+import { RATE_LIMIT_MS, rateLimit } from '@/lib/sound-policy'
 import { nativeShell } from '@/platform/shell'
 import { dedupeAddresses } from '@/lib/compose'
 import { correspondents } from '@/lib/format'
@@ -147,9 +148,14 @@ export function useThread(threadKey: string | null) {
   })
 }
 
-export function useUnreadCount(view: MailView) {
+/** `enabled: false` for a count nothing is showing — the native tab badge. */
+export function useUnreadCount(view: MailView, options: { enabled?: boolean } = {}) {
   const service = useMailService()
-  return useQuery({ queryKey: keys.unread(view), queryFn: () => service.unreadCount(view) })
+  return useQuery({
+    queryKey: keys.unread(view),
+    queryFn: () => service.unreadCount(view),
+    enabled: options.enabled ?? true,
+  })
 }
 
 /** How many threads are waiting in Later — the sidebar row's count. */
@@ -396,6 +402,12 @@ export function useDefer() {
   return useMutation<void, Error, DeferInput, ActionContext>({
     mutationFn: ({ threadKey, wakeAt }) => service.defer(threadKey, wakeAt),
     onMutate: async ({ threadKey: key, wakeAt }) => {
+      // The commit, not the sheet, so the reading toolbar and the desktop list
+      // get it too. `undefer` fans out the same way a bulk archive does, and
+      // the Later sheet sends one mutation per selected thread, so it shares
+      // `complete`'s window: one gesture, one tap. No sound — deferring is an
+      // intent rather than a completion (SOUNDS §2).
+      if (rateLimit('defer', RATE_LIMIT_MS.complete)) void nativeShell.impact('medium')
       await client.cancelQueries({ queryKey: ['threads'] })
       const detail = client.getQueryData<{ thread: Thread; messages: Message[] }>(keys.thread(key))
 
@@ -460,13 +472,6 @@ export function useWakeSweep(): void {
   }, [service, client, now])
 }
 
-/**
- * When the completion haptic last fired, so a bulk archive stays one tap.
- * Module scope, like the sound policy's own clock, because the guard has to
- * hold across every surface and every mutation instance.
- */
-let lastCompleteHaptic = 0
-
 export function usePerformAction() {
   const service = useMailService()
   const client = useQueryClient()
@@ -480,17 +485,11 @@ export function usePerformAction() {
       //
       // Triage only. Reading, starring and restoring are not completions, and
       // a sound on every `u` would be exactly the "100×/day" case MAGIC §4.5
-      // warns about. `complete` carries its own 400 ms guard, so a held `e`
-      // down a mailbox is one tick rather than forty (sound-policy.ts).
+      // warns about. `cue` carries the 400 ms guard for the sound and the
+      // haptic together, so a held `e` down a mailbox, or a bulk archive that
+      // fans out one mutation per thread, is one confirmation (lib/cue.ts).
       if (action.type === 'archive' || action.type === 'trash') {
-        playSound('complete')
-        // Same moment, same 400 ms window, same reason: a bulk archive of
-        // twenty threads is one gesture, and twenty taps in a row would read
-        // as a fault rather than a confirmation. iOS only; a no-op elsewhere.
-        if (Date.now() - lastCompleteHaptic >= RATE_LIMIT_MS.complete) {
-          lastCompleteHaptic = Date.now()
-          void nativeShell.impact('medium')
-        }
+        cue('complete')
       }
       await client.cancelQueries({ queryKey: ['threads'] })
       const detail = client.getQueryData<{ thread: Thread; messages: Message[] }>(

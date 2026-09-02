@@ -119,25 +119,47 @@ The `maru-shell` plugin lives in `src-tauri/plugins/maru-shell`.
 It is iOS-only, in the same shape as `maru-auth`.
 The Swift half takes Tauri's root view controller out of the window.
 It hosts that controller inside a `UITabBarController`.
-The three tabs are Inbox (`tray`), Search (`magnifyingglass`)
-and Settings (`gearshape`).
-All three tabs show the same WKWebView.
-The plugin moves the web content controller into the selected tab on appearance.
-The web layer therefore keeps its state across a tab switch.
+The web content is adopted once and never moves again.
+A tab switch changes no view. It sends the index to the web layer.
+`ios/Sources/MaruShellPlugin.swift` states the reason for each choice.
 
 The bar is the system's, so the iOS 26 SDK draws it as Liquid Glass.
-The plugin sets `tabBarMinimizeBehavior = .onScrollDown` behind
-`#available(iOS 26, *)`.
+The bar minimizes on scroll down and returns on scroll up.
 iOS 17 to 25 get the classic bar with no minimize.
 
+The plugin installs itself when the web layer subscribes.
+It waits for `UIWindow.didBecomeKeyNotification` on a cold start.
+
 The webview keeps the default `contentInsetAdjustmentBehavior`.
-That is load-bearing.
-WebKit derives CSS `env(safe-area-inset-*)` from the adjusted content inset.
-`.never` reports zero insets to the page and puts the header under the status bar.
-Left alone, UIKit folds the tab bar's height into the child's bottom safe area.
-The measured inset on an iPhone 16 is 83 points.
-The web layer reads that through `env(safe-area-inset-bottom)`.
+That is load-bearing. WebKit derives CSS `env(safe-area-inset-*)` from it.
+The plugin measures the bar with `contentLayoutGuide` on iOS 26.
+It gives that measurement to the content as an additional safe-area inset.
 The list then scrolls beneath the glass and its last row still clears the bar.
+
+### The tab list has one source
+
+`MOBILE_TABS` in `src/mobile/state.ts` holds the order.
+`MOBILE_TAB_CHROME` holds each tab's label, web icon and SF Symbol.
+The web layer sends those descriptors with `watch_tabs`.
+Swift writes no tab list of its own.
+`tests/mobile-state.test.ts` asserts the mapping.
+
+### The phone scrolls the document
+
+Every phone screen scrolls the page, not an inner container.
+UIKit minimizes the tab bar by watching a `UIScrollView`.
+The only scroll view present is the WKWebView's own.
+A fixed-position shell never moves it, and the bar never minimizes.
+
+`src/mobile/mobile.css` holds the layout and the reasons.
+Headers hold their place with `position: sticky`.
+The web tab bar and the bulk toolbar are fixed.
+The thread toolbar is sticky, because its screen carries a transform.
+The inbox list uses `useWindowVirtualizer`.
+Pull to refresh reads `window.scrollY`.
+Sheets lock the body and render into `.mobile-app` through a portal.
+`src/mobile/use-route-scroll.ts` restores each screen's scroll position.
+No `overscroll-behavior` is set. Rubber-banding stays the system's.
 
 ### Commands and events
 
@@ -148,13 +170,12 @@ The plugin owns these commands:
 - `set_tab_bar_hidden(hidden)` hides or shows the bar.
 - `impact(style)` plays `light`, `medium`, `heavy`, `soft` or `rigid`.
 - `notify(kind)` plays `success`, `warning` or `error`.
-- `selection()` plays the selection tick.
-- `watch_tabs(channel)` subscribes to native tab taps.
+- `prepare_haptics()` wakes the Taptic Engine before a gesture.
+- `watch_tabs(channel, tabs)` builds the bar and subscribes to taps.
+- `unwatch_tabs()` clears the channel.
 
 The plugin emits one event, `tabSelected`, carrying `{ index }`.
-It rides a Tauri channel, not `addPluginListener`.
-A channel argument is registered when Tauri deserializes it from the payload.
-It therefore needs no `register_listener` command and no second ACL entry.
+It rides a typed Tauri channel, not `addPluginListener`.
 Only a real tap emits the event.
 UIKit does not call its delegate for a programmatic selection,
 so `select_tab` cannot echo back to JS.
@@ -163,17 +184,17 @@ so `select_tab` cannot echo back to JS.
 
 `src/platform/shell.ts` wraps every command.
 Each one is a no-op when the platform is not iOS.
-`src/mobile/use-native-shell.ts` probes once through `watch_tabs`.
-It answers `null` while the probe is in flight,
+`src/mobile/use-native-shell.ts` subscribes once through `watch_tabs`.
+It answers `null` while the call is in flight,
 then `true` for the native bar and `false` for the web bar.
 The pending state stops the web bar flashing under the glass for one frame.
 
-`MobileApp` renders the web tab bar only when the probe answers `false`.
+`MobileApp` renders the web tab bar only when the answer is `false`.
 The web bar stays in the codebase for the `?mobile=1` browser preview.
 That preview is the only way to reach Search and Settings outside the simulator,
 and captures and design review run there.
-Under the native shell `--mobile-tab-height` drops to zero,
-because UIKit already provides the room through the safe-area inset.
+`--mobile-tab-height` drops to zero whenever a native bar is possible,
+so no dead padding is reserved under the glass on a cold start.
 
 The native bar draws over the webview.
 The web layer therefore hides it for the thread route, the account route,
@@ -189,32 +210,20 @@ the application, and one `Tab Bar` group.
 - `impact("medium")` on archive and on a Later commit.
 - `impact("light")` when a pull crosses the refresh threshold.
 - `notify("success")` on send.
-- No `selection()` on a tab change. UIKit already plays that one.
+- No selection tick on a tab change. UIKit already plays that one.
 
-The archive haptic rides `usePerformAction` in `src/features/mail/queries.ts`.
-It sits beside the `complete` sound, at the one choke point every surface uses.
-It shares that cue's 400 millisecond guard.
-A bulk archive of twenty threads is therefore one tap, not twenty.
+Archive and Later ride their mutations in `src/features/mail/queries.ts`.
+`cue()` in `src/lib/cue.ts` fires the completion sound and its haptic together.
+One policy decides both, so they cannot disagree.
+A bulk archive of twenty threads is one tap, not twenty.
+
+The plugin keeps one feedback generator per style for the life of the app.
+`prepare_haptics()` runs at the start of a pull, when a sheet opens,
+and when the shell installs.
 
 Each haptic writes a debug line under the `maru-shell` log category.
 A haptic leaves no trace a simulator can screenshot.
 Read them with `flowdeck logs <app-id>`.
-
-### Known limit: scroll-minimize does not engage yet
-
-The minimize behavior is set and correct.
-It does not fire in the current application.
-UIKit tracks a `UIScrollView` to decide when to minimize.
-The only one present is the WKWebView's own scroll view.
-The mobile shell is a fixed-position web application.
-`.mobile-app` uses `position: fixed; inset: 0`,
-and every list scrolls inside a DOM container.
-The WKWebView scroll view therefore never moves, and UIKit never minimizes.
-
-Letting the document scroll would light this up.
-That change alters rubber-banding and keyboard behavior on every phone screen.
-It is an owner decision, not a lane-1 change.
-Queue item for Nick: decide whether the phone shell moves to document scrolling.
 
 ## Current behavior
 
