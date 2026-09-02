@@ -187,14 +187,36 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
  * cancelled the pointer mid-swipe. `pan-y` is the opposite bargain: vertical
  * is the scroll view's, horizontal is ours, and the split is made in the
  * compositor rather than by a JS handler racing it.
+ *
+ * A bottom sheet is the second exception, and it is the same fault a layer up
+ * (issue 53). The sheet layer carries the edge-back gesture, so horizontal has
+ * to be ours everywhere on it — including on the sheet rows, which are
+ * `<button>`s exactly as a thread row is. The exclusion is written as a
+ * descendant test rather than as a class on each row, because the layer owns
+ * the gesture and every control inside it is in the way of one.
+ *
+ * Both exclusions ride in a single `:not()` so this rule keeps the (0,2,1) it
+ * needs to outrank nothing in particular and be outranked by nothing either.
  */
-.mobile-app button:not(.mobile-thread-row),
-.mobile-app a,
-.mobile-app input,
-.mobile-app textarea,
-.mobile-app select,
-.mobile-app label {
+.mobile-app :is(button, a, input, textarea, select, label):not(.mobile-thread-row, .mobile-bottom-layer *) {
   touch-action: manipulation;
+}
+
+/*
+ * The sheet layer's axes: vertical is the scroller's, horizontal is the edge
+ * back's.
+ *
+ * Declared on the scrim, on the sheet body and on every control inside it,
+ * because the gesture can start on any of the three and the browser decides
+ * what to do with it from the element the finger lands on. Without this the
+ * edge back received exactly one `pointermove` on the Mailboxes sheet and was
+ * then cancelled by WebKit's own scroller — the sheet never moved, on any
+ * sheet tall enough for the finger to land on it (issue 53).
+ */
+.mobile-bottom-layer,
+.mobile-bottom-layer .mobile-bottom-sheet,
+.mobile-bottom-layer :is(button, a, input, textarea, select, label) {
+  touch-action: pan-y;
 }
 
 /*
@@ -1003,6 +1025,7 @@ html[data-input-modality='keyboard']
   font-weight: 600;
   letter-spacing: -0.025em;
   text-wrap: balance;
+}
 }
 
 .mobile-thread-heading p {
@@ -1900,7 +1923,8 @@ html[data-input-modality='keyboard']
  * what stops WebKit claiming the drag for the sheet's own scroller before the
  * axis lock has had a chance to read it.
  */
-.mobile-sheet-grip {
+.mobile-sheet-grip,
+.mobile-sheet-grip :is(button, a, input, label) {
   touch-action: none;
 }
 

@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react'
+import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { MobileIcon } from './mobile-icon'
-import { sheetDismisses, sheetDragOffset } from '../state'
+import { scrimTap, sheetDismisses, sheetDragOffset } from '../state'
 import { useDismissDrag } from '../use-dismiss-drag'
 import { useEdgeBack } from '../use-edge-back'
 import { useHapticBoundary } from '../use-native-shell'
@@ -32,6 +32,16 @@ import { useModalFocus } from '../use-modal-focus'
  *   and the reducer's own rule — a sheet goes before a screen does — is what
  *   the two of them add up to.
  *
+ * The edge back needed two more things before it ran at all (issue 53,
+ * reopened). The layer had to CLAIM the horizontal axis — `touch-action` on
+ * the scrim, on the sheet body and on the controls inside it, or WebKit's own
+ * scroller takes the gesture after one `pointermove` — and the scrim had to
+ * stop dismissing on `pointerdown`, which closed a short sheet before the
+ * finger that started the gesture had moved. The scrim dismisses on release
+ * now, and only when the release was a tap by `scrimTap`'s reading, so a
+ * gesture that starts on the dimmed area is a gesture and a partial one
+ * springs back.
+ *
  * Both are `useDismissDrag`, which is what the two of them have in common: a
  * surface that follows a finger and leaves if the finger goes far enough. The
  * downward one taps at its threshold, the same haptic a row's swipe and the
@@ -60,6 +70,16 @@ export function BottomSheet({
     haptic: true,
   })
 
+  // Where a gesture on the scrim itself started, so its release can be read as
+  // a tap or as the end of a drag. `null` for anything that started on the
+  // sheet: the scrim only dismisses for its own touches.
+  const fromScrim = useRef<{ x: number; y: number } | null>(null)
+  const endScrim = (event: ReactPointerEvent<HTMLElement>, tapped: boolean) => {
+    const from = fromScrim.current
+    fromScrim.current = null
+    if (from && tapped && scrimTap(event.clientX - from.x, event.clientY - from.y)) onClose()
+  }
+
   const layer = (
     <div
       className="mobile-sheet-layer mobile-bottom-layer"
@@ -67,7 +87,16 @@ export function BottomSheet({
       {...edge.handlers}
       onPointerDown={(event) => {
         edge.handlers.onPointerDown(event)
-        if (event.target === event.currentTarget) onClose()
+        fromScrim.current =
+          event.target === event.currentTarget ? { x: event.clientX, y: event.clientY } : null
+      }}
+      onPointerUp={(event) => {
+        edge.handlers.onPointerUp(event)
+        endScrim(event, true)
+      }}
+      onPointerCancel={(event) => {
+        edge.handlers.onPointerCancel(event)
+        endScrim(event, false)
       }}
     >
       <section
