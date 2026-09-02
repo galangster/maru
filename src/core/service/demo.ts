@@ -27,7 +27,7 @@ import type {
   ListThreadsOptions,
 } from '../types'
 import { parseThreadKey, threadKey } from '../types'
-import { normalizeEmail, type LocalCredential, type VaultDeferral, type VaultLocal } from './vault-port'
+import { fromVaultDeferral, normalizeEmail, toVaultDeferral, type LocalCredential, type VaultDeferral, type VaultLocal } from './vault-port'
 import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_SETTINGS,
@@ -331,10 +331,14 @@ export class DemoMailService implements MailService {
 
   async defer(key: string, wakeAt: number | null): Promise<void> {
     const thread = this.require(key)
+    // A clear on a thread that was never saved moved nothing, exactly as the
+    // store's `clearDeferral` reports.
+    let moved = true
     if (wakeAt === null) {
       // A clear leaves a tombstone behind, exactly as the store does: across
       // devices an absent row and a cleared row are different facts.
-      if (this.deferrals.delete(key)) this.clearedDeferrals.set(key, this.clock())
+      moved = this.deferrals.delete(key)
+      if (moved) this.clearedDeferrals.set(key, this.clock())
     } else {
       // `woke_at` is deliberately absent on the way in: re-saving a thread that
       // already came back once starts a fresh deferral rather than inheriting the
@@ -343,7 +347,7 @@ export class DemoMailService implements MailService {
       this.clearedDeferrals.delete(key)
     }
     this.emit({ type: 'threadsChanged', accountId: thread.accountId, threadKeys: [key] })
-    this.emit({ type: 'deferralsChanged' })
+    if (moved) this.emit({ type: 'deferralsChanged' })
   }
 
   /** The demo's twin of `Store.sweepDeferrals` — same two steps, no SQL. */
@@ -432,14 +436,16 @@ export class DemoMailService implements MailService {
         const byId = new Map(this.accounts.map((a) => [a.id, normalizeEmail(a.email)]))
         const entries: VaultDeferral[] = []
         for (const [key, row] of this.deferrals) {
-          const accountEmail = byId.get(parseThreadKey(key).accountId)
+          const accountId = parseThreadKey(key).accountId
+          const accountEmail = byId.get(accountId)
           if (!accountEmail || row.wokeAt !== undefined) continue
-          entries.push({ accountEmail, threadId: parseThreadKey(key).gmailThreadId, until: row.wakeAt, setAt: row.setAt })
+          entries.push(toVaultDeferral({ threadKey: key, accountId, until: row.wakeAt, at: row.setAt }, accountEmail))
         }
         for (const [key, clearedAt] of this.clearedDeferrals) {
-          const accountEmail = byId.get(parseThreadKey(key).accountId)
+          const accountId = parseThreadKey(key).accountId
+          const accountEmail = byId.get(accountId)
           if (!accountEmail) continue
-          entries.push({ accountEmail, threadId: parseThreadKey(key).gmailThreadId, until: null, clearedAt })
+          entries.push(toVaultDeferral({ threadKey: key, accountId, until: null, at: clearedAt }, accountEmail))
         }
         return entries
       },
@@ -449,13 +455,13 @@ export class DemoMailService implements MailService {
         for (const entry of entries) {
           const accountId = byEmail.get(normalizeEmail(entry.accountEmail))
           if (!accountId) continue
-          const key = threadKey(accountId, entry.threadId)
-          if (entry.until === null) {
-            this.deferrals.delete(key)
-            this.clearedDeferrals.set(key, entry.clearedAt ?? 0)
+          const record = fromVaultDeferral(entry, accountId)
+          if (record.until === null) {
+            this.deferrals.delete(record.threadKey)
+            this.clearedDeferrals.set(record.threadKey, record.at)
           } else {
-            this.deferrals.set(key, { wakeAt: entry.until, setAt: entry.setAt ?? 0 })
-            this.clearedDeferrals.delete(key)
+            this.deferrals.set(record.threadKey, { wakeAt: record.until, setAt: record.at })
+            this.clearedDeferrals.delete(record.threadKey)
           }
           written += 1
         }

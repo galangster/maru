@@ -115,3 +115,61 @@ the open verification submission.
 - **No migration of existing local deferrals into someone else's vault.** They
   travel on the next push like any other local state, because they already are
   local state.
+
+## Lane 2 — cleanup, 2026-09-01
+
+Twelve items, applied in full. Behaviour is unchanged except where an item
+names a change.
+
+**Defect class.**
+
+1. `applyVault` no longer calls `refreshAfterApply` for a deferral-only apply.
+   A deferral reaches no Gmail method, and the port already emits
+   `threadsChanged` for the rows it wrote. The `noGmail` round trip now counts
+   the refresh through a wrapper on the real port, so the assertion fails if
+   the condition ever gets `deferrals` back — verified by putting it back.
+2. `Store.applyDeferralRecords` partitions live rows from tombstones and runs
+   one multi-row `INSERT OR REPLACE` and one `DELETE … WHERE thread_key IN (…)`
+   per side, on the file's `chunkRows`/`placeholderList` convention. A hundred
+   deferrals cost four statements instead of two hundred. New test covers the
+   multi-row placeholder run on both sides.
+
+**Shape.**
+
+3. `VaultDeferral` is `{ accountEmail, threadId, until, at }`. `setAt`,
+   `clearedAt`, `deferralStamp` and every `?? 0` fallback are gone. The merge
+   narrows with `!== null`, so TypeScript proves the live/live comparison.
+   Spec §4 and §6 carry the unified shape; the rule is stated in §6 and §4
+   links to it.
+4. `toVaultDeferral` / `fromVaultDeferral` in `vault-port.ts`. Both ports use
+   them and supply only their own account table. `RealMailService` reads that
+   table once through a private `accountTables()` instead of calling
+   `listAccounts()` in each method.
+5. `defer(key, null)` emits `deferralsChanged` only when the clear reported a
+   removed row — real service and demo alike.
+6. `pruneDeferrals(entries, now)` is extracted. `mergeDeferrals` ends by
+   calling it; `buildVault` calls it directly, and the build-time prune stays
+   for the 256 KiB byte cap. The two tests that used merge-against-empty as a
+   prune assertion are replaced by direct prune tests.
+7. The `normalizeEmail` and `DEFERRAL_TTL_MS` pass-through re-exports are gone
+   from `vault.ts`. Consumers (`crypto.ts`, `account-store.ts`, `danger.tsx`,
+   `account-screen.tsx`, the tests) import from the owning module.
+8. `restoredSummary` surfaces the count: "N saved-for-later restored", beside
+   the accounts and sign-ins it already showed.
+9. The 30-day rule is stated once, on `DEFERRAL_TTL_MS` in `defaults.ts`. The
+   five other sites are one-line pointers.
+
+**Copy.**
+
+10. Settings keeps `LATER_DISCLOSURE` plus only the sentence that is specific
+    to Settings — the inbox-count disagreement. The restated promise is gone.
+11. The "site N of 4" ordinals and the 150-character note are gone from the
+    picker, the thread list, Settings and DECISIONS. The rule — every Later
+    surface carries the sentence verbatim, none paraphrases — is stated once,
+    on the constant.
+12. `settings`, `vaultDocument(patch)`, `FakeVaultLocal` and `FakeDeferralLocal`
+    live in `tests/fixtures/domain.ts`. `later-sync`, `account-vault` and
+    `account-sync` all use them.
+
+Gates: `npm run typecheck && npm test && npm run build` — 756 passed, 3
+skipped, 44 files; build clean.

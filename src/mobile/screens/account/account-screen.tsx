@@ -1,6 +1,7 @@
 import { useCallback, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 
-import { normalizeEmail, type VaultHistoryEntry } from '@/core/account'
+import { type VaultHistoryEntry } from '@/core/account'
+import { normalizeEmail } from '@/core/service/vault-port'
 import { useMaruAccount } from '@/features/settings/account/account-store'
 import {
   accountDate,

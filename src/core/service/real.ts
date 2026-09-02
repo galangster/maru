@@ -20,7 +20,7 @@ import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } fro
 import { bodyTextOf, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
 import { parseWatchExpiration } from '../push/watch'
-import { normalizeEmail, type VaultLocal } from './vault-port'
+import { fromVaultDeferral, normalizeEmail, toVaultDeferral, type VaultLocal } from './vault-port'
 import type { PlatformFamily } from './vault-port'
 import type { GmailMessage, GmailThread } from '../gmail/types'
 import type {
@@ -576,12 +576,15 @@ export class RealMailService implements MailService {
    */
   async defer(key: string, wakeAt: number | null): Promise<void> {
     const { accountId } = parseThreadKey(key)
-    if (wakeAt === null) await this.store.clearDeferral([key], this.now())
+    // A clear on a thread that was never saved moved nothing, and `clearDeferral`
+    // is the only thing that knows: it counts the rows it actually removed.
+    let moved = true
+    if (wakeAt === null) moved = (await this.store.clearDeferral([key], this.now())) > 0
     else await this.store.setDeferral(key, accountId, wakeAt, this.now())
     this.emit({ type: 'threadsChanged', accountId, threadKeys: [key] })
     // A9: this is the Later commit and the bring-it-back, and both are a local
     // change the Maru vault owes the person's other devices.
-    this.emit({ type: 'deferralsChanged' })
+    if (moved) this.emit({ type: 'deferralsChanged' })
   }
 
   async wakeDeferred(now: number): Promise<number> {
@@ -729,33 +732,23 @@ export class RealMailService implements MailService {
       }),
       clearCredential: (accountId) => this.tokenStore.clear(accountId),
       listDeferrals: async () => {
-        const byId = new Map((await this.store.listAccounts()).map((a) => [a.id, normalizeEmail(a.email)]))
+        const { byId } = await this.accountTables()
         return (await this.store.deferralRecords()).flatMap((record) => {
           // An address this device no longer has cannot be named in the vault,
           // and a row for it is about to be deleted anyway.
           const accountEmail = byId.get(record.accountId)
-          if (!accountEmail) return []
-          const threadId = parseThreadKey(record.threadKey).gmailThreadId
-          return [record.until === null
-            ? { accountEmail, threadId, until: null, clearedAt: record.at }
-            : { accountEmail, threadId, until: record.until, setAt: record.at }]
+          return accountEmail ? [toVaultDeferral(record, accountEmail)] : []
         })
       },
       applyDeferrals: async (entries) => {
-        const byEmail = new Map((await this.store.listAccounts()).map((a) => [normalizeEmail(a.email), a.id]))
+        const { byEmail } = await this.accountTables()
         const records = entries.flatMap((entry) => {
           // "For the accounts it has" — MARU-ACCOUNT.md §6. An entry for an
           // address this device has not signed into is dropped, not queued:
           // there is no thread here to defer, and when that account IS added
           // the vault still holds the entry to apply.
           const accountId = byEmail.get(normalizeEmail(entry.accountEmail))
-          if (!accountId) return []
-          return [{
-            threadKey: threadKey(accountId, entry.threadId),
-            accountId,
-            until: entry.until,
-            at: entry.until === null ? entry.clearedAt ?? 0 : entry.setAt ?? 0,
-          }]
+          return accountId ? [fromVaultDeferral(entry, accountId)] : []
         })
         const written = await this.store.applyDeferralRecords(records)
         // threadsChanged, never deferralsChanged: this IS the remote state
@@ -767,6 +760,24 @@ export class RealMailService implements MailService {
       newAccountId: this.newId,
       now: this.now,
       refreshAfterApply: () => this.refresh(),
+    }
+  }
+
+  /**
+   * The account list in both directions the deferral port needs, read once.
+   *
+   * `listDeferrals` and `applyDeferrals` used to fetch it separately, which is
+   * two reads of the same table and two chances for the id-to-address mapping
+   * to be spelled differently.
+   */
+  private async accountTables(): Promise<{
+    byId: Map<string, string>
+    byEmail: Map<string, string>
+  }> {
+    const accounts = await this.store.listAccounts()
+    return {
+      byId: new Map(accounts.map((a) => [a.id, normalizeEmail(a.email)])),
+      byEmail: new Map(accounts.map((a) => [normalizeEmail(a.email), a.id])),
     }
   }
 

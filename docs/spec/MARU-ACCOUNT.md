@@ -111,8 +111,8 @@ old one stops working.
     "ios": {}
   },
   "deferrals": [                         // Later, across devices (A9)
-    { "threadId": "18f2c…", "accountEmail": "nick@example.com", "until": 1756900000000, "setAt": 1756800000000 },
-    { "threadId": "18f2d…", "accountEmail": "nick@example.com", "until": null, "clearedAt": 1756850000000 }
+    { "threadId": "18f2c…", "accountEmail": "nick@example.com", "until": 1756900000000, "at": 1756800000000 },
+    { "threadId": "18f2d…", "accountEmail": "nick@example.com", "until": null, "at": 1756850000000 }
   ]
 }
 ```
@@ -137,16 +137,16 @@ Rules:
   appears as ciphertext only — see the amended constraint in §1.
   - `until` is the ms epoch the thread returns to the inbox. `until: null`
     marks a **tombstone**: a deferral that was cleared on some device.
-  - `setAt` is when the deferral was saved; `clearedAt` is when it was cleared.
-    Exactly one of the two is present, and it is what §6 compares. A payload
-    with neither is treated as stamped at 0, so a tombstone beats it.
+  - `at` is the ms epoch the decision was made — the save for a live entry, the
+    clear for a tombstone. Both entries carry it, and it is the stamp the merge
+    rule in §6 compares.
   - Deferral is still a **local predicate** (`wake_at > now`) on every device.
     Nothing in this section asks a device to act at a moment in time, and
     nothing here reaches Google. P21's fail-safe property is unchanged: a
     device that never runs simply never hides the mail.
 - The document is capped at 256 KiB plaintext. The server rejects a blob over
-  384 KiB ciphertext. `deferrals` is bounded by the pruning rule in §6 and by
-  `MAX_DEFER_DAYS` (30), so it cannot grow without limit.
+  384 KiB ciphertext. `deferrals` is bounded by the pruning rule in §6, so it
+  cannot grow without limit.
 
 ## 5. Wire API
 
@@ -193,14 +193,17 @@ device's `lastSeenAt`.
 - **Merge `deferrals`** = union by `(accountEmail, threadId)`. Within one key:
   - two live entries — the **later `until` wins**. A deferral is an absolute
     time, not a delta, so the later answer is the later decision.
-  - two tombstones — the later `clearedAt` wins.
+  - two tombstones — the later `at` wins.
   - a live entry against a tombstone — the **tombstone beats an older `until`**:
-    it wins unless the live entry's `setAt` is after the tombstone's
-    `clearedAt`, which is a re-save made after the clear.
-  - **Pruning, at build time and after every merge:** an entry whose stamp is
-    more than **30 days** in the past is dropped — a tombstone by `clearedAt`,
-    a live entry by `until`. Tombstones cannot accumulate, and a deferral that
-    expired a month ago stops travelling.
+    it wins unless the live entry's `at` is after the tombstone's `at`, which is
+    a re-save made after the clear. Only `at` is compared here, never `until`
+    against a clear: a Monday deferral cancelled on Sunday must not win.
+  - **Pruning, at build time and after every merge:** an entry whose moment is
+    further in the past than `DEFERRAL_TTL_MS` allows is dropped — a tombstone
+    by its `at`, a live entry by its `until`. That constant in
+    `src/core/defaults.ts` states the window and the reasoning; nothing else
+    repeats the number. Tombstones cannot accumulate, and a deferral that
+    expired stops travelling.
 - **Apply** on a device: settings replace local settings (except device-local
   fields, if any are later declared); accounts absent locally are added —
   with tokens if this family has them, otherwise into the directed-consent

@@ -5,8 +5,6 @@ import { DEFERRAL_TTL_MS } from '../defaults'
 import type { TransferSettings } from '@/features/settings/transfer'
 
 export type { LocalCredential, VaultDeferral, VaultLocal } from '../service/vault-port'
-export { normalizeEmail } from '../service/vault-port'
-export { DEFERRAL_TTL_MS } from '../defaults'
 
 export type VaultSettings = Omit<TransferSettings, 'googleClientSecret'>
 
@@ -40,13 +38,9 @@ const encoder = new TextEncoder()
 const deferralKey = (entry: VaultDeferral): string =>
   `${normalizeEmail(entry.accountEmail)}\u0000${entry.threadId}`
 
-/** The stamp the merge compares: when this entry's decision was made. */
-const deferralStamp = (entry: VaultDeferral): number =>
-  entry.until === null ? entry.clearedAt ?? 0 : entry.setAt ?? 0
-
 /** The moment an entry stops being worth carrying — see DEFERRAL_TTL_MS. */
 const deferralExpiry = (entry: VaultDeferral): number =>
-  entry.until === null ? entry.clearedAt ?? 0 : entry.until
+  entry.until === null ? entry.at : entry.until
 
 /**
  * Which of two entries for the same thread survives — MARU-ACCOUNT.md §6.
@@ -54,20 +48,29 @@ const deferralExpiry = (entry: VaultDeferral): number =>
  * Three cases, and the asymmetry between them is deliberate. Two live entries
  * compare by `until`, because a deferral names an absolute time and the later
  * time is the later decision however the clocks ran. A live entry against a
- * tombstone compares `setAt` to `clearedAt`, because "I brought it back" and
- * "I saved it again" are two acts and only their order settles it. Comparing
- * `until` to `clearedAt` there would let a clear on Sunday lose to a Monday
- * that was already cancelled, and the thread would hide itself again.
+ * tombstone compares `at` to `at`, because "I brought it back" and "I saved it
+ * again" are two acts and only their order settles it. Comparing `until` to a
+ * clear there would let a clear on Sunday lose to a Monday that was already
+ * cancelled, and the thread would hide itself again.
  */
 function pickDeferral(a: VaultDeferral, b: VaultDeferral): VaultDeferral {
-  const aTomb = a.until === null
-  const bTomb = b.until === null
-  if (!aTomb && !bTomb) return (b.until ?? 0) > (a.until ?? 0) ? b : a
-  if (aTomb && bTomb) return deferralStamp(b) >= deferralStamp(a) ? b : a
-  const tomb = aTomb ? a : b
-  const live = aTomb ? b : a
+  // `!== null` rather than a boolean flag, so TypeScript itself proves the
+  // live/live branch is comparing two numbers.
+  if (a.until !== null && b.until !== null) return b.until > a.until ? b : a
+  if (a.until === null && b.until === null) return b.at >= a.at ? b : a
+  const tomb = a.until === null ? a : b
+  const live = a.until === null ? b : a
   // Ties go to the tombstone: showing mail is the safe half of the failure.
-  return deferralStamp(live) > deferralStamp(tomb) ? live : tomb
+  return live.at > tomb.at ? live : tomb
+}
+
+/**
+ * Drop every entry whose moment is further in the past than DEFERRAL_TTL_MS
+ * allows — a tombstone by its clear, a live entry by its `until`.
+ */
+export function pruneDeferrals(entries: readonly VaultDeferral[], now: number): VaultDeferral[] {
+  const floor = now - DEFERRAL_TTL_MS
+  return entries.filter((entry) => deferralExpiry(entry) > floor)
 }
 
 /**
@@ -89,8 +92,7 @@ export function mergeDeferrals(
     const current = merged.get(key)
     merged.set(key, current ? pickDeferral(current, entry) : entry)
   }
-  const floor = now - DEFERRAL_TTL_MS
-  return [...merged.values()].filter((entry) => deferralExpiry(entry) > floor)
+  return pruneDeferrals([...merged.values()], now)
 }
 
 function vaultSettings(settings: Settings): VaultSettings {
@@ -135,8 +137,9 @@ export async function buildVault(
     accounts: accounts.map((account) => ({ email: normalizeEmail(account.email), label: account.displayName })),
     credentials,
     // Pruned on the way in, so an expired entry stops travelling from the
-    // device that still remembers it rather than on some later merge.
-    ...(deferrals ? { deferrals: mergeDeferrals(deferrals, [], updatedAt) } : {}),
+    // device that still remembers it rather than on some later merge. Worth the
+    // second prune purely for the 256 KiB byte cap checked below.
+    ...(deferrals ? { deferrals: pruneDeferrals(deferrals, updatedAt) } : {}),
   }
   if (encoder.encode(JSON.stringify(document)).byteLength > 256 * 1024) {
     throw new Error('The Maru vault exceeds the 256 KiB limit')
@@ -267,12 +270,16 @@ export async function applyVault(
     const current = new Map(mine.map((entry) => [deferralKey(entry), entry]))
     const changed = merged.filter((entry) => {
       const mineNow = current.get(deferralKey(entry))
-      return !mineNow || mineNow.until !== entry.until || deferralStamp(mineNow) !== deferralStamp(entry)
+      return !mineNow || mineNow.until !== entry.until || mineNow.at !== entry.at
     })
     if (changed.length) deferrals = await local.applyDeferrals(changed)
   }
 
-  if (added || removed || tokensFiled || deferrals) await local.refreshAfterApply?.()
+  // Deferrals are deliberately not in this condition. `refreshAfterApply` is a
+  // Gmail refresh, and a deferral is a local predicate that reaches no Gmail
+  // method: the port already emits `threadsChanged` for the rows it wrote, and
+  // that is the whole of what a deferral apply owes the UI.
+  if (added || removed || tokensFiled) await local.refreshAfterApply?.()
   return { added, removed, tokensFiled, deferrals, needsConsent }
 }
 
@@ -280,6 +287,7 @@ export function restoredSummary(summary: ApplyVaultSummary): string {
   const parts: string[] = []
   if (summary.added) parts.push(`${summary.added} account${summary.added === 1 ? '' : 's'}`)
   if (summary.tokensFiled) parts.push(`${summary.tokensFiled} Gmail sign-in${summary.tokensFiled === 1 ? '' : 's'}`)
+  if (summary.deferrals) parts.push(`${summary.deferrals} saved-for-later restored`)
   if (summary.removed) parts.push(`${summary.removed} removed`)
   if (summary.needsConsent.length) parts.push(`${summary.needsConsent.length} need Google consent`)
   return parts.length ? `Restored ${parts.join(', ')}.` : 'This device already matches your Maru account.'

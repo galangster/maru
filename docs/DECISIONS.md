@@ -186,8 +186,8 @@ Gmail drafts sync (local draft persistence only), calendar, unified
 > Mac", which is now true only when nobody is signed in. It reads: *"Later
 > follows your Maru account when you're signed in, and stays on this device
 > when you're not. Gmail never sees it, so these still show in Gmail's
-> inbox."* Four homes now: the picker, the Later view's header, Settings, and
-> the phone's Later sheet. Full reasoning in
+> inbox."* It is one exported constant, `LATER_DISCLOSURE`, and the rule for
+> where it appears is stated on it rather than counted here. Full reasoning in
 > [A9](../wayfinder/tickets/A9-later-sync.md).
 
 **Q18 — Build SOP:** sequential single-writer lanes (scaffold → engine →

@@ -148,8 +148,13 @@ export const MORNING_HOUR = 9
  */
 export const WOKE_RETENTION_MS = 86_400_000
 /**
- * How long a deferral fact keeps travelling in the Maru vault — A9, owner
- * ruling 2026-09-02, and MARU-ACCOUNT.md §6.
+ * **The 30-day rule, stated here and nowhere else.** Every other site — the
+ * vault's prune, the store's sweep, the migration note, MARU-ACCOUNT.md §6 —
+ * points back at this constant rather than repeating the number, because six
+ * copies of a number is five chances to change five of them.
+ *
+ * How long a deferral fact keeps travelling in the Maru vault, and how long the
+ * store keeps a tombstone — A9, owner ruling 2026-09-02, and MARU-ACCOUNT.md §6.
  *
  * It bounds two things with one number: a cleared-deferral tombstone, which
  * exists only to outlive the stale `until` it cancels, and a live entry whose

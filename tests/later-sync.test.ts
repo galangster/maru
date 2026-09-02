@@ -19,31 +19,32 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  DEFERRAL_TTL_MS,
   applyVault,
   buildVault,
   mergeDeferrals,
   mergeVault,
+  pruneDeferrals,
   type VaultDeferral,
   type VaultDocument,
   type VaultLocal,
 } from '../src/core/account/vault'
+import { DEFERRAL_TTL_MS } from '../src/core/defaults'
 import { DemoMailService } from '../src/core/service/demo'
 import { RealMailService, type MailGmailClient } from '../src/core/service/real'
 import { Store } from '../src/core/store/db'
-import type { Account, MailEvent, Settings } from '../src/core/types'
+import type { MailEvent } from '../src/core/types'
 import { schedulesPush } from '../src/features/settings/account/account-store'
-import { makeAccount, makeThread } from './fixtures/domain'
+import { FakeDeferralLocal, makeAccount, makeThread, vaultDocument } from './fixtures/domain'
 import { NodePlatform } from './helpers/node-platform'
 
 const NOW = 1_800_000_000_000
 const DAY = 86_400_000
 const EMAIL = 'nick@gmail.com'
 
-const live = (until: number, setAt: number, threadId = 't-1'): VaultDeferral =>
-  ({ accountEmail: EMAIL, threadId, until, setAt })
-const tomb = (clearedAt: number, threadId = 't-1'): VaultDeferral =>
-  ({ accountEmail: EMAIL, threadId, until: null, clearedAt })
+const live = (until: number, at: number, threadId = 't-1'): VaultDeferral =>
+  ({ accountEmail: EMAIL, threadId, until, at })
+const tomb = (at: number, threadId = 't-1'): VaultDeferral =>
+  ({ accountEmail: EMAIL, threadId, until: null, at })
 
 // ---------------------------------------------------------------------------
 // Risk 1: the merge rule — MARU-ACCOUNT.md §6
@@ -53,7 +54,7 @@ describe('mergeDeferrals', () => {
   it('unions by (accountEmail, threadId) and keeps both devices’ threads', () => {
     const merged = mergeDeferrals(
       [live(NOW + DAY, NOW, 't-1')],
-      [{ accountEmail: 'other@gmail.com', threadId: 't-1', until: NOW + DAY, setAt: NOW }],
+      [{ accountEmail: 'other@gmail.com', threadId: 't-1', until: NOW + DAY, at: NOW }],
       NOW,
     )
     // Same thread id, different address: two different conversations.
@@ -70,8 +71,8 @@ describe('mergeDeferrals', () => {
 
   it('lets a tombstone beat an older until, even one still in the future', () => {
     // The case the whole tombstone exists for. Saved for Monday on the Mac,
-    // brought back by hand on Sunday from the phone. Comparing `clearedAt` to
-    // `until` would re-hide it; comparing it to `setAt` does not.
+    // brought back by hand on Sunday from the phone. Comparing the clear to
+    // `until` would re-hide it; comparing the two `at` stamps does not.
     const merged = mergeDeferrals([live(NOW + 2 * DAY, NOW)], [tomb(NOW + DAY)], NOW)
     expect(merged).toEqual([tomb(NOW + DAY)])
     expect(mergeDeferrals([tomb(NOW + DAY)], [live(NOW + 2 * DAY, NOW)], NOW))
@@ -88,33 +89,14 @@ describe('mergeDeferrals', () => {
     expect(mergeDeferrals([tomb(NOW + 1000)], [tomb(NOW)], NOW)).toEqual([tomb(NOW + 1000)])
   })
 
-  it('treats a payload with no stamp as stamped at zero, so the tombstone wins', () => {
-    const stampless: VaultDeferral = { accountEmail: EMAIL, threadId: 't-1', until: NOW + DAY }
-    expect(mergeDeferrals([stampless], [tomb(NOW)], NOW)).toEqual([tomb(NOW)])
-  })
-
-  it('drops tombstones older than the TTL, and keeps ones inside it', () => {
-    expect(mergeDeferrals([tomb(NOW - DEFERRAL_TTL_MS - 1)], [], NOW)).toEqual([])
-    expect(mergeDeferrals([tomb(NOW - DEFERRAL_TTL_MS + DAY)], [], NOW))
-      .toEqual([tomb(NOW - DEFERRAL_TTL_MS + DAY)])
-  })
-
-  it('drops a live entry whose moment passed more than the TTL ago', () => {
-    // Otherwise the union resurrects it from the other copy forever, and the
-    // 256 KiB document cap is the thing that eventually notices.
-    expect(mergeDeferrals([live(NOW - DEFERRAL_TTL_MS - 1, NOW - DEFERRAL_TTL_MS - 1)], [], NOW))
-      .toEqual([])
+  it('treats a tombstone stamped at zero as older than anything', () => {
+    // A payload from a writer with no clock still has to lose to a real clear.
+    expect(mergeDeferrals([tomb(0)], [tomb(NOW)], NOW)).toEqual([tomb(NOW)])
   })
 
   it('prunes on the way out of mergeVault, using the document clock', () => {
-    const doc = (updatedAt: number, deferrals: VaultDeferral[]): VaultDocument => ({
-      v: 1,
-      updatedAt,
-      settings: { theme: 'dark', imagePolicy: 'allow', pollIntervalSec: 60, sounds: false, conversationOrder: 'chronological' },
-      accounts: [],
-      credentials: { desktop: {}, ios: {} },
-      deferrals,
-    })
+    const doc = (updatedAt: number, deferrals: VaultDeferral[]): VaultDocument =>
+      vaultDocument({ updatedAt, accounts: [], deferrals })
     const merged = mergeVault(doc(NOW, [tomb(NOW - DEFERRAL_TTL_MS - 1)]), doc(NOW, [live(NOW + DAY, NOW)]))
     expect(merged.deferrals).toEqual([live(NOW + DAY, NOW)])
   })
@@ -122,14 +104,24 @@ describe('mergeDeferrals', () => {
   it('leaves deferrals absent when neither copy carries any', () => {
     // Absent means "this writer had nothing to say", which is not the same as
     // an empty list and must not overwrite a copy that does.
-    const bare: VaultDocument = {
-      v: 1,
-      updatedAt: NOW,
-      settings: { theme: 'dark', imagePolicy: 'allow', pollIntervalSec: 60, sounds: false, conversationOrder: 'chronological' },
-      accounts: [],
-      credentials: { desktop: {}, ios: {} },
-    }
+    const bare = vaultDocument({ accounts: [] })
     expect(mergeVault(bare, bare).deferrals).toBeUndefined()
+  })
+})
+
+describe('pruneDeferrals', () => {
+  it('drops tombstones older than the TTL, and keeps ones inside it', () => {
+    expect(pruneDeferrals([tomb(NOW - DEFERRAL_TTL_MS - 1)], NOW)).toEqual([])
+    expect(pruneDeferrals([tomb(NOW - DEFERRAL_TTL_MS + DAY)], NOW))
+      .toEqual([tomb(NOW - DEFERRAL_TTL_MS + DAY)])
+  })
+
+  it('drops a live entry whose moment passed more than the TTL ago', () => {
+    // Otherwise the union resurrects it from the other copy forever, and the
+    // 256 KiB document cap is the thing that eventually notices.
+    expect(pruneDeferrals([live(NOW - DEFERRAL_TTL_MS - 1, NOW - DEFERRAL_TTL_MS - 1)], NOW))
+      .toEqual([])
+    expect(pruneDeferrals([live(NOW + DAY, NOW)], NOW)).toEqual([live(NOW + DAY, NOW)])
   })
 })
 
@@ -137,28 +129,8 @@ describe('mergeDeferrals', () => {
 // build and apply, against a fake port
 // ---------------------------------------------------------------------------
 
-const settings: Settings = {
-  theme: 'dark', imagePolicy: 'allow', pollIntervalSec: 60, sounds: false,
-  conversationOrder: 'chronological',
-}
-
-class FakeLocal implements VaultLocal {
-  accounts: Account[] = [makeAccount()]
-  deferrals: VaultDeferral[] = []
-  applied: VaultDeferral[][] = []
-  getSettings = async () => settings
-  setSettings = async () => {}
-  listAccounts = async () => [...this.accounts]
-  upsertAccount = async () => {}
-  removeAccount = async () => {}
-  loadCredential = async () => null
-  saveCredential = async () => {}
-  clearCredential = async () => {}
-  listDeferrals = async () => [...this.deferrals]
-  applyDeferrals = async (entries: VaultDeferral[]) => {
-    this.applied.push(entries)
-    return entries.length
-  }
+class FakeLocal extends FakeDeferralLocal {
+  accounts = [makeAccount()]
   now = () => NOW
 }
 
@@ -185,20 +157,17 @@ describe('the vault document', () => {
 })
 
 describe('applyVault', () => {
-  const doc = (deferrals?: VaultDeferral[]): VaultDocument => ({
-    v: 1,
-    updatedAt: NOW,
-    settings,
-    accounts: [{ email: EMAIL, label: 'Personal' }],
-    credentials: { desktop: {}, ios: {} },
-    ...(deferrals ? { deferrals } : {}),
-  })
+  const doc = (deferrals?: VaultDeferral[]): VaultDocument =>
+    vaultDocument({ updatedAt: NOW, ...(deferrals ? { deferrals } : {}) })
 
   it('writes an incoming deferral through the port', async () => {
     const local = new FakeLocal()
     const summary = await applyVault(doc([live(NOW + DAY, NOW)]), local, 'desktop')
     expect(local.applied).toEqual([[live(NOW + DAY, NOW)]])
     expect(summary.deferrals).toBe(1)
+    // A deferral apply is not a reason to talk to Gmail — see the round trip
+    // below, which asserts the same thing through the real port.
+    expect(local.refreshes).toBe(0)
   })
 
   it('writes nothing when the incoming entry matches what this device holds', async () => {
@@ -258,7 +227,21 @@ async function device(name: string) {
     createClient: () => noGmail,
   })
   svc.onEvent((event) => events.push(event))
-  return { store, svc, events, local: svc.accountVaultLocal() }
+  // The port, with its Gmail refresh counted rather than silently swallowed.
+  // `refreshAfterApply` is where an apply reaches Google, and `RealMailService`
+  // catches every engine error inside it — so a Gmail call made there would
+  // never surface as a failed expectation. Counting it makes the fail-safe
+  // property assertable: a deferral-only apply must leave this at zero.
+  const port = svc.accountVaultLocal()
+  const refreshes = { count: 0 }
+  const local: VaultLocal = {
+    ...port,
+    refreshAfterApply: async () => {
+      refreshes.count += 1
+      await port.refreshAfterApply?.()
+    },
+  }
+  return { store, svc, events, local, refreshes }
 }
 
 describe('two devices over one vault', () => {
@@ -269,27 +252,52 @@ describe('two devices over one vault', () => {
     await mac.svc.defer('mac-acct/t-1', NOW + 2 * DAY)
     const fromMac = await buildVault(mac.local, 'desktop', NOW)
     expect(fromMac.deferrals).toEqual([
-      { accountEmail: EMAIL, threadId: 't-1', until: NOW + 2 * DAY, setAt: expect.any(Number) },
+      { accountEmail: EMAIL, threadId: 't-1', until: NOW + 2 * DAY, at: expect.any(Number) },
     ])
 
     await applyVault(fromMac, phone.local, 'desktop')
     expect((await phone.store.getThread('phone-acct/t-1'))?.deferredUntil).toBe(NOW + 2 * DAY)
+    // Nothing but the deferral moved, so nothing asked Gmail for anything. Put
+    // `deferrals` back into applyVault's refresh condition and this fails.
+    expect(phone.refreshes.count).toBe(0)
 
     // Now the phone brings it back, and the Mac must not re-hide it.
     await phone.svc.defer('phone-acct/t-1', null)
     const fromPhone = await buildVault(phone.local, 'desktop', NOW)
     expect(fromPhone.deferrals).toEqual([
-      { accountEmail: EMAIL, threadId: 't-1', until: null, clearedAt: expect.any(Number) },
+      { accountEmail: EMAIL, threadId: 't-1', until: null, at: expect.any(Number) },
     ])
 
     await applyVault(fromPhone, mac.local, 'desktop')
     expect((await mac.store.getThread('mac-acct/t-1'))?.deferredUntil).toBeUndefined()
+    expect(mac.refreshes.count).toBe(0)
+  })
+
+  it('writes live rows and tombstones a batch at a time', async () => {
+    // `applyDeferralRecords` partitions and runs one statement per side, so a
+    // multi-row placeholder run is the thing that can silently be wrong.
+    const mac = await device('mac')
+    expect(await mac.local.applyDeferrals!([
+      { accountEmail: EMAIL, threadId: 't-1', until: NOW + DAY, at: NOW },
+      { accountEmail: EMAIL, threadId: 't-2', until: NOW + 2 * DAY, at: NOW },
+    ])).toBe(2)
+    expect((await mac.store.getThread('mac-acct/t-1'))?.deferredUntil).toBe(NOW + DAY)
+    expect((await mac.store.getThread('mac-acct/t-2'))?.deferredUntil).toBe(NOW + 2 * DAY)
+
+    expect(await mac.local.applyDeferrals!([
+      { accountEmail: EMAIL, threadId: 't-1', until: null, at: NOW + 1000 },
+      { accountEmail: EMAIL, threadId: 't-2', until: null, at: NOW + 1000 },
+    ])).toBe(2)
+    expect(await mac.store.deferralRecords()).toEqual([
+      { threadKey: 'mac-acct/t-1', accountId: 'mac-acct', until: null, at: NOW + 1000 },
+      { threadKey: 'mac-acct/t-2', accountId: 'mac-acct', until: null, at: NOW + 1000 },
+    ])
   })
 
   it('ignores an entry for an address this device has not signed into', async () => {
     const mac = await device('mac')
     const written = await mac.local.applyDeferrals!([
-      { accountEmail: 'someone-else@gmail.com', threadId: 't-1', until: NOW + DAY, setAt: NOW },
+      { accountEmail: 'someone-else@gmail.com', threadId: 't-1', until: NOW + DAY, at: NOW },
     ])
     expect(written).toBe(0)
     expect((await mac.store.getThread('mac-acct/t-1'))?.deferredUntil).toBeUndefined()

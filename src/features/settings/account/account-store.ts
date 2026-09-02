@@ -10,7 +10,6 @@ import {
   derivePasswordKeys,
   deriveRecoveryKeys,
   generateRecoveryPhrase,
-  normalizeEmail,
   recoveryEntropy,
   restoredSummary,
   unwrapByPassword,
@@ -28,7 +27,7 @@ import {
 import type { DemoAccountBackend } from '@/core/demo/account-demo'
 import { base64UrlEncodeBytes } from '@/core/mime'
 import type { Platform } from '@/core/platform'
-import type { PlatformFamily, VaultLocal } from '@/core/service/vault-port'
+import { normalizeEmail, type PlatformFamily, type VaultLocal } from '@/core/service/vault-port'
 import type { MailEvent, MailService } from '@/core/types'
 import { useUi } from '@/features/mail/ui-store'
 import { accountDeviceIdentity } from '@/lib/env'

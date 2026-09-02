@@ -21,11 +21,15 @@ import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 /**
- * The sentence that rides permanently with Later, verbatim, in all four of its
- * homes: here at the point of the action, the Later view's header, Settings,
- * and the phone's Later sheet.
+ * The sentence that rides permanently with Later.
  *
- * Exported so the four cannot drift into four different promises. Deliberately
+ * **The rule, stated here and nowhere else: every surface that offers Later, or
+ * lists what Later is holding, carries this sentence verbatim.** No surface
+ * keeps its own count of the others, and none restates the promise in its own
+ * words — a site that paraphrases is a second promise, and two promises about
+ * privacy are one promise too many. Import the constant, or leave it out.
+ *
+ * Exported so they cannot drift into different promises. Deliberately
  * NOT in the confirmation toast: that fires many times a day, and a permanent
  * caveat on a frequent toast is read as chrome inside a week. And deliberately
  * not a first-run tip — dismissible means misremembered six months later, which
@@ -192,9 +196,9 @@ function PickerBody({
         )}
       </ul>
 
-      {/* Disclosure site 1 of 4, at the point of the action, every single time.
-          A rule above it rather than a card around it: it is a caveat on the
-          choice just made, not a fifth option. */}
+      {/* The disclosure at the point of the action, every single time. A rule
+          above it rather than a card around it: it is a caveat on the choice
+          just made, not a fifth option. */}
       <p className="border-hairline text-ink-3 border-t px-4 py-3 text-xs text-pretty">
         {LATER_DISCLOSURE}
       </p>

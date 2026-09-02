@@ -6,11 +6,10 @@ import { AccountSessionStore, ACCOUNT_KEY_SECRET, ACCOUNT_SESSION_SECRET } from 
 import { AccountSync } from '../src/core/account/sync'
 import type { VaultDocument } from '../src/core/account/vault'
 import { Store } from '../src/core/store/db'
-import type { Settings } from '../src/core/types'
+import { FakeVaultLocal, settings, vaultDocument } from './fixtures/domain'
 import { NodePlatform, jsonResponse } from './helpers/node-platform'
 
-const settings: Settings = { theme: 'dark', imagePolicy: 'allow', pollIntervalSec: 60, sounds: false, conversationOrder: 'chronological' }
-const doc = (time: number): VaultDocument => ({ v: 1, updatedAt: time, settings, accounts: [], credentials: { desktop: {}, ios: {} } })
+const doc = (time: number): VaultDocument => vaultDocument({ updatedAt: time, accounts: [] })
 
 describe('AccountSync', () => {
   let platform: NodePlatform
@@ -26,17 +25,10 @@ describe('AccountSync', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  const local = () => ({
-    getSettings: async () => settings,
-    setSettings: async () => {},
-    listAccounts: async () => [],
-    upsertAccount: async () => {},
-    removeAccount: async () => {},
-    loadCredential: async () => null,
-    saveCredential: async () => {},
-    clearCredential: async () => {},
-    now: () => 50,
-  })
+  // The shared in-memory port, with this suite's clock. Every test that needs
+  // a different account list or credential spreads it and overrides that one
+  // method, so the eight pass-throughs are written once.
+  const local = () => new FakeVaultLocal()
 
   it('pauses after three 409 merge rounds', async () => {
     const conflicts = await Promise.all([1, 2, 3].map(async (version) => ({

@@ -1,4 +1,6 @@
 import type { Account, Settings } from '../types'
+import { parseThreadKey, threadKey } from '../types'
+import type { DeferralRecord } from '../store/db'
 
 export type PlatformFamily = 'desktop' | 'ios'
 
@@ -20,8 +22,8 @@ export interface LocalCredential {
  *
  * `until: null` is a **tombstone** — a deferral cleared somewhere, carried so
  * the clear survives a merge instead of being re-asserted by a stale copy.
- * Exactly one of `setAt` and `clearedAt` is present, and that stamp is what the
- * merge rule compares.
+ * `at` is when the decision was made — the save for a live entry, the clear for
+ * a tombstone — and it is the stamp the merge rule compares.
  */
 export interface VaultDeferral {
   accountEmail: string
@@ -29,10 +31,36 @@ export interface VaultDeferral {
   threadId: string
   /** ms epoch the thread returns to the inbox, or null for a tombstone. */
   until: number | null
-  /** When this deferral was saved. Live entries only. */
-  setAt?: number
-  /** When this deferral was cleared. Tombstones only. */
-  clearedAt?: number
+  /** ms epoch the decision was made: saved for a live entry, cleared for a tombstone. */
+  at: number
+}
+
+/**
+ * A local deferral row becomes a vault entry: the device-local thread key drops
+ * to its Gmail half, and the account UUID becomes the address the other device
+ * can resolve.
+ *
+ * Here rather than inside either port so the real store and the demo cannot
+ * drift on the shape MARU-ACCOUNT.md §4 travels in. Each port supplies only its
+ * own account table.
+ */
+export function toVaultDeferral(record: DeferralRecord, accountEmail: string): VaultDeferral {
+  return {
+    accountEmail,
+    threadId: parseThreadKey(record.threadKey).gmailThreadId,
+    until: record.until,
+    at: record.at,
+  }
+}
+
+/** The inverse: a vault entry becomes a local row under one of this device's accounts. */
+export function fromVaultDeferral(entry: VaultDeferral, accountId: string): DeferralRecord {
+  return {
+    threadKey: threadKey(accountId, entry.threadId),
+    accountId,
+    until: entry.until,
+    at: entry.at,
+  }
 }
 
 export function normalizeEmail(email: string): string {

@@ -819,9 +819,9 @@ function SyncSection() {
 }
 
 /**
- * Disclosure site 3 of 3 — P21. Permanent, and it lives in Sync because Sync is
- * the section that answers "what does this Mac know that my other devices do
- * not", which is precisely the question Later raises.
+ * The Later disclosure in Settings — P21. Permanent, and it lives in Sync
+ * because Sync is the section that answers "what does this Mac know that my
+ * other devices do not", which is precisely the question Later raises.
  *
  * There is no switch here, deliberately: Later has no setting to turn off, and
  * a control would imply the limitation were one. The section states the fact
@@ -832,10 +832,8 @@ function LaterBlock() {
     <div className="flex flex-col gap-1">
       <FieldLabel htmlFor="wren-later">Later</FieldLabel>
       <p id="wren-later" className="text-ink-3 text-sm text-pretty">
-        {LATER_DISCLOSURE} Signed in, they travel inside your encrypted vault
-        and nowhere else; signed out, they never leave this Mac. Either way
-        Google is never told, so Maru's inbox count and Gmail's will disagree
-        by however many threads you have saved.
+        {LATER_DISCLOSURE} That is why Maru's inbox count and Gmail's will
+        disagree by however many threads you have saved.
       </p>
     </div>
   )

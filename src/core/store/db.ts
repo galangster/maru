@@ -342,8 +342,7 @@ export const MIGRATIONS: string[] = [
   // from by `sweepDeferrals`, `deleteThreads` and `clearDeferral`, and a
   // tombstone that lived there would have to survive all three.
   //
-  // Bounded by `sweepDeferrals`, which drops tombstones past DEFERRAL_TTL_MS
-  // — the same 30 days the vault prunes at. Nothing accumulates forever.
+  // Bounded by `sweepDeferrals`, which drops tombstones past DEFERRAL_TTL_MS.
   `
   CREATE TABLE IF NOT EXISTS thread_defer_cleared (
     thread_key TEXT PRIMARY KEY,
@@ -555,6 +554,8 @@ const THREAD_COLUMNS = 12
 const LABEL_ROW_COLUMNS = 3
 const MESSAGE_COLUMNS = 22
 const FLAG_COLUMNS = 4
+const DEFER_COLUMNS = 4
+const DEFER_CLEARED_COLUMNS = 3
 
 function chunkRows<T>(rows: T[], columns: number): T[][] {
   const size = Math.max(1, Math.floor(MAX_BOUND_PARAMS / columns))
@@ -1049,26 +1050,46 @@ export class Store {
    * disagree.
    */
   async applyDeferralRecords(records: DeferralRecord[]): Promise<number> {
-    let written = 0
-    for (const record of records) {
-      if (record.until === null) {
-        await this.db.execute('DELETE FROM thread_defer WHERE thread_key = $1', [record.threadKey])
-        await this.db.execute(
-          `INSERT OR REPLACE INTO thread_defer_cleared (thread_key, account_id, cleared_at)
-           VALUES ($1, $2, $3)`,
-          [record.threadKey, record.accountId, record.at],
-        )
-      } else {
-        await this.db.execute(
-          `INSERT OR REPLACE INTO thread_defer (thread_key, account_id, wake_at, set_at, woke_at)
-           VALUES ($1, $2, $3, $4, NULL)`,
-          [record.threadKey, record.accountId, record.until, record.at],
-        )
-        await this.db.execute('DELETE FROM thread_defer_cleared WHERE thread_key = $1', [record.threadKey])
-      }
-      written += 1
+    // Partitioned first, then two statements per side, the way every other
+    // batch write in this file works: a pull that carries a hundred deferrals
+    // used to cost two hundred round trips.
+    const live = records.filter((record) => record.until !== null)
+    const tombs = records.filter((record) => record.until === null)
+
+    // `woke_at` is left out of the column list on purpose. INSERT OR REPLACE
+    // rewrites the whole row, so an omitted nullable column lands as NULL —
+    // which is what re-saving a thread means: a fresh deferral, not the old
+    // wake stamp and its place at the top of Today.
+    for (const group of chunkRows(live, DEFER_COLUMNS)) {
+      await this.db.execute(
+        `INSERT OR REPLACE INTO thread_defer (thread_key, account_id, wake_at, set_at)
+         VALUES ${valueGroups(group.length, DEFER_COLUMNS)}`,
+        group.flatMap((record) => [record.threadKey, record.accountId, record.until, record.at]),
+      )
     }
-    return written
+    for (const group of chunkRows(live, 1)) {
+      // Saving it again answers the tombstone, so the tombstone goes.
+      await this.db.execute(
+        `DELETE FROM thread_defer_cleared WHERE thread_key IN (${placeholderList(group.length)})`,
+        group.map((record) => record.threadKey),
+      )
+    }
+
+    for (const group of chunkRows(tombs, DEFER_CLEARED_COLUMNS)) {
+      await this.db.execute(
+        `INSERT OR REPLACE INTO thread_defer_cleared (thread_key, account_id, cleared_at)
+         VALUES ${valueGroups(group.length, DEFER_CLEARED_COLUMNS)}`,
+        group.flatMap((record) => [record.threadKey, record.accountId, record.at]),
+      )
+    }
+    for (const group of chunkRows(tombs, 1)) {
+      await this.db.execute(
+        `DELETE FROM thread_defer WHERE thread_key IN (${placeholderList(group.length)})`,
+        group.map((record) => record.threadKey),
+      )
+    }
+
+    return records.length
   }
 
   /**
@@ -1099,9 +1120,8 @@ export class Store {
       'DELETE FROM thread_defer WHERE woke_at IS NOT NULL AND woke_at <= $1',
       [now - WOKE_RETENTION_MS],
     )
-    // The tombstone's own garbage collection, on the same lazy sweep and at the
-    // same 30 days the vault prunes at (DEFERRAL_TTL_MS). A tombstone only has
-    // to outlive the stale `until` it cancels.
+    // The tombstone's own garbage collection, on the same lazy sweep — see
+    // DEFERRAL_TTL_MS.
     await this.db.execute(
       'DELETE FROM thread_defer_cleared WHERE cleared_at <= $1',
       [now - DEFERRAL_TTL_MS],
