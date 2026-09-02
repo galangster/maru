@@ -109,6 +109,19 @@ export const useMaruAccount = create<MaruAccountState>(() => ({
   deleteAccount,
 }))
 
+/**
+ * The signed-in Maru account's API client, for the push runtime.
+ *
+ * Null when signed out, and null in demo mode: the relay registers devices
+ * against a real account, and a demo backend has no relay behind it. Push
+ * needs a Maru account by construction — see MARU-ACCOUNT.md §9 — so this is
+ * the one accessor that says whether push can run at all.
+ */
+export function accountRelayClient(): AccountClient | null {
+  if (!runtime || runtime.demoBackend) return null
+  return useMaruAccount.getState().email ? runtime.client : null
+}
+
 function currentRuntime(): AccountRuntime {
   if (!runtime) throw new Error('The Maru account service is unavailable')
   return runtime

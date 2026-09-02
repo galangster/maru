@@ -96,6 +96,16 @@ export interface GmailAttachmentBody {
   data?: string // base64url
 }
 
+/**
+ * `users.watch`. `expiration` is a decimal string of epoch milliseconds and is
+ * documented as optional, so callers must tolerate its absence — see
+ * `parseWatchExpiration` in `src/core/push/watch.ts`.
+ */
+export interface GmailWatchResponse {
+  historyId?: string
+  expiration?: string
+}
+
 export type MessageFormat = 'minimal' | 'metadata' | 'full' | 'raw'
 export type ThreadFormat = 'minimal' | 'metadata' | 'full'
 

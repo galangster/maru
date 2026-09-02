@@ -32,6 +32,7 @@ import type {
   GmailMessage,
   GmailProfile,
   GmailThread,
+  GmailWatchResponse,
   HistoryType,
   MessageFormat,
   ThreadFormat,
@@ -63,6 +64,7 @@ export const QUOTA_COST = {
   threadsGet: 40,
   threadsTrash: 20,
   messagesSend: 100,
+  watch: 100,
 } as const
 
 export interface AccessTokenSource {
@@ -406,5 +408,28 @@ export class GmailApi {
       this.url('/messages/send'),
       threadId ? { raw, threadId } : { raw },
     )
+  }
+
+  /**
+   * Ask Gmail to publish this mailbox's changes to a Pub/Sub topic.
+   *
+   * Called by the client with the client's own token, which is the whole point
+   * of the design: the relay holds no Gmail credential and a server-side
+   * `users.watch` is ruled out permanently (MARU-ACCOUNT.md §1).
+   *
+   * INBOX only. Without the filter Gmail publishes for every label change in
+   * the mailbox — sent mail, drafts, a sweep of an old thread — and each one
+   * would spend a push, a wake and a history fetch to conclude that nothing
+   * had arrived.
+   *
+   * Idempotent: calling it again on a live watch extends it rather than
+   * creating a second one.
+   */
+  watch(topicName: string, labelIds: string[] = ['INBOX']): Promise<GmailWatchResponse> {
+    return this.postJson<GmailWatchResponse>(QUOTA_COST.watch, this.url('/watch'), {
+      topicName,
+      labelIds,
+      labelFilterBehavior: 'include',
+    })
   }
 }

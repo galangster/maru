@@ -13,6 +13,7 @@ import {
   useSyncStatus,
   useWakeSweep,
 } from '@/features/mail/queries'
+import { usePush } from '@/features/notifications/use-push'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { MobileIcon } from './components/mobile-icon'
 import { InboxScreen } from './screens/inbox-screen'
@@ -45,6 +46,14 @@ export function MobileApp() {
   useWakeSweep()
 
   const [navigation, dispatch] = useReducer(mobileRouteReducer, initialMobileRoute)
+  // A tapped notification opens its conversation through the same reducer as
+  // a tapped row, so it lands with an inbox underneath it and a working back.
+  usePush(
+    useCallback(
+      (threadKey: string) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } }),
+      [],
+    ),
+  )
   const perform = usePerformAction()
   const defer = useDefer()
   const composerOpen = useComposer((state) => state.open)

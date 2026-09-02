@@ -35,8 +35,15 @@ class FakeClient implements MailGmailClient {
     return value
   }
 
+  watchCalls: string[] = []
+
   async profile() {
     return { emailAddress: 'nick@gmail.com', historyId: '1000' }
+  }
+
+  async watch(topicName: string) {
+    this.watchCalls.push(topicName)
+    return this.guard({ expiration: '1700000000000' })
   }
   async listLabels() {
     return [{ id: 'INBOX', name: 'INBOX', type: 'system' as const }]
