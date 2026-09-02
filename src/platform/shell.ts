@@ -17,6 +17,14 @@ import { isTauri, platformOS } from '@/lib/env'
 export type HapticImpact = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid'
 export type HapticNotice = 'success' | 'warning' | 'error'
 
+/** One item on the native bar. Swift writes no tab list; it is handed these. */
+export interface NativeTab {
+  /** The label under the symbol. */
+  title: string
+  /** An SF Symbol name. */
+  symbol: string
+}
+
 /** The plugin only exists in the iOS bundle. Everywhere else, skip the invoke. */
 export const nativeShellPossible = isTauri() && platformOS === 'ios'
 
@@ -47,24 +55,33 @@ export const nativeShell = {
   setTabBarHidden: (hidden: boolean) => call('set_tab_bar_hidden', { hidden }),
   impact: (style: HapticImpact) => call('impact', { style }),
   notify: (kind: HapticNotice) => call('notify', { kind }),
-  /** Not used for tab changes — UIKit already plays that one itself. */
-  selection: () => call('selection'),
+  /**
+   * Wake the Taptic Engine at the start of a gesture that is about to end in a
+   * haptic — a pull, a sheet opening. `prepare()` is asynchronous and stays
+   * warm for a couple of seconds, so it only buys latency at a boundary; one
+   * line before the impact it costs and buys nothing.
+   */
+  prepareHaptics: () => call('prepare_haptics'),
 }
 
 /**
- * Subscribes to native tab taps. Resolves with a detach function when the
- * plugin answered, and `null` when there is no native bar — which is the
- * runtime proof that the web bar must render instead.
+ * Subscribes to native tab taps, and in the same call says what the bar
+ * carries. Resolves with a detach function when the plugin answered, and
+ * `null` when there is no native bar — which is the runtime proof that the web
+ * bar must render instead.
+ *
+ * The descriptors travel with the subscription because the bar cannot exist
+ * before them: the plugin installs itself on this call.
  */
 export async function attachNativeShell(
+  tabs: readonly NativeTab[],
   onSelect: (index: number) => void,
 ): Promise<(() => void) | null> {
   const channel = new Channel<{ index: number }>()
   channel.onmessage = (message) => onSelect(message.index)
-  if (!(await call('watch_tabs', { channel }))) return null
-  // Swift keeps one channel and replaces it on the next attach, so detaching
-  // only has to stop this one delivering into a handler that has gone away.
+  if (!(await call('watch_tabs', { channel, tabs }))) return null
   return () => {
     channel.onmessage = () => {}
+    void call('unwatch_tabs')
   }
 }

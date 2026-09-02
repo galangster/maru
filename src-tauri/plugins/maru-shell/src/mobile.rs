@@ -41,12 +41,16 @@ impl<R: Runtime> MaruShell<R> {
     self.call("notify", payload).await
   }
 
-  pub async fn selection(&self) -> crate::Result<()> {
-    self.call("selection", ()).await
+  pub async fn prepare_haptics(&self) -> crate::Result<()> {
+    self.call("prepareHaptics", ()).await
   }
 
   pub async fn watch_tabs(&self, payload: WatchTabsRequest) -> crate::Result<()> {
     self.call("watchTabs", payload).await
+  }
+
+  pub async fn unwatch_tabs(&self) -> crate::Result<()> {
+    self.call("unwatchTabs", ()).await
   }
 
   /// Every command resolves with nothing. Swift's `invoke.resolve()` sends a

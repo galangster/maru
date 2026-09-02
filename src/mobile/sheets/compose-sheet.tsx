@@ -12,6 +12,7 @@ import { RecipientField, type RecipientFieldHandle } from '../components/recipie
 import { MobileIcon } from '../components/mobile-icon'
 import { useBodyScrollLock } from '../use-body-scroll-lock'
 import { useModalFocus } from '../use-modal-focus'
+import { nativeShell } from '@/platform/shell'
 
 const RECIPIENT_KINDS = ['to', 'cc', 'bcc'] as const
 type RecipientKind = (typeof RECIPIENT_KINDS)[number]
@@ -56,6 +57,10 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
   }
   const dialogRef = useModalFocus<HTMLElement>(close)
   useBodyScrollLock()
+  // The composer ends in `notify('success')`. Same boundary, same reason.
+  useEffect(() => {
+    void nativeShell.prepareHaptics()
+  }, [])
   const send = async () => {
     const committed = recipientEntries.map(([kind]) => recipientRefs.current[kind]?.commit())
     if (committed.some((result) => result?.state.invalid)) {

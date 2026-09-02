@@ -38,13 +38,33 @@ pub struct NotifyRequest {
   pub kind: String,
 }
 
-/// The channel the Swift side pushes `{ index }` down when a person taps a tab.
+/// What the Swift side pushes down the channel when a person taps a tab.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabSelected {
+  pub index: u32,
+}
+
+/// One item on the native bar. The order, the titles and the SF Symbols come
+/// from `MOBILE_TABS` in `src/mobile/state.ts`; Swift writes no tab list of its
+/// own, so the two cannot drift apart.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabDescriptor {
+  pub title: String,
+  pub symbol: String,
+}
+
+/// Subscribes to tab taps and, in the same call, says what the bar carries.
 ///
 /// A channel rather than `addPluginListener`: a channel argument is registered
 /// by Tauri the moment it is deserialized from the invoke payload, so it needs
 /// no `register_listener` command and no second permission to reach the ACL.
+/// It is typed, so the payload the plugin promises is checked here rather than
+/// only where JS reads it.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchTabsRequest {
-  pub channel: Channel<serde_json::Value>,
+  pub channel: Channel<TabSelected>,
+  pub tabs: Vec<TabDescriptor>,
 }

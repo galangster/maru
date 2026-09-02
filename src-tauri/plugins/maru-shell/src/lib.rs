@@ -50,8 +50,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     commands::set_tab_bar_hidden,
     commands::impact,
     commands::notify,
-    commands::selection,
+    commands::prepare_haptics,
     commands::watch_tabs,
+    commands::unwatch_tabs,
   ]);
   builder
     .setup(|app, api| {

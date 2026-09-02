@@ -44,6 +44,10 @@ export function usePullRefresh(
   const begin = () => {
     eligible.current = window.scrollY <= 0
     ready.current = false
+    // The start of the drag, not the crossing: the tap at the threshold is the
+    // one that has to land the instant the copy changes, and `prepare()` needs
+    // the head start to give it that.
+    if (eligible.current) void nativeShell.prepareHaptics()
   }
   const offsetFor = (dy: number) => dy <= 0 ? 0 : Math.min(PULL_MAX_OFFSET, dy * PULL_DISTANCE_FACTOR)
   const move = (dy: number) => {

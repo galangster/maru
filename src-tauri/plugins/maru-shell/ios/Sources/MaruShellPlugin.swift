@@ -23,82 +23,130 @@ private struct NotifyArgs: Decodable {
   let kind: String
 }
 
+/// One item on the bar: what it says and which SF Symbol draws it.
+///
+/// This side writes no tab list. The order, the titles and the symbols all
+/// come from `MOBILE_TABS` in `src/mobile/state.ts` and arrive with the
+/// channel, because the reducer already addresses tabs by position and a
+/// second copy here could only drift out of step with it.
+private struct TabDescriptor: Decodable {
+  let title: String
+  let symbol: String
+}
+
 private struct WatchTabsArgs: Decodable {
   let channel: Channel
+  let tabs: [TabDescriptor]
 }
 
 private struct TabSelectedEvent: Encodable {
   let index: Int
 }
 
-/// One per tab. It owns nothing: on appearance it asks the plugin to move the
-/// single web content controller into it, so all three tabs show the same
-/// WKWebView and the web layer keeps its state across a tab switch.
+/// The tab bar controller, with the web content pinned under its bar.
 ///
-/// The content lives inside the selected tab's controller rather than beside
-/// it in the tab bar controller's view, because that is where UIKit looks for
-/// the scroll view that drives `tabBarMinimizeBehavior`, and where it applies
-/// the tab bar's share of the safe area.
-final class MaruShellTabHostController: UIViewController {
-  weak var shell: MaruShellPlugin?
+/// The content is not a child of the selected tab, so UIKit does not fold the
+/// bar's height into its safe area the way it would for a tab's own root. This
+/// asks for the same measurement by hand. `contentLayoutGuide` is the iOS 26
+/// answer and already accounts for the glass and for a minimized bar; below it
+/// the bar's frame is the same number.
+final class MaruShellTabBarController: UITabBarController {
+  weak var content: UIViewController?
 
-  override func viewWillAppear(_ animated: Bool) {
-    super.viewWillAppear(animated)
-    shell?.adopt(host: self)
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    guard let content else { return }
+    let occluded: CGFloat
+    if #available(iOS 26.0, *) {
+      occluded = view.bounds.maxY - contentLayoutGuide.layoutFrame.maxY
+    } else {
+      occluded = tabBar.isHidden ? 0 : tabBar.frame.height
+    }
+    // Additional, so the window's own bottom inset -- the home indicator -- is
+    // not counted twice. The half-point threshold stops a rounding difference
+    // from bouncing layout back and forth.
+    let extra = max(0, occluded - view.safeAreaInsets.bottom)
+    if abs(content.additionalSafeAreaInsets.bottom - extra) > 0.5 {
+      content.additionalSafeAreaInsets.bottom = extra
+    }
   }
 }
 
 final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
-  private static let tabs: [(title: String, symbol: String)] = [
-    ("Inbox", "tray"),
-    ("Search", "magnifyingglass"),
-    ("Settings", "gearshape"),
+  private static let impactStyles: [String: UIImpactFeedbackGenerator.FeedbackStyle] = [
+    "light": .light,
+    "medium": .medium,
+    "heavy": .heavy,
+    "soft": .soft,
+    "rigid": .rigid,
+  ]
+
+  private static let notificationKinds: [String: UINotificationFeedbackGenerator.FeedbackType] = [
+    "success": .success,
+    "warning": .warning,
+    "error": .error,
   ]
 
   private weak var webView: WKWebView?
-  private var tabBarController: UITabBarController?
+  private var tabBarController: MaruShellTabBarController?
   /// Tauri's own root view controller, kept alive after it stops being the
   /// window's root. Its view holds the WKWebView that wry added.
   private var contentController: UIViewController?
   private var tabChannel: Channel?
+  private var tabs: [TabDescriptor] = []
+  private var windowObserver: NSObjectProtocol?
+
+  private var impactGenerators: [String: UIImpactFeedbackGenerator] = [:]
+  private var notificationGenerator: UINotificationFeedbackGenerator?
 
   @objc public override func load(webview: WKWebView) {
     self.webView = webview
-    DispatchQueue.main.async { [weak self] in
-      self?.install(attempt: 0)
-    }
   }
 
   // MARK: - Installation
 
-  /// The webview has no window at plugin-load time on a cold start, so this
-  /// retries on the main queue until the window scene exists. Five seconds of
-  /// attempts, then it gives up and the app stays on the web tab bar.
-  private func install(attempt: Int) {
-    guard tabBarController == nil else { return }
+  /// The bar cannot be built until the web layer has said what is on it, so
+  /// `watch_tabs` is what starts installation. On a cold start the webview may
+  /// still have no window at that point; the window announces itself exactly
+  /// once, and one observer is the whole wait. Lane 1 polled every 50 ms for
+  /// five seconds for the same result.
+  private func installWhenReady() {
+    if install() { return }
+    guard windowObserver == nil else { return }
+    windowObserver = NotificationCenter.default.addObserver(
+      forName: UIWindow.didBecomeKeyNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.install()
+    }
+  }
+
+  @discardableResult
+  private func install() -> Bool {
+    guard tabBarController == nil, !tabs.isEmpty else { return false }
     guard let window = webView?.window ?? Self.keyWindow(),
           let root = window.rootViewController,
           !(root is UITabBarController)
-    else {
-      if attempt < 100 {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-          self?.install(attempt: attempt + 1)
-        }
-      }
-      return
+    else { return false }
+
+    // Before `makeKeyAndVisible` below, which would otherwise re-enter this.
+    if let observer = windowObserver {
+      NotificationCenter.default.removeObserver(observer)
+      windowObserver = nil
     }
 
-    let controller = UITabBarController()
+    let controller = MaruShellTabBarController()
     controller.delegate = self
-    controller.viewControllers = Self.tabs.enumerated().map { index, tab in
-      let host = MaruShellTabHostController()
-      host.shell = self
+    controller.viewControllers = tabs.enumerated().map { index, tab in
+      let host = UIViewController()
       host.view.backgroundColor = .clear
       host.tabBarItem = UITabBarItem(
         title: tab.title,
         image: UIImage(systemName: tab.symbol),
         tag: index
       )
+      observeScroll(from: host)
       return host
     }
     // iOS 26 only. Below it the bar is the classic opaque one and never
@@ -107,47 +155,59 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
       controller.tabBarMinimizeBehavior = .onScrollDown
     }
 
-    // Strong reference first: assigning a new root releases the old one.
-    contentController = root
-
     // The scroll view keeps its default `contentInsetAdjustmentBehavior`, and
     // that is load-bearing. WebKit derives CSS `env(safe-area-inset-*)` from
     // the adjusted content inset, so `.never` does not merely stop the scroll
     // view insetting itself -- it reports zero insets to the page, and the
-    // inbox header climbs under the status bar. Left alone, UIKit folds the
-    // tab bar's height into the child's bottom safe area, the page reads it
-    // through `env()`, and the list clears the glass while still scrolling
-    // beneath it.
+    // inbox header climbs under the status bar.
 
+    // Strong reference first: assigning a new root releases the old one.
+    contentController = root
     window.rootViewController = controller
-    tabBarController = controller
-    if let first = controller.viewControllers?.first {
-      adopt(host: first)
-    }
-    window.makeKeyAndVisible()
-  }
 
-  /// Moves the web content controller into `host`. A no-op when it is already
-  /// there, so the repeated `viewWillAppear` on a re-selected tab costs nothing.
-  func adopt(host: UIViewController) {
-    guard let content = contentController, content.parent !== host else { return }
-    if content.parent != nil {
-      content.willMove(toParent: nil)
-      content.view.removeFromSuperview()
-      content.removeFromParent()
-    }
-    host.addChild(content)
-    content.view.translatesAutoresizingMaskIntoConstraints = false
-    host.view.addSubview(content.view)
+    // Adopted once, and never again. All three tabs are the same web page, so
+    // the content hangs off the tab bar controller rather than off the selected
+    // tab: a tab switch then moves no views at all, and the WKWebView keeps its
+    // layers, its first responder and its scroll position. Selection reaches
+    // the web layer through the delegate instead.
+    controller.addChild(root)
+    root.view.translatesAutoresizingMaskIntoConstraints = false
+    controller.view.insertSubview(root.view, belowSubview: controller.tabBar)
     NSLayoutConstraint.activate([
-      content.view.topAnchor.constraint(equalTo: host.view.topAnchor),
-      content.view.bottomAnchor.constraint(equalTo: host.view.bottomAnchor),
-      content.view.leadingAnchor.constraint(equalTo: host.view.leadingAnchor),
-      content.view.trailingAnchor.constraint(equalTo: host.view.trailingAnchor),
+      root.view.topAnchor.constraint(equalTo: controller.view.topAnchor),
+      root.view.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+      root.view.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+      root.view.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
     ])
-    content.didMove(toParent: host)
+    root.didMove(toParent: controller)
+    controller.content = root
+    observeScroll(from: root)
+
+    tabBarController = controller
+    window.makeKeyAndVisible()
+    // The install is itself a gesture boundary: the first haptic in a session
+    // is usually the first archive, and this is the earliest honest moment to
+    // wake the engine.
+    warmGenerators(prepare: true)
+    return true
   }
 
+  /// Names the scroll view UIKit watches to decide when to minimize the bar.
+  ///
+  /// Not optional here. Left to its own heuristic UIKit searches the selected
+  /// tab's hierarchy for a scroll view, and the web content deliberately does
+  /// not live there -- it is pinned under the bar so a tab switch moves nothing.
+  /// The one scroll view that exists is the WKWebView's own, which is why the
+  /// page had to become the scroller (mobile.css).
+  private func observeScroll(from controller: UIViewController) {
+    guard #available(iOS 15.0, *) else { return }
+    guard let scrollView = webView?.scrollView else { return }
+    controller.setContentScrollView(scrollView, for: .bottom)
+  }
+
+  /// The same four lines as maru-auth's presentation anchor, on purpose. Each
+  /// Tauri iOS plugin is its own Swift package, so sharing them would mean a
+  /// third package to hold one expression.
   private static func keyWindow() -> UIWindow? {
     UIApplication.shared.connectedScenes
       .compactMap { $0 as? UIWindowScene }
@@ -165,8 +225,20 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
 
   @objc public func watchTabs(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(WatchTabsArgs.self)
-    tabChannel = args.channel
-    invoke.resolve()
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.tabChannel = args.channel
+      self.tabs = args.tabs
+      self.installWhenReady()
+      invoke.resolve()
+    }
+  }
+
+  @objc public func unwatchTabs(_ invoke: Invoke) {
+    DispatchQueue.main.async { [weak self] in
+      self?.tabChannel = nil
+      invoke.resolve()
+    }
   }
 
   @objc public func selectTab(_ invoke: Invoke) throws {
@@ -202,45 +274,55 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
   // simulator can screenshot, so without this line there is no way to prove
   // from the outside that an archive reached the Taptic Engine. Debug builds
   // only, by Tauri's Logger.
-  //
-  // No `prepare()` before firing. It is an asynchronous warm-up, and calling it
-  // one line before the impact pays the cost without buying the latency.
+
+  /// Wake the Taptic Engine ahead of a gesture that is about to end in a
+  /// haptic: the start of a pull, a sheet opening, the shell installing.
+  ///
+  /// `prepare()` is asynchronous and holds the engine warm for a couple of
+  /// seconds, so calling it one line before the impact pays the cost and buys
+  /// nothing -- which is why lane 1 removed it. It only helps at a real
+  /// boundary, and only if the generator that fires is the one that was
+  /// prepared, so the generators are retained rather than made per call.
+  @objc public func prepareHaptics(_ invoke: Invoke) {
+    DispatchQueue.main.async { [weak self] in
+      self?.warmGenerators(prepare: true)
+      invoke.resolve()
+    }
+  }
 
   @objc public func impact(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(ImpactArgs.self)
-    let style: UIImpactFeedbackGenerator.FeedbackStyle
-    switch args.style {
-    case "light": style = .light
-    case "heavy": style = .heavy
-    case "soft": style = .soft
-    case "rigid": style = .rigid
-    default: style = .medium
-    }
-    haptic(invoke, "impact \(args.style)") {
-      UIImpactFeedbackGenerator(style: style).impactOccurred()
+    haptic(invoke, "impact \(args.style)") { [weak self] in
+      guard let self else { return }
+      self.warmGenerators(prepare: false)
+      let style = Self.impactStyles[args.style] == nil ? "medium" : args.style
+      self.impactGenerators[style]?.impactOccurred()
     }
   }
 
   @objc public func notify(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(NotifyArgs.self)
-    let kind: UINotificationFeedbackGenerator.FeedbackType
-    switch args.kind {
-    case "warning": kind = .warning
-    case "error": kind = .error
-    default: kind = .success
-    }
-    haptic(invoke, "notify \(args.kind)") {
-      UINotificationFeedbackGenerator().notificationOccurred(kind)
-    }
-  }
-
-  @objc public func selection(_ invoke: Invoke) {
-    haptic(invoke, "selection") {
-      UISelectionFeedbackGenerator().selectionChanged()
+    haptic(invoke, "notify \(args.kind)") { [weak self] in
+      guard let self else { return }
+      self.warmGenerators(prepare: false)
+      self.notificationGenerator?.notificationOccurred(Self.notificationKinds[args.kind] ?? .success)
     }
   }
 
   // MARK: - Helpers
+
+  /// Main queue only: feedback generators are UIKit objects.
+  private func warmGenerators(prepare: Bool) {
+    if impactGenerators.isEmpty {
+      impactGenerators = Self.impactStyles.mapValues(UIImpactFeedbackGenerator.init(style:))
+    }
+    if notificationGenerator == nil {
+      notificationGenerator = UINotificationFeedbackGenerator()
+    }
+    guard prepare else { return }
+    impactGenerators.values.forEach { $0.prepare() }
+    notificationGenerator?.prepare()
+  }
 
   /// Runs `body` against the installed tab bar controller on the main queue and
   /// always answers the invoke. A command that arrives before the shell is

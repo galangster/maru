@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { attachNativeShell, nativeShell, nativeShellPossible } from '@/platform/shell'
 
-import { indexOfTab } from './state'
+import { indexOfTab, nativeTabs } from './state'
 
 /**
  * `null` while the probe is in flight, then `true` if the native tab bar is
@@ -21,7 +21,7 @@ export function useNativeShell(onTabSelected: (index: number) => void): boolean 
   useEffect(() => {
     let detach: (() => void) | null = null
     let live = true
-    void attachNativeShell((index) => handler.current(index)).then((result) => {
+    void attachNativeShell(nativeTabs(), (index) => handler.current(index)).then((result) => {
       if (!live) result?.()
       else {
         detach = result

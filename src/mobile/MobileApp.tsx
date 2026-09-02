@@ -1,6 +1,5 @@
 import { lazy, useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 
-import type { IconName } from '@/components/ui/icon'
 import type { MailActionType } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
@@ -26,6 +25,7 @@ import { LaterSheet } from './sheets/later-sheet'
 import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
   MOBILE_TABS,
+  MOBILE_TAB_CHROME,
   inboxBadgeValue,
   indexOfTab,
   initialMobileRoute,
@@ -40,14 +40,6 @@ import './mobile.css'
 const AccountScreen = lazy(() =>
   import('./screens/account/account-screen').then((module) => ({ default: module.AccountScreen })),
 )
-
-/** How the web fallback bar labels each tab. MOBILE_TABS keeps the order, so
- *  the web bar cannot drift out of step with the native bar's indices. */
-const TAB_CHROME: Record<MobileTab, { label: string; icon: IconName }> = {
-  inbox: { label: 'Inbox', icon: 'inbox' },
-  search: { label: 'Search', icon: 'search' },
-  settings: { label: 'Settings', icon: 'settings' },
-}
 
 const INBOX_VIEW = { kind: 'unified', folder: 'inbox' } as const
 
@@ -191,7 +183,7 @@ export function MobileApp() {
 function TabBar({ active, inert, onChange }: { active: MobileTab; inert: boolean; onChange: (tab: MobileTab) => void }) {
   return (
     <nav className="mobile-tab-bar" aria-label="Primary navigation" inert={inert}>
-      {MOBILE_TABS.map((tab) => <button key={tab} type="button" className={active === tab ? 'is-active' : ''} onClick={() => onChange(tab)} aria-current={active === tab ? 'page' : undefined}><MobileIcon name={TAB_CHROME[tab].icon} scale="large" /><span>{TAB_CHROME[tab].label}</span></button>)}
+      {MOBILE_TABS.map((tab) => <button key={tab} type="button" className={active === tab ? 'is-active' : ''} onClick={() => onChange(tab)} aria-current={active === tab ? 'page' : undefined}><MobileIcon name={MOBILE_TAB_CHROME[tab].icon} scale="large" /><span>{MOBILE_TAB_CHROME[tab].label}</span></button>)}
     </nav>
   )
 }

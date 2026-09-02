@@ -319,6 +319,18 @@
           "markdownDescription": "Denies the notify command without any pre-configured scope."
         },
         {
+          "description": "Enables the prepare_haptics command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-prepare-haptics",
+          "markdownDescription": "Enables the prepare_haptics command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the prepare_haptics command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-prepare-haptics",
+          "markdownDescription": "Denies the prepare_haptics command without any pre-configured scope."
+        },
+        {
           "description": "Enables the select_tab command without any pre-configured scope.",
           "type": "string",
           "const": "allow-select-tab",
@@ -329,18 +341,6 @@
           "type": "string",
           "const": "deny-select-tab",
           "markdownDescription": "Denies the select_tab command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the selection command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-selection",
-          "markdownDescription": "Enables the selection command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the selection command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-selection",
-          "markdownDescription": "Denies the selection command without any pre-configured scope."
         },
         {
           "description": "Enables the set_badge command without any pre-configured scope.",
@@ -367,6 +367,18 @@
           "markdownDescription": "Denies the set_tab_bar_hidden command without any pre-configured scope."
         },
         {
+          "description": "Enables the unwatch_tabs command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-unwatch-tabs",
+          "markdownDescription": "Enables the unwatch_tabs command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unwatch_tabs command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-unwatch-tabs",
+          "markdownDescription": "Denies the unwatch_tabs command without any pre-configured scope."
+        },
+        {
           "description": "Enables the watch_tabs command without any pre-configured scope.",
           "type": "string",
           "const": "allow-watch-tabs",
@@ -379,10 +391,10 @@
           "markdownDescription": "Denies the watch_tabs command without any pre-configured scope."
         },
         {
-          "description": "Allows Maru to drive its native iOS tab bar and haptics\n#### This default permission set includes:\n\n- `allow-select-tab`\n- `allow-set-badge`\n- `allow-set-tab-bar-hidden`\n- `allow-impact`\n- `allow-notify`\n- `allow-selection`\n- `allow-watch-tabs`",
+          "description": "Allows Maru to drive its native iOS tab bar and haptics\n#### This default permission set includes:\n\n- `allow-select-tab`\n- `allow-set-badge`\n- `allow-set-tab-bar-hidden`\n- `allow-impact`\n- `allow-notify`\n- `allow-prepare-haptics`\n- `allow-watch-tabs`\n- `allow-unwatch-tabs`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Allows Maru to drive its native iOS tab bar and haptics\n#### This default permission set includes:\n\n- `allow-select-tab`\n- `allow-set-badge`\n- `allow-set-tab-bar-hidden`\n- `allow-impact`\n- `allow-notify`\n- `allow-selection`\n- `allow-watch-tabs`"
+          "markdownDescription": "Allows Maru to drive its native iOS tab bar and haptics\n#### This default permission set includes:\n\n- `allow-select-tab`\n- `allow-set-badge`\n- `allow-set-tab-bar-hidden`\n- `allow-impact`\n- `allow-notify`\n- `allow-prepare-haptics`\n- `allow-watch-tabs`\n- `allow-unwatch-tabs`"
         }
       ]
     }

@@ -9,8 +9,9 @@ Allows Maru to drive its native iOS tab bar and haptics
 - `allow-set-tab-bar-hidden`
 - `allow-impact`
 - `allow-notify`
-- `allow-selection`
+- `allow-prepare-haptics`
 - `allow-watch-tabs`
+- `allow-unwatch-tabs`
 
 ## Permission Table
 
@@ -76,6 +77,32 @@ Denies the notify command without any pre-configured scope.
 <tr>
 <td>
 
+`maru-shell:allow-prepare-haptics`
+
+</td>
+<td>
+
+Enables the prepare_haptics command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`maru-shell:deny-prepare-haptics`
+
+</td>
+<td>
+
+Denies the prepare_haptics command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `maru-shell:allow-select-tab`
 
 </td>
@@ -95,32 +122,6 @@ Enables the select_tab command without any pre-configured scope.
 <td>
 
 Denies the select_tab command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`maru-shell:allow-selection`
-
-</td>
-<td>
-
-Enables the selection command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`maru-shell:deny-selection`
-
-</td>
-<td>
-
-Denies the selection command without any pre-configured scope.
 
 </td>
 </tr>
@@ -173,6 +174,32 @@ Enables the set_tab_bar_hidden command without any pre-configured scope.
 <td>
 
 Denies the set_tab_bar_hidden command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`maru-shell:allow-unwatch-tabs`
+
+</td>
+<td>
+
+Enables the unwatch_tabs command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`maru-shell:deny-unwatch-tabs`
+
+</td>
+<td>
+
+Denies the unwatch_tabs command without any pre-configured scope.
 
 </td>
 </tr>

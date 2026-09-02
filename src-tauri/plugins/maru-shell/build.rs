@@ -4,8 +4,9 @@ const COMMANDS: &[&str] = &[
   "set_tab_bar_hidden",
   "impact",
   "notify",
-  "selection",
+  "prepare_haptics",
   "watch_tabs",
+  "unwatch_tabs",
 ];
 
 fn main() {

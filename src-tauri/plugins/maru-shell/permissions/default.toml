@@ -6,6 +6,7 @@ permissions = [
   "allow-set-tab-bar-hidden",
   "allow-impact",
   "allow-notify",
-  "allow-selection",
+  "allow-prepare-haptics",
   "allow-watch-tabs",
+  "allow-unwatch-tabs",
 ]

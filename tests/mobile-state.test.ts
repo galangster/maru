@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest'
 import type { Thread } from '@/core/types'
 import {
   MOBILE_TABS,
+  MOBILE_TAB_CHROME,
   buildMobileRowModel,
   inboxBadgeValue,
   indexOfTab,
   initialMobileRoute,
   mobileRouteReducer,
+  nativeTabs,
   resolveSwipeIntent,
   tabAtIndex,
 } from '@/mobile/state'
@@ -119,6 +121,26 @@ describe('mobile row model', () => {
 describe('native tab bar positions', () => {
   it('agrees with the order the Swift plugin declares its items in', () => {
     expect(MOBILE_TABS).toEqual(['inbox', 'search', 'settings'])
+  })
+
+  it('hands the plugin one descriptor per tab, in MOBILE_TABS order', () => {
+    // Swift writes no tab list. This array is what the bar is built from, so
+    // the mapping is the contract and belongs under test.
+    expect(nativeTabs()).toEqual([
+      { title: 'Inbox', symbol: 'tray' },
+      { title: 'Search', symbol: 'magnifyingglass' },
+      { title: 'Settings', symbol: 'gearshape' },
+    ])
+    expect(nativeTabs()).toHaveLength(MOBILE_TABS.length)
+  })
+
+  it('names and draws every tab, on both bars', () => {
+    for (const tab of MOBILE_TABS) {
+      const chrome = MOBILE_TAB_CHROME[tab]
+      expect(chrome.label).toBeTruthy()
+      expect(chrome.icon).toBeTruthy()
+      expect(chrome.symbol).toBeTruthy()
+    }
   })
 
   it('round-trips a tab through its index', () => {

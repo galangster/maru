@@ -1,6 +1,8 @@
+import type { IconName } from '@/components/ui/icon'
 import type { VaultHistoryEntry } from '@/core/account'
 import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import type { NativeTab } from '@/platform/shell'
 
 export type MobileTab = 'inbox' | 'search' | 'settings'
 
@@ -17,6 +19,28 @@ export function tabAtIndex(index: number): MobileTab | null {
 
 export function indexOfTab(tab: MobileTab): number {
   return MOBILE_TABS.indexOf(tab)
+}
+
+/**
+ * What each tab is called and what draws it: an SF Symbol for the native bar,
+ * a Maru icon for the web fallback.
+ *
+ * One record, because there is one bar. Swift writes no tab list of its own —
+ * it is handed these descriptors when the web layer subscribes — so the labels
+ * the phone shows and the labels the browser preview shows cannot drift.
+ */
+export const MOBILE_TAB_CHROME: Record<MobileTab, { label: string; icon: IconName; symbol: string }> = {
+  inbox: { label: 'Inbox', icon: 'inbox', symbol: 'tray' },
+  search: { label: 'Search', icon: 'search', symbol: 'magnifyingglass' },
+  settings: { label: 'Settings', icon: 'settings', symbol: 'gearshape' },
+}
+
+/** The bar's items, in the order the native side addresses them by. */
+export function nativeTabs(): NativeTab[] {
+  return MOBILE_TABS.map((tab) => ({
+    title: MOBILE_TAB_CHROME[tab].label,
+    symbol: MOBILE_TAB_CHROME[tab].symbol,
+  }))
 }
 
 /** Above this the badge stops counting and starts saying "a lot". */

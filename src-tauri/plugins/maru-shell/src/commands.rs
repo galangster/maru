@@ -37,14 +37,23 @@ pub(crate) async fn notify<R: Runtime>(app: AppHandle<R>, kind: String) -> Resul
 }
 
 #[command]
-pub(crate) async fn selection<R: Runtime>(app: AppHandle<R>) -> Result<()> {
-  app.maru_shell().selection().await
+pub(crate) async fn prepare_haptics<R: Runtime>(app: AppHandle<R>) -> Result<()> {
+  app.maru_shell().prepare_haptics().await
 }
 
 #[command]
 pub(crate) async fn watch_tabs<R: Runtime>(
   app: AppHandle<R>,
-  channel: Channel<serde_json::Value>,
+  channel: Channel<TabSelected>,
+  tabs: Vec<TabDescriptor>,
 ) -> Result<()> {
-  app.maru_shell().watch_tabs(WatchTabsRequest { channel }).await
+  app
+    .maru_shell()
+    .watch_tabs(WatchTabsRequest { channel, tabs })
+    .await
+}
+
+#[command]
+pub(crate) async fn unwatch_tabs<R: Runtime>(app: AppHandle<R>) -> Result<()> {
+  app.maru_shell().unwatch_tabs().await
 }
