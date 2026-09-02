@@ -407,54 +407,6 @@ html[data-input-modality='keyboard']
   gap: 8px;
 }
 
-.mobile-account-lens {
-  position: relative;
-  min-width: 0;
-  margin-inline-end: auto;
-}
-
-.mobile-account-lens select {
-  min-height: 44px;
-  /* `em`, not px. A fixed 170px cap does not grow with Dynamic Type, so at the
-     accessibility sizes "All inboxes" was hard-clipped to "All inb" — clipped,
-     not even ellipsised. 11em is the same 165px at the default size and keeps
-     that proportion all the way up, and `100%` is what stops it crowding Edit
-     on a narrow phone. */
-  max-width: min(11em, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  appearance: none;
-  border: 0;
-  border-radius: var(--wren-radius-md);
-  padding: 0 30px 0 12px;
-  background: var(--wren-surface);
-  color: var(--wren-text-1);
-  box-shadow: var(--wren-shadow-xs);
-  font-family: var(--wren-font-ui);
-  font-size: var(--mobile-text-subhead);
-  font-weight: 600;
-}
-
-.mobile-account-lens::after {
-  content: '';
-  position: absolute;
-  inset-inline-end: 12px;
-  /* Centred rather than pinned at 18px, which only centred it against the 44px
-     minimum height and drifted upward as soon as Dynamic Type made the control
-     taller. `translate` is its own property, so it composes with the rotation
-     below instead of being overwritten by it, and it takes half the box's real
-     height rather than a rounded 4px. */
-  top: 50%;
-  translate: 0 -50%;
-  width: 7px;
-  height: 7px;
-  border-inline-end: 1.5px solid currentColor;
-  border-block-end: 1.5px solid currentColor;
-  transform: rotate(45deg);
-  pointer-events: none;
-}
-
 .mobile-nav-text,
 .mobile-send-button {
   min-height: 44px;

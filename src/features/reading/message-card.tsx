@@ -14,6 +14,7 @@ import { AttachmentChip } from './attachment-chip'
 import { PhotoGrid } from './photo-grid'
 import { isPreviewableImage } from '@/lib/format'
 import { MessageBody } from './message-body'
+import { BLOCKED_IMAGES } from './remote-images'
 
 export interface MessageCardProps {
   threadKey: string
@@ -93,15 +94,15 @@ export function MessageCard({
         <div className="bg-sunken text-ink-2 mt-4 flex items-center gap-2 rounded-xs px-3 py-2 text-sm">
           <Icon name="imageOff" size={16} className="text-ink-3" />
           <span className="flex-1">
-            Remote images blocked
-            <span className="text-ink-3"> · they can tell the sender you opened this</span>
+            {BLOCKED_IMAGES.notice}
+            <span className="text-ink-3"> · {BLOCKED_IMAGES.why}</span>
           </span>
           <button
             type="button"
             onClick={onAllowImages}
             className="font-ui text-brand hover:text-brand-hover focus-ring shrink-0 rounded-xs text-sm font-medium"
           >
-            Show
+            {BLOCKED_IMAGES.action}
           </button>
         </div>
       )}

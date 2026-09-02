@@ -1,7 +1,7 @@
 import type { Account, MailView } from '@/core/types'
-import { useLabels } from '@/features/mail/queries'
+import { useUserLabels } from '@/features/mail/queries'
 import { viewKey } from '@/features/mail/ui-store'
-import { BottomSheet } from '../components/bottom-sheet'
+import { BottomSheet, SheetAction } from '../components/bottom-sheet'
 import { MobileIcon } from '../components/mobile-icon'
 import { labelMailboxes, mailboxSections, type MobileMailbox } from '../mailboxes'
 
@@ -59,8 +59,8 @@ function AccountLabels({
   currentKey: string
   onPick: (view: MailView) => void
 }) {
-  const labels = useLabels(account.id)
-  const mailboxes = labelMailboxes(account.id, labels.data ?? [])
+  const userLabels = useUserLabels(account.id)
+  const mailboxes = labelMailboxes(account.id, userLabels)
   if (mailboxes.length === 0) return null
   return (
     <MailboxGroup
@@ -87,22 +87,15 @@ function MailboxGroup({
     <section className="mobile-sheet-group" aria-label={title}>
       <h3>{title}</h3>
       <div className="mobile-action-list">
-        {mailboxes.map((item) => {
-          const current = item.key === currentKey
-          return (
-            <button
-              key={item.key}
-              type="button"
-              className={current ? 'is-current' : ''}
-              aria-current={current ? 'true' : undefined}
-              onClick={() => onPick(item.view)}
-            >
-              <span className="mobile-sheet-icon"><MobileIcon name={item.icon} scale="action" /></span>
-              <span>{item.name}</span>
-              {current && <MobileIcon name="check" scale="action" />}
-            </button>
-          )
-        })}
+        {mailboxes.map((item) => (
+          <SheetAction
+            key={item.key}
+            icon={<MobileIcon name={item.icon} scale="action" />}
+            label={item.name}
+            selected={item.key === currentKey}
+            onClick={() => onPick(item.view)}
+          />
+        ))}
       </div>
     </section>
   )

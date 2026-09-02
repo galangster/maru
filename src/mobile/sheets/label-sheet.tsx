@@ -1,6 +1,6 @@
 import type { Thread } from '@/core/types'
-import { useLabels, useModifyLabels, useThread } from '@/features/mail/queries'
-import { BottomSheet } from '../components/bottom-sheet'
+import { toggleLabelChange, useModifyLabels, useThread, useUserLabels } from '@/features/mail/queries'
+import { BottomSheet, SheetAction } from '../components/bottom-sheet'
 import { MobileIcon } from '../components/mobile-icon'
 
 /**
@@ -15,9 +15,8 @@ import { MobileIcon } from '../components/mobile-icon'
 export function LabelSheet({ thread, onClose }: { thread: Thread; onClose: () => void }) {
   const detail = useThread(thread.key)
   const live = detail.data?.thread ?? thread
-  const labels = useLabels(live.accountId)
   const modify = useModifyLabels()
-  const userLabels = (labels.data ?? []).filter((label) => label.type === 'user')
+  const userLabels = useUserLabels(live.accountId)
 
   return (
     <BottomSheet title="Labels" onClose={onClose}>
@@ -28,25 +27,17 @@ export function LabelSheet({ thread, onClose }: { thread: Thread; onClose: () =>
           {userLabels.map((label) => {
             const on = live.labelIds.includes(label.id)
             return (
-              <button
+              <SheetAction
                 key={label.id}
-                type="button"
-                className={on ? 'is-current' : ''}
-                aria-pressed={on}
+                icon={<MobileIcon name="listBullet" scale="action" />}
+                label={label.name}
+                selected={on}
+                toggle
                 disabled={modify.isPending}
                 onClick={() =>
-                  modify.mutate({
-                    threadKey: live.key,
-                    changes: on
-                      ? { addLabelIds: [], removeLabelIds: [label.id] }
-                      : { addLabelIds: [label.id], removeLabelIds: [] },
-                  })
+                  modify.mutate({ threadKey: live.key, changes: toggleLabelChange(label.id, on) })
                 }
-              >
-                <span className="mobile-sheet-icon"><MobileIcon name="listBullet" scale="action" /></span>
-                <span>{label.name}</span>
-                {on && <MobileIcon name="check" scale="action" />}
-              </button>
+              />
             )
           })}
         </div>

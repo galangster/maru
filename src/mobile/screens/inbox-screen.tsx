@@ -2,9 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 
 import type { IconName } from '@/components/ui/icon'
-import { FOLDERS, viewLabel } from '@/core/defaults'
-import type { MailActionType, MailView, Thread } from '@/core/types'
+import { viewLabel } from '@/core/defaults'
+import type { MailView, Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
+import type { BulkActionType } from '@/features/list/bulk'
+import { emptyCopyFor } from '@/features/list/inbox-zero'
 import { LATER_DISCLOSURE } from '@/features/list/later-picker'
 import { useAccountsById, useThreads } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
@@ -14,7 +16,7 @@ import { useNow } from '@/lib/use-now'
 import { EmptyInbox, MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
-import { emptyMailboxCopy } from '../mailboxes'
+import { mailboxIcon } from '../mailboxes'
 import {
   buildMobileRowModel,
   deferTarget,
@@ -26,6 +28,28 @@ import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
 const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
+
+/**
+ * The Edit bar, in the order the thumb reads it.
+ *
+ * The four verbs are typed `BulkActionType`, so bulk.ts decides what a batch
+ * may take and a verb it refuses will not compile here — Star included, and
+ * bulk.ts says why it is refused. Later is `null` rather than a sixth verb
+ * because it is not one: `runBatchDefer` is `runBatchAction`'s sibling and not
+ * a member of it, so Later leaves through `onLater` carrying each
+ * conversation's prior wake time with it.
+ *
+ * There is no "Done" here either. Edit's own control in the nav row already
+ * says Done, and the room a duplicate would take is what Trash, Read and
+ * Unread now use.
+ */
+const BULK_BAR: readonly { type: BulkActionType | null; icon: IconName; label: string }[] = [
+  { type: 'archive', icon: 'archive', label: 'Archive' },
+  { type: null, icon: 'calendar', label: 'Later' },
+  { type: 'trash', icon: 'trash', label: 'Trash' },
+  { type: 'markRead', icon: 'read', label: 'Read' },
+  { type: 'markUnread', icon: 'unread', label: 'Unread' },
+]
 
 interface InboxRow {
   thread: Thread
@@ -64,7 +88,7 @@ export function InboxScreen({
   onSearch: () => void
   onMailboxes: () => void
   /** One verb over one or many threads — a swipe, or the Edit bar's batch. */
-  onAct: (keys: string[], type: MailActionType) => void
+  onAct: (keys: string[], type: BulkActionType) => void
   onLater: (targets: DeferTarget[]) => void
   onContext: (thread: Thread) => void
   onStar: (thread: Thread) => void
@@ -87,11 +111,6 @@ export function InboxScreen({
   const service = useMailService()
   // Inbox zero earns the character; an empty Sent or an empty label does not.
   const isInbox = view.kind !== 'later' && viewLabel(view) === 'INBOX'
-  const emptyIcon: IconName = view.kind === 'later'
-    ? 'calendar'
-    : view.kind === 'unified'
-      ? (FOLDERS.find((folder) => folder.folder === view.folder)?.icon ?? 'inbox')
-      : 'listBullet'
   const query = useThreads(view)
   const threads = query.data ?? []
   // Pausing starts here: the previous array is handed straight back, so a
@@ -272,7 +291,7 @@ export function InboxScreen({
             `getTotalSize()`, and so no row in a `display: none` list for the
             ResizeObserver to measure as zero pixels tall. */}
         {paused ? null : query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? (
-          isInbox ? <EmptyInbox /> : <MobilePrompt icon={<MobileIcon name={emptyIcon} scale="hero" />} {...emptyMailboxCopy(view, title)} />
+          isInbox ? <EmptyInbox /> : <EmptyMailbox view={view} title={title} />
         ) : (
           <div ref={list} className="mobile-thread-list" aria-describedby={SWIPE_HINT_ID} style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -306,20 +325,40 @@ export function InboxScreen({
       <p className="sr-only" id={SWIPE_HINT_ID}>Swipe right to archive or left to save for later. Long press for more actions.</p>
 
       {editing && (
-        /* Five verbs, and no sixth "Done": Edit's own control in the nav row
-           already says Done, and the room a duplicate would take is what Trash,
-           Read and Unread now use. Star is deliberately absent here for the
-           same reason the desktop's batch refuses it — a bulk star is how forty
-           threads end up starred and the star stops meaning anything. */
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-          <button type="button" disabled={selectedRows.length === 0} onClick={() => onAct(selectedRows.map((row) => row.thread.key), 'archive')}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
-          <button type="button" disabled={selectedRows.length === 0} onClick={() => onLater(selectedRows.map((row) => deferTarget(row.thread)))}><MobileIcon name="calendar" scale="action" /><span>Later</span></button>
-          <button type="button" disabled={selectedRows.length === 0} onClick={() => onAct(selectedRows.map((row) => row.thread.key), 'trash')}><MobileIcon name="trash" scale="action" /><span>Trash</span></button>
-          <button type="button" disabled={selectedRows.length === 0} onClick={() => onAct(selectedRows.map((row) => row.thread.key), 'markRead')}><MobileIcon name="read" scale="action" /><span>Read</span></button>
-          <button type="button" disabled={selectedRows.length === 0} onClick={() => onAct(selectedRows.map((row) => row.thread.key), 'markUnread')}><MobileIcon name="unread" scale="action" /><span>Unread</span></button>
+          {BULK_BAR.map((verb) => (
+            <button
+              key={verb.label}
+              type="button"
+              disabled={selectedRows.length === 0}
+              onClick={() =>
+                verb.type === null
+                  ? onLater(selectedRows.map((row) => deferTarget(row.thread)))
+                  : onAct(selectedRows.map((row) => row.thread.key), verb.type)
+              }
+            >
+              <MobileIcon name={verb.icon} scale="action" /><span>{verb.label}</span>
+            </button>
+          ))}
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Every mailbox but the inbox, empty. The copy is the desktop's own table
+ * (inbox-zero.ts, phone column) and the glyph is the same one the picker drew
+ * the row with, so a mailbox looks like itself wherever it is empty.
+ */
+function EmptyMailbox({ view, title }: { view: MailView; title: string }) {
+  const copy = emptyCopyFor(view, title, 'phone')
+  return (
+    <MobilePrompt
+      icon={<MobileIcon name={mailboxIcon(view)} scale="hero" />}
+      title={copy.title}
+      copy={copy.subtitle}
+    />
   )
 }
 

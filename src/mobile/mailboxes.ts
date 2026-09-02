@@ -11,6 +11,7 @@
 import type { IconName } from '@/components/ui/icon'
 import { FOLDERS } from '@/core/defaults'
 import type { Account, Label, MailView } from '@/core/types'
+import { mailboxTitle } from '@/features/mail/mailbox-title'
 import { viewKey } from '@/features/mail/ui-store'
 
 export interface MobileMailbox {
@@ -31,11 +32,32 @@ export interface MobileMailboxSection {
   mailboxes: MobileMailbox[]
 }
 
-const UNIFIED_INBOX: MailView = { kind: 'unified', folder: 'inbox' }
+/** Where the list starts, and where the Inbox tab always lands. */
+export const UNIFIED_INBOX: MailView = { kind: 'unified', folder: 'inbox' }
 const LATER_VIEW: MailView = { kind: 'later' }
 
-function mailbox(name: string, icon: IconName, view: MailView): MobileMailbox {
-  return { key: viewKey(view), name, icon, view }
+/**
+ * What the phone calls the unified inbox. Not the desktop's word: the picker
+ * lists it directly above the per-account inboxes, where "Inbox" over
+ * "Personal" and "Work" reads as a fourth account.
+ */
+export const ALL_INBOXES = 'All inboxes'
+
+/**
+ * The glyph a mailbox is drawn with, wherever it is drawn — a picker row, or
+ * the hero of its own empty state. Derived from the view rather than carried
+ * beside it, so the two cannot show the same mailbox as two different things.
+ */
+export function mailboxIcon(view: MailView): IconName {
+  if (view.kind === 'later') return 'calendar'
+  if (view.kind === 'unified') {
+    return FOLDERS.find((folder) => folder.folder === view.folder)?.icon ?? 'inbox'
+  }
+  return view.labelId === 'INBOX' ? 'inbox' : 'listBullet'
+}
+
+function mailbox(name: string, view: MailView): MobileMailbox {
+  return { key: viewKey(view), name, icon: mailboxIcon(view), view }
 }
 
 /**
@@ -47,10 +69,10 @@ function mailbox(name: string, icon: IconName, view: MailView): MobileMailbox {
  * `labelMailboxes` — this half stays pure and stays synchronous.
  */
 export function mailboxSections(accounts: Account[]): MobileMailboxSection[] {
-  const inboxes = [mailbox('All inboxes', 'inbox', UNIFIED_INBOX)]
+  const inboxes = [mailbox(ALL_INBOXES, UNIFIED_INBOX)]
   for (const account of accounts) {
     inboxes.push(
-      mailbox(account.displayName, 'inbox', {
+      mailbox(account.displayName, {
         kind: 'account',
         accountId: account.id,
         labelId: 'INBOX',
@@ -59,9 +81,9 @@ export function mailboxSections(accounts: Account[]): MobileMailboxSection[] {
   }
 
   const others = FOLDERS.filter((folder) => folder.folder !== 'inbox').map((folder) =>
-    mailbox(folder.name, folder.icon, { kind: 'unified', folder: folder.folder }),
+    mailbox(folder.name, { kind: 'unified', folder: folder.folder }),
   )
-  others.push(mailbox('Later', 'calendar', LATER_VIEW))
+  others.push(mailbox('Later', LATER_VIEW))
 
   return [
     { title: 'Inboxes', mailboxes: inboxes },
@@ -69,52 +91,25 @@ export function mailboxSections(accounts: Account[]): MobileMailboxSection[] {
   ]
 }
 
-/** One account's user labels as mailboxes. System labels are the FOLDERS above. */
-export function labelMailboxes(accountId: string, labels: Label[]): MobileMailbox[] {
-  return labels
-    .filter((label) => label.type === 'user')
-    .map((label) =>
-      mailbox(label.name, 'listBullet', { kind: 'account', accountId, labelId: label.id }),
-    )
+/**
+ * One account's user labels as mailboxes. The caller hands in the user labels
+ * — `useUserLabels` is where the system ones are dropped, for every label
+ * surface at once. System labels are the FOLDERS table above.
+ */
+export function labelMailboxes(accountId: string, userLabels: Label[]): MobileMailbox[] {
+  return userLabels.map((label) =>
+    mailbox(label.name, { kind: 'account', accountId, labelId: label.id }),
+  )
 }
 
 /**
- * What the inbox header calls the mailbox on screen — the phone's twin of the
- * desktop list header's title, including its `?? 'Label'` fallback for a label
- * whose name has not arrived yet.
+ * What the inbox header calls the mailbox on screen — the desktop's own
+ * `mailboxTitle`, in the phone's word for the unified inbox.
  */
-export function mailboxTitle(view: MailView, accounts: Account[], labelName?: string): string {
-  if (view.kind === 'later') return 'Later'
-  if (view.kind === 'unified') {
-    if (view.folder === 'inbox') return 'All inboxes'
-    return FOLDERS.find((folder) => folder.folder === view.folder)?.name ?? 'Mail'
-  }
-  if (view.labelId === 'INBOX') {
-    return accounts.find((account) => account.id === view.accountId)?.displayName ?? 'Inbox'
-  }
-  return labelName ?? 'Label'
-}
-
-/**
- * What an empty mailbox says. One table, because "Nothing here" four times
- * over is the shape of a list that does not know what it holds — and because
- * three of these four are the only place the phone explains what the mailbox
- * is FOR.
- *
- * The inbox is deliberately absent: inbox zero earns the character and its own
- * copy, and this is what every other mailbox gets instead.
- */
-export function emptyMailboxCopy(view: MailView, title: string): { title: string; copy: string } {
-  if (view.kind === 'later') {
-    return {
-      title: 'Nothing saved for later',
-      copy: 'Swipe a conversation left to put it off until a better time. It comes back to your inbox on its own.',
-    }
-  }
-  if (view.kind === 'unified') {
-    if (view.folder === 'sent') return { title: 'Nothing sent yet', copy: 'Messages you send show up here.' }
-    if (view.folder === 'trash') return { title: 'Trash is empty', copy: 'Conversations you delete wait here before they go.' }
-    if (view.folder === 'starred') return { title: 'Nothing starred', copy: 'Star a conversation to keep it within reach.' }
-  }
-  return { title: `Nothing in ${title}`, copy: 'Mail with this label shows up here.' }
+export function mobileMailboxTitle(
+  view: MailView,
+  accounts: Account[],
+  labelName?: string,
+): string {
+  return mailboxTitle(view, accounts, labelName, ALL_INBOXES)
 }

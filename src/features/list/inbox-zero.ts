@@ -9,16 +9,44 @@ import type { EmptyCopy, EmptyTier } from '@/components/empty-state'
 import type { MailView } from '@/core/types'
 import { claimCelebration } from '@/lib/celebrate'
 
-export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
+/**
+ * Which shell is asking.
+ *
+ * The two columns below disagree deliberately and are kept side by side so the
+ * disagreement stays deliberate. The desktop says thread; the phone says
+ * conversation, and its empty mailbox is the only screen on which it can
+ * explain the swipe that fills the mailbox — a phone has the room for the
+ * sentence and a list header does not.
+ */
+export type EmptySurface = 'desktop' | 'phone'
+
+/**
+ * What an empty mail view says.
+ *
+ * `labelName` names a user label, and on the phone it is the mailbox title the
+ * picker was closed on, which for a label view is the same string.
+ */
+export function emptyCopyFor(
+  view: MailView,
+  labelName?: string,
+  surface: EmptySurface = 'desktop',
+): EmptyCopy {
+  const phone = surface === 'phone'
   // Later, empty, is the ordinary state and not an achievement — nothing was
   // cleared, there was simply nothing put off. The subtitle carries the
   // one-line why DIRECTION §2 Family 2 requires: an empty view has to say what
   // WOULD be here, or it reads as a broken one.
   if (view.kind === 'later') {
-    return {
-      title: 'Nothing waiting',
-      subtitle: 'Threads you save for later come back here, then to your inbox.',
-    }
+    return phone
+      ? {
+          title: 'Nothing saved for later',
+          subtitle:
+            'Swipe a conversation left to put it off until a better time. It comes back to your inbox on its own.',
+        }
+      : {
+          title: 'Nothing waiting',
+          subtitle: 'Threads you save for later come back here, then to your inbox.',
+        }
   }
   if (view.kind === 'unified') {
     switch (view.folder) {
@@ -26,6 +54,9 @@ export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
       // inbox that was already quiet when you arrived is not an achievement,
       // and congratulating someone for it is the same mistake as
       // congratulating them for an empty Trash.
+      //
+      // The phone never asks for this cell: inbox zero earns the character and
+      // its own screen there, and every other mailbox gets this table instead.
       case 'inbox':
         return {
           title: 'The inbox is quiet',
@@ -34,17 +65,32 @@ export function emptyCopyFor(view: MailView, labelName?: string): EmptyCopy {
       case 'starred':
         return {
           title: 'Nothing starred',
-          subtitle: 'Star a thread and it keeps its place here for you.',
+          subtitle: phone
+            ? 'Star a conversation to keep it within reach.'
+            : 'Star a thread and it keeps its place here for you.',
         }
       // Not "sent from Maru" — Sent is Gmail's own mailbox, so it holds mail
       // sent from any client.
       case 'sent':
         return {
           title: 'Nothing sent yet',
-          subtitle: 'The first thing you send will show up here.',
+          subtitle: phone
+            ? 'Messages you send show up here.'
+            : 'The first thing you send will show up here.',
         }
       case 'trash':
-        return { title: 'Trash is empty', subtitle: 'Deleted threads rest here before Gmail clears them.' }
+        return {
+          title: 'Trash is empty',
+          subtitle: phone
+            ? 'Conversations you delete wait here before they go.'
+            : 'Deleted threads rest here before Gmail clears them.',
+        }
+    }
+  }
+  if (phone) {
+    return {
+      title: labelName ? `Nothing in ${labelName}` : 'Nothing here yet',
+      subtitle: 'Mail with this label shows up here.',
     }
   }
   return {

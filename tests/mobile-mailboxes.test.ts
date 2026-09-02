@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Account, Label, MailView } from '@/core/types'
+import { mailboxTitle } from '@/features/mail/mailbox-title'
 import { viewKey } from '@/features/mail/ui-store'
-import { labelMailboxes, mailboxSections, mailboxTitle } from '@/mobile/mailboxes'
+import { labelMailboxes, mailboxIcon, mailboxSections, mobileMailboxTitle } from '@/mobile/mailboxes'
 
 const ACCOUNTS: Account[] = [
   { id: 'demo-personal', email: 'nick@gmail.com', displayName: 'Personal', color: '#000', addedAt: 0 },
@@ -38,8 +39,10 @@ describe('mobile mailboxes', () => {
     expect(inboxes.mailboxes[1].key).toBe(viewKey(personal))
   })
 
-  it('lists a user label per row and no system label', () => {
-    const boxes = labelMailboxes('demo-personal', LABELS)
+  it('lists one row per label, addressed at that account', () => {
+    // The system labels are already gone: `useUserLabels` drops them once, for
+    // every label surface, and this takes what it is given.
+    const boxes = labelMailboxes('demo-personal', LABELS.filter((label) => label.type === 'user'))
     expect(boxes.map((box) => box.name)).toEqual(['Travel', 'Receipts'])
     expect(boxes[0].view).toEqual({
       kind: 'account',
@@ -48,15 +51,27 @@ describe('mobile mailboxes', () => {
     })
   })
 
+  it('draws a mailbox with the same glyph wherever it is drawn', () => {
+    // The picker row and that mailbox's own empty state ask the same function,
+    // so a mailbox cannot look like two different things.
+    expect(mailboxIcon({ kind: 'later' })).toBe('calendar')
+    expect(mailboxIcon({ kind: 'unified', folder: 'trash' })).toBe('trash')
+    expect(mailboxIcon({ kind: 'account', accountId: 'demo-personal', labelId: 'INBOX' })).toBe('inbox')
+    expect(mailboxIcon({ kind: 'account', accountId: 'demo-personal', labelId: 'Label_travel' })).toBe('listBullet')
+    for (const section of mailboxSections(ACCOUNTS)) {
+      for (const box of section.mailboxes) expect(box.icon).toBe(mailboxIcon(box.view))
+    }
+  })
+
   it('names the mailbox on screen the way the desktop list header does', () => {
-    expect(mailboxTitle({ kind: 'later' }, ACCOUNTS)).toBe('Later')
-    expect(mailboxTitle({ kind: 'unified', folder: 'inbox' }, ACCOUNTS)).toBe('All inboxes')
-    expect(mailboxTitle({ kind: 'unified', folder: 'sent' }, ACCOUNTS)).toBe('Sent')
+    expect(mobileMailboxTitle({ kind: 'later' }, ACCOUNTS)).toBe('Later')
+    expect(mobileMailboxTitle({ kind: 'unified', folder: 'inbox' }, ACCOUNTS)).toBe('All inboxes')
+    expect(mobileMailboxTitle({ kind: 'unified', folder: 'sent' }, ACCOUNTS)).toBe('Sent')
     expect(
-      mailboxTitle({ kind: 'account', accountId: 'demo-work', labelId: 'INBOX' }, ACCOUNTS),
+      mobileMailboxTitle({ kind: 'account', accountId: 'demo-work', labelId: 'INBOX' }, ACCOUNTS),
     ).toBe('Work')
     expect(
-      mailboxTitle(
+      mobileMailboxTitle(
         { kind: 'account', accountId: 'demo-personal', labelId: 'Label_travel' },
         ACCOUNTS,
         'Travel',
@@ -64,10 +79,24 @@ describe('mobile mailboxes', () => {
     ).toBe('Travel')
   })
 
+  it('keeps the desktop\'s own word for the unified inbox', () => {
+    // The one cell the two shells disagree on. The desktop sits beside a
+    // sidebar row that says Inbox; the phone's picker lists it above Personal
+    // and Work, where Inbox would read as a fourth account.
+    expect(mailboxTitle({ kind: 'unified', folder: 'inbox' }, ACCOUNTS)).toBe('Inbox')
+    expect(mobileMailboxTitle({ kind: 'unified', folder: 'inbox' }, ACCOUNTS)).toBe('All inboxes')
+    // And one account's inbox is that account, on both. It used to be titled
+    // from the label lookup on the desktop, and a Gmail system label's name is
+    // its id, so that header read INBOX in capitals.
+    expect(
+      mailboxTitle({ kind: 'account', accountId: 'demo-work', labelId: 'INBOX' }, ACCOUNTS),
+    ).toBe('Work')
+  })
+
   it('falls back rather than drawing an empty title while a label loads', () => {
     // The labels query is per account and arrives after the first frame.
     expect(
-      mailboxTitle({ kind: 'account', accountId: 'demo-personal', labelId: 'Label_travel' }, ACCOUNTS),
+      mobileMailboxTitle({ kind: 'account', accountId: 'demo-personal', labelId: 'Label_travel' }, ACCOUNTS),
     ).toBe('Label')
   })
 })

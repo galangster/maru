@@ -1,4 +1,4 @@
-import { lazy, useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import type { Account, MailActionType, MailView } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
@@ -12,14 +12,15 @@ import {
   useAccountsById,
   useWakeSweep,
 } from '@/features/mail/queries'
-import { isBulkAction, runBatchAction, runBatchDefer } from '@/features/list/bulk'
+import { runBatchAction, runBatchDefer, type BulkActionType } from '@/features/list/bulk'
 import { usePush } from '@/features/notifications/use-push'
+import { labelNameFor } from '@/features/mail/mailbox-title'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { viewOverride } from '@/lib/env'
 import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
-import { mailboxTitle } from './mailboxes'
+import { UNIFIED_INBOX, mobileMailboxTitle } from './mailboxes'
 import { InboxScreen } from './screens/inbox-screen'
 import { SearchScreen } from './screens/search-screen'
 import { SettingsScreen } from './screens/settings-screen'
@@ -50,9 +51,6 @@ import './mobile.css'
 const AccountScreen = lazy(() =>
   import('./screens/account/account-screen').then((module) => ({ default: module.AccountScreen })),
 )
-
-/** Where the list starts, and where the Inbox tab always lands. */
-const UNIFIED_INBOX: MailView = { kind: 'unified', folder: 'inbox' }
 
 export function MobileApp() {
   useThemeEffect()
@@ -98,12 +96,13 @@ export function MobileApp() {
   const { accounts } = useAccountsById()
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
-  const mailboxName = mailboxTitle(
-    mailbox,
-    accounts,
-    mailbox.kind === 'account'
-      ? (mailboxLabels.data ?? []).find((label) => label.id === mailbox.labelId)?.name
-      : undefined,
+  // Memoized because it is handed to the inbox, which is mounted for the life
+  // of the app and virtualizes its rows: a fresh string on every render of the
+  // shell is a prop change on every render of the list.
+  const labelName = labelNameFor(mailbox, mailboxLabels.data)
+  const mailboxName = useMemo(
+    () => mobileMailboxTitle(mailbox, accounts, labelName),
+    [mailbox, accounts, labelName],
   )
   const route = navigation.stack[navigation.stack.length - 1]
   const screen = visibleScreen(navigation)
@@ -129,7 +128,9 @@ export function MobileApp() {
   }
   /**
    * One verb over a list of conversations — a swipe over one, or the Edit
-   * bar's batch.
+   * bar's batch. `BulkActionType` is the guard rather than a runtime check:
+   * bulk.ts decides what a batch may take, so a verb it refuses — Star, above
+   * all — will not compile here.
    *
    * The batch goes through the desktop's own `runBatchAction` rather than a
    * loop over `act` (issue 8). The loop registered one undoable per
@@ -140,12 +141,9 @@ export function MobileApp() {
    * One row keeps the single-thread toast, because "Archived" beside the row
    * you just flicked is the better sentence and its undo was never wrong.
    */
-  const actMany = (threadKeys: string[], type: MailActionType) => {
+  const actMany = (threadKeys: string[], type: BulkActionType) => {
     if (threadKeys.length === 0) return
-    if (threadKeys.length === 1 || !isBulkAction(type)) {
-      for (const threadKey of threadKeys) act(threadKey, type)
-      return
-    }
+    if (threadKeys.length === 1) return act(threadKeys[0], type)
     announce(runBatchAction((next) => perform.mutate(next), threadKeys, type, 'conversation'))
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })

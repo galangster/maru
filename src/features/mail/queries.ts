@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { FOLDERS, threadMatchesView } from '@/core/defaults'
 import { applyActionToThread, reverseAction } from '@/core/service/actions'
 import type {
+  Label,
   LabelChanges,
   Account,
   EmailAddress,
@@ -87,6 +88,20 @@ export function useLabels(accountId: string | undefined) {
     queryFn: () => service.listLabels(accountId as string),
     enabled: Boolean(accountId),
   })
+}
+
+/**
+ * One account's user labels, which is what every label surface actually wants.
+ *
+ * The `type === 'user'` filter had been written out at four call sites — the
+ * phone's label sheet, its thread screen, its mailbox picker and the desktop's
+ * reading pane — and a fifth surface would have written a fifth copy. System
+ * labels are the `FOLDERS` table's business and are never rows in a label list.
+ */
+export function useUserLabels(accountId: string | undefined): Label[] {
+  const labels = useLabels(accountId)
+  const data = labels.data
+  return useMemo(() => (data ?? []).filter((label) => label.type === 'user'), [data])
 }
 
 export function useThreads(view: MailView) {
@@ -177,6 +192,19 @@ export function useModifyLabels() {
     mutationFn: (input: { threadKey: string; changes: LabelChanges }) =>
       service.modifyLabels(input.threadKey, input.changes),
   })
+}
+
+/**
+ * The change one label row makes, from the state it is in.
+ *
+ * `on` means the thread already carries the label, so the row takes it off.
+ * Both shells draw this row and both wrote the pair of arrays out by hand,
+ * which is one transposition away from a row that adds what it says it removes.
+ */
+export function toggleLabelChange(labelId: string, on: boolean): LabelChanges {
+  return on
+    ? { addLabelIds: [], removeLabelIds: [labelId] }
+    : { addLabelIds: [labelId], removeLabelIds: [] }
 }
 
 /** Patch settings and refresh every reader. Settings dialog, palette, pane. */

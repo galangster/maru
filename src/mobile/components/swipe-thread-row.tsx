@@ -12,12 +12,16 @@ import {
 import { usePointerDrag } from '../use-pointer-drag'
 import { useThresholdTick } from '../use-threshold-tick'
 
+/** A list with no selection mode passes none of the three below. */
+const NOT_SELECTABLE = () => {}
+
 interface SwipeThreadRowProps {
   thread: Thread
   model: MobileRowModel
-  editing: boolean
-  selected: boolean
-  onSelect: () => void
+  /** Selection mode, which only the inbox has. Absent means never in it. */
+  editing?: boolean
+  selected?: boolean
+  onSelect?: () => void
   onOpen: () => void
   onArchive: () => void
   onLater: () => void
@@ -27,9 +31,9 @@ interface SwipeThreadRowProps {
 
 export const SwipeThreadRow = memo(function SwipeThreadRow({
   model,
-  editing,
-  selected,
-  onSelect,
+  editing = false,
+  selected = false,
+  onSelect = NOT_SELECTABLE,
   onOpen,
   onArchive,
   onLater,

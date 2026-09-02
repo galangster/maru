@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Attachment, Message } from '@/core/types'
 import { useMessageBodyFrame } from '@/features/reading/message-body'
 import { usePhotoData } from '@/features/reading/photo-grid'
+import { BLOCKED_IMAGES } from '@/features/reading/remote-images'
 import { displayName, formatBytes, isPreviewableImage, relativeTime } from '@/lib/format'
 import { MobileIcon } from './mobile-icon'
 
@@ -75,8 +76,8 @@ function SafeMessageBody({
       {blocked > 0 && !allowRemoteImages && (
         <div className="mobile-blocked-images">
           <MobileIcon name="imageOff" scale="action" />
-          <span>Remote images blocked <small>· they can tell the sender you opened this</small></span>
-          <button type="button" onClick={onAllowImages}>Show</button>
+          <span>{BLOCKED_IMAGES.notice} <small>· {BLOCKED_IMAGES.why}</small></span>
+          <button type="button" onClick={onAllowImages}>{BLOCKED_IMAGES.action}</button>
         </div>
       )}
       <iframe

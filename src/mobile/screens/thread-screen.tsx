@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 
 import type { Message, Thread } from '@/core/types'
-import { useLabels, usePerformAction, useSettings, useThread } from '@/features/mail/queries'
+import { usePerformAction, useSettings, useThread, useUserLabels } from '@/features/mail/queries'
 import { useUi } from '@/features/mail/ui-store'
-import { expandedIds, toggleExpanded } from '@/features/reading/conversation'
+import { expandedIds, normalizeExpansion, toggleExpanded } from '@/features/reading/conversation'
+import { showRemoteImages } from '@/features/reading/remote-images'
 import type { ReplyMode } from '@/lib/compose'
 import { useNow } from '@/lib/use-now'
 import { MobileMessageCard } from '../components/message-card'
@@ -38,9 +39,8 @@ export function ThreadScreen({
   const perform = usePerformAction()
   const now = useNow()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const labels = useLabels(detail.data?.thread.accountId)
-  // The desktop's session-scoped override, not a phone-only copy of it: the
-  // Set can only OPEN what `imagePolicy` closed, never the other way round.
+  const userLabels = useUserLabels(detail.data?.thread.accountId)
+  // The desktop's session-scoped override, and its own reading of it.
   const imagesAllowed = useUi((state) => state.imagesAllowed)
   const allowImages = useUi((state) => state.allowImages)
   const edge = useEdgeBack(onBack)
@@ -54,14 +54,11 @@ export function ThreadScreen({
 
   if (!detail.data) return <MobileListSkeleton />
   const { thread, messages } = detail.data
-  // `?? 'block'` is fail-closed and is NOT a second copy of the default. It
-  // answers "may I fetch, not yet knowing what was chosen?", and being wrong
-  // the other way fetches remote images for someone who blocked them, once,
-  // unrecoverably. Same reading as the desktop pane.
-  const showImages = (settings.data?.imagePolicy ?? 'block') === 'allow' || imagesAllowed.has(thread.key)
-  const userLabels = (labels.data ?? []).filter((label) => label.type === 'user')
+  const showImages = showRemoteImages(thread.key, settings.data, imagesAllowed)
   const applied = userLabels.filter((label) => thread.labelIds.includes(label.id))
-  const allOpen = messages.length > 0 && messages.every((message) => expanded.has(message.id))
+  // `normalizeExpansion` owns the question, so this control and the desktop's
+  // `o` key cannot disagree about what "everything is open" means.
+  const allOpen = normalizeExpansion(expanded, messages) === 'all'
   return (
     <section
       className={`mobile-screen mobile-thread-screen${edge.settling ? ' is-settling' : ''}`}

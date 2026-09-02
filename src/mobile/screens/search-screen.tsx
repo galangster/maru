@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
-import type { MailActionType, Thread } from '@/core/types'
+import type { Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
+import type { BulkActionType } from '@/features/list/bulk'
 import { MIN_SEARCH_LENGTH, useAccountsById, useSearch } from '@/features/mail/queries'
 import { useNow } from '@/lib/use-now'
 import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
@@ -26,7 +27,7 @@ export function SearchScreen({
   onStar,
 }: {
   onOpen: (key: string) => void
-  onAct: (keys: string[], type: MailActionType) => void
+  onAct: (keys: string[], type: BulkActionType) => void
   onLater: (targets: DeferTarget[]) => void
   onContext: (thread: Thread) => void
   onStar: (thread: Thread) => void
@@ -35,6 +36,18 @@ export function SearchScreen({
   const results = useSearch(query)
   const { selfEmails } = useAccountsById()
   const now = useNow()
+  // Built once per result set, the way the inbox builds its own. `useNow`
+  // ticks every minute and every relative time on the screen comes off it, so
+  // without this the whole list of models — and every callback closed over one
+  // — was rebuilt each minute for rows that had not changed.
+  const rows = useMemo(
+    () =>
+      (results.data ?? []).map((thread) => ({
+        thread,
+        model: buildMobileRowModel(thread, selfEmails, now),
+      })),
+    [results.data, selfEmails, now],
+  )
   return (
     <section className="mobile-screen" aria-label="Search">
       <header className="mobile-nav mobile-search-nav">
@@ -53,18 +66,15 @@ export function SearchScreen({
       <div className="mobile-scroll mobile-search-results">
         {query.trim().length < MIN_SEARCH_LENGTH ? (
           <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="Find anything" copy="Search people, subjects, words, or use an operator above." />
-        ) : results.isPending ? <MobileListSkeleton /> : (results.data?.length ?? 0) === 0 ? (
+        ) : results.isPending ? <MobileListSkeleton /> : rows.length === 0 ? (
           <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="No results" copy="Try fewer words or a different operator." />
         ) : (
           <div className="mobile-thread-list" aria-describedby={SEARCH_HINT_ID}>
-            {results.data?.map((thread) => (
+            {rows.map(({ thread, model }) => (
               <SwipeThreadRow
                 key={thread.key}
                 thread={thread}
-                model={buildMobileRowModel(thread, selfEmails, now)}
-                editing={false}
-                selected={false}
-                onSelect={() => {}}
+                model={model}
                 onOpen={() => onOpen(thread.key)}
                 onArchive={() => onAct([thread.key], 'archive')}
                 onLater={() => onLater([deferTarget(thread)])}
