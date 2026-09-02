@@ -97,6 +97,13 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
  */
 .mobile-app {
   --mobile-tab-height: 84px;
+  /* Edit mode's second bar. Named because two rules have to agree on it: the
+     bar's own height and the room the list gives back for it. */
+  --mobile-bulk-height: 64px;
+  /* The composer's label column — "From", "To", "Subject". In `rem` so it
+     tracks Dynamic Type: as a fixed 54px the label overflowed its own box at
+     the accessibility sizes and printed straight over the field beside it. */
+  --mobile-field-label: 3.4rem;
   position: relative;
   min-height: 100dvh;
   isolation: isolate;
@@ -160,7 +167,24 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   touch-action: manipulation;
 }
 
-.mobile-app button {
+/*
+ * The button reset, and it has to be a *reset* — something every component
+ * rule outranks without having to know it exists.
+ *
+ * Written as `.mobile-app button` it was (0,1,1), which beat every
+ * single-class rule in the shell. `.mobile-account-primary` (0,1,0) asks for
+ * `color: var(--wren-accent-fg)` and `font-size: var(--mobile-text-body)`, and
+ * got neither: the phone drew "Sign in" in near-black body text on the coral
+ * fill, which is both the wrong colour and a contrast failure on the one
+ * button that matters most on that screen. Its `.is-destructive` sibling has
+ * two classes, so that one looked right — which is how a rule like this hides.
+ *
+ * `:where()` contributes no specificity, so this now sits below every author
+ * rule while still outranking the UA stylesheet, which is the only thing it
+ * was ever meant to beat. Third of three specificity faults this lane found;
+ * the other two are the `touch-action` note above and the row hairlines below.
+ */
+:where(.mobile-app) :where(button) {
   color: inherit;
   font: inherit;
 }
@@ -318,7 +342,15 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
 
 .mobile-account-lens select {
   min-height: 44px;
-  max-width: 170px;
+  /* `em`, not px. A fixed 170px cap does not grow with Dynamic Type, so at the
+     accessibility sizes "All inboxes" was hard-clipped to "All inb" — clipped,
+     not even ellipsised. 11em is the same 165px at the default size and keeps
+     that proportion all the way up, and `100%` is what stops it crowding Edit
+     on a narrow phone. */
+  max-width: min(11em, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   appearance: none;
   border: 0;
   border-radius: var(--wren-radius-md);
@@ -335,7 +367,11 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   content: '';
   position: absolute;
   inset-inline-end: 12px;
-  top: 18px;
+  /* Centred rather than pinned at 18px, which only centred it against the 44px
+     minimum height and drifted upward as soon as Dynamic Type made the control
+     taller. 4px is half the 7px box. */
+  top: 50%;
+  margin-block-start: -4px;
   width: 7px;
   height: 7px;
   border-inline-end: 1.5px solid currentColor;
@@ -675,7 +711,20 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
 .mobile-bulk-toolbar {
   position: fixed;
   bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom));
-  min-height: 64px;
+  min-height: var(--mobile-bulk-height);
+}
+
+/*
+ * Edit mode adds a second bar, so the list has to give back a second bar's
+ * worth of room. Without this the last few threads sit under the toolbar with
+ * no way to scroll them clear — which is the state you are in precisely when
+ * you are trying to select them.
+ *
+ * `:has()` rather than a flag threaded down from `editing`, because the
+ * toolbar being in the document *is* the condition, and the two cannot drift.
+ */
+.mobile-screen:has(.mobile-bulk-toolbar) .mobile-inbox-scroll {
+  padding-block-end: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom) + var(--mobile-bulk-height));
 }
 
 .mobile-bulk-toolbar button,
@@ -1077,8 +1126,29 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   padding: 8px 12px;
 }
 
+/*
+ * The separator between rows in a group, inset to the text the way iOS insets
+ * its own — the icon column reads as one continuous rail rather than as a
+ * stack of boxed cells.
+ *
+ * It was written as `inset 54px 1px 0`, which is not a hairline at all.
+ * `box-shadow` has no way to draw one edge: an inset shadow offset 54px to the
+ * right *floods* the leftmost 54px of the row with the colour and puts the
+ * 1px line above it. On the phone that painted a grey slab down the icon
+ * column of every row but the first, which is the "elements are inconsistent
+ * with others" in build 0.1.8 — the first row of each group looked right and
+ * none of the rest did.
+ *
+ * A background image is the honest one-edge line, and it needs neither a
+ * pseudo-element nor `position: relative` under rows that are already flex
+ * containers. 58px is the text column measured rather than guessed: 12px of
+ * padding, a 34px icon, then the 12px gap.
+ */
 .mobile-row + .mobile-row {
-  box-shadow: inset 54px 1px 0 var(--wren-hairline);
+  background-image: linear-gradient(var(--wren-hairline), var(--wren-hairline));
+  background-repeat: no-repeat;
+  background-position: 58px 0;
+  background-size: calc(100% - 58px) 1px;
 }
 
 .mobile-row-icon,
@@ -1201,6 +1271,7 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
 .mobile-sheet-nav {
   min-height: 56px;
   justify-content: space-between;
+  gap: 8px;
   padding-inline: 12px;
   box-shadow: inset 0 -1px 0 var(--wren-hairline);
 }
@@ -1209,6 +1280,26 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
 .mobile-bottom-sheet h2 {
   margin: 0;
   font: 600 var(--mobile-text-body)/var(--mobile-leading-normal) var(--wren-font-ui);
+}
+
+/*
+ * A flex item with text refuses to shrink below its content by default, so at
+ * the accessibility text sizes the composer's title did not squeeze — it
+ * *overflowed*, printing "New Message" across Cancel on one side and pushing
+ * Send off the right edge of the phone. The title is the part that can afford
+ * to lose characters; the two controls are not.
+ */
+.mobile-sheet-nav h2,
+.mobile-bottom-sheet > header h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-sheet-nav > button,
+.mobile-bottom-sheet > header button {
+  flex: 0 0 auto;
 }
 
 .mobile-send-button:disabled {
@@ -1232,7 +1323,6 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   align-items: center;
   gap: 10px;
   padding-inline: 16px 10px;
-  box-shadow: inset 16px -1px 0 var(--wren-hairline);
 }
 
 .mobile-compose-to-field {
@@ -1255,15 +1345,33 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   display: grid;
   min-width: 0;
   min-height: 48px;
-  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-columns: var(--mobile-field-label) minmax(0, 1fr);
   align-items: start;
   gap: 10px;
   padding: 6px 0 6px 16px;
 }
 
+/*
+ * The hairline under each header field, inset to the label the way iOS insets
+ * its own.
+ *
+ * It was `inset 16px -1px 0`, and `box-shadow` cannot draw one edge: an inset
+ * shadow offset 16px to the right *floods* the leftmost 16px of the row with
+ * the colour and puts the line along the bottom. On the phone that painted a
+ * grey band down the left of the whole composer, which read as the sheet
+ * sitting crooked in the screen — nothing else in the composer was inset on
+ * the left, so only that band moved.
+ *
+ * Same defect and same repair as `.mobile-row + .mobile-row` above; these were
+ * the only two in the shell.
+ */
+.mobile-compose-field,
 .mobile-compose-to-field,
 .mobile-compose-form > .mobile-recipient-row {
-  box-shadow: inset 16px -1px 0 var(--wren-hairline);
+  background-image: linear-gradient(var(--wren-hairline), var(--wren-hairline));
+  background-repeat: no-repeat;
+  background-position: 16px 100%;
+  background-size: calc(100% - 16px) 1px;
 }
 
 .mobile-recipient-row > label {
@@ -1401,7 +1509,8 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
 }
 
 .mobile-compose-field > span {
-  width: 54px;
+  width: var(--mobile-field-label);
+  flex: 0 0 auto;
   color: var(--wren-text-3);
   font-size: var(--mobile-text-subhead);
 }
@@ -1575,7 +1684,13 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   text-align: start;
 }
 
+/* `Pick a date` is a label wrapping a date input rather than a button, which
+   is an implementation detail nobody looking at the sheet should be able to
+   read off it. It gets the same press feedback as the presets above it, and
+   the same chevron — three rows with a disclosure and a fourth without was the
+   one thing in this sheet that looked unfinished. */
 .mobile-later-options > button:active,
+.mobile-custom-date:active,
 .mobile-action-list > button:active {
   background: var(--wren-fill-active);
 }
