@@ -661,7 +661,9 @@ export class RealMailService implements MailService {
 
     const raw = buildRawMessage(sendable, {
       fromEmail: account.email,
-      fromName: account.displayName,
+      // The From header carries the sender's name, not the account's label:
+      // the recipient has never seen your sidebar (issue #61).
+      fromName: account.senderName,
       inReplyTo,
       references,
       now: this.now(),

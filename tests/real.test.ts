@@ -407,7 +407,9 @@ describe('send', () => {
 
     expect(client.sent).toHaveLength(1)
     const raw = decodeRaw(client.sent[0].raw)
-    expect(raw).toContain('From: Personal <nick@gmail.com>')
+    // The sender's NAME, not the account's sidebar label — issue #61. The
+    // recipient has never seen your sidebar.
+    expect(raw).toContain('From: Nick Galang <nick@gmail.com>')
     expect(raw).toContain('Subject: A brand new note')
 
     const sentThreads = await store.listThreads({ kind: 'unified', folder: 'sent' })

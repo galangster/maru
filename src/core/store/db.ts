@@ -352,6 +352,22 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_thread_defer_cleared_at ON thread_defer_cleared (cleared_at);
   CREATE INDEX IF NOT EXISTS idx_thread_defer_cleared_account ON thread_defer_cleared (account_id);
   `,
+
+  // 8 — the sender's name, apart from the account's label (issue #61).
+  //
+  // `display_name` is what the sidebar calls this mailbox. It was also being
+  // put on the From of every message the account sent, so a message you had
+  // just sent read as being from "Personal" while every other message from the
+  // same address said "Nick Galang".
+  //
+  // Nullable, and it stays null for an existing account: Gmail's profile
+  // endpoint answers with an address and nothing else, so there is no name to
+  // backfill from. A null sender name shows the address, which is what the
+  // reading pane already does for any message that arrives without one — and
+  // which is right, where showing the label was wrong.
+  `
+  ALTER TABLE accounts ADD COLUMN sender_name TEXT;
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -802,14 +818,15 @@ export class Store {
   async upsertAccount(a: Account): Promise<void> {
     await this.keyring?.keyFor(a.id)
     await this.db.execute(
-      `INSERT INTO accounts (id, email, display_name, color, added_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO accounts (id, email, display_name, sender_name, color, added_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT(id) DO UPDATE SET
          email = excluded.email,
          display_name = excluded.display_name,
+         sender_name = excluded.sender_name,
          color = excluded.color,
          added_at = excluded.added_at`,
-      [a.id, a.email, a.displayName, a.color, a.addedAt],
+      [a.id, a.email, a.displayName, a.senderName ?? null, a.color, a.addedAt],
     )
   }
 
@@ -818,6 +835,7 @@ export class Store {
       id: string
       email: string
       display_name: string
+      sender_name: string | null
       color: string
       added_at: number
     }>('SELECT * FROM accounts ORDER BY added_at ASC, rowid ASC')
@@ -825,6 +843,10 @@ export class Store {
       id: r.id,
       email: r.email,
       displayName: r.display_name,
+      // Absent rather than empty: `senderName` is optional on Account, and an
+      // empty string would read as "named, with nothing" everywhere that falls
+      // back to the address.
+      senderName: r.sender_name || undefined,
       color: r.color,
       addedAt: r.added_at,
     }))

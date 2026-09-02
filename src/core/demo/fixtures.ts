@@ -11,15 +11,31 @@ import { htmlToText } from '../mime'
 import { clip } from '../../lib/format'
 import { ACCOUNT_PALETTE } from '../palette'
 
+// `displayName` is the LABEL the sidebar shows; `senderName` is the name that
+// goes on mail these accounts send, and it matches the name every fixture
+// message from the same address already carries — issue #61.
 export const DEMO_ACCOUNT_SEEDS = [
-  { id: 'demo-personal', email: 'nick@gmail.com', displayName: 'Personal', color: ACCOUNT_PALETTE[0] },
-  { id: 'demo-work', email: 'nick.galang@gmail.com', displayName: 'Work', color: ACCOUNT_PALETTE[1] },
+  {
+    id: 'demo-personal',
+    email: 'nick@gmail.com',
+    displayName: 'Personal',
+    senderName: 'Nick Galang',
+    color: ACCOUNT_PALETTE[0],
+  },
+  {
+    id: 'demo-work',
+    email: 'nick.galang@gmail.com',
+    displayName: 'Work',
+    senderName: 'Nick Galang',
+    color: ACCOUNT_PALETTE[1],
+  },
 ]
 
 export const DEMO_EXTRA_ACCOUNT = {
   id: 'demo-side',
   email: 'nick@fernwood.dev',
   displayName: 'Fernwood',
+  senderName: 'Nick Galang',
   color: ACCOUNT_PALETTE[2],
 }
 
