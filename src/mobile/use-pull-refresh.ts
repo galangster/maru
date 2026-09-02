@@ -32,6 +32,11 @@ export function usePullRefresh(
   const touch = useRef<{ identifier: number; y: number } | null>(null)
   const usingTouch = useRef(false)
 
+  /** Every gesture entry point starts here, so neither flag can be forgotten. */
+  const begin = () => {
+    eligible.current = (scroller.current?.scrollTop ?? 0) <= 0
+    ready.current = false
+  }
   const offsetFor = (dy: number) => dy <= 0 ? 0 : Math.min(PULL_MAX_OFFSET, dy * PULL_DISTANCE_FACTOR)
   const move = (dy: number) => {
     if (!eligible.current) return
@@ -85,16 +90,14 @@ export function usePullRefresh(
     drag: {
       ...drag,
       onPointerDown: (event: Parameters<typeof drag.onPointerDown>[0]) => {
-        eligible.current = (scroller.current?.scrollTop ?? 0) <= 0
-        ready.current = false
+        begin()
         drag.onPointerDown(event)
       },
       onTouchStart: (event: ReactTouchEvent<HTMLElement>) => {
         const point = event.changedTouches[0]
         if (!point) return
         usingTouch.current = true
-        eligible.current = (scroller.current?.scrollTop ?? 0) <= 0
-        ready.current = false
+        begin()
         touch.current = { identifier: point.identifier, y: point.clientY }
       },
       onTouchMove: (event: ReactTouchEvent<HTMLElement>) => {

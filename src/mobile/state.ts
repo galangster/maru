@@ -20,7 +20,7 @@ export function indexOfTab(tab: MobileTab): number {
 }
 
 /** Above this the badge stops counting and starts saying "a lot". */
-export const MOBILE_BADGE_LIMIT = 99
+const MOBILE_BADGE_LIMIT = 99
 
 /**
  * What the Inbox tab's badge should read, or `null` for no badge at all.

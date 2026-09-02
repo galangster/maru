@@ -111,6 +111,111 @@ For that reason, a standalone `flowdeck build` cannot compile this generated pro
 Use the Tauri CLI for builds and deployment.
 Use FlowDeck for simulator state, touch automation, appearance, and screenshots.
 
+## Native shell
+
+The bottom chrome on iPhone is UIKit's, not the web's.
+
+The `maru-shell` plugin lives in `src-tauri/plugins/maru-shell`.
+It is iOS-only, in the same shape as `maru-auth`.
+The Swift half takes Tauri's root view controller out of the window.
+It hosts that controller inside a `UITabBarController`.
+The three tabs are Inbox (`tray`), Search (`magnifyingglass`)
+and Settings (`gearshape`).
+All three tabs show the same WKWebView.
+The plugin moves the web content controller into the selected tab on appearance.
+The web layer therefore keeps its state across a tab switch.
+
+The bar is the system's, so the iOS 26 SDK draws it as Liquid Glass.
+The plugin sets `tabBarMinimizeBehavior = .onScrollDown` behind
+`#available(iOS 26, *)`.
+iOS 17 to 25 get the classic bar with no minimize.
+
+The webview keeps the default `contentInsetAdjustmentBehavior`.
+That is load-bearing.
+WebKit derives CSS `env(safe-area-inset-*)` from the adjusted content inset.
+`.never` reports zero insets to the page and puts the header under the status bar.
+Left alone, UIKit folds the tab bar's height into the child's bottom safe area.
+The measured inset on an iPhone 16 is 83 points.
+The web layer reads that through `env(safe-area-inset-bottom)`.
+The list then scrolls beneath the glass and its last row still clears the bar.
+
+### Commands and events
+
+The plugin owns these commands:
+
+- `select_tab(index)` selects a tab from JS.
+- `set_badge(index, value)` sets or clears a tab badge. `null` clears it.
+- `set_tab_bar_hidden(hidden)` hides or shows the bar.
+- `impact(style)` plays `light`, `medium`, `heavy`, `soft` or `rigid`.
+- `notify(kind)` plays `success`, `warning` or `error`.
+- `selection()` plays the selection tick.
+- `watch_tabs(channel)` subscribes to native tab taps.
+
+The plugin emits one event, `tabSelected`, carrying `{ index }`.
+It rides a Tauri channel, not `addPluginListener`.
+A channel argument is registered when Tauri deserializes it from the payload.
+It therefore needs no `register_listener` command and no second ACL entry.
+Only a real tap emits the event.
+UIKit does not call its delegate for a programmatic selection,
+so `select_tab` cannot echo back to JS.
+
+### How the web falls back
+
+`src/platform/shell.ts` wraps every command.
+Each one is a no-op when the platform is not iOS.
+`src/mobile/use-native-shell.ts` probes once through `watch_tabs`.
+It answers `null` while the probe is in flight,
+then `true` for the native bar and `false` for the web bar.
+The pending state stops the web bar flashing under the glass for one frame.
+
+`MobileApp` renders the web tab bar only when the probe answers `false`.
+The web bar stays in the codebase for the `?mobile=1` browser preview.
+That preview is the only way to reach Search and Settings outside the simulator,
+and captures and design review run there.
+Under the native shell `--mobile-tab-height` drops to zero,
+because UIKit already provides the room through the safe-area inset.
+
+The native bar draws over the webview.
+The web layer therefore hides it for the thread route, the account route,
+the composer and every bottom sheet.
+
+Only one tab bar exists at a time.
+VoiceOver and reduced motion are the system's on iOS.
+The FlowDeck accessibility tree on the inbox reports exactly two elements:
+the application, and one `Tab Bar` group.
+
+### Haptics
+
+- `impact("medium")` on archive and on a Later commit.
+- `impact("light")` when a pull crosses the refresh threshold.
+- `notify("success")` on send.
+- No `selection()` on a tab change. UIKit already plays that one.
+
+The archive haptic rides `usePerformAction` in `src/features/mail/queries.ts`.
+It sits beside the `complete` sound, at the one choke point every surface uses.
+It shares that cue's 400 millisecond guard.
+A bulk archive of twenty threads is therefore one tap, not twenty.
+
+Each haptic writes a debug line under the `maru-shell` log category.
+A haptic leaves no trace a simulator can screenshot.
+Read them with `flowdeck logs <app-id>`.
+
+### Known limit: scroll-minimize does not engage yet
+
+The minimize behavior is set and correct.
+It does not fire in the current application.
+UIKit tracks a `UIScrollView` to decide when to minimize.
+The only one present is the WKWebView's own scroll view.
+The mobile shell is a fixed-position web application.
+`.mobile-app` uses `position: fixed; inset: 0`,
+and every list scrolls inside a DOM container.
+The WKWebView scroll view therefore never moves, and UIKit never minimizes.
+
+Letting the document scroll would light this up.
+That change alters rubber-banding and keyboard behavior on every phone screen.
+It is an owner decision, not a lane-1 change.
+Queue item for Nick: decide whether the phone shell moves to document scrolling.
+
 ## Current behavior
 
 The following behavior is real in the iOS application:
@@ -192,6 +297,12 @@ It shows `accounts.google.com` inside the system sheet and Google's expected
 `invalid_client` result for `PLACEHOLDER-TEST.apps.googleusercontent.com`.
 FlowDeck also verified that cancelling the sheet returns to Settings with
 `Sign-in cancelled` and does not crash.
+
+The I8 native-shell proof files are:
+
+- `native-tabbar-light.png` and `native-tabbar-dark.png`
+- `native-tabbar-badge-light.png`
+- `native-tabbar-scrolled-light.png`
 
 The account proof files are:
 

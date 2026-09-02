@@ -1,7 +1,12 @@
-use serde::{ser::SerializeStruct, ser::Serializer, Serialize};
+use serde::{Serialize, Serializer};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Every maru-shell command resolves; the Swift side never rejects one, because
+/// a tab selection or a haptic the web layer cannot act on is not worth an
+/// error path. So this only carries the bridge's own failures, and serializes
+/// as a plain string rather than the `{ code, message }` shape maru-auth needs
+/// for its typed `cancelled`.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
   #[cfg(target_os = "ios")]
@@ -9,25 +14,11 @@ pub enum Error {
   PluginInvoke(#[from] tauri::plugin::mobile::PluginInvokeError),
 }
 
-/// Serialized as `{ code, message }` so the typed `cancelled` code that Swift
-/// rejects with survives the bridge; a bare string would flatten it to text.
 impl Serialize for Error {
   fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
   where
     S: Serializer,
   {
-    let (code, message): (String, String) = match self {
-      #[cfg(target_os = "ios")]
-      Error::PluginInvoke(tauri::plugin::mobile::PluginInvokeError::InvokeRejected(response)) => (
-        response.code.clone().unwrap_or_else(|| "failed".to_string()),
-        response.message.clone().unwrap_or_else(|| "failed".to_string()),
-      ),
-      #[allow(unreachable_patterns)]
-      other => ("failed".to_string(), other.to_string()),
-    };
-    let mut state = serializer.serialize_struct("Error", 2)?;
-    state.serialize_field("code", &code)?;
-    state.serialize_field("message", &message)?;
-    state.end()
+    serializer.serialize_str(&self.to_string())
   }
 }

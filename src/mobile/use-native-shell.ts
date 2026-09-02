@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { attachNativeShell, nativeShellPossible } from '@/platform/shell'
+import { attachNativeShell, nativeShell, nativeShellPossible } from '@/platform/shell'
+
+import { indexOfTab } from './state'
 
 /**
  * `null` while the probe is in flight, then `true` if the native tab bar is
@@ -17,15 +19,40 @@ export function useNativeShell(onTabSelected: (index: number) => void): boolean 
   handler.current = onTabSelected
 
   useEffect(() => {
-    if (!nativeShellPossible) return
+    let detach: (() => void) | null = null
     let live = true
-    void attachNativeShell((index) => handler.current(index)).then((ok) => {
-      if (live) setPresent(ok)
+    void attachNativeShell((index) => handler.current(index)).then((result) => {
+      if (!live) result?.()
+      else {
+        detach = result
+        setPresent(result !== null)
+      }
     })
     return () => {
       live = false
+      detach?.()
     }
   }, [])
 
   return present
+}
+
+/**
+ * Mirrors the web layer's state onto the native bar.
+ *
+ * `hidden` is not a nicety. The bar draws over the webview, so anything the
+ * web layer puts on top of the screen — a thread, the account route, a sheet,
+ * the composer — has to take the bar away or the glass floats above it.
+ */
+export function useNativeShellSync(
+  present: boolean | null,
+  { hidden, badge }: { hidden: boolean; badge: string | null },
+): void {
+  useEffect(() => {
+    if (present) void nativeShell.setTabBarHidden(hidden)
+  }, [present, hidden])
+
+  useEffect(() => {
+    if (present) void nativeShell.setBadge(indexOfTab('inbox'), badge)
+  }, [present, badge])
 }

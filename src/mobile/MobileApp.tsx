@@ -25,6 +25,7 @@ import { ComposeSheet } from './sheets/compose-sheet'
 import { LaterSheet } from './sheets/later-sheet'
 import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
+  MOBILE_TABS,
   inboxBadgeValue,
   indexOfTab,
   initialMobileRoute,
@@ -32,20 +33,22 @@ import {
   tabAtIndex,
   type MobileTab,
 } from './state'
-import { useNativeShell } from './use-native-shell'
+import { useNativeShell, useNativeShellSync } from './use-native-shell'
 import './mobile.css'
 
 const AccountScreen = lazy(() =>
   import('./screens/account/account-screen').then((module) => ({ default: module.AccountScreen })),
 )
 
-/** The web fallback bar. The native bar's items are declared in Swift, in the
- *  same order — see MOBILE_TABS in state.ts. */
-const TAB_ITEMS: { id: MobileTab; label: string; icon: IconName }[] = [
-  { id: 'inbox', label: 'Inbox', icon: 'inbox' },
-  { id: 'search', label: 'Search', icon: 'search' },
-  { id: 'settings', label: 'Settings', icon: 'settings' },
-]
+/** How the web fallback bar labels each tab. MOBILE_TABS keeps the order, so
+ *  the web bar cannot drift out of step with the native bar's indices. */
+const TAB_CHROME: Record<MobileTab, { label: string; icon: IconName }> = {
+  inbox: { label: 'Inbox', icon: 'inbox' },
+  search: { label: 'Search', icon: 'search' },
+  settings: { label: 'Settings', icon: 'settings' },
+}
+
+const INBOX_VIEW = { kind: 'unified', folder: 'inbox' } as const
 
 export function MobileApp() {
   useThemeEffect()
@@ -71,7 +74,7 @@ export function MobileApp() {
   const composerOpen = useComposer((state) => state.open)
   const { accounts } = useAccountsById()
   const syncStatuses = useSyncStatus()
-  const unread = useUnreadCount({ kind: 'unified', folder: 'inbox' })
+  const unread = useUnreadCount(INBOX_VIEW)
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
@@ -95,25 +98,16 @@ export function MobileApp() {
     const action = { threadKey, type }
     registerUndoable((next) => perform.mutate(next), action)
     perform.mutate(action)
-    if (type === 'archive') {
-      announce('Archived')
-      void nativeShell.impact('medium')
-    }
+    // The archive haptic rides usePerformAction with the completion sound, so
+    // every surface gets it and a bulk archive stays one tap.
+    if (type === 'archive') announce('Archived')
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
 
-  // The native bar draws over the webview, so anything the web layer puts on
-  // top of the screen — a thread, the account route, a sheet, the composer —
-  // has to take the bar away first or it floats above them.
-  const nativeBarHidden = route.kind !== 'inbox' || globalModalOpen
-  useEffect(() => {
-    if (!nativeTabBar) return
-    void nativeShell.setTabBarHidden(nativeBarHidden)
-  }, [nativeTabBar, nativeBarHidden])
-  useEffect(() => {
-    if (!nativeTabBar) return
-    void nativeShell.setBadge(0, inboxBadgeValue(unread.data ?? 0))
-  }, [nativeTabBar, unread.data])
+  useNativeShellSync(nativeTabBar, {
+    hidden: route.kind !== 'inbox' || globalModalOpen,
+    badge: inboxBadgeValue(unread.data ?? 0),
+  })
 
   return (
     <div className="mobile-app" data-testid="mobile-app" data-native-shell={nativeTabBar ? 'true' : undefined}>
@@ -189,7 +183,7 @@ export function MobileApp() {
 function TabBar({ active, inert, onChange }: { active: MobileTab; inert: boolean; onChange: (tab: MobileTab) => void }) {
   return (
     <nav className="mobile-tab-bar" aria-label="Primary navigation" inert={inert}>
-      {TAB_ITEMS.map((item) => <button key={item.id} type="button" className={active === item.id ? 'is-active' : ''} onClick={() => onChange(item.id)} aria-current={active === item.id ? 'page' : undefined}><MobileIcon name={item.icon} scale="large" /><span>{item.label}</span></button>)}
+      {MOBILE_TABS.map((tab) => <button key={tab} type="button" className={active === tab ? 'is-active' : ''} onClick={() => onChange(tab)} aria-current={active === tab ? 'page' : undefined}><MobileIcon name={TAB_CHROME[tab].icon} scale="large" /><span>{TAB_CHROME[tab].label}</span></button>)}
     </nav>
   )
 }

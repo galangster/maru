@@ -22,6 +22,8 @@ import type {
 import { toast } from 'sonner'
 
 import { playSound } from '@/lib/sound'
+import { RATE_LIMIT_MS } from '@/lib/sound-policy'
+import { nativeShell } from '@/platform/shell'
 import { dedupeAddresses } from '@/lib/compose'
 import { correspondents } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
@@ -458,6 +460,13 @@ export function useWakeSweep(): void {
   }, [service, client, now])
 }
 
+/**
+ * When the completion haptic last fired, so a bulk archive stays one tap.
+ * Module scope, like the sound policy's own clock, because the guard has to
+ * hold across every surface and every mutation instance.
+ */
+let lastCompleteHaptic = 0
+
 export function usePerformAction() {
   const service = useMailService()
   const client = useQueryClient()
@@ -473,7 +482,16 @@ export function usePerformAction() {
       // a sound on every `u` would be exactly the "100×/day" case MAGIC §4.5
       // warns about. `complete` carries its own 400 ms guard, so a held `e`
       // down a mailbox is one tick rather than forty (sound-policy.ts).
-      if (action.type === 'archive' || action.type === 'trash') playSound('complete')
+      if (action.type === 'archive' || action.type === 'trash') {
+        playSound('complete')
+        // Same moment, same 400 ms window, same reason: a bulk archive of
+        // twenty threads is one gesture, and twenty taps in a row would read
+        // as a fault rather than a confirmation. iOS only; a no-op elsewhere.
+        if (Date.now() - lastCompleteHaptic >= RATE_LIMIT_MS.complete) {
+          lastCompleteHaptic = Date.now()
+          void nativeShell.impact('medium')
+        }
+      }
       await client.cancelQueries({ queryKey: ['threads'] })
       const detail = client.getQueryData<{ thread: Thread; messages: Message[] }>(
         keys.thread(action.threadKey),

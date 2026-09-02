@@ -24,13 +24,18 @@ export const nativeShellPossible = isTauri() && platformOS === 'ios'
  * Fire and forget. A haptic that fails must never reject the archive it was
  * decorating, and a badge write that arrives before the bar is installed is
  * not news — the plugin resolves those quietly and this swallows the rest.
+ *
+ * Resolves `true` when the plugin answered, which is what `attachNativeShell`
+ * reads as proof that the native bar is there.
  */
-async function call(command: string, args: Record<string, unknown> = {}): Promise<void> {
-  if (!nativeShellPossible) return
+async function call(command: string, args: Record<string, unknown> = {}): Promise<boolean> {
+  if (!nativeShellPossible) return false
   try {
     await invoke(`plugin:maru-shell|${command}`, args)
+    return true
   } catch {
     // The shell is optional. Nothing the web layer can do about it.
+    return false
   }
 }
 
@@ -42,22 +47,24 @@ export const nativeShell = {
   setTabBarHidden: (hidden: boolean) => call('set_tab_bar_hidden', { hidden }),
   impact: (style: HapticImpact) => call('impact', { style }),
   notify: (kind: HapticNotice) => call('notify', { kind }),
-  /** Unused for tab changes — UIKit already plays that one itself. */
+  /** Not used for tab changes — UIKit already plays that one itself. */
   selection: () => call('selection'),
 }
 
 /**
- * Subscribes to native tab taps. Resolves true when the plugin answered, which
- * is the runtime proof that the native bar is there and the web one must not be.
+ * Subscribes to native tab taps. Resolves with a detach function when the
+ * plugin answered, and `null` when there is no native bar — which is the
+ * runtime proof that the web bar must render instead.
  */
-export async function attachNativeShell(onSelect: (index: number) => void): Promise<boolean> {
-  if (!nativeShellPossible) return false
-  try {
-    const channel = new Channel<{ index: number }>()
-    channel.onmessage = (message) => onSelect(message.index)
-    await invoke('plugin:maru-shell|watch_tabs', { channel })
-    return true
-  } catch {
-    return false
+export async function attachNativeShell(
+  onSelect: (index: number) => void,
+): Promise<(() => void) | null> {
+  const channel = new Channel<{ index: number }>()
+  channel.onmessage = (message) => onSelect(message.index)
+  if (!(await call('watch_tabs', { channel }))) return null
+  // Swift keeps one channel and replaces it on the next attach, so detaching
+  // only has to stop this one delivering into a handler that has gone away.
+  return () => {
+    channel.onmessage = () => {}
   }
 }

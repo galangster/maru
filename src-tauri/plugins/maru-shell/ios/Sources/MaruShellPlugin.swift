@@ -109,9 +109,15 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
 
     // Strong reference first: assigning a new root releases the old one.
     contentController = root
-    // The web content draws its own safe-area padding from `env()`, so the
-    // scroll view must not also inset itself away from the glass.
-    webView?.scrollView.contentInsetAdjustmentBehavior = .never
+
+    // The scroll view keeps its default `contentInsetAdjustmentBehavior`, and
+    // that is load-bearing. WebKit derives CSS `env(safe-area-inset-*)` from
+    // the adjusted content inset, so `.never` does not merely stop the scroll
+    // view insetting itself -- it reports zero insets to the page, and the
+    // inbox header climbs under the status bar. Left alone, UIKit folds the
+    // tab bar's height into the child's bottom safe area, the page reads it
+    // through `env()`, and the list clears the glass while still scrolling
+    // beneath it.
 
     window.rootViewController = controller
     tabBarController = controller
@@ -191,6 +197,14 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
   }
 
   // MARK: - Haptics
+  //
+  // Each one logs under the `maru-shell` category. A haptic leaves no trace a
+  // simulator can screenshot, so without this line there is no way to prove
+  // from the outside that an archive reached the Taptic Engine. Debug builds
+  // only, by Tauri's Logger.
+  //
+  // No `prepare()` before firing. It is an asynchronous warm-up, and calling it
+  // one line before the impact pays the cost without buying the latency.
 
   @objc public func impact(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(ImpactArgs.self)
@@ -202,11 +216,8 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
     case "rigid": style = .rigid
     default: style = .medium
     }
-    DispatchQueue.main.async {
-      let generator = UIImpactFeedbackGenerator(style: style)
-      generator.prepare()
-      generator.impactOccurred()
-      invoke.resolve()
+    haptic(invoke, "impact \(args.style)") {
+      UIImpactFeedbackGenerator(style: style).impactOccurred()
     }
   }
 
@@ -218,20 +229,14 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
     case "error": kind = .error
     default: kind = .success
     }
-    DispatchQueue.main.async {
-      let generator = UINotificationFeedbackGenerator()
-      generator.prepare()
-      generator.notificationOccurred(kind)
-      invoke.resolve()
+    haptic(invoke, "notify \(args.kind)") {
+      UINotificationFeedbackGenerator().notificationOccurred(kind)
     }
   }
 
   @objc public func selection(_ invoke: Invoke) {
-    DispatchQueue.main.async {
-      let generator = UISelectionFeedbackGenerator()
-      generator.prepare()
-      generator.selectionChanged()
-      invoke.resolve()
+    haptic(invoke, "selection") {
+      UISelectionFeedbackGenerator().selectionChanged()
     }
   }
 
@@ -246,6 +251,15 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
       if let controller = self?.tabBarController {
         body(controller)
       }
+      invoke.resolve()
+    }
+  }
+
+  /// Logs the cue, plays it on the main queue, and answers the invoke.
+  private func haptic(_ invoke: Invoke, _ label: String, _ play: @escaping () -> Void) {
+    Logger.debug(label, category: "maru-shell")
+    DispatchQueue.main.async {
+      play()
       invoke.resolve()
     }
   }
