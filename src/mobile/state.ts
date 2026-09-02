@@ -198,6 +198,22 @@ export function resolveSwipeIntent(deltaX: number, deltaY: number): SwipeIntent 
   return null
 }
 
+/**
+ * Whether selection mode should end on its own.
+ *
+ * Select All, then Archive, and the inbox empties — and the bulk bar stayed
+ * across the bottom of the empty state offering Archive, Later and Done over
+ * nothing, with the header still reading "Done" (issue 18). Selection is a
+ * mode over a list; with no list there is nothing to be in the mode of.
+ *
+ * `pending` is the guard that matters. A list that has not loaded yet is also
+ * a list with no rows, and dropping the mode on a refetch would take the
+ * checkmarks away from someone who is mid-batch and just pulled to refresh.
+ */
+export function shouldLeaveSelection(editing: boolean, pending: boolean, rowCount: number): boolean {
+  return editing && !pending && rowCount === 0
+}
+
 export interface MobileRowModel {
   sender: string
   subject: string

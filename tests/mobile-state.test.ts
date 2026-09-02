@@ -13,6 +13,7 @@ import {
   nativeTabs,
   resolveDragAxis,
   resolveSwipeIntent,
+  shouldLeaveSelection,
   tabAtIndex,
   visibleScreen,
   type MobileRoute,
@@ -273,5 +274,25 @@ describe('restoreStep', () => {
 
   it('gives the page back to the person once the budget is spent', () => {
     expect(restoreStep(660, 1592, 0)).toBe('abandon')
+  })
+})
+
+// The phone used to keep the bulk bar across the bottom of an empty inbox,
+// offering Archive, Later and Done over nothing (issue 18).
+describe('shouldLeaveSelection', () => {
+  it('ends the mode when the last conversation leaves the list', () => {
+    expect(shouldLeaveSelection(true, false, 0)).toBe(true)
+  })
+
+  it('leaves a batch alone while rows remain', () => {
+    expect(shouldLeaveSelection(true, false, 1)).toBe(false)
+  })
+
+  it('does not take the checkmarks away from a list that is still loading', () => {
+    expect(shouldLeaveSelection(true, true, 0)).toBe(false)
+  })
+
+  it('has nothing to say when the mode is off', () => {
+    expect(shouldLeaveSelection(false, false, 0)).toBe(false)
   })
 })

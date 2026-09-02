@@ -10,7 +10,7 @@ import { useNow } from '@/lib/use-now'
 import { EmptyInbox, MobileListSkeleton } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
-import { buildMobileRowModel, type MobileRowModel } from '../state'
+import { buildMobileRowModel, shouldLeaveSelection, type MobileRowModel } from '../state'
 import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
@@ -134,6 +134,15 @@ export function InboxScreen({
     await query.refetch()
   })
 
+  // The last conversation leaves and the mode goes with it (issue 18). The
+  // rule is a pure function so the `pending` guard — a list that has not
+  // loaded is not an empty list — can be stated once and tested.
+  useEffect(() => {
+    if (!shouldLeaveSelection(editing, query.isPending, rows.length)) return
+    setEditing(false)
+    setSelected(new Set())
+  }, [editing, query.isPending, rows.length])
+
   const toggle = (key: string) => setSelected((current) => {
     const next = new Set(current)
     if (next.has(key)) next.delete(key)
@@ -155,7 +164,10 @@ export function InboxScreen({
             </select>
           </label>
           {editing && threads.length > 0 && <button className="mobile-nav-text" type="button" onClick={() => setSelected(new Set(threads.map((thread) => thread.key)))}>Select All</button>}
-          <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>
+          {/* No list, no mode to enter. Without this the empty inbox kept an
+              Edit control that could only put an all-disabled bulk bar on the
+              screen and then take it away again. */}
+          {(editing || threads.length > 0) && <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>}
         </div>
         <div className="mobile-title-row">
           <h1>Inbox</h1>
