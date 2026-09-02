@@ -591,7 +591,8 @@ one client id.
 
 ## 2026-09-02 overnight
 
-- [ ] **Install TestFlight 0.1.8 (3)** — the second cut of the night (App
+- [ ] **Install TestFlight 0.1.9 (4)** — supersedes 0.1.8 (3) below: adds every phone fix from the overnight QA waves (bulk undo, sync-failure banner, scroll restore, Mailboxes picker with Later/Sent/Starred/Trash/labels, search-result actions, blocked-images notice, label picker, Dynamic Type reflow). Same push check applies.
+- [ ] ~~Install TestFlight 0.1.8 (3)~~ — superseded by 0.1.9 (4). **Original note:** — the second cut of the night (App
   Store Connect renumbered it; the archive said 2). It carries the real Maru
   icon, finger swipes (right archives, left is Later), keyboard-only focus
   rings, the button and hairline fixes, the one-time "notifications need a
