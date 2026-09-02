@@ -4,15 +4,21 @@
 
 import { create } from 'zustand'
 
-import type { ComposeDraft, EmailAddress } from '@/core/types'
+import type { AttachmentSource, ComposeDraft, EmailAddress } from '@/core/types'
 
 export interface DraftAttachment {
-  /** Local id; attachments only exist here until send. */
+  /** Local id; the chip's key and what its remove control names. */
   id: string
   filename: string
   mimeType: string
   sizeBytes: number
-  dataBase64: string
+  /** The bytes, for a file picked in this composer. */
+  dataBase64?: string
+  /**
+   * Where the bytes live, for an attachment carried from a forwarded message.
+   * The composer never reads the file; `MailService.send` fetches it.
+   */
+  source?: AttachmentSource
 }
 
 export interface Draft {
@@ -68,11 +74,16 @@ const DRAFT_STORE_KEY = 'wren-draft-v1'
 
 function persistDraft(draft: Draft | null): void {
   try {
-    // Text only: attachment bytes would blow the storage quota mid-typing
-    // and leave a *stale* mirror behind — a crash would then resurrect an
-    // outdated draft. Losing attachments in a crash is the honest trade.
+    // Bytes only, dropped: they would blow the storage quota mid-typing and
+    // leave a *stale* mirror behind — a crash would then resurrect an outdated
+    // draft. Losing a picked file in a crash is the honest trade.
+    //
+    // A carried attachment survives, because it is a reference of a hundred or
+    // so bytes and dropping it would restore a forward whose body still
+    // promises the invoice it no longer has.
     if (draft) {
-      localStorage.setItem(DRAFT_STORE_KEY, JSON.stringify({ ...draft, attachments: [] }))
+      const attachments = draft.attachments.filter((a) => a.source !== undefined)
+      localStorage.setItem(DRAFT_STORE_KEY, JSON.stringify({ ...draft, attachments }))
     } else localStorage.removeItem(DRAFT_STORE_KEY)
   } catch {
     // Storage can be unavailable (capture path, private mode); losing the
@@ -170,6 +181,8 @@ export function toComposeDraft(draft: Draft): ComposeDraft {
       filename: a.filename,
       mimeType: a.mimeType,
       dataBase64: a.dataBase64,
+      source: a.source,
+      sizeBytes: a.sizeBytes,
     })),
     reply: draft.reply,
   }

@@ -129,10 +129,46 @@ export interface LabelChanges {
   removeLabelIds: string[]
 }
 
+/**
+ * Where a carried attachment's bytes live: a message Maru already holds.
+ *
+ * Forwarding is the case. The composer never reads the file — it would have to
+ * pull every megabyte through the WebView, hold it in a zustand store and mirror
+ * it past the crash-draft quota, all for a message that may never be sent. It
+ * carries this reference instead, and `MailService.send` fetches the bytes
+ * through `getAttachment` at the moment they are needed.
+ */
+export interface AttachmentSource {
+  threadKey: string
+  messageId: string
+  attachmentId: string
+}
+
 export interface OutgoingAttachment {
   filename: string
   mimeType: string
-  dataBase64: string
+  /** The bytes, when the sender holds them — a file picked in the composer. */
+  dataBase64?: string
+  /** Where to fetch the bytes from, when the sender does not hold them. */
+  source?: AttachmentSource
+  /** Known ahead of the fetch for a carried attachment; derived from the
+   *  base64 otherwise (`outgoingBytes`). */
+  sizeBytes?: number
+}
+
+/** An outgoing attachment whose bytes are in hand. */
+export type SendableAttachment = OutgoingAttachment & { dataBase64: string }
+
+/**
+ * A draft with every attachment resolved to bytes — what the MIME builder and
+ * the local sent rows take.
+ *
+ * A separate type rather than a runtime check: `send()` receives a
+ * `ComposeDraft`, whose attachments may still be references, and the compiler
+ * is what makes each service resolve them before it builds a message.
+ */
+export type SendableDraft = Omit<ComposeDraft, 'attachments'> & {
+  attachments: SendableAttachment[]
 }
 
 export interface ComposeDraft {

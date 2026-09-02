@@ -11,7 +11,7 @@
 // Gmail wants `raw`: a base64url-encoded RFC 822 message. Everything here is
 // pure so the send path is testable without a network or a Platform.
 
-import type { ComposeDraft, EmailAddress } from './types'
+import type { EmailAddress, OutgoingAttachment, SendableDraft } from './types'
 
 const CRLF = '\r\n'
 const MAX_LINE = 76
@@ -367,7 +367,7 @@ function attachmentPart(
  * `users.messages.send`. Replies must also carry `threadId` on the API call —
  * the headers alone are the documented mechanism, threadId is belt and braces.
  */
-export function buildRawMessage(draft: ComposeDraft, ctx: BuildContext): string {
+export function buildRawMessage(draft: SendableDraft, ctx: BuildContext): string {
   const seed = ctx.boundarySeed ?? defaultSeed
   const altBoundary = makeBoundary('alt', seed)
   const hasAttachments = draft.attachments.length > 0
@@ -414,4 +414,17 @@ export function buildRawMessage(draft: ComposeDraft, ctx: BuildContext): string 
 export function base64DecodedBytes(data: string): number {
   const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0
   return Math.floor((data.length * 3) / 4) - padding
+}
+
+/**
+ * How big an outgoing attachment is, before it goes.
+ *
+ * Bytes in hand are measured from the base64. A carried attachment states its
+ * size instead, because its bytes are still in the message it came from — and
+ * a card that says "0 bytes" about a 3 MB invoice is worse than one that says
+ * nothing.
+ */
+export function outgoingBytes(attachment: OutgoingAttachment): number {
+  if (attachment.dataBase64 !== undefined) return base64DecodedBytes(attachment.dataBase64)
+  return attachment.sizeBytes ?? 0
 }

@@ -39,7 +39,7 @@ import {
 } from '@/components/wren-controls'
 import { htmlToText } from '@/core'
 import type { Approval } from '@/core/agents'
-import { base64DecodedBytes } from '@/core/mime'
+import { outgoingBytes } from '@/core/mime'
 import { useAgentGateway } from '@/features/mail/service'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { attachmentIcon, formatBytes, elapsedTime, fullTimestamp } from '@/lib/format'
@@ -328,7 +328,7 @@ function PendingRow({
                 <Icon name={attachmentIcon(attachment.mimeType)} size={16} className="text-ink-3" />
                 <span className="max-w-48 truncate">{attachment.filename}</span>
                 <span className={META_TEXT}>
-                  {formatBytes(base64DecodedBytes(attachment.dataBase64))}
+                  {formatBytes(outgoingBytes(attachment))}
                 </span>
               </li>
             ))}

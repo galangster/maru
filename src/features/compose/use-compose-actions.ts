@@ -6,7 +6,13 @@ import { useCallback } from 'react'
 
 import { useAccounts, useThread } from '@/features/mail/queries'
 import { useUi } from '@/features/mail/ui-store'
-import { deriveRecipients, quoteOriginal, replySubject, type ReplyMode } from '@/lib/compose'
+import {
+  carriedAttachments,
+  deriveRecipients,
+  quoteOriginal,
+  replySubject,
+  type ReplyMode,
+} from '@/lib/compose'
 import { fullTimestamp } from '@/lib/format'
 
 import { useComposer } from './compose-store'
@@ -43,6 +49,10 @@ export function useComposeActions(): ComposeActions {
         cc,
         subject: replySubject(thread.subject, mode),
         bodyHtml: quoteOriginal(message, mode, fullTimestamp),
+        // A forward carries the message's attachments; a reply does not. The
+        // rule is in lib/compose.ts beside the recipient and subject rules, so
+        // the three surfaces that open a composer cannot disagree about it.
+        attachments: carriedAttachments(message, mode, thread.key),
         reply: { threadKey: thread.key, messageId: message.id, mode },
       })
     },

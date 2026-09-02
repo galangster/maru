@@ -9,6 +9,7 @@ import { searchWithOperators } from '../search/operators'
 import { ThreadSearchIndex } from '../search/index'
 import { buildDemoData, buildExtraAccount, labelsFor } from '../demo/fixtures'
 import { applyLabelChanges, applyActionToMessage, applyActionToThread, labelDelta } from './actions'
+import { resolveAttachments } from './attachments'
 import { bodyTextOf, sentRowsFor } from './sent'
 import type {
   LabelChanges,
@@ -370,6 +371,13 @@ export class DemoMailService implements MailService {
     const account = this.accounts.find((a) => a.id === draft.accountId)
     if (!account) throw new Error(`No such account: ${draft.accountId}`)
 
+    // A forward carries references, not bytes. Resolve them before anything
+    // else: the demo service is the one every screenshot and every evaluation
+    // runs against, so it has to prove the same seam the real one uses.
+    const sendable = await resolveAttachments(draft, (key, messageId, attachmentId) =>
+      this.getAttachment(key, messageId, attachmentId),
+    )
+
     this.sendCounter++
     const n = this.sendCounter
     const gmailThreadId = draft.reply
@@ -378,7 +386,7 @@ export class DemoMailService implements MailService {
     const existingMessages = this.messages.get(threadKey(account.id, gmailThreadId)) ?? []
     const previous = existingMessages[existingMessages.length - 1]
 
-    const { key, messages, thread } = sentRowsFor(draft, {
+    const { key, messages, thread } = sentRowsFor(sendable, {
       account,
       gmailThreadId,
       messageId: `demo-sent-msg-${n}`,

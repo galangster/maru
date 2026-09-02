@@ -17,6 +17,7 @@ import { TokenManager, TokenStore, runAuthFlow as defaultRunAuthFlow, type AuthF
 import { isOfficialGoogleClientId, resolveOAuthClient } from '../auth/client-config'
 import { buildRawMessage } from '../mime'
 import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } from './actions'
+import { resolveAttachments } from './attachments'
 import { bodyTextOf, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
 import { parseWatchExpiration } from '../push/watch'
@@ -634,6 +635,13 @@ export class RealMailService implements MailService {
     const account = accounts.find((a) => a.id === draft.accountId)
     if (!account) throw new Error(`No such account: ${draft.accountId}`)
 
+    // A forward carries its source message's attachments by reference; Gmail
+    // wants the bytes in the raw message. The fetch is here, at the seam that
+    // already holds the token, rather than in the composer.
+    const sendable = await resolveAttachments(draft, (key, messageId, attachmentId) =>
+      this.getAttachment(key, messageId, attachmentId),
+    )
+
     let gmailThreadId: string | undefined
     let inReplyTo: string | undefined
     let references: string | undefined
@@ -651,7 +659,7 @@ export class RealMailService implements MailService {
       references = [target?.references, target?.rfcMessageId].filter(Boolean).join(' ') || undefined
     }
 
-    const raw = buildRawMessage(draft, {
+    const raw = buildRawMessage(sendable, {
       fromEmail: account.email,
       fromName: account.displayName,
       inReplyTo,
@@ -675,7 +683,7 @@ export class RealMailService implements MailService {
           ? await this.store.listMessages(sentKey)
           : []
 
-    const { key, message, messages, thread } = sentRowsFor(draft, {
+    const { key, message, messages, thread } = sentRowsFor(sendable, {
       account,
       gmailThreadId: resolvedThreadId,
       messageId: sent.id,

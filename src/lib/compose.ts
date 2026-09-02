@@ -4,7 +4,7 @@
 // Nothing here touches React, the DOM or MailService, so every rule the
 // composer depends on is unit-testable in plain Node — see tests/compose.test.ts.
 
-import type { EmailAddress, Message } from '@/core/types'
+import type { AttachmentSource, EmailAddress, Message } from '@/core/types'
 
 export type ReplyMode = 'reply' | 'replyAll' | 'forward'
 
@@ -205,6 +205,52 @@ export function quoteOriginal(
     message.from,
   ])} wrote:</p>`
   return `${spacer}${attribution}<blockquote>${body}</blockquote>`
+}
+
+/** An attachment a new draft carries from the message it answers. */
+export interface CarriedAttachment {
+  id: string
+  filename: string
+  mimeType: string
+  sizeBytes: number
+  source: AttachmentSource
+}
+
+/** The subset of a Message the carry rule reads. */
+export type CarrySource = Pick<Message, 'id' | 'attachments'>
+
+/**
+ * The attachments a new draft carries from the message it answers.
+ *
+ *   forward   — all of them
+ *   reply     — none
+ *   replyAll  — none
+ *
+ * Gmail's rule, and the right one: a forward is usually done *for* the
+ * attachment, and a reply goes back to the person who already has the file.
+ *
+ * Inline parts are left behind. They are the `cid:` images the quoted body
+ * already points at, and carrying them without their Content-ID headers would
+ * bolt a copy of every signature logo onto the forward as a visible file.
+ *
+ * The bytes are not read here. Each entry names where they live and the send
+ * path fetches them — see `AttachmentSource`.
+ */
+export function carriedAttachments(
+  message: CarrySource,
+  mode: ReplyMode,
+  threadKey: string,
+): CarriedAttachment[] {
+  if (mode !== 'forward') return []
+  return message.attachments
+    .filter((attachment) => !attachment.inline)
+    .map((attachment) => ({
+      id: attachment.id,
+      filename: attachment.filename,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      source: { threadKey, messageId: message.id, attachmentId: attachment.id },
+    }))
 }
 
 export const ATTACHMENT_WARN_BYTES = 20 * 1024 * 1024
