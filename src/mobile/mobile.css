@@ -54,6 +54,24 @@ html:has(.mobile-sheet-layer) .mobile-stage {
 }
 
 /*
+ * Toasts clear the bottom chrome.
+ *
+ * Sonner mounts outside the shell, so it cannot read `--mobile-tab-height`. It
+ * reads the plugin's published measurement of the glass instead, and falls back
+ * to the web bar's height for the `?mobile=1` preview. The undo offer and the
+ * sign-in result were both landing under the bar.
+ *
+ * `!important` because sonner writes both offsets as inline styles on its own
+ * container, and an inline declaration is the only thing a stylesheet cannot
+ * otherwise outrank. The alternative is an `offset` prop in `main.tsx`, which
+ * the desktop shares and does not need.
+ */
+[data-sonner-toaster][data-y-position='bottom'] {
+  --offset-bottom: calc(var(--maru-native-tab-inset, 84px) + env(safe-area-inset-bottom) + 12px) !important;
+  --mobile-offset-bottom: calc(var(--maru-native-tab-inset, 84px) + env(safe-area-inset-bottom) + 12px) !important;
+}
+
+/*
  * The document is the scroller on the phone, and that is load-bearing rather
  * than a style choice: UIKit decides when to minimize the Liquid Glass tab bar
  * by watching a UIScrollView, and the only one in the hierarchy is the

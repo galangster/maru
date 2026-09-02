@@ -130,11 +130,17 @@ iOS 17 to 25 get the classic bar with no minimize.
 The plugin installs itself when the web layer subscribes.
 It waits for `UIWindow.didBecomeKeyNotification` on a cold start.
 
-The webview keeps the default `contentInsetAdjustmentBehavior`.
-That is load-bearing. WebKit derives CSS `env(safe-area-inset-*)` from it.
-The plugin measures the bar with `contentLayoutGuide` on iOS 26.
-It gives that measurement to the content as an additional safe-area inset.
-The list then scrolls beneath the glass and its last row still clears the bar.
+The page sets `viewport-fit=cover`, and that is load-bearing.
+Without it WebKit reports every `env(safe-area-inset-*)` as zero.
+The webview also keeps the default `contentInsetAdjustmentBehavior`.
+
+`env(safe-area-inset-bottom)` carries the home indicator and nothing else.
+The iOS 26 bar floats over the content and insets nothing.
+The plugin measures the bar and publishes `--maru-native-tab-inset`.
+`mobile.css` adds that where the web tab bar's height used to go.
+The value is held at the expanded height while the bar is on screen.
+The page therefore does not reflow as the bar minimizes,
+and the last row still clears the glass.
 
 ### The tab list has one source
 
@@ -157,9 +163,17 @@ The web tab bar and the bulk toolbar are fixed.
 The thread toolbar is sticky, because its screen carries a transform.
 The inbox list uses `useWindowVirtualizer`.
 Pull to refresh reads `window.scrollY`.
-Sheets lock the body and render into `.mobile-app` through a portal.
+Sheets render into `.mobile-app` through a portal,
+because the thread and account screens carry a transform.
+A sheet holds the page still through CSS, not by pinning the body:
+`html:has(.mobile-sheet-layer)`.
+Pinning the body would report a scroll offset of zero to the virtualizer.
 `src/mobile/use-route-scroll.ts` restores each screen's scroll position.
+`.mobile-nav::before` paints through the status bar strip.
+Toasts clear the bar through `--maru-native-tab-inset` as well.
 No `overscroll-behavior` is set. Rubber-banding stays the system's.
+A long press is cancelled by `scroll` and by `touchmove`.
+The scroll view claims the gesture, so the row stops seeing pointer events.
 
 ### Commands and events
 
@@ -280,12 +294,27 @@ Large-text proof files are:
 - `thread-large-text-light.png`
 - `compose-large-text-light.png`
 
-## iOS OAuth follow-up
+## iOS OAuth
 
-The remaining production setup is one value:
+The production iOS OAuth client is live.
+It was created for bundle identifier `app.getmaru.ios` on 2026-09-01.
+Pass it as `VITE_MARU_IOS_GOOGLE_CLIENT_ID` for a real-mode iOS build.
 
-- Create the iOS OAuth client for bundle identifier `app.getmaru.ios`.
-- Paste its client id into `VITE_MARU_IOS_GOOGLE_CLIENT_ID` for the iOS build.
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+VITE_MARU_IOS_GOOGLE_CLIENT_ID=<ios-client-id>.apps.googleusercontent.com \
+  npm run tauri -- ios dev "iPhone 16"
+```
+
+Verified on the simulator on 2026-09-01.
+Settings reports `Gmail mode`.
+`Add Gmail account` opens the system consent alert.
+`Continue` opens `accounts.google.com` in the authentication session.
+Google shows its real sign-in page, headed `to continue to Maru Mail`.
+It no longer reports `invalid_client`.
+Cancelling the sheet returns to Settings and reports `Sign-in cancelled`.
+The proof is `wayfinder/captures/ios/ios-auth-real-client-light.png`.
+No account was signed in.
 
 The client seam, callback registration, PKCE exchange, Keychain filing,
 directed consent, Settings entry, and cancellation handling are implemented.
@@ -312,6 +341,8 @@ The I8 native-shell proof files are:
 - `native-tabbar-light.png` and `native-tabbar-dark.png`
 - `native-tabbar-badge-light.png`
 - `native-tabbar-scrolled-light.png`
+- `native-tabbar-minimized-light.png`
+- `ios-auth-real-client-light.png`
 
 The account proof files are:
 

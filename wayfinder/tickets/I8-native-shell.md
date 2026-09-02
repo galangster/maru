@@ -100,7 +100,12 @@ for VoiceOver to find.
 
 ### Simplify pass — 2026-09-01
 
-`/simplify` ran on the lane diff, two agents over the four angles. Applied:
+`/simplify` ran on the lane diff. Read the provenance before the list: two
+review agents were launched over the four angles, but their reports had not
+landed when the fixes below were applied, so **every finding here is the
+orchestrator's own review of the diff, not an agent's**. The agents were asked
+for their reports afterwards; anything they raise that is not already covered
+is appended below as a second pass. Applied:
 
 - The archive haptic moved out of `MobileApp.act` into `usePerformAction`,
   beside `playSound('complete')` — the choke point whose own comment says the
@@ -143,3 +148,123 @@ Skipped, with reasons:
   observer needs a WKWebView subclass this plugin does not own.
 - Moving the send haptic to a shared choke point. Mobile compose calls
   `service.send` directly; there is no shared send mutation to hang it on.
+
+## Lane 2 build log — 2026-09-01
+
+The owner gate from lane 1 is answered: **the phone scrolls the document**, and
+the Liquid Glass bar minimizes on scroll down and comes back at the top.
+`native-tabbar-minimized-light.png` is delivered.
+
+Four commits, one per part.
+
+### Part 0 — the document scrolls
+
+`.mobile-app` stops being a fixed viewport pane. `html`, `body` and `#root` are
+unparked for the shell through `html:has(.mobile-app)`, so the desktop base
+layer is untouched and the rule follows the shell into whichever bundle it lands
+in. Every screen's main region — inbox, search, settings, thread, account — is
+page content now; `.mobile-scroll` keeps its name and stops being a scroller.
+Headers hold their place with `position: sticky`. The web tab bar and the bulk
+toolbar are fixed; the thread toolbar is sticky, because its screen keeps a
+transform from the push animation and a transformed ancestor is the containing
+block for a fixed child. The inbox uses `useWindowVirtualizer`, pull to refresh
+reads `window.scrollY`, and `use-route-scroll.ts` gives the stack its scroll
+behaviour back. No `overscroll-behavior` anywhere: rubber-banding is the
+system's, which is the same gesture UIKit reads.
+
+### Part 1 — the plugin
+
+The web content is adopted once, as a child of the tab bar controller pinned
+under the bar, and never re-parented. All three tabs are the same page, so a
+switch moves no views at all and the WKWebView keeps its layers, its first
+responder and its scroll position; selection reaches JS through the delegate
+alone. `setContentScrollView(_:for:)` names the scroll view UIKit must watch to
+minimize, which its own heuristic could no longer find.
+
+One retained generator per feedback style, warmed by `prepare_haptics()` at the
+boundaries that end in a haptic. Installation waits on
+`UIWindow.didBecomeKeyNotification` instead of a hundred 50 ms timer hops, and
+starts at `watch_tabs` — the bar cannot be built before the web layer says what
+is on it. The tab descriptors come from `MOBILE_TABS` and `MOBILE_TAB_CHROME`;
+Swift writes no tab list. `unwatch_tabs` added, `selection()` deleted end to
+end, `Channel<TabSelected>` replaces `Channel<serde_json::Value>` and the
+`serde_json` dependency goes with it.
+
+### Part 2 — the web seam
+
+The bar's selection is a projection of `navigation.tab`, mirrored in
+`useNativeShellSync` beside `hidden` and the badge. The Later haptic rides
+`useDefer`; the send cue plays sound and haptic at one moment. `lib/cue.ts`
+binds a cue to what it feels like over one guard — `rateLimit(key, ms)` in
+`sound-policy.ts` — which is the half of the policy a silent confirmation
+needs, because `decideSound` only records a cue that was audible and sound is
+off by default. `lastCompleteHaptic` is gone. `data-native-shell` is
+synchronous, and the unread query that feeds the badge runs only when there is
+a bar to put it on.
+
+### Part 3 — six defects the simulator found
+
+None of these were visible in the `?mobile=1` preview.
+
+1. `viewport-fit=cover` was never set, so every `env(safe-area-inset-*)` in
+   `mobile.css` was reading zero and living off its fallbacks.
+2. An empty, clear tab host view is still hit-testable: the web content
+   received no touches at all until the stacking was fixed.
+3. `insertSubview(_:belowSubview:)` at install runs before UIKit finishes
+   adding its own subviews. The order is re-asserted every layout.
+4. React's development double-mount tore down the first subscription after the
+   second had landed, and `unwatch_tabs` took the live channel with it: the bar
+   highlighted the tapped tab and the route never moved.
+5. The bar's height reaches the page as `--maru-native-tab-inset`, published by
+   the controller. `contentLayoutGuide` reports the full view — the iOS 26 bar
+   floats over content on purpose — and `additionalSafeAreaInsets` on the
+   content controller does not reach WebKit's `env()`. Held at the expanded
+   height so the page does not reflow as the bar shrinks.
+6. A drag became a long press: with the page as the scroller, WebKit hands the
+   gesture to the scroll view and the row stops seeing pointer events, so
+   nothing cancelled the 480 ms timer. `scroll` and `touchmove` both cancel it.
+
+Two changes followed. The sheet scroll lock is CSS
+(`html:has(.mobile-sheet-layer)`), not a pinned body — pinning reported a
+scroll offset of zero to the window virtualizer and the inbox went blank behind
+every sheet, so `use-body-scroll-lock.ts` is gone. And `.mobile-nav::before`
+paints through the status bar, where content that has passed the sticky header
+is otherwise drawn over the clock.
+
+One more defect, found while proving the sign-in cancel: toasts were landing
+under the bar. They now read `--maru-native-tab-inset` too.
+
+### Gates
+
+`npm run typecheck && npm test && npm run build` pass — 696 tests, five new
+over the tab-descriptor mapping and the shared cue clock. `cargo check` and
+`cargo check --target aarch64-apple-ios-sim` both clean.
+
+### Simulator — iPhone 16, iOS 26.5, FlowDeck
+
+- The bar minimizes on scroll down and returns at the top of the list.
+- Native taps on Search and Settings move the web route; Inbox moves it back.
+- An archive from the actions sheet drops the badge from 9 to 8 and logs
+  exactly one `impact medium`. A Later commit logs one. A pull past the
+  threshold logs `impact light`. A send logs `notify success`. (The log stream
+  repeats each line; the timestamps are single.)
+- The last row of the inbox clears the glass.
+- A sheet holds the list still behind it, at the position it was left.
+- Real client: Settings reports `Gmail mode`, the consent alert appears,
+  and Google's real sign-in page loads headed `to continue to Maru Mail`.
+  Cancelling returns to Settings with `Sign-in cancelled`. No account signed in.
+
+Captures in `wayfinder/captures/ios/`: `native-tabbar-light.png`,
+`native-tabbar-dark.png`, `native-tabbar-badge-light.png`,
+`native-tabbar-scrolled-light.png`, `native-tabbar-minimized-light.png`,
+`ios-auth-real-client-light.png`.
+
+### Owed
+
+- `/simplify` did not run on this lane's diff. A delegate never seals; the
+  orchestrating session owns that pass.
+- The context menu still opens if a finger rests on a row for 480 ms without
+  moving at the very end of the list. `touchmove` covers every case reachable
+  by hand; the residual is synthetic-input only, and worth one more look.
+- Lane 3 of the charter — sheets as `UISheetPresentationController` — is
+  untouched, and the bottom sheets are still the web's.
