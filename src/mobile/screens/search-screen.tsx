@@ -1,14 +1,36 @@
 import { useState } from 'react'
 
+import type { MailActionType, Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
 import { MIN_SEARCH_LENGTH, useAccountsById, useSearch } from '@/features/mail/queries'
 import { useNow } from '@/lib/use-now'
 import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
+import { SwipeThreadRow } from '../components/swipe-thread-row'
 import { buildMobileRowModel } from '../state'
 import './search-screen.css'
 
-export function SearchScreen({ onOpen }: { onOpen: (key: string) => void }) {
+const SEARCH_HINT_ID = 'mobile-search-gesture-hint'
+
+/**
+ * Search results are inbox rows. They were their own read-only control until
+ * issue 15 — no swipe, no star, no long press, no unread dot — and search is
+ * the one list on the phone that reaches archived, sent and deferred mail, so
+ * it was the list that could act on the mail nothing else could reach.
+ */
+export function SearchScreen({
+  onOpen,
+  onAct,
+  onLater,
+  onContext,
+  onStar,
+}: {
+  onOpen: (key: string) => void
+  onAct: (keys: string[], type: MailActionType) => void
+  onLater: (keys: string[]) => void
+  onContext: (thread: Thread) => void
+  onStar: (thread: Thread) => void
+}) {
   const [query, setQuery] = useState('')
   const results = useSearch(query)
   const { selfEmails } = useAccountsById()
@@ -34,19 +56,26 @@ export function SearchScreen({ onOpen }: { onOpen: (key: string) => void }) {
         ) : results.isPending ? <MobileListSkeleton /> : (results.data?.length ?? 0) === 0 ? (
           <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="No results" copy="Try fewer words or a different operator." />
         ) : (
-          <div className="mobile-thread-list">
-            {results.data?.map((thread) => {
-              const row = buildMobileRowModel(thread, selfEmails, now)
-              return (
-                <button className="mobile-search-result" type="button" key={thread.key} onClick={() => onOpen(thread.key)}>
-                  <span className="mobile-search-result-copy"><strong>{row.sender}</strong><span>{row.subject}</span><small>{row.snippet}</small></span>
-                  <time>{row.time}</time><MobileIcon name="chevronRight" />
-                </button>
-              )
-            })}
+          <div className="mobile-thread-list" aria-describedby={SEARCH_HINT_ID}>
+            {results.data?.map((thread) => (
+              <SwipeThreadRow
+                key={thread.key}
+                thread={thread}
+                model={buildMobileRowModel(thread, selfEmails, now)}
+                editing={false}
+                selected={false}
+                onSelect={() => {}}
+                onOpen={() => onOpen(thread.key)}
+                onArchive={() => onAct([thread.key], 'archive')}
+                onLater={() => onLater([thread.key])}
+                onContext={() => onContext(thread)}
+                onStar={() => onStar(thread)}
+              />
+            ))}
           </div>
         )}
       </div>
+      <p className="sr-only" id={SEARCH_HINT_ID}>Swipe right to archive or left to save for later. Long press for more actions.</p>
     </section>
   )
 }
