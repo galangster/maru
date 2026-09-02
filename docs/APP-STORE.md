@@ -371,26 +371,36 @@ minimum deployment target is iOS 17.0, which no 5.5" device runs.
 
 ## 6. TestFlight — the first upload from this Mac
 
-Run on this Mac on 2026-09-01, Xcode 26.6, tauri-cli 2.11.4. The archive
-builds and is correct. **The export does not**, and the wall it hits is a
-permission on the API key, not anything in this repo. Everything below either
-ran or is quoted from the run.
+**Done 2026-09-01.** Build **0.1.8** is on TestFlight, `VALID`, distributed to
+the internal group, with Nick invited. Xcode 26.6, tauri-cli 2.11.4. Everything
+below ran; the commands are verbatim.
+
+The first attempt this day got a correct archive and then failed the export
+with "Cloud signing permission error", because the key it used
+(`PTF7XH7JWF`, Developer role) cannot mint distribution certificates. The fix
+was a new key, not a repo change.
 
 ### The API key, settled
 
-`~/.wren-release/AuthKey_PTF7XH7JWF.p8` **is** an App Store Connect API key,
-not a notarization key. Key id `PTF7XH7JWF`, issuer
+Two keys, and they do different jobs. Never mix them up.
+
+| Key | Role | Use it for |
+| --- | --- | --- |
+| `G52RSWR37N` "Maru release" | **Admin** | Everything here — archive signing, export, `altool`, TestFlight |
+| `PTF7XH7JWF` "wren-notary" | Developer | Notarization only. It cannot sign a distribution build |
+
+Both live in `~/.wren-release/` and neither is in git. Issuer for both is
 `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`.
 
-| It can | It cannot |
-| --- | --- |
-| Read the app record, builds, certificates, profiles, bundle ids, users | **Create a certificate.** `POST /v1/certificates` answers `403 FORBIDDEN_ERROR` |
-| Create and delete TestFlight beta groups (§ *The internal group*, below) | Let Xcode use a cloud-managed distribution certificate |
-| Authenticate `altool` (proved with `--list-apps`) | |
+Apple keys cannot gain services after they are created, so the Developer key
+could not be upgraded — the Admin key had to be new. Admin carries
+cloud-managed distribution signing, which is the one permission the export
+needs. With it, `-allowProvisioningUpdates` mints the certificate and the
+`app.getmaru.ios` App Store profile on its own. No certificate and no profile
+had to be made by hand, and no distribution identity had to be put in the
+keychain.
 
-So the key clears TestFlight and the upload, and stops at signing.
-
-### The two traps, in the order you meet them
+### The three traps, in the order you meet them
 
 **1. The prepare hook must run before Tauri, not inside it.** On a clean tree
 `npm run tauri -- ios build` dies before it does anything:
@@ -408,10 +418,14 @@ once first. It is idempotent and the build runs it again.
 
 **2. Nothing but the Tauri CLI can drive this archive.** The Xcode project's
 "Build Rust Code" phase talks to a live Tauri CLI socket (`docs/IOS.md`), so a
-bare `xcodebuild … archive` on `wren.xcodeproj` cannot compile it. The two-step
-`xcodebuild archive` / `-exportArchive` recipe this section used to carry does
-not work here. Drive the archive with `tauri ios build` and, if you need a
-different export, re-export the archive it leaves behind.
+bare `xcodebuild … archive` on `wren.xcodeproj` cannot compile it. Drive the
+archive with `tauri ios build` and, if you need a different export, re-export
+the archive it leaves behind.
+
+**3. A failed export leaves the archive behind.** `src-tauri/gen/apple/build/`
+survives a failed run, so the next run can hand you a stale `wren_iOS.xcarchive`
+and an even staler `Maru.ipa` while looking like it succeeded. `rm -rf
+src-tauri/gen/apple/build` before every archive, and check the mtimes after.
 
 ### What actually ran
 
@@ -422,121 +436,90 @@ export VITE_MARU_IOS_GOOGLE_CLIENT_ID="537601059334-302klho3gdlj3kloseb6akr96o26
 # Trap 1. Writes src-tauri/Info.ios.generated.plist.
 node --import tsx src-tauri/scripts/prepare-ios-oauth.mjs
 
+# Trap 3.
+rm -rf src-tauri/gen/apple/build
+
 # Tauri turns these three into
 #   -allowProvisioningUpdates -authenticationKeyID
 #   -authenticationKeyPath -authenticationKeyIssuerID
 # on both the xcodebuild archive and the -exportArchive.
-export APPLE_API_KEY=PTF7XH7JWF
+export APPLE_API_KEY=G52RSWR37N
 export APPLE_API_ISSUER=52f4e617-a4b3-4cee-bcd0-23f8e653d7b5
-export APPLE_API_KEY_PATH="$HOME/.wren-release/AuthKey_PTF7XH7JWF.p8"
+export APPLE_API_KEY_PATH="$HOME/.wren-release/AuthKey_G52RSWR37N.p8"
 export CI=true
 
 npm run tauri -- ios build --export-method app-store-connect
 ```
 
-The archive lands at
-`src-tauri/gen/apple/build/wren_iOS.xcarchive`. It is a real-mode release
-build and it is correct:
+It ends with `** BUILD SUCCEEDED **`, then:
+
+```
+Signing …/build/wren_iOS.xcarchive/Products/Applications/Maru.app/Maru
+Exported wren_iOS to: …/src-tauri/gen/apple/build
+    Finished 1 iOS Bundle at:
+        …/src-tauri/gen/apple/build/arm64/Maru.ipa
+```
+
+The archive lands at `src-tauri/gen/apple/build/wren_iOS.xcarchive` and the
+`.ipa` — 8,674,600 bytes — beside it under `arm64/`. Verified in the archived
+`Maru.app/Info.plist`, not in the hook's output:
 
 | | |
 | --- | --- |
 | `CFBundleIdentifier` | `app.getmaru.ios` |
 | `CFBundleShortVersionString` | `0.1.8` |
-| `CFBundleVersion` (the build number) | `0.1.8` — set in `src-tauri/gen/apple/project.yml`, which is tracked. Increment it there before the second upload. |
-| `ITSAppUsesNonExemptEncryption` | `false` — §4 of this page, verified in the archived `Maru.app/Info.plist`, not just in the hook's output |
-| `UIBackgroundModes` | `remote-notification` |
-| `CFBundleURLSchemes` | `com.googleusercontent.apps.537601059334-302klho3gdlj3kloseb6akr96o26r855` |
-| Real mode | `dist/assets/env-*.js` carries the real client id and no `PLACEHOLDER`, and the Rust binary that embeds `dist/` was compiled after it |
+| `CFBundleVersion` (the build number) | `0.1.8` — set in `src-tauri/gen/apple/project.yml`, which is tracked. Apple accepted it, so no increment was needed. Increment it there before the next upload. |
+| `ITSAppUsesNonExemptEncryption` | `false` |
+| Real mode | `dist/assets/env-*.js` carries the real client id, and the Rust binary that embeds `dist/` was compiled after it (22:06:23 → 22:08:13) |
 
-Do not go looking for the client id with `grep` inside `Maru.app`. Tauri
-embeds the web assets in the binary compressed, `Maru.app/assets/` is empty,
-and the string is not there to find. Check `dist/` and the two mtimes instead.
+**`PLACEHOLDER` in `dist/` is not a failure.** The env bundle defines
+`` `PLACEHOLDER${`.apps.googleusercontent.com`}` `` as the sentinel that the
+demo-mode test compares against. Real mode means the *configured* client id is
+not that sentinel, which is what to check — an earlier note in this section
+said "no `PLACEHOLDER` anywhere in `dist/`", and that was never true. Also do
+not go looking for the client id with `grep` inside `Maru.app`: Tauri embeds
+the web assets in the binary compressed, `Maru.app/assets/` is empty, and the
+string is not there to find.
 
-### Where it stops
-
-`-exportArchive` fails. Verbatim, from
-`IDEDistribution.verbose.log` in the `.xcdistributionlogs` bundle:
-
-```
-Error Domain=DeveloperAPIServiceErrorDomain Code=5 "Cloud signing permission
-error" UserInfo={NSLocalizedRecoverySuggestion=You haven't been given access
-to cloud-managed distribution certificates. Please contact your team's Account
-Holder or an Admin to give you access. …}
-
-Error Domain=IDEProfileLocatorErrorDomain Code=1 "No profiles for
-'app.getmaru.ios' were found"
-```
-
-and on stdout:
-
-```
-error: exportArchive Cloud signing permission error
-error: exportArchive No profiles for 'app.getmaru.ios' were found
-** EXPORT FAILED **
-```
-
-The manual route around it is closed too. There is no iOS distribution
-identity in any keychain on this Mac — `security find-identity -v` returns one
-entry, the Developer ID Application certificate, and its key signs Mac
-software, not App Store builds. The team's existing `DISTRIBUTION` and
-`IOS_DISTRIBUTION` certificates were issued elsewhere, so their private keys
-are not here. Minting a fresh one from a local CSR is what the key is not
-allowed to do:
-
-```
-POST /v1/certificates  →  403
-{ "code": "FORBIDDEN_ERROR",
-  "title": "This request is forbidden for security reasons",
-  "detail": "You are not allowed to perform this operation. Please check with
-             one of your Team Admins, …" }
-```
-
-### What unblocks it — either one, both owner-only
-
-1. **Give the key cloud signing.** App Store Connect → Users and Access →
-   Integrations → App Store Connect API → the `PTF7XH7JWF` row → enable
-   **Access to Cloud Managed Distribution Certificate** (and Admin, if the
-   toggle is not offered at the key's present role). Then re-run the block
-   above verbatim; Xcode creates the certificate and the `app.getmaru.ios`
-   App Store profile itself, and the export completes.
-2. **Or put a distribution identity on this Mac by hand.** Xcode → Settings →
-   Accounts → sign in → the team → Manage Certificates → **+** → Apple
-   Distribution. `-allowProvisioningUpdates` then has a local identity to use
-   and creates the profile on its own.
-
-The first is better: it leaves the whole path scriptable, and it is the same
-key CI would use.
-
-### The upload, once there is an `.ipa`
-
-The credential path is proved — `altool` authenticated with this key and
-listed the team's apps. Point it at the key's directory rather than copying
-the `.p8` anywhere:
-
-```sh
-API_PRIVATE_KEYS_DIR="$HOME/.wren-release" xcrun altool --upload-app -t ios \
-  -f <the .ipa -exportArchive wrote under src-tauri/gen/apple/build/> \
-  --apiKey PTF7XH7JWF \
-  --apiIssuer 52f4e617-a4b3-4cee-bcd0-23f8e653d7b5
-```
+### The upload
 
 `altool` searches `./private_keys`, `~/private_keys`, `~/.private_keys`,
 `~/.appstoreconnect/private_keys` and `$API_PRIVATE_KEYS_DIR` for
-`AuthKey_<key id>.p8`. The last one is the only one that does not mean moving
-the key out of `~/.wren-release`.
+`AuthKey_<key id>.p8`. Copy the key, never `cat` it:
 
-Export compliance is answered in the binary, so the build will not stall at
-"Missing Compliance", and an internal build needs no Beta App Review. Watch it
-land with:
+```sh
+mkdir -p ~/.private_keys
+cp ~/.wren-release/AuthKey_G52RSWR37N.p8 ~/.private_keys/AuthKey_G52RSWR37N.p8
 
-Processing state is `GET /v1/apps/6807633550/builds` on the same key —
-`processingState` goes `PROCESSING` → `VALID`, usually inside ten minutes.
+xcrun altool --upload-app -t ios \
+  -f src-tauri/gen/apple/build/arm64/Maru.ipa \
+  --apiKey G52RSWR37N \
+  --apiIssuer 52f4e617-a4b3-4cee-bcd0-23f8e653d7b5
+```
+
+Verbatim:
+
+```
+UPLOAD SUCCEEDED with no errors
+Delivery UUID: 36f6be5b-2805-4047-9cf7-8f7abbe89bce
+Transferred 8674600 bytes in 0.333 seconds (26.1MB/s, 208.615Mbps)
+```
+
+The delivery UUID **is** the build id. Poll
+`GET /v1/builds?filter[app]=6807633550` on the same key and read
+`processingState`. It went `PROCESSING` → `VALID` in **under two minutes**,
+well inside the ten the old note guessed.
+
+Export compliance needed no API call. `usesNonExemptEncryption` on the build
+came back `false` on its own, because the answer is in the binary. If a future
+upload ever stalls at "Missing Compliance", the fix is
+`PATCH /v1/builds/{id}` with `{"data":{"type":"builds","id":"{id}",
+"attributes":{"usesNonExemptEncryption":false}}}`.
 
 ### The internal group
 
-**Created 2026-09-01 over the API, and it is done.** Group `Maru internal`,
-id `c643921a-f60e-4ab5-8f9a-de40b5c84e34`, internal, feedback on, and
-**automatic distribution of every new build on**.
+Group `Maru internal`, id `c643921a-f60e-4ab5-8f9a-de40b5c84e34`, internal,
+feedback on, and **automatic distribution of every new build on**.
 
 ```
 POST /v1/betaGroups
@@ -552,13 +535,30 @@ POST /v1/betaGroups
 `409 ENTITY_ERROR.ATTRIBUTE.NOT_ALLOWED`, so if that flag is ever wrong the fix
 is to delete the group and make it again.
 
-Two things are still open on the group, and both are one step each:
+**Automatic distribution worked.** `GET /v1/betaGroups/{group}/builds` lists
+build `36f6be5b-…` with no step taken to put it there.
 
-- **Testers.** The group has none. Internal testers must hold an App Store
-  Connect role; `nicholasgalang@gmail.com` is Account Holder and Admin and
-  qualifies. Add from TestFlight → Maru internal → Testers, or
-  `POST /v1/betaGroups/c643921a-f60e-4ab5-8f9a-de40b5c84e34/relationships/betaTesters`.
-  Up to 100 internal testers, 30 devices each.
+Nick was added as the first internal tester, before the build landed:
+
+```
+POST /v1/betaTesters
+{ "data": { "type": "betaTesters",
+    "attributes": { "email": "nicholasgalang@gmail.com",
+                    "firstName": "Nick", "lastName": "Galang" },
+    "relationships": { "betaGroups": { "data": [ { "type": "betaGroups",
+                        "id": "c643921a-f60e-4ab5-8f9a-de40b5c84e34" } ] } } } }
+```
+
+`201`, tester id `6317b3f3-891a-44d4-b373-b9e83872c14b`, state `INVITED`. An
+internal tester must hold an App Store Connect role; Nick is Account Holder and
+Admin, so he qualifies. Find the user with `GET /v1/users` — emails are visible
+there. Up to 100 internal testers, 30 devices each.
+
+`GET /v1/builds/{id}/betaGroups` answers `403` even on the Admin key. Ask the
+group for its builds instead, not the build for its groups.
+
+Still open on the group, and not on the path to an internal build:
+
 - **Test Information.** Feedback email `support@getmaru.app`, marketing URL
   `https://getmaru.app`, privacy policy `https://getmaru.app/privacy`. Not
   required for internal testing; required before any external group.
@@ -580,6 +580,6 @@ Nothing below can be done by an agent, and nothing below should be guessed.
 | Allow-list the reviewer | `server/scripts/allow.ts` for the Maru side; the Google Cloud OAuth consent screen's test-user list for the Google side. |
 | Comp the reviewer's Maru account | `server/scripts/allow.ts comp <email>`. |
 | `«NICK: review contact details»` | First name, last name, phone, email on the App Review page. |
-| ~~API issuer id, and the key's kind~~ | **Settled 2026-09-01.** Issuer `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`. `AuthKey_PTF7XH7JWF.p8` is an App Store Connect key, and it uploads builds and manages TestFlight. |
-| **Cloud signing on the API key** | The one thing blocking the first upload. Enable **Access to Cloud Managed Distribution Certificate** on the `PTF7XH7JWF` key, or create an Apple Distribution certificate on this Mac by hand. §6, "What unblocks it". |
+| ~~API issuer id, and the key's kind~~ | **Settled 2026-09-01.** Issuer `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`. `AuthKey_G52RSWR37N.p8` (Admin) signs, exports, uploads and manages TestFlight. `AuthKey_PTF7XH7JWF.p8` (Developer) is notarization only. |
+| ~~Cloud signing on the API key~~ | **Closed 2026-09-01.** The Admin key `G52RSWR37N` carries cloud-managed distribution signing, so the export, the upload and TestFlight all ran with no owner step. §6. |
 | A lawyer's read | The privacy policy and terms are still marked draft (ticket A6). Apple requires the URL, not the review — but it is the same text Google's OAuth verification reads. |
