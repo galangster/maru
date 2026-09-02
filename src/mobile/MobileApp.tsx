@@ -6,13 +6,14 @@ import { useComposeActions } from '@/features/compose/use-compose-actions'
 import {
   registerUndoable,
   useDefer,
+  useDeferralsBefore,
   useMailEvents,
   usePerformAction,
   useAccountsById,
   useSyncStatus,
   useWakeSweep,
 } from '@/features/mail/queries'
-import { runBatchAction } from '@/features/list/bulk'
+import { runBatchAction, runBatchDefer } from '@/features/list/bulk'
 import { useMailMode } from '@/features/mail/service'
 import { usePush } from '@/features/notifications/use-push'
 import { useThemeEffect } from '@/features/shell/use-theme'
@@ -77,6 +78,7 @@ export function MobileApp() {
   )
   const perform = usePerformAction()
   const defer = useDefer()
+  const deferralsBefore = useDeferralsBefore()
   const composerOpen = useComposer((state) => state.open)
   const { accounts } = useAccountsById()
   const syncStatuses = useSyncStatus()
@@ -221,7 +223,23 @@ export function MobileApp() {
           onPick={(wakeAt) => {
             // The haptic rides `useDefer`, beside the cache patch every Later
             // surface shares.
-            sheet.threadKeys.forEach((threadKey) => defer.mutate({ threadKey, wakeAt }))
+            //
+            // Saving for later says so now, and offers Undo (issue 16): a left
+            // swipe and a right swipe are one flick apart on a phone, and one
+            // of them used to be silently irreversible while the other put up
+            // a toast. It goes through the same batch mechanism as the bulk
+            // bar, so one pick is one confirmation and one undo however many
+            // conversations it took, and the undo returns each of them to its
+            // own prior schedule rather than to one shared guess.
+            announce(
+              runBatchDefer(
+                (threadKey, at) => defer.mutate({ threadKey, wakeAt: at }),
+                deferralsBefore(sheet.threadKeys),
+                wakeAt,
+                Date.now(),
+                'conversation',
+              ),
+            )
             closeSheet()
           }}
         />
