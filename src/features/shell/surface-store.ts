@@ -104,8 +104,14 @@ export const useSurfaces = create<SurfaceState>((set) => ({
   // rule 1 calls a bug.
   openLater: (keys, bulk = false) => set(keys.length ? { later: { keys, bulk }, palette: false } : {}),
   closeLater: () => set({ later: null }),
-  openSearch: () => set({ searchOpen: true }),
-  closeSearch: () => set({ searchOpen: false, searchQuery: '' }),
+  openSearch: () => {
+    if (!useSurfaces.getState().searchOpen) rememberFocusOrigin('search')
+    set({ searchOpen: true })
+  },
+  closeSearch: () => {
+    set({ searchOpen: false, searchQuery: '' })
+    restoreFocusOrigin('search')
+  },
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 }))
 
@@ -129,6 +135,55 @@ export function anyDialogOpen(): boolean {
 
 export function useAnyDialogOpen(): boolean {
   return useSurfaces(selectAnyDialogOpen)
+}
+
+/**
+ * The two inline surfaces that have somewhere of their own to go back to.
+ *
+ * The four dialogs trap focus and hand it back to the thread list, which is
+ * right for them: they take the screen, so there is no "where you were" left
+ * to return to. The composer and the search field do not take the screen — a
+ * keyboard user reaches them from wherever they had tabbed to, and dropping
+ * focus on the page throws that position away. The next Tab then starts again
+ * at the first control in the app (issue 44).
+ *
+ * One slot per surface rather than one shared slot: both can be open at once,
+ * and a search opened from inside a compose must not overwrite where the
+ * composer has to go back to.
+ */
+export type InlineSurface = 'composer' | 'search'
+
+const focusOrigin = new Map<InlineSurface, HTMLElement>()
+
+/** Called as the surface opens, before it takes focus. */
+export function rememberFocusOrigin(surface: InlineSurface): void {
+  if (typeof document === 'undefined') return
+  const active = document.activeElement
+  if (active instanceof HTMLElement && active !== document.body) {
+    focusOrigin.set(surface, active)
+  } else {
+    focusOrigin.delete(surface)
+  }
+}
+
+/**
+ * Called as the surface closes. Back to the element that opened it, or to the
+ * thread list when that element has gone — the search field's own trigger is
+ * replaced by the field, so closing search lands on the list, which is where
+ * every other surface lands too.
+ */
+export function restoreFocusOrigin(surface: InlineSurface): void {
+  if (typeof document === 'undefined') return
+  const origin = focusOrigin.get(surface)
+  focusOrigin.delete(surface)
+  // `getClientRects` rather than `offsetParent`: a control inside a fixed or
+  // collapsed region is still focusable, and an element with no boxes at all
+  // is the case that has to fall through.
+  if (origin?.isConnected && origin.getClientRects().length > 0) {
+    origin.focus()
+    return
+  }
+  focusThreadList()
 }
 
 /**
