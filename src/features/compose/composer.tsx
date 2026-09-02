@@ -50,6 +50,7 @@ import {
   type Draft,
   type DraftAttachment,
 } from './compose-store'
+import { sendToastOptions } from './send-toast'
 
 const TITLES: Record<ReplyMode, string> = {
   reply: 'Reply',
@@ -67,9 +68,6 @@ const TITLES: Record<ReplyMode, string> = {
  * the whole of the send's undo, not a display duration on top of one.
  */
 const UNDO_WINDOW_MS = 4000
-
-/** One toast at a time. A second send replaces this one rather than stacking. */
-const SEND_TOAST = 'wren-send'
 
 /**
  * The send waiting out its undo window, if there is one.
@@ -195,25 +193,31 @@ function ComposerSheet() {
 
     window.setTimeout(() => {
       close()
+      const subject = payload.subject || '(no subject)'
+
       const cancel = heldSend.hold(SEND_KEY, () => {
         // The window is over and the mail is going. Withdraw the offer before
         // the request, not after it: ⌘Z landing on a send that is already in
         // flight would reopen a composer for a message the server has.
         useUi.getState().clearUndo(SEND_UNDO)
+        // The toast's button is the other half of the same offer, and it goes
+        // in the same turn. The words still say "Sending…" — the network is
+        // still out there — but the send is past taking back, and a button
+        // that is on screen has to still work (issue 2).
+        toast('Sending…', sendToastOptions(subject))
         void (async () => {
           try {
             await service.send(payload)
             cue('sent')
-            toast.success('Sent', {
-              id: SEND_TOAST,
-              description: payload.subject || '(no subject)',
-            })
+            toast.success('Sent', sendToastOptions(subject))
           } catch (cause) {
             playSound('error')
-            toast.error('Could not send', {
-              id: SEND_TOAST,
-              description: cause instanceof Error ? cause.message : 'The draft is back, unchanged.',
-            })
+            toast.error(
+              'Could not send',
+              sendToastOptions(
+                cause instanceof Error ? cause.message : 'The draft is back, unchanged.',
+              ),
+            )
             openWith(kept)
           }
         })()
@@ -240,12 +244,10 @@ function ComposerSheet() {
       useUi.getState().registerUndo({ id: SEND_UNDO, label: 'Send', run: undoSend })
 
       window.setTimeout(() => {
-        toast('Sending…', {
-          id: SEND_TOAST,
-          description: payload.subject || '(no subject)',
-          duration: UNDO_WINDOW_MS,
-          action: { label: 'Undo', onClick: undoSend },
-        })
+        toast(
+          'Sending…',
+          sendToastOptions(subject, { onClick: undoSend, durationMs: UNDO_WINDOW_MS }),
+        )
       }, 80)
     }, beat)
   }
