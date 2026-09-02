@@ -71,6 +71,19 @@ interface UiState {
   selectionSource: SelectionSource
   theme: ThemeChoice
   sidebarCollapsed: boolean
+  /**
+   * The window is too narrow to host an expanded sidebar — issue #57.
+   *
+   * Measured by the shell against the panel group's own minimums, and never
+   * persisted: it is a fact about the window, not a preference. It sits beside
+   * `sidebarCollapsed` rather than overwriting it so that widening the window
+   * gives back the sidebar the person actually asked for.
+   *
+   * Nothing reads either field directly. `selectSidebarRail` below is the one
+   * answer to "is the sidebar drawn as a rail", and it is what the shell, the
+   * sidebar and the toggle all ask.
+   */
+  sidebarCramped: boolean
   /** Account sections start collapsed — DIRECTION's sidebar spec. */
   expandedAccounts: Record<string, boolean>
   /** The whole Accounts group, folded to one header row. */
@@ -137,7 +150,13 @@ interface UiState {
   setSelected: (key: string | null, source?: SelectionSource) => void
   setTheme: (theme: ThemeChoice) => void
   setSidebarCollapsed: (collapsed: boolean) => void
-  toggleSidebar: () => void
+  setSidebarCramped: (cramped: boolean) => void
+  /**
+   * Flip the sidebar between wide and rail. Answers `false` when the window
+   * cannot host a wide sidebar, so the caller can say so rather than leaving
+   * the press unanswered — issue #57.
+   */
+  toggleSidebar: () => boolean
   toggleAccount: (accountId: string) => void
   toggleAccountsGroup: () => void
   allowImages: (threadKey: string) => void
@@ -208,6 +227,28 @@ function storedSidebarCollapsed(): boolean {
   }
 }
 
+/**
+ * Is the sidebar drawn as the 80 px rail? — issue #57.
+ *
+ * ONE mechanism, two causes. The shortcut and the footer button set
+ * `sidebarCollapsed`; a window too narrow to seat a wide sidebar sets
+ * `sidebarCramped`. Both produce the same rail, because the rail is a layout
+ * and the two facts are only reasons for it.
+ *
+ * The bug this closes is what happens when they are read separately: below
+ * ~930 px the panel group had already pinned the sidebar to its collapsed
+ * width, and the shortcut — reading the intent flag alone — drew the WIDE
+ * sidebar inside that rail. The Compose pill read "Compo", the mailbox names
+ * were reduced to their first letters, and nothing on screen said the way out
+ * was to press the same key again.
+ */
+export const selectSidebarRail = (s: UiState): boolean => s.sidebarCollapsed || s.sidebarCramped
+
+/** The same answer outside React — the shell effect and the toggle guard. */
+export function sidebarIsRail(): boolean {
+  return selectSidebarRail(useUi.getState())
+}
+
 export const useUi = create<UiState>()((set, get) => {
   /**
    * Take one entry out of the stack, then run it — in that order, so a second
@@ -230,6 +271,7 @@ export const useUi = create<UiState>()((set, get) => {
     selectionSource: 'pointer',
     theme: 'system',
     sidebarCollapsed: storedSidebarCollapsed(),
+    sidebarCramped: false,
     expandedAccounts:
       INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
     accountsGroupCollapsed: false,
@@ -269,7 +311,17 @@ export const useUi = create<UiState>()((set, get) => {
     // a value that did not move.
     setSidebarCollapsed: (sidebarCollapsed) =>
       set((s) => (s.sidebarCollapsed === sidebarCollapsed ? s : { sidebarCollapsed })),
-    toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+    // Guarded for the same reason: a window drag re-measures on every tick.
+    setSidebarCramped: (sidebarCramped) =>
+      set((s) => (s.sidebarCramped === sidebarCramped ? s : { sidebarCramped })),
+    // A cramped window has one legal sidebar — the rail — so the toggle has
+    // nothing to flip to and says so rather than writing an intent the shell
+    // will not honour (issue #57).
+    toggleSidebar: () => {
+      if (get().sidebarCramped) return false
+      set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed }))
+      return true
+    },
     toggleAccount: (accountId) =>
       set((s) => ({
         expandedAccounts: { ...s.expandedAccounts, [accountId]: !s.expandedAccounts[accountId] },

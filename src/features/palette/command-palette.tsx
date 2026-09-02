@@ -38,6 +38,7 @@ import { ThreadResult } from '@/components/thread-result'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { useDebounced } from '@/lib/use-debounced'
+import { requestSidebarToggle } from '@/features/sidebar/toggle'
 import { viewForThread } from '@/lib/thread-view'
 
 // Each verb names its end state, so "unread" always shows unread rather than
@@ -203,7 +204,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
             label="Toggle sidebar"
             hint={`⌥${MOD}S`}
             onSelect={() =>
-              run(() => useUi.getState().toggleSidebar())
+              run(() => requestSidebarToggle())
             }
           />
           <Row icon="settings" label="Settings" onSelect={() => run(() => openSettings())} />
