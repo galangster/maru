@@ -61,6 +61,7 @@ import {
   type SettingsSection,
 } from '@/features/shell/surface-store'
 import { useUi, type ThemeChoice } from '@/features/mail/ui-store'
+import { deviceNounFor } from '@/features/sidebar/sync-summary'
 import { DEFAULT_SETTINGS } from '@/core/defaults'
 import { syncKind } from '@/core/sync/failure'
 import { elapsedTime } from '@/lib/format'
@@ -77,7 +78,7 @@ import {
   transferDiff,
 } from './transfer'
 import { buildDebugReport } from '@/lib/debug-report'
-import { openExternalUrl } from '@/lib/env'
+import { openExternalUrl, platformOS } from '@/lib/env'
 import { checkForUpdates } from '@/lib/updates'
 import { AGENT_DISCLOSURE } from '@/features/agents/disclosure'
 import pkg from '../../../package.json'
@@ -414,16 +415,20 @@ function AccountsSection({ onNeedsClient }: { onNeedsClient: () => void }) {
  * if we were.
  */
 function accountStatusLine(status: SyncStatus | undefined, now: number): string {
+  // The two lines below that are about THIS machine take their noun from
+  // `sync-summary.ts`, the same as the sidebar summary and the list's notice.
+  // Written out here it was "this Mac" on an iPhone and on a PC (issue 52).
+  const here = deviceNounFor(platformOS)
   switch (syncKind(status)) {
     case 'noClient':
-      return 'No Google client is configured on this Mac — add a client ID to connect it.'
+      return `No Google client is configured on ${here} — add a client ID to connect it.`
     case 'rejected':
       return 'Google rejected the OAuth client — the account is fine. Set up your own client to reconnect.'
     case 'noCredentials':
       // NOT "signed out by Google" — Google did nothing. Says the reassuring
       // part explicitly, because the false version implies the account is in
       // trouble when only this machine is.
-      return 'Not signed in on this Mac — sign in to connect it. Nothing at Google changed.'
+      return `Not signed in on ${here} — sign in to connect it. Nothing at Google changed.`
     case 'signedOut':
       return 'Signed out by Google — sign in again to reconnect.'
     case 'stalled':

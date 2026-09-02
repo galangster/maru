@@ -46,11 +46,10 @@ export function usePullRefresh(
   /** Every gesture entry point starts here, so neither flag can be forgotten. */
   const begin = () => {
     eligible.current = window.scrollY <= 0
-    // An ineligible gesture still has to forget the last one's crossing, so
-    // the reset comes first and the warm-up only when there is a tap to warm
-    // up for.
-    tick.report(false)
-    if (eligible.current) tick.prepare()
+    // The last gesture's crossing and its warm-up both go. The engine is
+    // warmed by the first frame that reports, and only an eligible gesture
+    // ever reports one, so an ineligible one warms nothing.
+    tick.settle()
   }
   const offsetFor = (dy: number) => dy <= 0 ? 0 : Math.min(PULL_MAX_OFFSET, dy * PULL_DISTANCE_FACTOR)
   const move = (dy: number) => {
@@ -61,7 +60,7 @@ export function usePullRefresh(
   }
   const commit = (dy: number) => {
     const offset = offsetFor(dy)
-    tick.report(false)
+    tick.settle()
     if (!eligible.current || offset < PULL_REFRESH_THRESHOLD) {
       writePull(region.current, 0, true, false)
       return
@@ -75,7 +74,7 @@ export function usePullRefresh(
   }
   /** The gesture was never ours, or never finished. Put the indicator back. */
   const abandon = () => {
-    tick.report(false)
+    tick.settle()
     writePull(region.current, 0, true, false)
   }
   const drag = usePointerDrag({

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Thread } from '@/core/types'
+import { threadActions as desktopThreadActions } from '@/features/mail/thread-actions'
 import { wakeTime } from '@/lib/format'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
+  SHEET_DISMISS_THRESHOLD,
+  SWIPE_ACTION_THRESHOLD,
   atRoot,
   buildMobileRowModel,
   inboxBadgeValue,
@@ -16,12 +19,21 @@ import {
   hasListToSelect,
   resolveDragAxis,
   resolveSwipeIntent,
+  sheetDismisses,
+  sheetDragOffset,
   tabAtIndex,
   visibleScreen,
   type MobileRoute,
   type MobileStackEntry,
   type MobileTab,
 } from '@/mobile/state'
+import {
+  batchActions,
+  moveTargets,
+  removeChrome,
+  rowActions,
+  swipeRange,
+} from '@/mobile/thread-actions'
 import {
   SCROLL_RESTORE_FRAMES,
   SCROLL_RESTORE_TOLERANCE_PX,
@@ -391,5 +403,254 @@ describe('mobileRowLabel', () => {
 
   it('counts a conversation of more than one message', () => {
     expect(mobileRowLabel({ ...model, messageCount: 2 })).toContain('2 messages')
+  })
+})
+
+/**
+ * What the phone's three triage verbs mean, per conversation.
+ *
+ * Issue 48: every list sent `archive` whatever it was drawing, so Sent and
+ * Trash reported "Archived" with an Undo and changed nothing anywhere, and
+ * saving for later reported a wake time for a conversation that could never
+ * appear in Later — `threadMatchesView` says a deferral is about the INBOX and
+ * nothing else.
+ */
+describe('mobile thread actions', () => {
+  const inboxed = thread({ labelIds: ['INBOX', 'UNREAD'] })
+  const sent = thread({ key: 'account/sent-1', labelIds: ['SENT'] })
+  const sentAndInboxed = thread({ key: 'account/sent-2', labelIds: ['SENT', 'INBOX'] })
+  const trashed = thread({ key: 'account/trash-1', labelIds: ['TRASH'] })
+  const trashedFromInbox = thread({ key: 'account/trash-2', labelIds: ['TRASH', 'INBOX'] })
+  const archived = thread({ key: 'account/archived-1', labelIds: [] })
+
+  it('archives a conversation that is in the inbox', () => {
+    expect(rowActions(inboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
+  })
+
+  it('restores a trashed conversation instead of archiving it', () => {
+    expect(rowActions(trashed)).toEqual({ remove: 'untrash', defer: false, trash: false })
+  })
+
+  it('gives TRASH the precedence the view rules give it', () => {
+    // A thread trashed out of the inbox keeps its INBOX label, and
+    // `threadMatchesView` still shows it only in Trash. Archiving it would
+    // strip a label nothing reads and leave it exactly where it was.
+    expect(rowActions(trashedFromInbox)).toEqual({ remove: 'untrash', defer: false, trash: false })
+  })
+
+  it('offers nothing to put away on sent mail that is not in the inbox', () => {
+    expect(rowActions(sent)).toEqual({ remove: null, defer: false, trash: true })
+  })
+
+  it('archives sent mail that IS in the inbox', () => {
+    // A thread you replied to carries SENT and INBOX at once, which is why the
+    // rule reads the conversation and not the mailbox on screen.
+    expect(rowActions(sentAndInboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
+  })
+
+  it('offers nothing to put away on mail that is already archived', () => {
+    expect(rowActions(archived)).toEqual({ remove: null, defer: false, trash: true })
+  })
+
+  it('takes the intersection over a batch, never the majority', () => {
+    // One batch is one action, one confirmation and one undo (bulk.ts). A
+    // mixed selection has no single verb, so it is offered none.
+    expect(batchActions([inboxed, trashed]).remove).toBeNull()
+    expect(batchActions([inboxed, sent]).remove).toBeNull()
+    expect(batchActions([inboxed, sent]).defer).toBe(false)
+    expect(batchActions([inboxed, sentAndInboxed])).toEqual({
+      remove: 'archive',
+      defer: true,
+      trash: true,
+    })
+    expect(batchActions([trashed, trashedFromInbox]).remove).toBe('untrash')
+  })
+
+  it('offers nothing over an empty batch', () => {
+    expect(batchActions([])).toEqual({ remove: null, defer: false, trash: false })
+  })
+
+  it('names each removing verb once, for the control and for the strip', () => {
+    expect(removeChrome('archive').label).toBe('Archive')
+    expect(removeChrome('untrash').label).toBe('Move to Inbox')
+    // Short enough for the strip behind a row, where the glyph takes the rest.
+    expect(removeChrome('untrash').swipe.length).toBeLessThanOrEqual(8)
+  })
+
+  it('names the control that has nothing to put away Archive', () => {
+    // The Edit bar with nothing checked, and the strip behind a row that will
+    // not open. Written once here rather than `?? 'archive'` at each of them.
+    expect(removeChrome(null)).toEqual(removeChrome('archive'))
+  })
+
+  it('answers where a conversation is, for the Move sheet', () => {
+    // Asked as a question about position rather than decoded back out of the
+    // verb that puts a row away: Move offers Inbox wherever the conversation
+    // is not already there, and Trash wherever it is not already there.
+    expect(moveTargets(inboxed)).toEqual({ trashed: false, inboxed: true })
+    expect(moveTargets(trashed)).toEqual({ trashed: true, inboxed: false })
+    expect(moveTargets(trashedFromInbox)).toEqual({ trashed: true, inboxed: false })
+    expect(moveTargets(sent)).toEqual({ trashed: false, inboxed: false })
+    expect(moveTargets(archived)).toEqual({ trashed: false, inboxed: false })
+  })
+
+  it('reads the same rules the desktop reads, and not a second copy of them', () => {
+    // The phone's verbs are a projection of `features/mail/thread-actions.ts`.
+    // These are the two joins, asserted so a change to either descriptor has
+    // to be made deliberately rather than found on a phone.
+    for (const one of [inboxed, sent, sentAndInboxed, trashed, trashedFromInbox, archived]) {
+      const specs = desktopThreadActions(one)
+      expect(moveTargets(one).trashed).toBe(specs.trash.type === 'untrash')
+      expect(moveTargets(one).inboxed).toBe(!specs.later.disabled)
+    }
+  })
+
+  it('lets a row travel only where there is an action behind it', () => {
+    // The strip under a row IS the promise. A row that slides open over an
+    // action it will not take tells the same lie as the toast, one second
+    // earlier.
+    expect(swipeRange(rowActions(inboxed), 104)).toEqual({ min: -104, max: 104 })
+    expect(swipeRange(rowActions(trashed), 104)).toEqual({ min: 0, max: 104 })
+    expect(swipeRange(rowActions(sent), 104)).toEqual({ min: 0, max: 0 })
+  })
+})
+
+/**
+ * Coming back from a search result (issue 49).
+ *
+ * The query used to live in `SearchScreen`, which unmounts whenever anything
+ * covers it — a conversation pushed over it, a tab change — so the field came
+ * back empty and the results with it. It is shell state now, beside the
+ * mailbox, for the reason these two assertions state: navigation returns to
+ * exactly the route it left, and the route holds nothing about a screen but
+ * its identity, so there is nothing here for `back` to pop a query out of.
+ */
+describe('search across a thread push and pop', () => {
+  it('returns to the exact route the push was made from', () => {
+    const searching: MobileRoute = { tab: 'search', stack: [{ kind: 'inbox' }], sheet: null }
+    const reading = mobileRouteReducer(searching, {
+      type: 'push',
+      entry: { kind: 'thread', threadKey: 'account/thread-1' },
+    })
+    expect(visibleScreen(reading)).toBe('thread')
+    expect(mobileRouteReducer(reading, { type: 'back' })).toEqual(searching)
+  })
+
+  it('keeps nothing about a screen in the route but its identity', () => {
+    // The query is not here, and must not be: `back` pops the route, and a
+    // query popped by a back gesture is the defect wearing a different cause.
+    expect(Object.keys(initialMobileRoute).sort()).toEqual(['sheet', 'stack', 'tab'])
+  })
+})
+
+/**
+ * Putting a conversation away closes it (issue 50).
+ *
+ * Archive in the thread's top bar and bottom toolbar did this; Later, More →
+ * Archive and Move → Trash did not, so one verb did three different things
+ * depending on where it was tapped, and two of them left a screen of controls
+ * offered against mail that had already gone.
+ *
+ * One reducer action, dispatched from all four surfaces, so the rule for what
+ * "close up after it" means is here rather than composed in the shell.
+ */
+describe('closing a conversation after an action that removed it', () => {
+  const reading: MobileRoute = {
+    tab: 'inbox',
+    stack: [{ kind: 'inbox' }, { kind: 'thread', threadKey: 'account/thread-1' }],
+    sheet: null,
+  }
+
+  it('takes the sheet and the screen the conversation was on, together', () => {
+    const withSheet = mobileRouteReducer(reading, {
+      type: 'openSheet',
+      sheet: { kind: 'move', thread: thread() },
+    })
+    expect(mobileRouteReducer(withSheet, { type: 'dismissAfterRemoval' })).toEqual(initialMobileRoute)
+  })
+
+  it('leaves the screen when the verb was tapped on the conversation itself', () => {
+    // The thread's own toolbar: no sheet over it, and the screen still goes.
+    expect(mobileRouteReducer(reading, { type: 'dismissAfterRemoval' })).toEqual(initialMobileRoute)
+  })
+
+  it('leaves a list where it is', () => {
+    // A swipe over the inbox, or a Later picked over it: nothing to close, and
+    // nothing above the root to pop.
+    expect(mobileRouteReducer(initialMobileRoute, { type: 'dismissAfterRemoval' })).toEqual(
+      initialMobileRoute,
+    )
+  })
+
+  it('keeps the tab it was reading in', () => {
+    // Opened from a search result, the conversation goes and Search stays.
+    const searching: MobileRoute = {
+      tab: 'search',
+      stack: [{ kind: 'inbox' }, { kind: 'thread', threadKey: 'account/thread-1' }],
+      sheet: { kind: 'threadActions', thread: thread() },
+    }
+    expect(mobileRouteReducer(searching, { type: 'dismissAfterRemoval' })).toEqual({
+      tab: 'search',
+      stack: [{ kind: 'inbox' }],
+      sheet: null,
+    })
+  })
+
+  it('does not pop a screen that is not the conversation', () => {
+    // Account settings sits on the same stack and removes no mail. Nothing
+    // dispatches this from there, and the rule says so rather than relying on
+    // that.
+    const account: MobileRoute = {
+      tab: 'settings',
+      stack: [{ kind: 'inbox' }, { kind: 'account' }],
+      sheet: { kind: 'accountPassword' },
+    }
+    expect(mobileRouteReducer(account, { type: 'dismissAfterRemoval' })).toEqual({
+      ...account,
+      sheet: null,
+    })
+  })
+})
+
+/**
+ * Getting out of a sheet (issue 53).
+ *
+ * Every sheet drew the grab handle iOS uses to say "drag me down to close" and
+ * dragging it did nothing. The two rules below are the whole of what the
+ * handle now does, as pure functions, so the gesture can be checked without a
+ * finger — the same bargain `resolveSwipeIntent` makes for a row.
+ */
+describe('sheet drag to dismiss', () => {
+  it('follows a finger downwards', () => {
+    expect(sheetDragOffset(0)).toBe(0)
+    expect(sheetDragOffset(40)).toBe(40)
+    expect(sheetDragOffset(400)).toBe(400)
+  })
+
+  it('does not follow one upwards', () => {
+    // A bottom sheet is already at the bottom of the screen. There is nothing
+    // above its resting place to drag it to, and a rubber band there would be
+    // the one gesture on the phone with no possible outcome.
+    expect(sheetDragOffset(-60)).toBe(0)
+  })
+
+  it('closes past the threshold and springs back below it', () => {
+    expect(sheetDismisses(SHEET_DISMISS_THRESHOLD - 1)).toBe(false)
+    expect(sheetDismisses(SHEET_DISMISS_THRESHOLD)).toBe(true)
+  })
+
+  it('asks more of a sheet than of a row', () => {
+    // A row's swipe is a deliberate flick at a target the finger is on. A
+    // sheet is dismissed by a hand on its way somewhere else, and a sheet that
+    // left under 72 px would also leave under the first half of a scroll.
+    expect(SHEET_DISMISS_THRESHOLD).toBeGreaterThan(SWIPE_ACTION_THRESHOLD)
+  })
+
+  it('is a vertical gesture, so a sideways drag is not one', () => {
+    // The sheet's dismissal and the edge back share one screen and one finger.
+    // The axis lock is what keeps them apart: each is locked to its own axis
+    // for the life of a gesture, so neither can be running while the other is.
+    expect(resolveDragAxis(0, 120)).toBe('vertical')
+    expect(resolveDragAxis(120, 0)).toBe('horizontal')
   })
 })

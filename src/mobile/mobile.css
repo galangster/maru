@@ -89,6 +89,9 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   --mobile-offset-bottom: var(--mobile-toast-offset) !important;
 }
 
+/* The description's two-line box is in `features/shell/toast.css`, which both
+   shells import — the phone had its own copy of the desktop's rule (issue 47). */
+
 /*
  * The document is the scroller on the phone, and that is load-bearing rather
  * than a style choice: UIKit decides when to minimize the Liquid Glass tab bar
@@ -127,6 +130,10 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   --mobile-wrap-title: 4ch;
   --mobile-wrap-recipient: 14ch;
   --mobile-wrap-value: 12ch;
+  /* The sync message's own floor. Wider than the others because what it wraps
+     is a sentence rather than a field label, and an email address is one word
+     that has to fit on a line of it. */
+  --mobile-wrap-notice: 16ch;
   position: relative;
   min-height: 100dvh;
   isolation: isolate;
@@ -396,7 +403,7 @@ html[data-input-modality='keyboard']
 .mobile-title-row,
 .mobile-thread-nav,
 .mobile-sheet-nav,
-.mobile-bottom-sheet > header {
+.mobile-sheet-grip > header {
   display: flex;
   align-items: center;
 }
@@ -499,15 +506,53 @@ html[data-input-modality='keyboard']
  * must never be dressed as an alarm, which is the rule sync-summary.ts states
  * beside `isUrgent`.
  */
+/*
+ * The message that says mail has stopped arriving.
+ *
+ * It names the account it is about, and at the largest accessibility text size
+ * both addresses used to run off the right edge and be cut mid-word with no
+ * ellipsis — so the one fact the message exists to deliver was the part that
+ * could not be read (issue 51). An email address is a single unbreakable word,
+ * and the flex item shrinking under it does not make it wrap; it only makes it
+ * overflow, and `.mobile-app`'s `overflow: clip` did the rest.
+ *
+ * `overflow-wrap: anywhere` is what gives the address somewhere to break.
+ * `--mobile-wrap-notice` is the floor below which the sentence stops being
+ * squeezed between the two glyphs and takes a row of its own instead — in
+ * `ch`, so it is a floor in the message's own type and scales with Dynamic
+ * Type, which a pixel guess stops doing at the size this was reported at.
+ */
 .mobile-sync-banner {
+  position: relative;
   display: flex;
   width: 100%;
+  flex-wrap: wrap;
   align-items: start;
   gap: 8px;
   margin-block-end: 10px;
   border: 0;
   border-radius: var(--wren-radius-md);
   padding: 10px 12px;
+  /* Room for the chevron, which is out of flow — see below. In `em`, so the
+     reserve grows with the text it is beside. */
+  padding-inline-end: calc(12px + 1.6em);
+  /*
+   * And a ceiling on how much of the phone one sentence may take.
+   *
+   * At the largest accessibility size this message is fourteen lines long and
+   * it sits in the sticky header, so it filled the screen and put the inbox
+   * out of sight. The ceiling is a share of the viewport rather than a line
+   * count, because a line count that leaves the inbox visible at 53 px would
+   * be cutting the sentence at 17 px.
+   *
+   * It SCROLLS rather than clipping. Every word is still reachable, which is
+   * the whole point of the wrap above — the account this message names is the
+   * one fact it exists to deliver, and a clamp would take it away again at
+   * exactly the size that made it necessary. Nothing overflows at any size the
+   * phone ships at by default, so at rest this rule does nothing at all.
+   */
+  max-block-size: 40svh;
+  overflow-y: auto;
   background: var(--wren-surface-sunken);
   color: var(--wren-text-2);
   font-size: var(--mobile-text-footnote);
@@ -517,8 +562,9 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-sync-banner > span {
-  flex: 1;
+  flex: 1 1 var(--mobile-wrap-notice);
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Optically on the first line of the sentence rather than centred on a box
@@ -527,6 +573,18 @@ html[data-input-modality='keyboard']
   flex: 0 0 auto;
   margin-block-start: 1px;
   color: var(--wren-text-3);
+}
+
+/* The chevron is parked in the corner rather than sitting in the flex row.
+   It is a mark that the row goes somewhere, not part of the sentence, and in
+   the row it was a third item competing for the width the sentence needs:
+   once the sentence drops below `--mobile-wrap-notice` and takes a line of
+   its own, a chevron still in flow lands on a third line under it and walks
+   off the bottom of the screen. */
+.mobile-sync-banner > .mobile-icon:last-child {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: 12px;
 }
 
 .mobile-sync-banner.is-urgent {
@@ -1379,13 +1437,13 @@ html[data-input-modality='keyboard']
  * header is exactly the bar it was.
  */
 .mobile-sheet-nav,
-.mobile-bottom-sheet > header {
+.mobile-sheet-grip > header {
   flex-wrap: wrap;
   row-gap: 2px;
 }
 
 .mobile-sheet-nav h2,
-.mobile-bottom-sheet > header h2 {
+.mobile-sheet-grip > header h2 {
   flex: 1 1 auto;
   min-width: var(--mobile-wrap-title);
   overflow-wrap: anywhere;
@@ -1394,7 +1452,7 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-sheet-nav > button,
-.mobile-bottom-sheet > header button {
+.mobile-sheet-grip > header button {
   flex: 0 0 auto;
 }
 
@@ -1802,7 +1860,31 @@ html[data-input-modality='keyboard']
   padding-block: 8px env(safe-area-inset-bottom);
   background: var(--wren-surface);
   box-shadow: 0 -20px 60px oklch(0 0 0 / 0.18);
-  animation: mobile-sheet-in var(--wren-dur-celebrate) var(--wren-ease-spring) both;
+  /*
+   * `backwards`, not `both`. The entrance ends on `translateY(0)`, which is
+   * also this element's base state — so filling forwards changed nothing to
+   * look at and everything to work with: a filled animation outranks an inline
+   * style, so the drag-to-dismiss transform was written and never applied, on
+   * every sheet, for as long as the sheet was open (issue 53).
+   */
+  animation: mobile-sheet-in var(--wren-dur-celebrate) var(--wren-ease-spring) backwards;
+}
+
+.mobile-bottom-sheet.is-settling {
+  transition: transform var(--wren-dur-base) var(--wren-ease-out);
+}
+
+/*
+ * The grab area: the handle and the title row it sits above.
+ *
+ * The drag lives here rather than on the whole sheet because a sheet scrolls —
+ * the mailbox picker is nearly full height — and a dismissal that starts
+ * anywhere would be fighting that scroll for every gesture. `touch-action` is
+ * what stops WebKit claiming the drag for the sheet's own scroller before the
+ * axis lock has had a chance to read it.
+ */
+.mobile-sheet-grip {
+  touch-action: none;
 }
 
 .mobile-sheet-grabber {
@@ -1814,20 +1896,20 @@ html[data-input-modality='keyboard']
   background: var(--wren-hairline-strong);
 }
 
-.mobile-bottom-sheet > header {
+.mobile-sheet-grip > header {
   min-height: 48px;
   justify-content: space-between;
   padding-inline: 16px 10px;
 }
 
-.mobile-bottom-sheet > header h2 {
+.mobile-sheet-grip > header h2 {
   max-width: calc(100% - 50px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mobile-bottom-sheet > header button {
+.mobile-sheet-grip > header button {
   display: grid;
   width: 44px;
   height: 44px;

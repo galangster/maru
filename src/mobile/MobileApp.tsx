@@ -15,6 +15,7 @@ import {
 import { runBatchAction, runBatchDefer, type BulkActionType } from '@/features/list/bulk'
 import { usePush } from '@/features/notifications/use-push'
 import { labelNameFor } from '@/features/mail/mailbox-title'
+import { UNDO_LABELS, announcesItself } from '@/lib/undo'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { viewOverride } from '@/lib/env'
@@ -46,6 +47,7 @@ import { useInputModality } from './use-input-modality'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
 import { usePushAccountNudge } from './use-push-account-nudge'
 import { useRouteScroll } from './use-route-scroll'
+import '@/features/shell/toast.css'
 import './mobile.css'
 
 const AccountScreen = lazy(() =>
@@ -65,6 +67,12 @@ export function MobileApp() {
   // `?view=` is the desktop's capture seam and it opens the same mailboxes,
   // so the phone reads it too rather than making the captures drive the picker.
   const [mailbox, setMailbox] = useState<MailView>(() => viewOverride() ?? UNIFIED_INBOX)
+  // What the Search tab is searching for. Shell state for the same reason the
+  // mailbox is: the search screen unmounts whenever anything covers it — a
+  // conversation pushed over it, a tab change — and it used to take the query
+  // and its results with it (issue 49). Not route state either, because the
+  // back gesture must not pop a query the way it pops a screen.
+  const [searchQuery, setSearchQuery] = useState('')
   const onNativeTab = useCallback((index: number) => {
     const tab = tabAtIndex(index)
     if (tab) dispatch({ type: 'changeTab', tab })
@@ -124,7 +132,13 @@ export function MobileApp() {
     perform.mutate(action)
     // The archive haptic rides usePerformAction with the completion sound, so
     // every surface gets it and a bulk archive stays one tap.
-    if (type === 'archive') announce('Archived')
+    //
+    // Spoken for every action that takes the conversation out of the list, in
+    // the words the visible toast is already using: `announcesItself` is the
+    // desktop's own rule and `UNDO_LABELS` its own vocabulary, so restoring
+    // from Trash says "Moved to Inbox" out loud rather than nothing at all,
+    // and the eye and the ear cannot be given two different sentences.
+    if (announcesItself(type)) announce(UNDO_LABELS[type])
   }
   /**
    * One verb over a list of conversations — a swipe over one, or the Edit
@@ -147,6 +161,23 @@ export function MobileApp() {
     announce(runBatchAction((next) => perform.mutate(next), threadKeys, type, 'conversation'))
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
+  /**
+   * Close up after an action that took the conversation out of the list.
+   *
+   * Any action that removes a conversation closes it and returns to the list,
+   * and the same action does the same thing wherever it is tapped. Archive in
+   * the thread's top bar and bottom toolbar already did; Later, More → Archive
+   * and Move → Trash did not, so one verb did two different things depending
+   * on which of three places you reached it from (issue 50). What it left
+   * behind was stale — the conversation had already gone from the list, and
+   * every control still on screen was offered against mail that is no longer
+   * there, including archiving it a second time.
+   *
+   * One dispatch, and the reducer owns what it means: composing it here out of
+   * a `closeSheet` and a conditional `back` put a rule about where you are in
+   * the shell, where it could only be tested through the shell.
+   */
+  const closeAfterRemoval = () => dispatch({ type: 'dismissAfterRemoval' })
   const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
   const openPushSheet = useCallback(() => dispatch({ type: 'openSheet', sheet: { kind: 'pushAccount' } }), [])
   // Only from the inbox at rest. The offer is worth making once and worth
@@ -200,13 +231,15 @@ export function MobileApp() {
             backLabel={navigation.tab === 'inbox' ? mailboxName : MOBILE_TAB_CHROME[navigation.tab].label}
             onBack={() => dispatch({ type: 'back' })}
             onReply={replyTo}
-            onArchive={(key) => { actMany([key], 'archive'); dispatch({ type: 'back' }) }}
+            onRemove={(key, type) => { actMany([key], type); closeAfterRemoval() }}
             onLater={(target) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets: [target] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
             onLabels={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'labels', thread } })}
           />
         ) : screen === 'search' ? (
           <SearchScreen
+            query={searchQuery}
+            onQuery={setSearchQuery}
             onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
             onAct={actMany}
             onLater={(targets) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets } })}
@@ -248,7 +281,9 @@ export function MobileApp() {
                 'conversation',
               ),
             )
-            closeSheet()
+            // Saving for later takes the conversation out of the inbox, so the
+            // screen reading it goes with it — the same rule Archive follows.
+            closeAfterRemoval()
           }}
         />
       )}
@@ -265,7 +300,13 @@ export function MobileApp() {
         <ThreadActionsSheet
           thread={sheet.thread}
           onClose={closeSheet}
-          onAction={(type) => { act(sheet.thread.key, type); closeSheet() }}
+          onAction={(type) => {
+            act(sheet.thread.key, type)
+            // Star and read/unread leave the conversation where it is, so the
+            // sheet closes over it; the rest take it out of the list.
+            if (announcesItself(type)) closeAfterRemoval()
+            else closeSheet()
+          }}
           onLater={() =>
             dispatch({
               type: 'openSheet',
@@ -275,7 +316,7 @@ export function MobileApp() {
           onMove={() => dispatch({ type: 'openSheet', sheet: { kind: 'move', thread: sheet.thread } })}
         />
       )}
-      {sheet?.kind === 'move' && <MoveSheet onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
+      {sheet?.kind === 'move' && <MoveSheet thread={sheet.thread} onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeAfterRemoval() }} />}
       {sheet?.kind === 'pushAccount' && <PushAccountSheet onClose={closeSheet} onAccount={openAccount} />}
       <SyncAnnouncer accounts={accounts} announce={announce} />
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">

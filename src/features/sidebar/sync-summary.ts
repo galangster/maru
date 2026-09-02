@@ -12,11 +12,50 @@
 // copy stops being checked.
 
 import { hasStopped, syncKind, type SyncKind } from '@/core/sync/failure'
+import type { PlatformOS } from '@/lib/env'
 import { elapsedTime } from '@/lib/format'
 import type { Account, SyncStatus } from '@/core/types'
 
 /** Which recovery a state routes to, or none. */
 export type SyncAction = 'accounts' | 'google' | null
+
+/**
+ * What the two local-state sentences call the machine they are about.
+ *
+ * Two of the six failure messages are about THIS device and not about the
+ * account: an OAuth client that was never configured here, and a keychain that
+ * holds no sign-in here. Both said "on this Mac", and the phone said it too —
+ * on an iPhone, about an iPhone (issue 52). The other four are device-neutral
+ * and read correctly everywhere, which is why this is a noun and not a second
+ * set of sentences.
+ *
+ * A parameter rather than a read of `platformOS` inside `describeSync`,
+ * because this file is a pure function over its arguments and that is what
+ * lets the six sentences be tested as data. `useSyncSummary` resolves it, the
+ * same way it resolves the clock and the demo flag. The type comes from
+ * `platformOS` itself — a type-only import, so the purity is unchanged — so a
+ * fifth platform cannot be added without a noun for it.
+ */
+export const DEVICE_NOUNS: Record<PlatformOS, string> = {
+  ios: 'this phone',
+  mac: 'this Mac',
+  windows: 'this PC',
+  // Linux and anything else. Named rather than left out: a sentence with a
+  // hole in it is worse than one that is merely unspecific.
+  other: 'this computer',
+}
+
+/**
+ * The noun for a platform. `platformOS`'s four values, and nothing else.
+ *
+ * Every sentence anywhere in the app that names the machine goes through here
+ * — the summary, the list's sync notice, and Settings' per-account line — so
+ * "this Mac" is written once and the phone cannot call itself a Mac in a
+ * surface that was missed (issue 52).
+ */
+export function deviceNounFor(os: PlatformOS): string {
+  return DEVICE_NOUNS[os]
+}
 
 /** The winning kind across every account, plus the two states that are not
  *  about one account's health: a demo window, and an app still starting. */
@@ -93,6 +132,15 @@ export function describeSync(
   now: number,
   /** When this window started waiting. Defaults to `now`, i.e. no elapsed. */
   startedAt: number = now,
+  /**
+   * What to call the machine, for the two sentences that are about it.
+   *
+   * Required, and deliberately without a default. A default of "this Mac" is
+   * the exact sentence issue 52 was: it is right on one of the four platforms
+   * and silently wrong on the other three, and a caller that forgets it gets
+   * no warning. `deviceNounFor(platformOS)` is what every caller passes.
+   */
+  device: string,
 ): SyncSummary {
   const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
 
@@ -151,7 +199,7 @@ export function describeSync(
       short: 'Set up',
       full: 'No Google client',
       detail:
-        'Maru has no Google OAuth client configured on this Mac, so no mail is ' +
+        `Maru has no Google OAuth client configured on ${device}, so no mail is ` +
         'arriving. Nothing at Google is wrong. Open Settings to add a client ID.',
       action: 'google',
     }
@@ -194,11 +242,11 @@ export function describeSync(
     let detail: string
     if (local && dead.length === accounts.length) {
       detail =
-        'Maru has no saved sign-in for any account on this Mac, ' +
+        `Maru has no saved sign-in for any account on ${device}, ` +
         'so no mail is arriving. Open Settings to sign in.'
     } else if (local) {
       detail =
-        `Maru has no saved sign-in for ${names(emails)} on this Mac, ` +
+        `Maru has no saved sign-in for ${names(emails)} on ${device}, ` +
         `so ${one ? 'its' : 'their'} mail has stopped arriving.` +
         rest(idle.length) +
         ' Open Settings to sign in.'

@@ -42,6 +42,7 @@ function Latch({ when, children }: { when: boolean; children: ReactNode }) {
 }
 
 import '@/features/shell/surfaces.css'
+import '@/features/shell/toast.css'
 
 export default function App() {
   useThemeEffect()

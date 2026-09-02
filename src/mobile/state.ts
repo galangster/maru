@@ -114,6 +114,16 @@ export type MobileRouteAction =
   | { type: 'push'; entry: MobileStackEntry }
   | { type: 'openSheet'; sheet: MobileSheet }
   | { type: 'closeSheet' }
+  /**
+   * The conversation this was about has left the list (issue 50).
+   *
+   * One action rather than a `closeSheet` and a `back` composed in the shell.
+   * Closing the sheet the verb was tapped in and leaving the screen that was
+   * reading the conversation are two halves of one intent — put it away — and
+   * the shell sends it from four places, so the rule for what "close up after
+   * it" means belongs here where it can be read and tested once.
+   */
+  | { type: 'dismissAfterRemoval' }
   | { type: 'back' }
 
 export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction): MobileRoute {
@@ -126,6 +136,16 @@ export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction
       return { ...state, sheet: action.sheet }
     case 'closeSheet':
       return { ...state, sheet: null }
+    case 'dismissAfterRemoval':
+      // Both halves, in one state. The sheet always goes; the screen goes only
+      // when it was the conversation's own — a swipe from a list, or a Later
+      // picked over the inbox, has nothing above the root to pop and leaves
+      // the list exactly where it was.
+      return {
+        ...state,
+        sheet: null,
+        stack: topEntry(state).kind === 'thread' ? state.stack.slice(0, -1) : state.stack,
+      }
     case 'back':
       if (state.sheet) return { ...state, sheet: null }
       if (state.stack.length > 1) return { ...state, stack: state.stack.slice(0, -1) }
@@ -176,6 +196,34 @@ export const LONG_PRESS_DELAY_MS = 480
  * to be a scroll, which is the tell that a swipe is a web page pretending.
  */
 export const AXIS_LOCK_THRESHOLD = 10
+/**
+ * How far a sheet is dragged down before letting go closes it.
+ *
+ * Larger than `SWIPE_ACTION_THRESHOLD`, because the two gestures are answering
+ * different questions. A row's swipe is a deliberate flick at a target the
+ * finger is already on; a sheet is dismissed by a hand that is on its way
+ * somewhere else, and a sheet that leaves under a 72 px drag would also leave
+ * under the first half of a scroll that started on its header.
+ */
+export const SHEET_DISMISS_THRESHOLD = 96
+
+/**
+ * Where a sheet sits while a finger is on it.
+ *
+ * Down only. A bottom sheet is already at the bottom of the screen, so there
+ * is nothing above its resting place to drag it to — and an upward rubber band
+ * would be the one gesture on the phone that moves and then puts everything
+ * back with no possible outcome.
+ */
+export function sheetDragOffset(dy: number): number {
+  return Math.max(0, dy)
+}
+
+/** Whether letting go here closes the sheet. */
+export function sheetDismisses(offset: number): boolean {
+  return offset >= SHEET_DISMISS_THRESHOLD
+}
+
 export const EDGE_BACK_START_PX = 28
 export const EDGE_BACK_THRESHOLD = 72
 export const PULL_MAX_OFFSET = 92
