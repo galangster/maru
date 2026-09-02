@@ -4,11 +4,14 @@
 // and ⌘Z is the third door onto the same thing. All three ask the same two
 // questions: *is there something to undo*, and *is it still recent enough to
 // mean it*. Those two answers are pure functions of an entry and a clock, so
-// they live here and the store below them only holds the entry.
+// they live here and the store below them only holds the entries.
 //
-// One slot, not a stack. A ten-second window is a safety net for the action
-// you just took, not an edit history: a second undoable replaces the first,
-// and ⌘Z twice in a row does not walk backwards through the morning.
+// A bounded stack, newest first, not one slot. One slot meant two archives
+// and one recoverable thread: the second registration overwrote the first,
+// and the second ⌘Z answered with silence (issue 40). Depth is still a safety
+// net over a triage burst rather than an edit history — see UNDO_DEPTH — and
+// every entry keeps expiring on its own ten-second window, so a deeper stack
+// never hands back something older than the window allows.
 
 import type { MailActionType } from '@/core/types'
 
@@ -20,14 +23,47 @@ import type { MailActionType } from '@/core/types'
 export const UNDO_WINDOW_MS = 10_000
 
 /**
- * The sonner id every undo toast shares, so there is only ever one on screen.
+ * How many actions ⌘Z walks back, newest first.
  *
- * Not cosmetic. The toast's button runs *the registry's* pending undo, not a
- * closure over the action that raised it — so two undo toasts alive at once
- * would mean a button that says "Archived: Book club" quietly reversing
- * whatever was done after it. One id, one toast, one meaning.
+ * Ten, and bounded on purpose. What undo is for here is the triage burst — the
+ * e, e, e, e run that clears a screenful, where the mistake is noticed three
+ * rows later — and ten covers that with room to spare. It is not an edit
+ * history: every entry holds a closure over a mutation and over the row state
+ * it means to put back, and an unbounded stack would keep all of it alive for
+ * the whole session for a promise nobody makes. Depth never overrides
+ * recency either — the eleventh press still has to be inside UNDO_WINDOW_MS.
+ *
+ * Session scoped, like everything else about what a person is looking at, and
+ * dropped outright on sign-out and on a mailbox reset: an undo that survives
+ * either would reverse an action against mail that is no longer there.
+ */
+export const UNDO_DEPTH = 10
+
+/**
+ * The id the *answers* share — "Undone", "Nothing to undo".
+ *
+ * One id for the answer, so a run of ⌘Z rewrites one line instead of stacking
+ * a column of confirmations behind the offers.
  */
 export const UNDO_TOAST_ID = 'wren-undo'
+
+/**
+ * The toast id for one entry's own offer. Per entry, not shared.
+ *
+ * The shared id used to be load-bearing: the button ran *the registry's*
+ * pending undo rather than the action that raised it, so two offers alive at
+ * once would have meant a toast reading "Archived: Book club" quietly
+ * reversing whatever was done after it. Entries are identified now and each
+ * button runs its own, which is what lets the first archive's Undo stay on
+ * screen for its own four seconds instead of being withdrawn by the second
+ * archive (issue 40).
+ */
+export function undoToastId(entryId: string): string {
+  return `${UNDO_TOAST_ID}:${entryId}`
+}
+
+/** What ⌘Z says with nothing live to undo. The silence was the bug (issue 40). */
+export const NOTHING_TO_UNDO = 'Nothing to undo'
 
 /** Past tense, because it is what the confirmation says happened. */
 export const UNDO_LABELS: Record<MailActionType, string> = {
@@ -74,8 +110,13 @@ export function announcesItself(type: MailActionType): boolean {
 
 export interface Undoable {
   /**
-   * Identity of the thing that was done, so a late `clear` from a mutation
-   * that has since been superseded cannot wipe a newer entry.
+   * Identity of the thing that was done.
+   *
+   * Three rules turn on it, and none of them can use position. A late `clear`
+   * from a mutation that has since been superseded must withdraw its own entry
+   * and no other; a toast's Undo button must reverse the action that raised
+   * that toast even when three newer ones sit above it; and re-registering the
+   * same id replaces rather than duplicates.
    */
   id: string
   /** What the confirmation calls it: "Archived", "Send". */
@@ -86,35 +127,89 @@ export interface Undoable {
    * Put it back. Either cancels a mutation still being held, or sends the
    * reverse action — the caller decides which, because only the caller knows
    * whether its hold is still live.
+   *
+   * Captured at registration, so an entry stays correct however the threads it
+   * names have changed since: what it replays is the reversal that was true
+   * when the action was taken.
    */
   run: () => void
 }
 
+/** The stack, newest first. Empty means there is nothing to undo. */
+export type UndoStack = readonly Undoable[]
+
 /**
- * The entry a ⌘Z at `now` should run, or null.
+ * Is this entry still inside its window at `now`?
  *
  * A negative age is treated as expired rather than as fresh: a clock that has
  * gone backwards (a system time change, a suspended laptop) must not hand back
  * an entry the user has long since forgotten about.
  */
-export function liveUndoable(
-  entry: Undoable | null,
-  now: number,
-  windowMs: number = UNDO_WINDOW_MS,
-): Undoable | null {
-  if (!entry) return null
+export function isLive(entry: Undoable, now: number): boolean {
   const age = now - entry.at
-  return age >= 0 && age <= windowMs ? entry : null
+  return age >= 0 && age <= UNDO_WINDOW_MS
 }
 
 /**
- * The registry after `id` reports that it is no longer undoable — the composer
- * saying its held send has gone out, for instance.
+ * The stack after `entry` is registered.
  *
- * Clearing is by identity on purpose. The send that flushes at 4 s is often
- * *not* the newest undoable any more (the user archived something at 2 s), and
- * a blind clear there would silently take ⌘Z away from the archive.
+ * Newest first, capped at UNDO_DEPTH — the oldest falls off the bottom,
+ * silently, because an entry that far back is past its window anyway.
+ *
+ * Entries that have already expired are dropped BEFORE the cap, so the ten
+ * slots hold ten live offers rather than nine dead ones and the archive from a
+ * minute ago. Nothing sweeps this stack on a timer — a registration is the
+ * only moment it changes, so it is the moment the dead entries go.
+ *
+ * An id the stack already holds is REPLACED rather than added beside. Identity
+ * is what the toast button and a late `clear` navigate by, so two entries
+ * under one name would make both of them ambiguous: a second archive of the
+ * same thread is one offer to undo, not two.
  */
-export function clearedUndoable(current: Undoable | null, id: string): Undoable | null {
-  return current?.id === id ? null : current
+export function pushUndoable(stack: UndoStack, entry: Undoable): UndoStack {
+  const kept = stack.filter((held) => held.id !== entry.id && isLive(held, entry.at))
+  return [entry, ...kept].slice(0, UNDO_DEPTH)
+}
+
+/**
+ * The newest entry still inside its window — what ⌘Z runs, or null.
+ *
+ * It scans rather than reading the top slot alone. On a well-behaved clock the
+ * two are the same answer, since anything under an expired entry is older
+ * still; on one that has jumped forward, a future-stamped entry is skipped by
+ * `isLive` and the scan finds the newest genuinely live one underneath it
+ * instead of reporting an empty stack.
+ */
+export function newestUndoable(stack: UndoStack, now: number): Undoable | null {
+  return stack.find((entry) => isLive(entry, now)) ?? null
+}
+
+/**
+ * One named entry, if it is still live — the toast button's question.
+ *
+ * By identity and never by position: the toast that offers "Archived: Book
+ * club" has to reverse that archive, whatever has been done since. Its window
+ * is the same as ⌘Z's, so a button left on screen past ten seconds answers the
+ * same way the keyboard does rather than reaching back further.
+ */
+export function findUndoable(stack: UndoStack, id: string, now: number): Undoable | null {
+  const entry = stack.find((held) => held.id === id)
+  return entry && isLive(entry, now) ? entry : null
+}
+
+/**
+ * The stack after `id` reports that it is no longer undoable — the composer
+ * saying its held send has gone out, for instance — or after it has been run.
+ *
+ * Removal is by identity on purpose. The send that flushes at 4 s is often
+ * *not* the newest undoable any more (the user archived something at 2 s), and
+ * a blind pop there would silently take ⌘Z away from the archive.
+ *
+ * An id the stack does not hold gives the same array back, so a late clear
+ * from a spent entry costs no subscriber a re-render.
+ */
+export function withoutUndoable(stack: UndoStack, id: string): UndoStack {
+  return stack.some((entry) => entry.id === id)
+    ? stack.filter((entry) => entry.id !== id)
+    : stack
 }

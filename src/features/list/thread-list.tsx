@@ -16,9 +16,9 @@ import { deferSortKey, isDeferred } from '@/core/defaults'
 import { SEARCH_WINDOW_DAYS } from '@/core/sync/engine'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
 import {
+  offerUndo,
   registerActionUndo,
   registerUndoable,
-  showUndoToast,
   useAccountsById,
   useDefer,
   useLabels,
@@ -275,23 +275,27 @@ export function ThreadList() {
       // cancel and undo sends the reverse action, which is the whole reason
       // `unarchive` exists. Registered rather than closed over by the toast, so
       // ⌘Z reaches the same two halves.
-      useUi.getState().registerUndo({
-        id: `archive:${thread.key}`,
-        label: UNDO_LABELS.archive,
-        run: () => {
-          if (held.has(thread.key)) {
-            cancel()
-            setTicking((current) => (current === thread.key ? null : current))
-            return
-          }
-          mutate({ type: 'unarchive', threadKey: thread.key })
-        },
-      })
-
+      //
       // DIRECTION §2 (Superhuman 5): small, bottom-left, inline UNDO. The
       // affordance is on screen for the toast's own life; ⌘Z keeps offering the
-      // same undo for the rest of the 10 s window.
-      showUndoToast(UNDO_LABELS.archive, thread.subject || '(no subject)')
+      // same undo for the rest of the 10 s window. The button carries this
+      // archive's id, so a second archive raises its own toast beside this one
+      // rather than replacing it (issue 40).
+      offerUndo(
+        {
+          id: `archive:${thread.key}`,
+          label: UNDO_LABELS.archive,
+          run: () => {
+            if (held.has(thread.key)) {
+              cancel()
+              setTicking((current) => (current === thread.key ? null : current))
+              return
+            }
+            mutate({ type: 'unarchive', threadKey: thread.key })
+          },
+        },
+        thread.subject || '(no subject)',
+      )
     },
     [held],
   )
@@ -302,7 +306,7 @@ export function ThreadList() {
    * The archive machinery verbatim, and deliberately so: the advance rule, the
    * hold that lets the row survive its own exit animation, and the two-halved
    * undo are all `onAction`'s, reused rather than grown a second time. Nothing
-   * in lib/undo.ts changes — it is one slot, and Later takes it like any other
+   * in lib/undo.ts changes — Later takes a place on the stack like any other
    * action.
    *
    * There is no archive TICK here. The tick is a completion cue with a green
@@ -327,19 +331,20 @@ export function ThreadList() {
       // cancels it and the row simply stays. After it flushes, undo puts the
       // previous deferral back — `null` when there was none, which is the
       // ordinary case, and the old wake time when this was a re-schedule.
-      useUi.getState().registerUndo({
-        id: `later:${thread.key}`,
-        label,
-        run: () => {
-          if (held.has(thread.key)) {
-            cancel()
-            return
-          }
-          commit(before)
+      offerUndo(
+        {
+          id: `later:${thread.key}`,
+          label,
+          run: () => {
+            if (held.has(thread.key)) {
+              cancel()
+              return
+            }
+            commit(before)
+          },
         },
-      })
-
-      showUndoToast(label, thread.subject || '(no subject)')
+        thread.subject || '(no subject)',
+      )
     },
     [held],
   )
@@ -657,7 +662,7 @@ export function ThreadList() {
       </div>
 
       {/* The picker is mounted HERE, not in the shell, because the commit needs
-          this component's advance rule, its held mutations and its undo slot —
+          this component's advance rule, its held mutations and its undo entry —
           the same three the archive path uses. It portals, so where it is
           declared has nothing to do with where it appears. */}
       <LaterPicker

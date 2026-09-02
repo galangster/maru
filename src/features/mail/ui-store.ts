@@ -6,7 +6,14 @@ import { create } from 'zustand'
 
 import type { MailView } from '@/core/types'
 import { viewOverride } from '@/lib/env'
-import { clearedUndoable, liveUndoable, type Undoable } from '@/lib/undo'
+import {
+  findUndoable,
+  newestUndoable,
+  pushUndoable,
+  withoutUndoable,
+  type Undoable,
+  type UndoStack,
+} from '@/lib/undo'
 
 export type ListSort = 'newest' | 'oldest'
 export type ListFilter = 'all' | 'unread' | 'starred' | 'attachments'
@@ -118,12 +125,13 @@ interface UiState {
   /** Expansion of the open conversation. Reset whenever the selection moves. */
   readingExpansion: ReadingExpansion
   /**
-   * The one thing ⌘Z would put back. One slot, not a stack — see lib/undo.ts.
+   * What ⌘Z would put back, newest first — a bounded stack, see lib/undo.ts.
    *
-   * It is UI state and not mail data: the mutation itself has already gone
-   * through react-query, and what is held here is only the offer to reverse it.
+   * It is UI state and not mail data: the mutations themselves have already
+   * gone through react-query, and what is held here is only the offers to
+   * reverse them.
    */
-  undoable: Undoable | null
+  undoStack: UndoStack
 
   setView: (view: MailView) => void
   setSelected: (key: string | null, source?: SelectionSource) => void
@@ -142,16 +150,33 @@ interface UiState {
   /** Change part of a view's list lens; the rest keeps its current value. */
   setListPrefs: (view: MailView, patch: Partial<ListPrefs>) => void
   setReadingExpansion: (next: ReadingExpansion) => void
-  /** Offer an undo. Stamps `at` here so no caller can hand in its own clock. */
+  /**
+   * Offer an undo, on top of the ones already there. Stamps `at` here so no
+   * caller can hand in its own clock. Re-registering an id replaces it.
+   */
   registerUndo: (entry: Omit<Undoable, 'at'>) => void
-  /** Withdraw the offer, if it is still the one on the table. */
+  /** Withdraw one offer by name, wherever in the stack it is. */
   clearUndo: (id: string) => void
   /**
-   * Run the pending undo if it is still inside its window, and report what it
-   * was so the caller can say so. The entry is cleared *before* it runs, which
-   * is what stops a double ⌘Z reversing the same action twice.
+   * Drop every offer. Sign-out and a mailbox reset, and nothing else: an undo
+   * that outlived the mail it names would reverse an action against threads
+   * that are no longer there.
    */
-  runUndo: (now?: number) => string | null
+  clearUndoStack: () => void
+  /**
+   * Run the newest undo still inside its window and report the entry, so the
+   * caller can say what it was and take that entry's own offer off the screen.
+   * Null means there was nothing live, which is a sentence and not a silence.
+   *
+   * The entry leaves the stack *before* it runs, which is what stops a double
+   * ⌘Z reversing the same action twice.
+   */
+  runUndo: (now?: number) => Undoable | null
+  /**
+   * Run one named offer — the toast's own Undo button, which reverses the
+   * action that raised it even when newer ones sit above it in the stack.
+   */
+  undoEntry: (id: string, now?: number) => Undoable | null
 }
 
 /**
@@ -183,108 +208,122 @@ function storedSidebarCollapsed(): boolean {
   }
 }
 
-export const useUi = create<UiState>()((set, get) => ({
-  view: INITIAL_VIEW,
-  selected: null,
-  selectionSource: 'pointer',
-  theme: 'system',
-  sidebarCollapsed: storedSidebarCollapsed(),
-  expandedAccounts:
-    INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
-  accountsGroupCollapsed: false,
-  imagesAllowed: new Set<string>(),
-  syncNoticeDismissed: new Set<string>(),
-  checked: new Set<string>(),
-  checkAnchor: null,
-  pendingAccounts: [],
-  listPrefs: {},
-  readingExpansion: 'default',
-  undoable: null,
+export const useUi = create<UiState>()((set, get) => {
+  /**
+   * Take one entry out of the stack, then run it — in that order, so a second
+   * press during the reversal finds it gone. Shared by ⌘Z and by the toast
+   * button, because "which entry" is the only thing the two disagree about.
+   *
+   * Inside `create` so it writes through this store's own `set` rather than
+   * reaching back out to the `useUi` singleton it is part of.
+   */
+  const runEntry = (entry: Undoable | null): Undoable | null => {
+    if (!entry) return null
+    set((s) => ({ undoStack: withoutUndoable(s.undoStack, entry.id) }))
+    entry.run()
+    return entry
+  }
 
-  // Changing view always drops the selection: keeping a thread from another
-  // folder open while its row is gone reads as a bug. Opening a label also
-  // opens its account section, so the sidebar never hides the current view.
-  setView: (view) =>
-    set((s) => ({
-      view,
-      selected: null,
-      checked: new Set<string>(),
-      checkAnchor: null,
-      readingExpansion: 'default',
-      expandedAccounts:
-        view.kind === 'account'
-          ? { ...s.expandedAccounts, [view.accountId]: true }
-          : s.expandedAccounts,
-      // Navigating into an account must reveal it, whatever the group was.
-      accountsGroupCollapsed: view.kind === 'account' ? false : s.accountsGroupCollapsed,
-    })),
-  toggleAccountsGroup: () =>
-    set((s) => ({ accountsGroupCollapsed: !s.accountsGroupCollapsed })),
-  setSelected: (selected, selectionSource = 'pointer') =>
-    set({ selected, selectionSource, readingExpansion: 'default' }),
-  setTheme: (theme) => set({ theme }),
-  // Guarded: the resize handle calls this on every layout tick of a drag, and
-  // an unguarded `set` would notify every subscriber sixty times a second for
-  // a value that did not move.
-  setSidebarCollapsed: (sidebarCollapsed) =>
-    set((s) => (s.sidebarCollapsed === sidebarCollapsed ? s : { sidebarCollapsed })),
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-  toggleAccount: (accountId) =>
-    set((s) => ({
-      expandedAccounts: { ...s.expandedAccounts, [accountId]: !s.expandedAccounts[accountId] },
-    })),
-  allowImages: (threadKey) =>
-    set((s) => ({ imagesAllowed: new Set(s.imagesAllowed).add(threadKey) })),
-  dismissSyncNotice: (accountIds) =>
-    set((s) => {
-      const next = new Set(s.syncNoticeDismissed)
-      for (const id of accountIds) next.add(id)
-      return { syncNoticeDismissed: next }
-    }),
-  toggleChecked: (threadKey) =>
-    set((s) => {
-      const checked = new Set(s.checked)
-      if (checked.has(threadKey)) checked.delete(threadKey)
-      else checked.add(threadKey)
-      return { checked, checkAnchor: threadKey }
-    }),
-  checkMany: (threadKeys) =>
-    set((s) => {
-      const checked = new Set(s.checked)
-      for (const key of threadKeys) checked.add(key)
-      return { checked }
-    }),
-  clearChecked: () => set({ checked: new Set<string>(), checkAnchor: null }),
-  setPendingAccounts: (pendingAccounts) => set({ pendingAccounts }),
-  setReadingExpansion: (readingExpansion) => set({ readingExpansion }),
-  setListPrefs: (view, patch) =>
-    set((s) => {
-      const key = viewKey(view)
-      const current = s.listPrefs[key] ?? DEFAULT_LIST_PREFS
-      const next = { ...current, ...patch }
-      // A re-picked verb is a no-op: keeping the map's identity is what keeps
-      // the list from re-filtering and re-rendering for nothing.
-      if (next.sort === current.sort && next.filter === current.filter) return s
-      // A lens change replaces the list on screen, and the batch was an
-      // intent about that list — so it is dropped here, by the state's owner,
-      // rather than survived invisibly and re-materialized by a later toggle.
-      return {
-        listPrefs: { ...s.listPrefs, [key]: next },
+  return {
+    view: INITIAL_VIEW,
+    selected: null,
+    selectionSource: 'pointer',
+    theme: 'system',
+    sidebarCollapsed: storedSidebarCollapsed(),
+    expandedAccounts:
+      INITIAL_VIEW.kind === 'account' ? { [INITIAL_VIEW.accountId]: true } : {},
+    accountsGroupCollapsed: false,
+    imagesAllowed: new Set<string>(),
+    syncNoticeDismissed: new Set<string>(),
+    checked: new Set<string>(),
+    checkAnchor: null,
+    pendingAccounts: [],
+    listPrefs: {},
+    readingExpansion: 'default',
+    undoStack: [],
+
+    // Changing view always drops the selection: keeping a thread from another
+    // folder open while its row is gone reads as a bug. Opening a label also
+    // opens its account section, so the sidebar never hides the current view.
+    setView: (view) =>
+      set((s) => ({
+        view,
+        selected: null,
         checked: new Set<string>(),
         checkAnchor: null,
-      }
-    }),
+        readingExpansion: 'default',
+        expandedAccounts:
+          view.kind === 'account'
+            ? { ...s.expandedAccounts, [view.accountId]: true }
+            : s.expandedAccounts,
+        // Navigating into an account must reveal it, whatever the group was.
+        accountsGroupCollapsed: view.kind === 'account' ? false : s.accountsGroupCollapsed,
+      })),
+    toggleAccountsGroup: () =>
+      set((s) => ({ accountsGroupCollapsed: !s.accountsGroupCollapsed })),
+    setSelected: (selected, selectionSource = 'pointer') =>
+      set({ selected, selectionSource, readingExpansion: 'default' }),
+    setTheme: (theme) => set({ theme }),
+    // Guarded: the resize handle calls this on every layout tick of a drag, and
+    // an unguarded `set` would notify every subscriber sixty times a second for
+    // a value that did not move.
+    setSidebarCollapsed: (sidebarCollapsed) =>
+      set((s) => (s.sidebarCollapsed === sidebarCollapsed ? s : { sidebarCollapsed })),
+    toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+    toggleAccount: (accountId) =>
+      set((s) => ({
+        expandedAccounts: { ...s.expandedAccounts, [accountId]: !s.expandedAccounts[accountId] },
+      })),
+    allowImages: (threadKey) =>
+      set((s) => ({ imagesAllowed: new Set(s.imagesAllowed).add(threadKey) })),
+    dismissSyncNotice: (accountIds) =>
+      set((s) => {
+        const next = new Set(s.syncNoticeDismissed)
+        for (const id of accountIds) next.add(id)
+        return { syncNoticeDismissed: next }
+      }),
+    toggleChecked: (threadKey) =>
+      set((s) => {
+        const checked = new Set(s.checked)
+        if (checked.has(threadKey)) checked.delete(threadKey)
+        else checked.add(threadKey)
+        return { checked, checkAnchor: threadKey }
+      }),
+    checkMany: (threadKeys) =>
+      set((s) => {
+        const checked = new Set(s.checked)
+        for (const key of threadKeys) checked.add(key)
+        return { checked }
+      }),
+    clearChecked: () => set({ checked: new Set<string>(), checkAnchor: null }),
+    setPendingAccounts: (pendingAccounts) => set({ pendingAccounts }),
+    setReadingExpansion: (readingExpansion) => set({ readingExpansion }),
+    setListPrefs: (view, patch) =>
+      set((s) => {
+        const key = viewKey(view)
+        const current = s.listPrefs[key] ?? DEFAULT_LIST_PREFS
+        const next = { ...current, ...patch }
+        // A re-picked verb is a no-op: keeping the map's identity is what keeps
+        // the list from re-filtering and re-rendering for nothing.
+        if (next.sort === current.sort && next.filter === current.filter) return s
+        // A lens change replaces the list on screen, and the batch was an
+        // intent about that list — so it is dropped here, by the state's owner,
+        // rather than survived invisibly and re-materialized by a later toggle.
+        return {
+          listPrefs: { ...s.listPrefs, [key]: next },
+          checked: new Set<string>(),
+          checkAnchor: null,
+        }
+      }),
 
-  registerUndo: (entry) => set({ undoable: { ...entry, at: Date.now() } }),
-  clearUndo: (id) => set((s) => ({ undoable: clearedUndoable(s.undoable, id) })),
-  runUndo: (now = Date.now()) => {
-    const entry = liveUndoable(get().undoable, now)
-    if (!entry) return null
-    set({ undoable: null })
-    entry.run()
-    return entry.label
-  },
-}))
+    registerUndo: (entry) =>
+      set((s) => ({ undoStack: pushUndoable(s.undoStack, { ...entry, at: Date.now() }) })),
+    clearUndo: (id) => set((s) => ({ undoStack: withoutUndoable(s.undoStack, id) })),
+    clearUndoStack: () => set((s) => (s.undoStack.length === 0 ? s : { undoStack: [] })),
+    runUndo: (now = Date.now()) => runEntry(newestUndoable(get().undoStack, now)),
+    undoEntry: (id, now = Date.now()) => runEntry(findUndoable(get().undoStack, id, now)),
+  }
+})
 
 // Fires only when the boolean actually changes, so the write happens on a
 // deliberate toggle and never during triage or a resize drag.

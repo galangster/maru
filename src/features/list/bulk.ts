@@ -7,7 +7,7 @@
 
 import { reverseAction } from '@/core/service/actions'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
-import { showUndoToast } from '@/features/mail/queries'
+import { offerUndo } from '@/features/mail/queries'
 import { LEAVES_THE_LIST, UNDO_LABELS } from '@/lib/undo'
 import { useUi } from '@/features/mail/ui-store'
 import { plural, wakeTime } from '@/lib/format'
@@ -30,6 +30,25 @@ export type BatchNoun = 'thread' | 'conversation'
 
 /** The desktop's word, and the default every entry point below takes. */
 const DEFAULT_NOUN: BatchNoun = 'thread'
+
+/**
+ * A batch's slot in the ⌘Z registry, one per batch.
+ *
+ * Keyed by a counter and not by the verb. `bulk:archive` meant the second bulk
+ * archive REPLACED the first one's entry — `pushUndoable` treats a repeated id
+ * as one offer, correctly — so two batches collapsed into one undo and the
+ * first forty threads stayed archived. A batch is an event, not a category:
+ * two archives of two different sets are two things to put back.
+ *
+ * Session scoped like the stack itself, and never persisted, so it only has to
+ * be unique for as long as an entry can live.
+ */
+let batchCount = 0
+
+function nextBatchId(kind: string): string {
+  batchCount += 1
+  return `bulk:${kind}:${batchCount}`
+}
 
 /** A positive narrow, so no caller needs a cast to route a triage key here. */
 export function isBulkAction(type: MailActionType): type is BulkActionType {
@@ -94,9 +113,10 @@ function batchActionLabel(type: BulkActionType, count: number, noun: BatchNoun):
  *
  * This is the mechanism issue 8 was about. The phone had no batch at all: its
  * bulk bar looped the single-thread path, and every pass registered its own
- * undoable into a store that holds exactly one (lib/undo.ts). The last write
- * won, so Undo returned a single conversation out of forty and said nothing
- * about the other thirty-nine.
+ * undoable. One slot meant the last write won and Undo returned a single
+ * conversation out of forty; a stack (issue 40) would mean forty presses. One
+ * batch is one action, so it registers ONE entry either way — the shape here
+ * is what makes that true, not the depth of the registry below it.
  *
  * Both bulk bars come through here now, so the count in the toast and the
  * breadth of the undo cannot disagree with each other or with the desktop.
@@ -114,14 +134,13 @@ export function runBatchAction(
 
   const label = batchActionLabel(type, threadKeys.length, noun)
   const reverse = reverseAction(type)
-  useUi.getState().registerUndo({
-    id: `bulk:${type}`,
+  offerUndo({
+    id: nextBatchId(type),
     label,
     run: () => {
       for (const key of threadKeys) mutate({ type: reverse, threadKey: key })
     },
   })
-  showUndoToast(label)
   return label
 }
 
@@ -213,13 +232,12 @@ export function runBatchDefer(
   for (const key of threadKeys) defer(key, wakeAt)
 
   const label = batchDeferLabel(threadKeys.length, wakeAt, now, noun)
-  useUi.getState().registerUndo({
-    id: 'bulk:later',
+  offerUndo({
+    id: nextBatchId('later'),
     label,
     run: () => {
       for (const [key, prior] of before) defer(key, prior)
     },
   })
-  showUndoToast(label)
   return label
 }
