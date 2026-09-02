@@ -39,8 +39,18 @@ The deployment target is iOS 17.0.
 
 ## Demo mode
 
-The application selects demo mode for every iOS build until I3 lands.
-No build variable or human choice is required.
+The default iOS client id is `PLACEHOLDER.apps.googleusercontent.com`.
+That exact value keeps the application in demo mode.
+A non-default value enables the real Gmail service.
+
+Set the client id before an iOS build.
+
+```sh
+export VITE_MARU_IOS_GOOGLE_CLIENT_ID="<client-id>.apps.googleusercontent.com"
+```
+
+The build derives and registers
+`com.googleusercontent.apps.<client-id>` as the callback scheme.
 
 The mobile shell also supports browser development at `?mobile=1`.
 Use a 390 by 844 point viewport for that path.
@@ -55,6 +65,15 @@ Build a debug simulator application with the demo fixtures.
 ```sh
 export PATH="$HOME/.cargo/bin:$PATH"
 npm run tauri -- ios build --debug --target aarch64-sim
+```
+
+For an end-to-end authentication-session check without a production client,
+use a non-default invalid id. Google will load and report `invalid_client`.
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+VITE_MARU_IOS_GOOGLE_CLIENT_ID=PLACEHOLDER-TEST.apps.googleusercontent.com \
+  npm run tauri -- ios build --debug --target aarch64-sim
 ```
 
 Run and deploy to the named simulator.
@@ -100,7 +119,9 @@ The following behavior is real in the iOS application:
 - Later presets, grouped settings, pull to refresh, and the animated Maru empty state.
 - Maru account sign-in, sign-up, recovery, device management, history restore, password changes, sign-out, and account deletion.
 - Account subscription management opens `https://getmaru.app/account` in the system browser. The phone contains no purchase control.
-- Restored Gmail addresses remain disabled until Gmail sign-in reaches the phone in I3.
+- Phone Settings can start Gmail sign-in in a persistent `ASWebAuthenticationSession`.
+- iOS uses the reversed-client callback, public-client PKCE exchange, and iOS Keychain storage.
+- Account vaults file current-device tokens under `credentials.ios` and list desktop addresses for directed consent.
 
 The following behavior uses demo fixtures:
 
@@ -144,18 +165,13 @@ Large-text proof files are:
 
 ## iOS OAuth follow-up
 
-Real Gmail sign-in needs a separate iOS OAuth client and these integration steps:
+The remaining production setup is one value:
 
-- Register bundle identifier `app.getmaru.ios` in the Google Cloud project.
-- Add the iOS client identifier and its reversed callback scheme to the application metadata.
-- Replace the desktop loopback listener with an iOS browser authentication session.
-- Route callback URLs back into Maru and validate OAuth state before token exchange.
-- Store refresh tokens in the iOS Keychain and test sign-out and token revocation.
-- Connect Add account, reauthentication, and consent errors to the mobile Settings screens.
-- Verify Gmail scopes, consent configuration, and production redirect registrations.
-- Add device tests for cancellation, expired sessions, revoked access, and multiple accounts.
+- Create the iOS OAuth client for bundle identifier `app.getmaru.ios`.
+- Paste its client id into `VITE_MARU_IOS_GOOGLE_CLIENT_ID` for the iOS build.
 
-Until that work lands, every iOS build must use demo mode.
+The client seam, callback registration, PKCE exchange, Keychain filing,
+directed consent, Settings entry, and cancellation handling are implemented.
 
 ## Verification
 
@@ -167,6 +183,12 @@ npm run typecheck && npm test && npm run build
 
 Simulator proof lives in `wayfinder/captures/ios`.
 The folder contains Inbox, Thread, Compose, Later, Settings, account, and empty-state captures in both themes.
+
+The I3 native session proof is `docs/captures/ios-auth-session-light.png`.
+It shows `accounts.google.com` inside the system sheet and Google's expected
+`invalid_client` result for `PLACEHOLDER-TEST.apps.googleusercontent.com`.
+FlowDeck also verified that cancelling the sheet returns to Settings with
+`Sign-in cancelled` and does not crash.
 
 The account proof files are:
 
