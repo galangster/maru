@@ -10,15 +10,11 @@ Grill 4 is recorded in `GRILL-4-AGENDA.md`; the audit in `AUDIT-2026-09-01.md`.
 Three lanes are building the service, the desktop account and the iPhone app.
 These are the buttons only you can press, in the order they unblock work.
 
-1. **Stripe** (A3). Create the Stripe account under The Creative Co.
-   Marketing Firm LLC, turn on two-factor, then run
-   `cd server && STRIPE_SECRET_KEY=sk_live_… npm run stripe:setup` — it
-   prints four env lines. Paste them into the Railway service. Add a
-   webhook endpoint `https://sync.getmaru.app/v1/billing/webhook` for the
-   six events listed in `docs/spec/MARU-ACCOUNT.md` §12 and paste its signing
-   secret. Turn on Stripe Tax; register where Stripe says you must.
-   **Price is set: $5/month, $50/year, 14-day trial.** Say so if you want
-   it moved before a stranger sees it.
+1. ~~**Stripe** (A3)~~ — done 2026-09-02: account, key, product, prices,
+   webhook, tax, secrets in Railway; live checkout and portal URLs proven.
+   Left: one real paid run (a $5 charge you refund, or a 100%-off coupon)
+   to watch the webhook flip an entitlement; say when and I'll walk it.
+
 2. ~~**The domain** (A5)~~ — done 2026-09-01 by the agent in your GoDaddy
    session: CNAME `sync` → `71w6pmej.up.railway.app` and the
    `_railway-verify.sync` TXT. Railway issues the certificate once DNS
