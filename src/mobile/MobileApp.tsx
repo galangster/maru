@@ -47,6 +47,7 @@ import { useInputModality } from './use-input-modality'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
 import { usePushAccountNudge } from './use-push-account-nudge'
 import { useRouteScroll } from './use-route-scroll'
+import '@/features/shell/toast.css'
 import './mobile.css'
 
 const AccountScreen = lazy(() =>
@@ -172,16 +173,11 @@ export function MobileApp() {
    * every control still on screen was offered against mail that is no longer
    * there, including archiving it a second time.
    *
-   * Two dispatches rather than a route action of its own: the sheet and the
-   * screen are two separate facts about where you are, and `back` on a stack
-   * whose top is not a thread is a no-op the reducer already owns — so a swipe
-   * from a list, or a Later picked over the inbox, passes through here
-   * unchanged.
+   * One dispatch, and the reducer owns what it means: composing it here out of
+   * a `closeSheet` and a conditional `back` put a rule about where you are in
+   * the shell, where it could only be tested through the shell.
    */
-  const closeAfterRemoval = () => {
-    dispatch({ type: 'closeSheet' })
-    if (route.kind === 'thread') dispatch({ type: 'back' })
-  }
+  const closeAfterRemoval = () => dispatch({ type: 'dismissAfterRemoval' })
   const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
   const openPushSheet = useCallback(() => dispatch({ type: 'openSheet', sheet: { kind: 'pushAccount' } }), [])
   // Only from the inbox at rest. The offer is worth making once and worth

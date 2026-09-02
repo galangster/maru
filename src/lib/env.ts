@@ -44,8 +44,17 @@ const modeFlagsAllowed = !isTauri() || import.meta.env.DEV
 
 const params = modeFlagsAllowed ? rawParams : new URLSearchParams('')
 
+/**
+ * The four platforms the app distinguishes.
+ *
+ * Named rather than left inline, because a record keyed by it — the device
+ * nouns in `sync-summary.ts` — has to be a compiler-checked cover of exactly
+ * these four rather than a table that happens to list them.
+ */
+export type PlatformOS = 'ios' | 'mac' | 'windows' | 'other'
+
 /** The native platform, resolved once before either application shell mounts. */
-export const platformOS: 'ios' | 'mac' | 'windows' | 'other' = (() => {
+export const platformOS: PlatformOS = (() => {
   if (isTauri()) {
     try {
       const native = osType()

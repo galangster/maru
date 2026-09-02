@@ -11,6 +11,10 @@ import type { Account, SyncStatus } from '@/core/types'
 import { DEVICE_NOUNS, describeSync, deviceNounFor, isUrgent } from '@/features/sidebar/sync-summary'
 
 const NOW = 1_788_200_000_000
+// The device noun is required rather than defaulted, so every case names one.
+// The Mac is what the cases below are written against; the ones that are about
+// the noun itself pass their own.
+const MAC = DEVICE_NOUNS.mac
 
 function account(id: string, email: string): Account {
   return { id, email, displayName: email, color: 'red', addedAt: 0 } as Account
@@ -39,14 +43,14 @@ describe('describeSync', () => {
     // events, so `.some(s => s.state === 'error')` was false and the footer
     // printed "Up to date" — a positive claim about three accounts the app
     // had heard nothing about.
-    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW)
+    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW, NOW, MAC)
     expect(sync.short).toBe('Starting…')
     expect(sync.detail).toBe('Maru is starting up. 3 of 4 accounts have not reported.')
     expect(isUrgent(sync)).toBe(false)
   })
 
   it('says nothing has reported when nothing has', () => {
-    const sync = describeSync(FOUR, {}, false, NOW)
+    const sync = describeSync(FOUR, {}, false, NOW, NOW, MAC)
     expect(sync.detail).toBe('Maru is starting up. No account has reported yet.')
   })
 
@@ -55,7 +59,7 @@ describe('describeSync', () => {
     // and would otherwise hold the whole app in a failure state forever.
     const ghost: SyncStatus = { accountId: 'deleted', state: 'error', needsReauth: true }
     const all = statuses(ok('a'), ok('b'), ok('c'), ok('d'), ghost)
-    expect(describeSync(FOUR, all, false, NOW).short).toBe('Up to date')
+    expect(describeSync(FOUR, all, false, NOW, NOW, MAC).short).toBe('Up to date')
   })
 
   it('names the one signed-out account and leaves the others alone', () => {
@@ -65,7 +69,7 @@ describe('describeSync', () => {
       needsReauth: true,
       error: 'invalid_grant',
     }
-    const sync = describeSync(FOUR, statuses(dead, ok('b'), ok('c'), ok('d')), false, NOW)
+    const sync = describeSync(FOUR, statuses(dead, ok('b'), ok('c'), ok('d')), false, NOW, NOW, MAC)
     expect(sync.short).toBe('Sign in')
     expect(sync.full).toBe('Sign in again')
     expect(sync.address).toBe('nick@metadao.fi')
@@ -93,6 +97,8 @@ describe('describeSync', () => {
       statuses(local('a'), local('b'), local('c'), local('d')),
       false,
       NOW,
+      NOW,
+      MAC,
     )
     expect(sync.full).toBe('4 accounts signed out')
     expect(sync.detail).toBe(
@@ -111,7 +117,7 @@ describe('describeSync', () => {
       error: 'network timeout',
       lastSyncAt: NOW - 120_000,
     })
-    const sync = describeSync(FOUR, statuses(blip('a'), blip('b'), blip('c'), blip('d')), false, NOW)
+    const sync = describeSync(FOUR, statuses(blip('a'), blip('b'), blip('c'), blip('d')), false, NOW, NOW, MAC)
     expect(sync.short).toBe('Retrying')
     expect(isUrgent(sync)).toBe(false)
     expect(sync.detail).toBe(
@@ -123,7 +129,7 @@ describe('describeSync', () => {
     // One needs a person, the other needs a moment.
     const dead: SyncStatus = { accountId: 'a', state: 'error', needsReauth: true }
     const busy: SyncStatus = { accountId: 'b', state: 'syncing' }
-    const sync = describeSync(FOUR, statuses(dead, busy, ok('c'), ok('d')), false, NOW)
+    const sync = describeSync(FOUR, statuses(dead, busy, ok('c'), ok('d')), false, NOW, NOW, MAC)
     expect(sync.short).toBe('Sign in')
   })
 
@@ -134,7 +140,7 @@ describe('describeSync', () => {
       clientFailure: true,
       needsReauth: true,
     })
-    const sync = describeSync(FOUR, statuses(rejected('a'), rejected('b')), false, NOW)
+    const sync = describeSync(FOUR, statuses(rejected('a'), rejected('b')), false, NOW, NOW, MAC)
     expect(sync.action).toBe('google')
     expect(sync.detail).toContain('not your accounts')
     // Counting accounts here would mislead: it is one fault, not two.
@@ -152,7 +158,7 @@ describe('describeSync', () => {
       clientFailure: true,
       noClientConfigured: true,
     }
-    const sync = describeSync(FOUR, statuses(none), false, NOW)
+    const sync = describeSync(FOUR, statuses(none), false, NOW, NOW, MAC)
     expect(sync.action).toBe('google')
     expect(isUrgent(sync)).toBe(true)
     expect(sync.detail).toContain('Nothing at Google is wrong')
@@ -164,7 +170,7 @@ describe('describeSync', () => {
     // accounts healthy — reintroducing the exact false claim this whole change
     // exists to delete, inside the one sentence a person actually reads.
     const dead: SyncStatus = { accountId: 'a', state: 'error', needsReauth: true }
-    const sync = describeSync(FOUR, statuses(dead, ok('b')), false, NOW)
+    const sync = describeSync(FOUR, statuses(dead, ok('b')), false, NOW, NOW, MAC)
     expect(sync.detail).toContain('The other account is up to date.')
     expect(sync.detail).not.toContain('3 accounts are up to date')
   })
@@ -172,12 +178,12 @@ describe('describeSync', () => {
   it('does not count a syncing account as up to date either', () => {
     const dead: SyncStatus = { accountId: 'a', state: 'error', needsReauth: true }
     const busy: SyncStatus = { accountId: 'b', state: 'syncing' }
-    const sync = describeSync(FOUR, statuses(dead, busy, ok('c'), ok('d')), false, NOW)
+    const sync = describeSync(FOUR, statuses(dead, busy, ok('c'), ok('d')), false, NOW, NOW, MAC)
     expect(sync.detail).toContain('The other 2 accounts are up to date.')
   })
 
   it('says Starting… inside the grace period', () => {
-    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW, NOW - 5_000)
+    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW, NOW - 5_000, MAC)
     expect(sync.short).toBe('Starting…')
     expect(sync.action).toBeNull()
   })
@@ -186,7 +192,7 @@ describe('describeSync', () => {
     // "Starting…" is a promise that something is about to happen. After the
     // grace period the app cannot keep it, so it becomes a statement of fact
     // that offers somewhere to go, rather than standing forever.
-    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW, NOW - 45_000)
+    const sync = describeSync(FOUR, statuses(ok('a')), false, NOW, NOW - 45_000, MAC)
     expect(sync.short).toBe('Not synced')
     expect(sync.full).toBe('Not synced yet')
     expect(sync.detail).toContain('Mail is not arriving')
@@ -199,7 +205,7 @@ describe('describeSync', () => {
     // A long-running window must not decay into "Not synced yet" just because
     // it has been open a while.
     const all = statuses(ok('a'), ok('b'), ok('c'), ok('d'))
-    const sync = describeSync(FOUR, all, false, NOW, NOW - 86_400_000)
+    const sync = describeSync(FOUR, all, false, NOW, NOW - 86_400_000, MAC)
     expect(sync.short).toBe('Up to date')
   })
 
@@ -208,7 +214,7 @@ describe('describeSync', () => {
     // is Infinity, which elapsedTime clamps to "just now" — so an app with no
     // accounts reported "0 accounts · last synced just now". Reachable on
     // first run and after removing the last account.
-    const sync = describeSync([], {}, false, NOW)
+    const sync = describeSync([], {}, false, NOW, NOW, MAC)
     expect(sync.detail).not.toContain('just now')
     expect(sync.detail).not.toContain('up to date')
     expect(sync.short).toBe('No account')
@@ -223,7 +229,7 @@ describe('describeSync', () => {
       ok('d', NOW - 60_000),
     )
     // "last synced 1m ago" would be true of one account and false of the view.
-    expect(describeSync(FOUR, all, false, NOW).detail).toBe('4 accounts · last synced 2h ago')
+    expect(describeSync(FOUR, all, false, NOW, NOW, MAC).detail).toBe('4 accounts · last synced 2h ago')
   })
 
   it('counts only the accounts actually syncing', () => {
@@ -232,6 +238,8 @@ describe('describeSync', () => {
       statuses({ accountId: 'a', state: 'syncing' }, ok('b'), ok('c'), ok('d')),
       false,
       NOW,
+      NOW,
+      MAC,
     )
     expect(sync.detail).toBe('Syncing 1 of 4 accounts.')
     expect(sync.kind).toBe('syncing')
@@ -239,7 +247,7 @@ describe('describeSync', () => {
 
   it('demo mode outranks everything and is never a control', () => {
     const dead: SyncStatus = { accountId: 'a', state: 'error', needsReauth: true }
-    const sync = describeSync(FOUR, statuses(dead), true, NOW)
+    const sync = describeSync(FOUR, statuses(dead), true, NOW, NOW, MAC)
     expect(sync.short).toBe('Demo data')
     expect(sync.action).toBeNull()
     expect(isUrgent(sync)).toBe(false)
@@ -261,7 +269,7 @@ describe('describeSync', () => {
       statuses(ok('a'), ok('b'), ok('c'), ok('d')),
     ]
     for (const s of cases) {
-      expect(describeSync(FOUR, s, false, NOW).short.length).toBeLessThanOrEqual(11)
+      expect(describeSync(FOUR, s, false, NOW, NOW, MAC).short.length).toBeLessThanOrEqual(11)
     }
   })
 })

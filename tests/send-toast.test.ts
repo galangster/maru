@@ -72,32 +72,42 @@ describe('clampToastText', () => {
  * The other half of the same guarantee, and the half the phone was missing.
  *
  * `clampToastText` bounds the string; the two-line box bounds what the string
- * becomes when it has nothing to break on. The desktop gets that box from
+ * becomes when it has nothing to break on. The desktop had that box in
  * `features/shell/surfaces.css`, which `App.tsx` imports — and the phone shell
  * never mounts `App.tsx`, so a 140-character subject with no spaces still grew
  * the confirmation up the screen until it covered the app (issue 47).
  *
- * Asserted against the stylesheet rather than a rendered toast because sonner
- * renders into a portal outside any component under test, and the defect is a
- * missing rule rather than a wrong value.
+ * One stylesheet now, imported by both shells, so the rule cannot be fixed on
+ * one of them and missed on the other. Asserted against the file rather than a
+ * rendered toast because sonner renders into a portal outside any component
+ * under test, and the defect is a missing rule rather than a wrong value.
  */
-describe('the phone shell clamps the toast description box', () => {
-  const css = readFileSync(new URL('../src/mobile/mobile.css', import.meta.url), 'utf8')
-  const rule = css.slice(
-    css.indexOf('html:has(.mobile-app) [data-sonner-toaster] [data-sonner-toast] [data-description]'),
-  )
-
-  it('scopes the rule to the phone shell', () => {
-    expect(css).toContain(
-      'html:has(.mobile-app) [data-sonner-toaster] [data-sonner-toast] [data-description]',
-    )
-  })
+describe('both shells clamp the toast description box', () => {
+  const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
+  const css = read('../src/features/shell/toast.css')
+  const rule = css.slice(css.indexOf('[data-sonner-toaster]'))
+  const declarations = rule.slice(0, rule.indexOf('}'))
 
   it('holds the description to two lines', () => {
-    expect(rule.slice(0, rule.indexOf('}'))).toContain('-webkit-line-clamp: 2')
+    expect(declarations).toContain('-webkit-line-clamp: 2')
   })
 
   it('lets a subject with no spaces in it break', () => {
-    expect(rule.slice(0, rule.indexOf('}'))).toContain('overflow-wrap: anywhere')
+    expect(declarations).toContain('overflow-wrap: anywhere')
+  })
+
+  it('reaches the desktop shell', () => {
+    expect(read('../src/App.tsx')).toContain("import '@/features/shell/toast.css'")
+  })
+
+  it('reaches the phone shell, which never mounts App.tsx', () => {
+    expect(read('../src/mobile/MobileApp.tsx')).toContain("import '@/features/shell/toast.css'")
+  })
+
+  it('is written once and not once per shell', () => {
+    // The defect was two copies of five declarations, one of them missing.
+    for (const path of ['../src/mobile/mobile.css', '../src/features/shell/surfaces.css']) {
+      expect(read(path)).not.toContain('-webkit-line-clamp: 2')
+    }
   })
 })

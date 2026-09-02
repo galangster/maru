@@ -19,18 +19,25 @@ import type { Account, SyncStatus } from '@/core/types'
 import { useAccounts, useSyncStatus } from '@/features/mail/queries'
 import { useUi } from '@/features/mail/ui-store'
 import { useSurfaces } from '@/features/shell/surface-store'
+import { deviceNounFor } from '@/features/sidebar/sync-summary'
+import { platformOS } from '@/lib/env'
 
 function sentence(stuck: SyncStatus[], emailOf: (id: string) => string): string {
   if (stuck.length > 1) return `New mail has stopped arriving for ${stuck.length} accounts.`
   const [only] = stuck
   const who = emailOf(only.accountId)
+  // Two of these four are about THIS machine rather than about the account,
+  // and both used to say "on this Mac" wherever they were read. The noun is
+  // `sync-summary.ts`'s, so the strip, the sidebar summary and Settings cannot
+  // give three different answers about the same device (issue 52).
+  const here = deviceNounFor(platformOS)
   switch (syncKind(only)) {
     case 'noClient':
-      return 'New mail has stopped arriving — Maru has no Google client configured on this Mac.'
+      return `New mail has stopped arriving — Maru has no Google client configured on ${here}.`
     case 'rejected':
       return "New mail has stopped arriving — Google rejected Maru's OAuth client. Your accounts are fine."
     case 'noCredentials':
-      return `New mail has stopped arriving for ${who} — Maru has no saved sign-in on this Mac.`
+      return `New mail has stopped arriving for ${who} — Maru has no saved sign-in on ${here}.`
     default:
       return `New mail has stopped arriving for ${who} — Google signed Maru out of it.`
   }

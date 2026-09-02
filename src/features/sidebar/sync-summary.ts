@@ -12,6 +12,7 @@
 // copy stops being checked.
 
 import { hasStopped, syncKind, type SyncKind } from '@/core/sync/failure'
+import type { PlatformOS } from '@/lib/env'
 import { elapsedTime } from '@/lib/format'
 import type { Account, SyncStatus } from '@/core/types'
 
@@ -31,9 +32,11 @@ export type SyncAction = 'accounts' | 'google' | null
  * A parameter rather than a read of `platformOS` inside `describeSync`,
  * because this file is a pure function over its arguments and that is what
  * lets the six sentences be tested as data. `useSyncSummary` resolves it, the
- * same way it resolves the clock and the demo flag.
+ * same way it resolves the clock and the demo flag. The type comes from
+ * `platformOS` itself — a type-only import, so the purity is unchanged — so a
+ * fifth platform cannot be added without a noun for it.
  */
-export const DEVICE_NOUNS: Record<'ios' | 'mac' | 'windows' | 'other', string> = {
+export const DEVICE_NOUNS: Record<PlatformOS, string> = {
   ios: 'this phone',
   mac: 'this Mac',
   windows: 'this PC',
@@ -42,8 +45,15 @@ export const DEVICE_NOUNS: Record<'ios' | 'mac' | 'windows' | 'other', string> =
   other: 'this computer',
 }
 
-/** The noun for a platform. `platformOS`'s four values, and nothing else. */
-export function deviceNounFor(os: keyof typeof DEVICE_NOUNS): string {
+/**
+ * The noun for a platform. `platformOS`'s four values, and nothing else.
+ *
+ * Every sentence anywhere in the app that names the machine goes through here
+ * — the summary, the list's sync notice, and Settings' per-account line — so
+ * "this Mac" is written once and the phone cannot call itself a Mac in a
+ * surface that was missed (issue 52).
+ */
+export function deviceNounFor(os: PlatformOS): string {
   return DEVICE_NOUNS[os]
 }
 
@@ -123,12 +133,14 @@ export function describeSync(
   /** When this window started waiting. Defaults to `now`, i.e. no elapsed. */
   startedAt: number = now,
   /**
-   * What to call the machine, for the two sentences that are about it. The
-   * Mac is the default because it is the platform the desktop shell ships on
-   * first; every caller that is not one resolves its own — `useSyncSummary`
-   * does it for both shells.
+   * What to call the machine, for the two sentences that are about it.
+   *
+   * Required, and deliberately without a default. A default of "this Mac" is
+   * the exact sentence issue 52 was: it is right on one of the four platforms
+   * and silently wrong on the other three, and a caller that forgets it gets
+   * no warning. `deviceNounFor(platformOS)` is what every caller passes.
    */
-  device: string = DEVICE_NOUNS.mac,
+  device: string,
 ): SyncSummary {
   const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
 

@@ -9,7 +9,7 @@ import {
   resolveSwipeIntent,
   type MobileRowModel,
 } from '../state'
-import { REMOVE_ACTION_CHROME, swipeRange, threadActions, type RemoveAction } from '../thread-actions'
+import { removeChrome, rowActions, swipeRange, type RemoveAction } from '../thread-actions'
 import { usePointerDrag } from '../use-pointer-drag'
 import { useThresholdTick } from '../use-threshold-tick'
 
@@ -24,7 +24,7 @@ interface SwipeThreadRowProps {
   selected?: boolean
   onSelect?: () => void
   onOpen: () => void
-  /** Put it away, whatever that means here — `threadActions` decides which. */
+  /** Put it away, whatever that means here — `rowActions` decides which. */
   onRemove: (type: RemoveAction) => void
   onLater: () => void
   onContext: () => void
@@ -47,17 +47,15 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
   // than being told them: every list that draws this row — the inbox, Sent,
   // Trash, Later, a label, search results — would otherwise need the same rule
   // written into it, and search is the list that mixes all of them in one set.
-  const actions = useMemo(() => threadActions(thread), [thread])
+  const actions = useMemo(() => rowActions(thread), [thread])
   const range = swipeRange(actions, SWIPE_OFFSET_LIMIT)
-  const removeChrome = REMOVE_ACTION_CHROME[actions.remove ?? 'archive']
+  const chrome = removeChrome(actions.remove)
   const [offset, setOffset] = useState(0)
   const [settling, setSettling] = useState(true)
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressClick = useRef(false)
   /** The tap at the action threshold, shared with the pull to refresh. */
   const tick = useThresholdTick()
-  /** Whether this gesture has already warmed the haptic engine. */
-  const primed = useRef(false)
 
   const cancelLongPress = useCallback(function cancel() {
     if (longPress.current) clearTimeout(longPress.current)
@@ -68,7 +66,7 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
 
   /** Back to rest, with the transition on. Every ending goes through here. */
   const settle = useCallback(() => {
-    tick.report(false)
+    tick.settle()
     setSettling(true)
     setOffset(0)
   }, [tick])
@@ -85,14 +83,6 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
       // `AXIS_LOCK_THRESHOLD`, which is further than a long press is allowed
       // to wander. It is a drag, so it is not a press.
       cancelLongPress()
-      // The first frame of a *swipe*, which is the earliest moment this row
-      // knows there is a threshold ahead to tap at. Warming the engine on
-      // `pointerdown` instead warmed it for every tap and every scroll that
-      // started on a row, which on a list is nearly all of them.
-      if (!primed.current) {
-        primed.current = true
-        tick.prepare()
-      }
       setSettling(false)
       const next = Math.max(range.min, Math.min(range.max, dx))
       setOffset(next)
@@ -125,9 +115,12 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
     drag.onPointerDown(event)
     if (editing) return
     suppressClick.current = false
-    // Only the warm-up is reset here. The crossing needs no reset: every
-    // ending goes through `settle`, and `settle` reports its way back to false.
-    primed.current = false
+    // Neither the warm-up nor the crossing is reset here: every ending goes
+    // through `settle`, and `settle` hands both back to `useThresholdTick`.
+    // The first `report` of the next swipe warms the engine again — on the
+    // first frame of a *drag*, rather than on every tap and every scroll that
+    // starts on a row, which on a list is nearly all of them.
+    //
     // The page is the scroller now, so a press that becomes a scroll can stop
     // reaching this row entirely: WebKit hands the gesture to the scroll view
     // and `onMove` never fires to cancel the timer. A drag is never a long
@@ -148,7 +141,7 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
 
   return (
     <div className="mobile-swipe-row">
-      {actions.remove && <div className="mobile-swipe-action is-archive"><MobileIcon name={removeChrome.icon} scale="large" /><span>{removeChrome.swipe}</span></div>}
+      {actions.remove && <div className="mobile-swipe-action is-archive"><MobileIcon name={chrome.icon} scale="large" /><span>{chrome.swipe}</span></div>}
       {actions.defer && <div className="mobile-swipe-action is-later"><MobileIcon name="calendar" scale="large" /><span>Later</span></div>}
       <button
         type="button"

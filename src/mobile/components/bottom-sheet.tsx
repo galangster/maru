@@ -1,13 +1,12 @@
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { MobileIcon } from './mobile-icon'
 import { sheetDismisses, sheetDragOffset } from '../state'
+import { useDismissDrag } from '../use-dismiss-drag'
 import { useEdgeBack } from '../use-edge-back'
 import { useHapticBoundary } from '../use-native-shell'
 import { useModalFocus } from '../use-modal-focus'
-import { usePointerDrag } from '../use-pointer-drag'
-import { useThresholdTick } from '../use-threshold-tick'
 
 /**
  * Every bottom sheet on the phone, and every way out of one.
@@ -33,8 +32,11 @@ import { useThresholdTick } from '../use-threshold-tick'
  *   and the reducer's own rule — a sheet goes before a screen does — is what
  *   the two of them add up to.
  *
- * Both tap at their threshold through `useThresholdTick`, which is the same
- * haptic a row's swipe and the pull to refresh give at theirs.
+ * Both are `useDismissDrag`, which is what the two of them have in common: a
+ * surface that follows a finger and leaves if the finger goes far enough. The
+ * downward one taps at its threshold, the same haptic a row's swipe and the
+ * pull to refresh give at theirs; the edge back gives none, because the
+ * system's own back gesture gives none either.
  */
 export function BottomSheet({
   title,
@@ -47,52 +49,16 @@ export function BottomSheet({
 }) {
   const dialogRef = useModalFocus<HTMLElement>(onClose)
   useHapticBoundary()
-  const [offset, setOffset] = useState(0)
-  const [settling, setSettling] = useState(true)
-  const tick = useThresholdTick()
-  /** Whether this gesture has already warmed the haptic engine. */
-  const primed = useRef(false)
   const edge = useEdgeBack(onClose)
-
-  /** Back to rest, with the transition on. Every ending goes through here. */
-  const settle = useCallback(() => {
-    tick.report(false)
-    setSettling(true)
-    setOffset(0)
-  }, [tick])
-
-  const drag = usePointerDrag({
+  // Down only, and only from the grab area. Both rules are pure functions in
+  // state.ts, so what the handle does can be checked without a finger.
+  const down = useDismissDrag({
     axis: 'vertical',
-    onMove: ({ dy }) => {
-      // The first frame of a downward drag, which is the earliest moment there
-      // is a threshold ahead to tap at.
-      if (!primed.current) {
-        primed.current = true
-        tick.prepare()
-      }
-      setSettling(false)
-      const next = sheetDragOffset(dy)
-      setOffset(next)
-      // On the way past only: this is the moment letting go becomes a
-      // dismissal, and the hand covering the sheet is who needs telling.
-      tick.report(sheetDismisses(next))
-    },
-    onCommit: ({ dy }) => {
-      const closing = sheetDismisses(sheetDragOffset(dy))
-      settle()
-      if (closing) onClose()
-    },
-    // A tap on the handle, a gesture that went sideways, or WebKit taking it.
-    onCancel: settle,
+    clamp: ({ dy }) => sheetDragOffset(dy),
+    past: sheetDismisses,
+    onCommit: onClose,
+    haptic: true,
   })
-
-  const grip = {
-    ...drag,
-    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
-      primed.current = false
-      drag.onPointerDown(event)
-    },
-  }
 
   const layer = (
     <div
@@ -106,17 +72,17 @@ export function BottomSheet({
     >
       <section
         ref={dialogRef}
-        className={`mobile-bottom-sheet${settling && edge.settling ? ' is-settling' : ''}`}
+        className={`mobile-bottom-sheet${down.settling && edge.settling ? ' is-settling' : ''}`}
         // Both gestures move the same sheet, on their own axes, and neither
         // can be running while the other is: `usePointerDrag` locks an axis
         // for the life of a gesture and these two are locked to different ones.
-        style={{ transform: `translate3d(${edge.offset}px, ${offset}px, 0)` }}
+        style={{ transform: `translate3d(${edge.offset}px, ${down.offset}px, 0)` }}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
       >
-        <div className="mobile-sheet-grip" {...grip}>
+        <div className="mobile-sheet-grip" {...down.handlers}>
           <span className="mobile-sheet-grabber" aria-hidden />
           <header>
             <h2>{title}</h2>

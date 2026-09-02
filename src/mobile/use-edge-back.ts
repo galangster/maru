@@ -1,44 +1,25 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-
 import { EDGE_BACK_START_PX, EDGE_BACK_THRESHOLD } from './state'
-import { usePointerDrag } from './use-pointer-drag'
+import { useDismissDrag } from './use-dismiss-drag'
 
+/**
+ * Swipe in from the left edge to go back — a screen, or a sheet.
+ *
+ * All of it is `useDismissDrag` now; what is left here is the three facts that
+ * make the gesture this one rather than a sheet's.
+ *
+ * The axis matters as much as the edge. Before the lock lived in the pointer
+ * hook, a scroll that happened to start within `EDGE_BACK_START_PX` of the
+ * left edge dragged the whole screen sideways.
+ */
 export function useEdgeBack(onBack: () => void) {
-  const [offset, setOffset] = useState(0)
-  const [settling, setSettling] = useState(true)
-  const eligible = useRef(false)
-  const settle = () => {
-    eligible.current = false
-    setSettling(true)
-    setOffset(0)
-  }
-  const drag = usePointerDrag({
-    // The edge back is horizontal, and saying so is what stops a scroll that
-    // happens to start within `EDGE_BACK_START_PX` of the left edge from
-    // dragging the whole screen sideways. Before the lock lived in the hook,
-    // nothing here tested the axis at all.
+  return useDismissDrag({
     axis: 'horizontal',
-    onMove: ({ dx }) => {
-      if (!eligible.current) return
-      setSettling(false)
-      setOffset(Math.max(0, Math.min(window.innerWidth, dx)))
-    },
-    onCommit: ({ dx }) => {
-      if (eligible.current && dx >= EDGE_BACK_THRESHOLD) onBack()
-      settle()
-    },
-    onCancel: settle,
+    // Rightwards only, and never further than the screen is wide.
+    clamp: ({ dx }) => Math.max(0, Math.min(window.innerWidth, dx)),
+    past: (offset) => offset >= EDGE_BACK_THRESHOLD,
+    onCommit: onBack,
+    // A gesture is the back gesture because of where it STARTED. Anything that
+    // begins further in is a scroll, a swipe on a row, or a tap.
+    eligible: (event) => event.clientX <= EDGE_BACK_START_PX,
   })
-
-  return {
-    offset,
-    settling,
-    handlers: {
-      ...drag,
-      onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
-        eligible.current = event.clientX <= EDGE_BACK_START_PX
-        drag.onPointerDown(event)
-      },
-    },
-  }
 }

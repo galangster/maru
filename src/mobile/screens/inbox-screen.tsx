@@ -24,7 +24,7 @@ import {
   type DeferTarget,
   type MobileRowModel,
 } from '../state'
-import { REMOVE_ACTION_CHROME, batchActions, type MobileThreadActions } from '../thread-actions'
+import { batchActions, removeChrome, type MobileThreadActions } from '../thread-actions'
 import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
@@ -34,6 +34,15 @@ const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
  *  will be — `runBatchDefer` is `runBatchAction`'s sibling, not a member of
  *  it — so it is spelled out here rather than smuggled through as `null`. */
 interface BulkVerb {
+  /**
+   * Which of the five buttons this is, and never what it does.
+   *
+   * The bar has five fixed slots. The first one's verb changes with the batch
+   * — Archive in the inbox, Move to Inbox in Trash — and keying the button by
+   * the verb unmounted and remounted it every time the selection crossed that
+   * line, which throws away its pressed state mid-tap.
+   */
+  slot: 'remove' | 'later' | 'trash' | 'read' | 'unread'
   verb: BulkActionType | 'later'
   icon: IconName
   label: string
@@ -58,15 +67,15 @@ interface BulkVerb {
  * Unread now use.
  */
 function bulkVerbs(batch: MobileThreadActions): readonly BulkVerb[] {
-  // The fallback names the button while nothing is checked, where every verb
-  // is disabled anyway and "Archive" is the honest thing for the bar to read.
-  const remove = REMOVE_ACTION_CHROME[batch.remove ?? 'archive']
+  // `removeChrome` names the button while nothing is checked too, where every
+  // verb is disabled anyway and "Archive" is the honest thing for it to read.
+  const remove = removeChrome(batch.remove)
   return [
-    { verb: batch.remove ?? 'archive', icon: remove.icon, label: remove.label, available: batch.remove !== null },
-    { verb: 'later', icon: 'calendar', label: 'Later', available: batch.defer },
-    { verb: 'trash', icon: 'trash', label: 'Trash', available: batch.trash },
-    { verb: 'markRead', icon: 'read', label: 'Read', available: true },
-    { verb: 'markUnread', icon: 'unread', label: 'Unread', available: true },
+    { slot: 'remove', verb: batch.remove ?? 'archive', icon: remove.icon, label: remove.label, available: batch.remove !== null },
+    { slot: 'later', verb: 'later', icon: 'calendar', label: 'Later', available: batch.defer },
+    { slot: 'trash', verb: 'trash', icon: 'trash', label: 'Trash', available: batch.trash },
+    { slot: 'read', verb: 'markRead', icon: 'read', label: 'Read', available: true },
+    { slot: 'unread', verb: 'markUnread', icon: 'unread', label: 'Unread', available: true },
   ]
 }
 
@@ -232,15 +241,25 @@ export function InboxScreen({
     else next.add(key)
     return next
   })
-  // Derived from the rows, the way the desktop derives its own batch
-  // (bulk.ts, `checkedInView`): a checkmark on a conversation the list no
-  // longer shows is not part of the batch. Archive and Later therefore behave
-  // the same — whatever leaves the list leaves the selection with it — rather
-  // than one of them clearing up after itself and the other not.
-  const selectedRows = rows.filter((row) => selected.has(row.thread.key))
-  // What the whole batch will accept, resolved the same way each row resolves
-  // its own swipes — the intersection over the conversations checked.
-  const batch = batchActions(selectedRows.map((row) => row.thread))
+  // The Edit bar, and everything it needs, or `null` while it is not up.
+  //
+  // Derived from the rows, the way the desktop derives its own batch (bulk.ts,
+  // `checkedInView`): a checkmark on a conversation the list no longer shows
+  // is not part of the batch. Archive and Later therefore behave the same —
+  // whatever leaves the list leaves the selection with it — rather than one of
+  // them clearing up after itself and the other not.
+  //
+  // Behind a memo, and behind `editing`, because this screen re-renders on the
+  // minute tick and on every mail event for the whole life of the app, and
+  // outside selection mode all of it was a scan of every row and an
+  // intersection over nothing, for a bar that is not on the screen.
+  const editBar = useMemo(() => {
+    if (!editing) return null
+    const checked = rows.filter((row) => selected.has(row.thread.key))
+    // What the whole batch will accept, resolved the same way each row
+    // resolves its own swipes — the intersection over what is checked.
+    return { checked, verbs: bulkVerbs(batchActions(checked.map((row) => row.thread))) }
+  }, [editing, rows, selected])
 
   return (
     <section className="mobile-screen" aria-label={title} hidden={paused}>
@@ -346,17 +365,17 @@ export function InboxScreen({
       </div>
       <p className="sr-only" id={SWIPE_HINT_ID}>Swipe right to archive, or to restore from Trash. Swipe left to save for later. Long press for more actions.</p>
 
-      {editing && (
+      {editBar && (
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-          {bulkVerbs(batch).map((verb) => (
+          {editBar.verbs.map((verb) => (
             <button
-              key={verb.verb}
+              key={verb.slot}
               type="button"
-              disabled={selectedRows.length === 0 || !verb.available}
+              disabled={editBar.checked.length === 0 || !verb.available}
               onClick={() =>
                 verb.verb === 'later'
-                  ? onLater(selectedRows.map((row) => deferTarget(row.thread)))
-                  : onAct(selectedRows.map((row) => row.thread.key), verb.verb)
+                  ? onLater(editBar.checked.map((row) => deferTarget(row.thread)))
+                  : onAct(editBar.checked.map((row) => row.thread.key), verb.verb)
               }
             >
               <MobileIcon name={verb.icon} scale="action" /><span>{verb.label}</span>

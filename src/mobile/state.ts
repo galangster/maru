@@ -114,6 +114,16 @@ export type MobileRouteAction =
   | { type: 'push'; entry: MobileStackEntry }
   | { type: 'openSheet'; sheet: MobileSheet }
   | { type: 'closeSheet' }
+  /**
+   * The conversation this was about has left the list (issue 50).
+   *
+   * One action rather than a `closeSheet` and a `back` composed in the shell.
+   * Closing the sheet the verb was tapped in and leaving the screen that was
+   * reading the conversation are two halves of one intent — put it away — and
+   * the shell sends it from four places, so the rule for what "close up after
+   * it" means belongs here where it can be read and tested once.
+   */
+  | { type: 'dismissAfterRemoval' }
   | { type: 'back' }
 
 export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction): MobileRoute {
@@ -125,10 +135,17 @@ export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction
     case 'openSheet':
       return { ...state, sheet: action.sheet }
     case 'closeSheet':
-      // The same state back when there is no sheet, so the shell can close a
-      // sheet and pop a screen in one gesture without paying a render for the
-      // half that had nothing to do.
-      return state.sheet === null ? state : { ...state, sheet: null }
+      return { ...state, sheet: null }
+    case 'dismissAfterRemoval':
+      // Both halves, in one state. The sheet always goes; the screen goes only
+      // when it was the conversation's own — a swipe from a list, or a Later
+      // picked over the inbox, has nothing above the root to pop and leaves
+      // the list exactly where it was.
+      return {
+        ...state,
+        sheet: null,
+        stack: topEntry(state).kind === 'thread' ? state.stack.slice(0, -1) : state.stack,
+      }
     case 'back':
       if (state.sheet) return { ...state, sheet: null }
       if (state.stack.length > 1) return { ...state, stack: state.stack.slice(0, -1) }

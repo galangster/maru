@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Thread } from '@/core/types'
+import { threadActions as desktopThreadActions } from '@/features/mail/thread-actions'
 import { wakeTime } from '@/lib/format'
 import {
   MOBILE_TABS,
@@ -27,10 +28,11 @@ import {
   type MobileTab,
 } from '@/mobile/state'
 import {
-  REMOVE_ACTION_CHROME,
   batchActions,
+  moveTargets,
+  removeChrome,
+  rowActions,
   swipeRange,
-  threadActions,
 } from '@/mobile/thread-actions'
 import {
   SCROLL_RESTORE_FRAMES,
@@ -422,32 +424,32 @@ describe('mobile thread actions', () => {
   const archived = thread({ key: 'account/archived-1', labelIds: [] })
 
   it('archives a conversation that is in the inbox', () => {
-    expect(threadActions(inboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
+    expect(rowActions(inboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
   })
 
   it('restores a trashed conversation instead of archiving it', () => {
-    expect(threadActions(trashed)).toEqual({ remove: 'untrash', defer: false, trash: false })
+    expect(rowActions(trashed)).toEqual({ remove: 'untrash', defer: false, trash: false })
   })
 
   it('gives TRASH the precedence the view rules give it', () => {
     // A thread trashed out of the inbox keeps its INBOX label, and
     // `threadMatchesView` still shows it only in Trash. Archiving it would
     // strip a label nothing reads and leave it exactly where it was.
-    expect(threadActions(trashedFromInbox)).toEqual({ remove: 'untrash', defer: false, trash: false })
+    expect(rowActions(trashedFromInbox)).toEqual({ remove: 'untrash', defer: false, trash: false })
   })
 
   it('offers nothing to put away on sent mail that is not in the inbox', () => {
-    expect(threadActions(sent)).toEqual({ remove: null, defer: false, trash: true })
+    expect(rowActions(sent)).toEqual({ remove: null, defer: false, trash: true })
   })
 
   it('archives sent mail that IS in the inbox', () => {
     // A thread you replied to carries SENT and INBOX at once, which is why the
     // rule reads the conversation and not the mailbox on screen.
-    expect(threadActions(sentAndInboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
+    expect(rowActions(sentAndInboxed)).toEqual({ remove: 'archive', defer: true, trash: true })
   })
 
   it('offers nothing to put away on mail that is already archived', () => {
-    expect(threadActions(archived)).toEqual({ remove: null, defer: false, trash: true })
+    expect(rowActions(archived)).toEqual({ remove: null, defer: false, trash: true })
   })
 
   it('takes the intersection over a batch, never the majority', () => {
@@ -469,19 +471,47 @@ describe('mobile thread actions', () => {
   })
 
   it('names each removing verb once, for the control and for the strip', () => {
-    expect(REMOVE_ACTION_CHROME.archive.label).toBe('Archive')
-    expect(REMOVE_ACTION_CHROME.untrash.label).toBe('Move to Inbox')
+    expect(removeChrome('archive').label).toBe('Archive')
+    expect(removeChrome('untrash').label).toBe('Move to Inbox')
     // Short enough for the strip behind a row, where the glyph takes the rest.
-    expect(REMOVE_ACTION_CHROME.untrash.swipe.length).toBeLessThanOrEqual(8)
+    expect(removeChrome('untrash').swipe.length).toBeLessThanOrEqual(8)
+  })
+
+  it('names the control that has nothing to put away Archive', () => {
+    // The Edit bar with nothing checked, and the strip behind a row that will
+    // not open. Written once here rather than `?? 'archive'` at each of them.
+    expect(removeChrome(null)).toEqual(removeChrome('archive'))
+  })
+
+  it('answers where a conversation is, for the Move sheet', () => {
+    // Asked as a question about position rather than decoded back out of the
+    // verb that puts a row away: Move offers Inbox wherever the conversation
+    // is not already there, and Trash wherever it is not already there.
+    expect(moveTargets(inboxed)).toEqual({ trashed: false, inboxed: true })
+    expect(moveTargets(trashed)).toEqual({ trashed: true, inboxed: false })
+    expect(moveTargets(trashedFromInbox)).toEqual({ trashed: true, inboxed: false })
+    expect(moveTargets(sent)).toEqual({ trashed: false, inboxed: false })
+    expect(moveTargets(archived)).toEqual({ trashed: false, inboxed: false })
+  })
+
+  it('reads the same rules the desktop reads, and not a second copy of them', () => {
+    // The phone's verbs are a projection of `features/mail/thread-actions.ts`.
+    // These are the two joins, asserted so a change to either descriptor has
+    // to be made deliberately rather than found on a phone.
+    for (const one of [inboxed, sent, sentAndInboxed, trashed, trashedFromInbox, archived]) {
+      const specs = desktopThreadActions(one)
+      expect(moveTargets(one).trashed).toBe(specs.trash.type === 'untrash')
+      expect(moveTargets(one).inboxed).toBe(!specs.later.disabled)
+    }
   })
 
   it('lets a row travel only where there is an action behind it', () => {
     // The strip under a row IS the promise. A row that slides open over an
     // action it will not take tells the same lie as the toast, one second
     // earlier.
-    expect(swipeRange(threadActions(inboxed), 104)).toEqual({ min: -104, max: 104 })
-    expect(swipeRange(threadActions(trashed), 104)).toEqual({ min: 0, max: 104 })
-    expect(swipeRange(threadActions(sent), 104)).toEqual({ min: 0, max: 0 })
+    expect(swipeRange(rowActions(inboxed), 104)).toEqual({ min: -104, max: 104 })
+    expect(swipeRange(rowActions(trashed), 104)).toEqual({ min: 0, max: 104 })
+    expect(swipeRange(rowActions(sent), 104)).toEqual({ min: 0, max: 0 })
   })
 })
 
@@ -516,12 +546,13 @@ describe('search across a thread push and pop', () => {
 /**
  * Putting a conversation away closes it (issue 50).
  *
- * The shell does this in two dispatches — close the sheet the action was
- * tapped in, then pop the screen it was reading — so the two facts about where
- * you are stay separate. These are the reducer's halves of that: a `back` over
- * an open sheet takes the sheet and stops there, and a `closeSheet` with no
- * sheet open costs nothing, which is what lets the pair be sent together from
- * a surface that has no sheet.
+ * Archive in the thread's top bar and bottom toolbar did this; Later, More →
+ * Archive and Move → Trash did not, so one verb did three different things
+ * depending on where it was tapped, and two of them left a screen of controls
+ * offered against mail that had already gone.
+ *
+ * One reducer action, dispatched from all four surfaces, so the rule for what
+ * "close up after it" means is here rather than composed in the shell.
  */
 describe('closing a conversation after an action that removed it', () => {
   const reading: MobileRoute = {
@@ -530,27 +561,54 @@ describe('closing a conversation after an action that removed it', () => {
     sheet: null,
   }
 
-  it('takes the sheet first and the screen second', () => {
+  it('takes the sheet and the screen the conversation was on, together', () => {
     const withSheet = mobileRouteReducer(reading, {
       type: 'openSheet',
       sheet: { kind: 'move', thread: thread() },
     })
-    const closed = mobileRouteReducer(withSheet, { type: 'closeSheet' })
-    expect(closed).toEqual(reading)
-    expect(mobileRouteReducer(closed, { type: 'back' })).toEqual(initialMobileRoute)
+    expect(mobileRouteReducer(withSheet, { type: 'dismissAfterRemoval' })).toEqual(initialMobileRoute)
   })
 
-  it('hands the same state back when there is no sheet to close', () => {
-    // The shell sends `closeSheet` then `back` from every removing action,
-    // including the ones tapped on a screen with no sheet over it.
-    expect(mobileRouteReducer(reading, { type: 'closeSheet' })).toBe(reading)
+  it('leaves the screen when the verb was tapped on the conversation itself', () => {
+    // The thread's own toolbar: no sheet over it, and the screen still goes.
+    expect(mobileRouteReducer(reading, { type: 'dismissAfterRemoval' })).toEqual(initialMobileRoute)
   })
 
   it('leaves a list where it is', () => {
-    // The same pair sent from a swipe over the inbox: nothing to close, and
+    // A swipe over the inbox, or a Later picked over it: nothing to close, and
     // nothing above the root to pop.
-    const closed = mobileRouteReducer(initialMobileRoute, { type: 'closeSheet' })
-    expect(mobileRouteReducer(closed, { type: 'back' })).toBe(initialMobileRoute)
+    expect(mobileRouteReducer(initialMobileRoute, { type: 'dismissAfterRemoval' })).toEqual(
+      initialMobileRoute,
+    )
+  })
+
+  it('keeps the tab it was reading in', () => {
+    // Opened from a search result, the conversation goes and Search stays.
+    const searching: MobileRoute = {
+      tab: 'search',
+      stack: [{ kind: 'inbox' }, { kind: 'thread', threadKey: 'account/thread-1' }],
+      sheet: { kind: 'threadActions', thread: thread() },
+    }
+    expect(mobileRouteReducer(searching, { type: 'dismissAfterRemoval' })).toEqual({
+      tab: 'search',
+      stack: [{ kind: 'inbox' }],
+      sheet: null,
+    })
+  })
+
+  it('does not pop a screen that is not the conversation', () => {
+    // Account settings sits on the same stack and removes no mail. Nothing
+    // dispatches this from there, and the rule says so rather than relying on
+    // that.
+    const account: MobileRoute = {
+      tab: 'settings',
+      stack: [{ kind: 'inbox' }, { kind: 'account' }],
+      sheet: { kind: 'accountPassword' },
+    }
+    expect(mobileRouteReducer(account, { type: 'dismissAfterRemoval' })).toEqual({
+      ...account,
+      sheet: null,
+    })
   })
 })
 

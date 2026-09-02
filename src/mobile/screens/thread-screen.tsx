@@ -11,7 +11,7 @@ import { MobileMessageCard } from '../components/message-card'
 import { MobileIcon } from '../components/mobile-icon'
 import { MobileListSkeleton } from '../components/placeholders'
 import { deferTarget, type DeferTarget } from '../state'
-import { REMOVE_ACTION_CHROME, threadActions, type RemoveAction } from '../thread-actions'
+import { removeChrome, rowActions, type RemoveAction } from '../thread-actions'
 import { useEdgeBack } from '../use-edge-back'
 import './thread-screen.css'
 
@@ -64,9 +64,9 @@ export function ThreadScreen({
   // The same rule the rows use, so tapping Archive on a conversation opened
   // from Trash restores it rather than reporting an archive that never
   // happened (issue 48), and a control with nothing behind it is not drawn.
-  const actions = threadActions(thread)
+  const actions = rowActions(thread)
   const remove = actions.remove
-  const removeChrome = remove ? REMOVE_ACTION_CHROME[remove] : null
+  const chrome = removeChrome(remove)
   return (
     <section
       className={`mobile-screen mobile-thread-screen${edge.settling ? ' is-settling' : ''}`}
@@ -77,7 +77,7 @@ export function ThreadScreen({
       <header className="mobile-nav mobile-thread-nav">
         <button className="mobile-nav-back" type="button" onClick={onBack} aria-label={`Back to ${backLabel}`}><MobileIcon name="chevronRight" className="mobile-icon-back" scale="large" /><span>{backLabel}</span></button>
         <div className="mobile-nav-actions">
-          {remove && removeChrome && <button type="button" aria-label={removeChrome.label} onClick={() => onRemove(thread.key, remove)}><MobileIcon name={removeChrome.icon} scale="action" /></button>}
+          {remove && <button type="button" aria-label={chrome.label} onClick={() => onRemove(thread.key, remove)}><MobileIcon name={chrome.icon} scale="action" /></button>}
           {actions.defer && <button type="button" aria-label="Save for later" onClick={() => onLater(deferTarget(thread))}><MobileIcon name="calendar" scale="action" /></button>}
           <button
             type="button"
@@ -121,7 +121,7 @@ export function ThreadScreen({
         <ToolbarButton label="Reply" icon={<MobileIcon name="reply" scale="action" />} onClick={() => onReply(detail.data, 'reply')} />
         <ToolbarButton label="Reply all" icon={<MobileIcon name="replyAll" scale="action" />} onClick={() => onReply(detail.data, 'replyAll')} />
         <ToolbarButton label="Forward" icon={<MobileIcon name="forward" scale="action" />} onClick={() => onReply(detail.data, 'forward')} />
-        {remove && removeChrome && <ToolbarButton label={removeChrome.label} icon={<MobileIcon name={removeChrome.icon} scale="action" />} onClick={() => onRemove(thread.key, remove)} />}
+        {remove && <ToolbarButton label={chrome.label} icon={<MobileIcon name={chrome.icon} scale="action" />} onClick={() => onRemove(thread.key, remove)} />}
         {actions.defer && <ToolbarButton label="Later" icon={<MobileIcon name="calendar" scale="action" />} onClick={() => onLater(deferTarget(thread))} />}
         <ToolbarButton label="More" icon={<MobileIcon name="sliders" scale="action" />} onClick={() => onMore(thread)} />
       </div>

@@ -1,0 +1,29 @@
+/* The confirmation's description box, for both shells.
+
+   A toast names what happened; it is not a place to read a subject. The
+   character clamp in `send-toast.ts` is the guarantee about CONTENT — 140
+   characters, whitespace collapsed. This is the guarantee about GEOMETRY, and
+   both halves are needed: a pasted subject with no spaces in it has nothing to
+   break on, so a clamped 140 characters could still stack one character per
+   line and grow the toast up the screen until it covered the app.
+
+   `anywhere` gives it somewhere to break; the two-line box holds it whatever
+   it breaks into.
+
+   Its own file because the two shells mount different roots. `surfaces.css`
+   is imported by `App.tsx`, which the phone never mounts, so the phone had a
+   second copy of these five declarations in `mobile.css` — the desktop's
+   issue 41 and the phone's issue 47, one rule, fixed twice. Imported by both
+   shells now, and unscoped, because it is the same promise on both.
+
+   Sonner injects its own stylesheet at runtime, so it lands after this file
+   and wins every tie. The three attributes of specificity here are what make
+   the rule stick — that, and not `!important`. */
+
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
