@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-unwatch-tabs"
+description = "Enables the unwatch_tabs command without any pre-configured scope."
+commands.allow = ["unwatch_tabs"]
+
+[[permission]]
+identifier = "deny-unwatch-tabs"
+description = "Denies the unwatch_tabs command without any pre-configured scope."
+commands.deny = ["unwatch_tabs"]

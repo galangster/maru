@@ -8,9 +8,11 @@ import {
 } from '@/features/compose/compose-store'
 import { useAccountsById, useCorrespondents } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
+import { cue } from '@/lib/cue'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
 import { MobileIcon } from '../components/mobile-icon'
 import { useModalFocus } from '../use-modal-focus'
+import { useHapticBoundary } from '../use-native-shell'
 
 const RECIPIENT_KINDS = ['to', 'cc', 'bcc'] as const
 type RecipientKind = (typeof RECIPIENT_KINDS)[number]
@@ -54,6 +56,7 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
     closeStore()
   }
   const dialogRef = useModalFocus<HTMLElement>(close)
+  useHapticBoundary()
   const send = async () => {
     const committed = recipientEntries.map(([kind]) => recipientRefs.current[kind]?.commit())
     if (committed.some((result) => result?.state.invalid)) {
@@ -66,6 +69,9 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
     try {
       await service.send(toComposeDraft(outgoing))
       remember(outgoing.accountId)
+      // Both confirmations at one moment: the phone had the success notify and
+      // no sound, and the two used to be written a screen apart.
+      cue('sent')
       onSent()
       closeStore()
     } catch (cause) {

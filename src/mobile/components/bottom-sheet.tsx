@@ -1,5 +1,8 @@
-import type { ReactNode } from 'react'
+import { type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+
 import { MobileIcon } from './mobile-icon'
+import { useHapticBoundary } from '../use-native-shell'
 import { useModalFocus } from '../use-modal-focus'
 
 export function BottomSheet({
@@ -12,7 +15,8 @@ export function BottomSheet({
   children: ReactNode
 }) {
   const dialogRef = useModalFocus<HTMLElement>(onClose)
-  return (
+  useHapticBoundary()
+  const layer = (
     <div
       className="mobile-sheet-layer mobile-bottom-layer"
       role="presentation"
@@ -30,6 +34,11 @@ export function BottomSheet({
       </section>
     </div>
   )
+  // Into `.mobile-app`, not the calling screen, which is transformed — see
+  // docs/IOS.md. The host is the shell rather than the body because the
+  // shell's resets are scoped to it.
+  const host = typeof document === 'undefined' ? null : document.querySelector('.mobile-app')
+  return host ? createPortal(layer, host) : layer
 }
 
 export function SheetAction({

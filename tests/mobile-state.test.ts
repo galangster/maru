@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest'
 
 import type { Thread } from '@/core/types'
 import {
+  MOBILE_TABS,
+  MOBILE_TAB_CHROME,
   buildMobileRowModel,
+  inboxBadgeValue,
+  indexOfTab,
   initialMobileRoute,
   mobileRouteReducer,
+  nativeTabs,
   resolveSwipeIntent,
+  tabAtIndex,
 } from '@/mobile/state'
 
 function thread(overrides: Partial<Thread> = {}): Thread {
@@ -109,5 +115,59 @@ describe('mobile row model', () => {
     expect(model.messageCount).toBe(2)
     expect(model).not.toHaveProperty('key')
     expect(model).not.toHaveProperty('hasAttachments')
+  })
+})
+
+describe('native tab bar positions', () => {
+  it('agrees with the order the Swift plugin declares its items in', () => {
+    expect(MOBILE_TABS).toEqual(['inbox', 'search', 'settings'])
+  })
+
+  it('hands the plugin one descriptor per tab, in MOBILE_TABS order', () => {
+    // Swift writes no tab list. This array is what the bar is built from, so
+    // the mapping is the contract and belongs under test.
+    expect(nativeTabs()).toEqual([
+      { title: 'Inbox', symbol: 'tray' },
+      { title: 'Search', symbol: 'magnifyingglass' },
+      { title: 'Settings', symbol: 'gearshape' },
+    ])
+  })
+
+  it('draws every tab on the web bar', () => {
+    // The label and the SF Symbol are already asserted, exactly, by the
+    // descriptor test above. The web icon is the half only this bar uses.
+    for (const tab of MOBILE_TABS) {
+      expect(MOBILE_TAB_CHROME[tab].icon).toBeTruthy()
+    }
+  })
+
+  it('round-trips a tab through its index', () => {
+    for (const tab of MOBILE_TABS) {
+      expect(tabAtIndex(indexOfTab(tab))).toBe(tab)
+    }
+  })
+
+  it('has no tab outside the bar', () => {
+    expect(tabAtIndex(-1)).toBeNull()
+    expect(tabAtIndex(MOBILE_TABS.length)).toBeNull()
+  })
+})
+
+describe('inbox badge', () => {
+  it('clears the badge rather than drawing a zero', () => {
+    expect(inboxBadgeValue(0)).toBeNull()
+    expect(inboxBadgeValue(-3)).toBeNull()
+    expect(inboxBadgeValue(Number.NaN)).toBeNull()
+  })
+
+  it('counts up to ninety-nine', () => {
+    expect(inboxBadgeValue(1)).toBe('1')
+    expect(inboxBadgeValue(12)).toBe('12')
+    expect(inboxBadgeValue(99)).toBe('99')
+  })
+
+  it('rolls over past the cap instead of widening the pill', () => {
+    expect(inboxBadgeValue(100)).toBe('99+')
+    expect(inboxBadgeValue(3607)).toBe('99+')
   })
 })

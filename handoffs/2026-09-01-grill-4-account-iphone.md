@@ -126,7 +126,17 @@ worktree; use `git show rev:path > path`.
    with the placeholder), cancel reads "Sign-in cancelled", no crash. 685
    tests. **What I3 still needs from Nick: the iOS OAuth client id.** Then
    set the variable, rebuild, and the phone signs in to Gmail.
-5. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
+5. **I8 lanes 1–3 merged**: the native shell. `maru-shell` (iOS-only Tauri
+   plugin) hosts the WebView in a `UITabBarController`: Liquid Glass tab
+   bar, scroll-minimize (the phone now document-scrolls), Inbox badge,
+   haptics on archive/Later/send/pull through one `cue()` policy; the web
+   tab bar remains only for the `?mobile=1` browser preview. Real Gmail
+   client id is live on the phone (Google's sign-in sheet reaches "to
+   continue to Maru Mail"). Six simulator-only defects fixed (viewport-fit,
+   hit-testing of empty hosts, bar z-order, StrictMode channel, bar inset to
+   CSS, drag-vs-long-press). Deferred: keep `InboxScreen` mounted across a
+   thread push. Captures `native-tabbar-*.png`, `ios-auth-real-client-light.png`.
+6. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
    of the day (resets 2026-09-06 19:28 PT). Two lanes died mid-run; both
    were sealed from the orchestrator after re-running the gates, and the
    simulator proofs ran on Claude Opus subagents. Memory

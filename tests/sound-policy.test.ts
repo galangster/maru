@@ -6,6 +6,7 @@ import {
   RATE_LIMIT_MS,
   decideSound,
   initialSoundPolicyState,
+  rateLimit,
   type SoundName,
   type SoundPolicyState,
   type SoundRequest,
@@ -189,5 +190,27 @@ describe('decideSound — the send pair', () => {
   it('has no floor of its own — send is bounded by human typing speed', () => {
     expect(RATE_LIMIT_MS.send).toBe(0)
     expect(RATE_LIMIT_MS.sent).toBe(0)
+  })
+})
+
+describe('the shared cue clock', () => {
+  it('lets the first cue through and holds the rest for the window', () => {
+    // A bulk archive fans out one mutation per thread. All of them land in the
+    // same millisecond, and only the first is a confirmation.
+    expect(rateLimit('archive-burst', 400, 1_000)).toBe(true)
+    expect(rateLimit('archive-burst', 400, 1_000)).toBe(false)
+    expect(rateLimit('archive-burst', 400, 1_399)).toBe(false)
+    expect(rateLimit('archive-burst', 400, 1_400)).toBe(true)
+  })
+
+  it('keeps one clock per key', () => {
+    expect(rateLimit('later-key', 400, 5_000)).toBe(true)
+    expect(rateLimit('complete-key', 400, 5_000)).toBe(true)
+    expect(rateLimit('later-key', 400, 5_100)).toBe(false)
+  })
+
+  it('never blocks a cue with no window', () => {
+    expect(rateLimit('unbounded', 0, 9_000)).toBe(true)
+    expect(rateLimit('unbounded', 0, 9_000)).toBe(true)
   })
 })

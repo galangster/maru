@@ -50,3 +50,4 @@ objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tauri-plugin-maru-auth = { path = "plugins/maru-auth" }
+tauri-plugin-maru-shell = { path = "plugins/maru-shell" }

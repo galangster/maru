@@ -38,6 +38,7 @@ import { HeldMutations } from '@/lib/deferred'
 import { formatBytes } from '@/lib/format'
 import { MOD } from '@/features/keyboard/keymap'
 import { DUR, exitTransition, sheetPreset, useMotionMode } from '@/lib/motion'
+import { cue } from '@/lib/cue'
 import { playSound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
@@ -202,7 +203,7 @@ function ComposerSheet() {
         void (async () => {
           try {
             await service.send(payload)
-            playSound('sent')
+            cue('sent')
             toast.success('Sent', {
               id: SEND_TOAST,
               description: payload.subject || '(no subject)',

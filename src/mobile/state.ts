@@ -1,8 +1,63 @@
+import type { IconName } from '@/components/ui/icon'
 import type { VaultHistoryEntry } from '@/core/account'
 import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import type { NativeTab } from '@/platform/shell'
 
 export type MobileTab = 'inbox' | 'search' | 'settings'
+
+/**
+ * Tab order, and the only place it is written down. The native tab bar
+ * addresses its items by position, so this array is the contract between the
+ * Swift `UITabBarItem`s and the reducer's `tab`.
+ */
+export const MOBILE_TABS: readonly MobileTab[] = ['inbox', 'search', 'settings']
+
+export function tabAtIndex(index: number): MobileTab | null {
+  return MOBILE_TABS[index] ?? null
+}
+
+export function indexOfTab(tab: MobileTab): number {
+  return MOBILE_TABS.indexOf(tab)
+}
+
+/**
+ * What each tab is called and what draws it: an SF Symbol for the native bar,
+ * a Maru icon for the web fallback.
+ *
+ * One record, because there is one bar. Swift writes no tab list of its own —
+ * it is handed these descriptors when the web layer subscribes — so the labels
+ * the phone shows and the labels the browser preview shows cannot drift.
+ */
+export const MOBILE_TAB_CHROME: Record<MobileTab, { label: string; icon: IconName; symbol: string }> = {
+  inbox: { label: 'Inbox', icon: 'inbox', symbol: 'tray' },
+  search: { label: 'Search', icon: 'search', symbol: 'magnifyingglass' },
+  settings: { label: 'Settings', icon: 'settings', symbol: 'gearshape' },
+}
+
+/** The bar's items, in the order the native side addresses them by. */
+export function nativeTabs(): NativeTab[] {
+  return MOBILE_TABS.map((tab) => ({
+    title: MOBILE_TAB_CHROME[tab].label,
+    symbol: MOBILE_TAB_CHROME[tab].symbol,
+  }))
+}
+
+/** Above this the badge stops counting and starts saying "a lot". */
+const MOBILE_BADGE_LIMIT = 99
+
+/**
+ * What the Inbox tab's badge should read, or `null` for no badge at all.
+ *
+ * A UITabBarItem badge is a string, and an empty one draws an empty red pill,
+ * so zero has to become `null` rather than `'0'`. Past 99 the pill grows wide
+ * enough to crowd the neighbouring tab's label, which is why iOS caps it.
+ */
+export function inboxBadgeValue(unread: number): string | null {
+  if (!Number.isFinite(unread) || unread <= 0) return null
+  const count = Math.floor(unread)
+  return count > MOBILE_BADGE_LIMIT ? `${MOBILE_BADGE_LIMIT}+` : String(count)
+}
 export type MobileStackEntry =
   | { kind: 'inbox' }
   | { kind: 'thread'; threadKey: string }

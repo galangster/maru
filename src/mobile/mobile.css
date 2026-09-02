@@ -11,19 +11,120 @@
   --mobile-leading-relaxed: 1.5;
 }
 
+/*
+ * The desktop base layer parks the page: `html, body, #root { height: 100% }`
+ * and `body { overflow: hidden }`, because there the panes own the scrolling.
+ * The phone needs the opposite -- see `.mobile-app` below -- and `:has()` is
+ * how it is asked for without a second global stylesheet or a class on <html>:
+ * the rule applies exactly while a mobile shell is mounted, whichever bundle
+ * this file lands in.
+ */
+html:has(.mobile-app),
+html:has(.mobile-app) body,
+html:has(.mobile-app) #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  /* iOS has no scrollbar; the ?mobile=1 preview should not grow one. */
+  scrollbar-width: none;
+}
+
+html:has(.mobile-app) ::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/*
+ * A sheet holds the page still.
+ *
+ * The document is the scroller, so without this a drag on a sheet or its scrim
+ * scrolls the inbox behind it — and scrolling behind a modal is also what would
+ * minimize the native tab bar under one. In CSS rather than in JS because the
+ * scroll position must not move: pinning the body instead would report a scroll
+ * offset of zero to the window virtualizer, which would then render the top of
+ * the list into a page that is still displaced, and the inbox would go blank
+ * behind the sheet.
+ */
+html:has(.mobile-sheet-layer) {
+  overflow: hidden;
+}
+
+html:has(.mobile-sheet-layer) .mobile-stage {
+  touch-action: none;
+}
+
+/*
+ * Toasts clear the bottom chrome.
+ *
+ * Sonner mounts outside the shell, so it cannot read `--mobile-tab-height`.
+ * `--mobile-toast-offset` is that height restated on the root, where the
+ * toaster can see it, and it is derived the same two ways `.mobile-app` and
+ * `.mobile-app[data-native-shell='true']` derive theirs — the web bar's height
+ * for the `?mobile=1` preview, and the plugin's published measurement of the
+ * glass behind it, falling back to zero rather than to a guess. The undo offer
+ * and the sign-in result were both landing under the bar.
+ *
+ * Scoped to the phone shell: the desktop shares this toaster and wants none of
+ * it. `!important` stays even so, because sonner writes both offsets as inline
+ * styles on its own container, and an inline declaration is the one thing no
+ * selector outranks. The alternative is an `offset` prop in `main.tsx`, which
+ * the desktop shares and does not need.
+ */
+html:has(.mobile-app) {
+  --mobile-toast-offset: calc(84px + env(safe-area-inset-bottom) + 12px);
+}
+
+html:has(.mobile-app[data-native-shell='true']) {
+  --mobile-toast-offset: calc(var(--maru-native-tab-inset, 0px) + env(safe-area-inset-bottom) + 12px);
+}
+
+html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
+  --offset-bottom: var(--mobile-toast-offset) !important;
+  --mobile-offset-bottom: var(--mobile-toast-offset) !important;
+}
+
+/*
+ * The document is the scroller on the phone, and that is load-bearing rather
+ * than a style choice: UIKit decides when to minimize the Liquid Glass tab bar
+ * by watching a UIScrollView, and the only one in the hierarchy is the
+ * WKWebView's own. A `position: fixed` root with lists scrolling in DOM
+ * containers never moves it, so the bar never minimizes (I8 lane 1). Every
+ * screen therefore scrolls the page, headers hold their place with
+ * `position: sticky`, and the bottom chrome is fixed or sticky.
+ *
+ * No `overscroll-behavior` here on purpose. Rubber-banding at the top and the
+ * bottom of the page is the system's, and it is the same gesture UIKit reads.
+ */
 .mobile-app {
   --mobile-tab-height: 84px;
-  position: fixed;
-  inset: 0;
+  position: relative;
+  min-height: 100dvh;
   isolation: isolate;
-  overflow: hidden;
-  overscroll-behavior: none;
+  /* `clip`, not `hidden`: the edge-back drag translates a whole screen sideways
+     and the page must not gain a horizontal scrollbar for it, but `hidden`
+     would turn this into a scroll container and take the document's scroll
+     with it. */
+  overflow-x: clip;
   background: var(--wren-surface-base);
   color: var(--wren-text-1);
   font-family: var(--wren-font-body);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+}
+
+/*
+ * With the native shell there is no bar in the document to leave room for --
+ * but the iOS 26 bar floats over the page rather than insetting it, and
+ * `env(safe-area-inset-bottom)` carries only the home indicator. So the plugin
+ * measures the glass and publishes its height above that inset as
+ * `--maru-native-tab-inset`, and it lands exactly where the web bar's height
+ * used to. The fallback is zero, not a guess: until the measurement arrives on
+ * the first layout, a list that runs under the glass is better than a strip of
+ * dead space that has to be taken back.
+ */
+.mobile-app[data-native-shell='true'] {
+  --mobile-tab-height: var(--maru-native-tab-inset, 0px);
 }
 
 .mobile-app *,
@@ -98,24 +199,50 @@
 .mobile-stage,
 .mobile-screen {
   width: 100%;
-  height: 100%;
-  min-height: 0;
 }
 
+/* Still a column, so the bottom chrome can sit last in flow and stick there.
+   `100dvh` is a floor rather than a height: a short inbox still fills the
+   screen, a long one runs past it and scrolls the document. */
 .mobile-screen {
   display: flex;
+  min-height: 100dvh;
   flex-direction: column;
   background: var(--wren-surface-base);
 }
 
+/* Sticky, not fixed — docs/IOS.md, "The phone scrolls the document". */
 .mobile-nav {
-  position: relative;
-  z-index: 2;
+  position: sticky;
+  z-index: 6;
+  top: 0;
   flex: 0 0 auto;
   padding-block-start: max(env(safe-area-inset-top), 12px);
   padding-inline: max(env(safe-area-inset-left), 16px) max(env(safe-area-inset-right), 16px);
   background: color-mix(in oklch, var(--wren-surface-base) 94%, transparent);
   backdrop-filter: blur(18px) saturate(1.2);
+}
+
+/*
+ * The strip above the header.
+ *
+ * WebKit insets the page by the status bar's height and reports
+ * `env(safe-area-inset-top)` as zero for it, so the page's own top sits below
+ * the clock — but page content that has scrolled past the sticky header is
+ * still drawn up there, over the status bar. A native app puts its navigation
+ * bar in that strip; this header is that bar, so it paints through it. Opaque
+ * rather than the header's 94%, because there is no blurred backdrop behind a
+ * scroll view's inset to soften what shows through.
+ */
+.mobile-nav::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: max(env(safe-area-inset-top), 64px);
+  background: var(--wren-surface-base);
+  pointer-events: none;
 }
 
 .mobile-nav-row,
@@ -241,18 +368,11 @@
   font: var(--mobile-text-caption)/var(--mobile-leading-tight) var(--wren-font-body);
 }
 
+/* The name is kept because it is what every screen's main region is called,
+   but the scrolling is the document's now. `flex: 1` is what pushes a sticky
+   bottom bar to the foot of a short screen. */
 .mobile-scroll {
-  min-height: 0;
   flex: 1;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  scrollbar-width: none;
-}
-
-.mobile-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .mobile-inbox-scroll,
@@ -490,7 +610,6 @@
 .mobile-bulk-toolbar,
 .mobile-thread-toolbar,
 .mobile-tab-bar {
-  position: absolute;
   z-index: 5;
   inset-inline: 0;
   display: flex;
@@ -502,7 +621,9 @@
   backdrop-filter: blur(24px) saturate(1.25);
 }
 
+/* Fixed: no transformed ancestor here — docs/IOS.md. */
 .mobile-bulk-toolbar {
+  position: fixed;
   bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom));
   min-height: 64px;
 }
@@ -527,6 +648,7 @@
 }
 
 .mobile-tab-bar {
+  position: fixed;
   bottom: 0;
   min-height: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom));
   padding-block: 4px env(safe-area-inset-bottom);
@@ -579,8 +701,9 @@
   display: flex;
 }
 
+/* The sticky toolbar below holds its own room; this is only the gap above it. */
 .mobile-thread-scroll {
-  padding-block-end: calc(66px + env(safe-area-inset-bottom));
+  padding-block-end: 6px;
 }
 
 .mobile-thread-heading {
@@ -755,7 +878,11 @@
   color: var(--wren-text-3);
 }
 
+/* Sticky: `.mobile-thread-screen` is transformed — docs/IOS.md. Sticky also
+   reserves its own room at the end of the column, so the last message clears
+   it without a padding rule. */
 .mobile-thread-toolbar {
+  position: sticky;
   bottom: 0;
   min-height: calc(60px + env(safe-area-inset-bottom));
   align-items: flex-start;
@@ -1569,3 +1696,4 @@
     background: var(--wren-fill-hover);
   }
 }
+

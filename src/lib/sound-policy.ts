@@ -43,6 +43,28 @@ export const RATE_LIMIT_MS: Record<SoundName, number> = {
 /** More arriving at once than this and the arrival is silent — MAGIC §4.4. */
 export const ARRIVAL_BURST_LIMIT = 3
 
+/**
+ * When each keyed cue last fired. Module scope, like `decideSound`'s own state,
+ * because the guard has to hold across every surface and every mutation
+ * instance: `onArchive(keys)` fans out one mutation per thread.
+ */
+const lastCue: Record<string, number> = {}
+
+/**
+ * `true` when `key` may fire now, and it stamps the clock when it says so.
+ *
+ * This is the half of the sound policy that a *silent* confirmation needs too.
+ * `decideSound` only records a cue that was actually audible, so a haptic
+ * hanging off it would be ungoverned whenever sound is off — which is the
+ * shipped default. One call here decides both.
+ */
+export function rateLimit(key: string, ms: number, now = Date.now()): boolean {
+  const previous = lastCue[key]
+  if (previous !== undefined && now - previous < ms) return false
+  lastCue[key] = now
+  return true
+}
+
 export interface SoundRequest {
   name: SoundName
   /** Milliseconds, from the same clock every call uses. */

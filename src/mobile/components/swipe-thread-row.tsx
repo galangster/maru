@@ -1,4 +1,4 @@
-import { memo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { memo, useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import type { Thread } from '@/core/types'
 import { MobileIcon } from './mobile-icon'
@@ -40,10 +40,12 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressClick = useRef(false)
 
-  const cancelLongPress = () => {
+  const cancelLongPress = useCallback(function cancel() {
     if (longPress.current) clearTimeout(longPress.current)
     longPress.current = null
-  }
+    window.removeEventListener('scroll', cancel)
+    window.removeEventListener('touchmove', cancel)
+  }, [])
 
   const drag = usePointerDrag({
     onMove: ({ dx, dy }) => {
@@ -71,7 +73,19 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
     drag.onPointerDown(event)
     if (editing) return
     suppressClick.current = false
+    // The page is the scroller now, so a press that becomes a scroll can stop
+    // reaching this row entirely: WebKit hands the gesture to the scroll view
+    // and `onMove` never fires to cancel the timer. A drag is never a long
+    // press, so the finger moving at all is the cancel — `touchmove` as well as
+    // `scroll`, because at the end of the list the gesture is still claimed by
+    // the scroll view and nothing scrolls.
+    window.addEventListener('scroll', cancelLongPress, { once: true, passive: true })
+    window.addEventListener('touchmove', cancelLongPress, { once: true, passive: true })
     longPress.current = setTimeout(() => {
+      // The press won, so the listeners it armed have no one left to cancel.
+      // They are `once`, but a gesture that ends without a scroll or a
+      // touchmove never fires them, and they would outlive the row.
+      cancelLongPress()
       suppressClick.current = true
       onContext()
     }, LONG_PRESS_DELAY_MS)

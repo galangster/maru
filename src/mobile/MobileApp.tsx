@@ -1,6 +1,5 @@
 import { lazy, useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 
-import type { IconName } from '@/components/ui/icon'
 import type { MailActionType } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
@@ -14,6 +13,7 @@ import {
   useWakeSweep,
 } from '@/features/mail/queries'
 import { useThemeEffect } from '@/features/shell/use-theme'
+import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
 import { InboxScreen } from './screens/inbox-screen'
 import { SearchScreen } from './screens/search-screen'
@@ -23,21 +23,20 @@ import { ComposeSheet } from './sheets/compose-sheet'
 import { LaterSheet } from './sheets/later-sheet'
 import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
+  MOBILE_TABS,
+  MOBILE_TAB_CHROME,
   initialMobileRoute,
   mobileRouteReducer,
+  tabAtIndex,
   type MobileTab,
 } from './state'
+import { useNativeShell, useNativeShellSync } from './use-native-shell'
+import { useRouteScroll } from './use-route-scroll'
 import './mobile.css'
 
 const AccountScreen = lazy(() =>
   import('./screens/account/account-screen').then((module) => ({ default: module.AccountScreen })),
 )
-
-const TAB_ITEMS: { id: MobileTab; label: string; icon: IconName }[] = [
-  { id: 'inbox', label: 'Inbox', icon: 'inbox' },
-  { id: 'search', label: 'Search', icon: 'search' },
-  { id: 'settings', label: 'Settings', icon: 'settings' },
-]
 
 export function MobileApp() {
   useThemeEffect()
@@ -45,6 +44,17 @@ export function MobileApp() {
   useWakeSweep()
 
   const [navigation, dispatch] = useReducer(mobileRouteReducer, initialMobileRoute)
+  const onNativeTab = useCallback((index: number) => {
+    const tab = tabAtIndex(index)
+    if (tab) dispatch({ type: 'changeTab', tab })
+  }, [])
+  // `null` until the probe answers, so the web bar never flashes under the glass.
+  const nativeTabBar = useNativeShell(onNativeTab)
+  // Nothing native here: the bar's selection is mirrored from the reducer by
+  // `useNativeShellSync`, so a move that starts in JS needs no second call.
+  const changeTab = useCallback((tab: MobileTab) => {
+    dispatch({ type: 'changeTab', tab })
+  }, [])
   const perform = usePerformAction()
   const defer = useDefer()
   const composerOpen = useComposer((state) => state.open)
@@ -54,6 +64,13 @@ export function MobileApp() {
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
   const sheet = navigation.sheet
+  // One key per screen the shell can show. The page is the scroller, so each
+  // one needs its own remembered offset.
+  useRouteScroll(
+    route.kind === 'thread' ? `thread:${route.threadKey}`
+      : route.kind === 'account' ? 'account'
+      : `tab:${navigation.tab}`,
+  )
   const globalModalOpen = composerOpen || (sheet !== null && route.kind !== 'account')
   const syncAnnouncement = useMemo(() => {
     const states = accounts.map((account) => syncStatuses[account.id]?.state).filter(Boolean)
@@ -73,12 +90,25 @@ export function MobileApp() {
     const action = { threadKey, type }
     registerUndoable((next) => perform.mutate(next), action)
     perform.mutate(action)
+    // The archive haptic rides usePerformAction with the completion sound, so
+    // every surface gets it and a bulk archive stays one tap.
     if (type === 'archive') announce('Archived')
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
 
+  useNativeShellSync(nativeTabBar, {
+    tab: navigation.tab,
+    hidden: route.kind !== 'inbox' || globalModalOpen,
+  })
+
+  // `data-native-shell` answers synchronously, so no strip of dead space is
+  // reserved under the glass on the first frame of a cold start while the probe
+  // is still in flight. The probe only ever corrects it downwards, and only on
+  // a phone where the plugin failed to install.
+  const nativeChrome = nativeTabBar ?? nativeShellPossible
+
   return (
-    <div className="mobile-app" data-testid="mobile-app">
+    <div className="mobile-app" data-testid="mobile-app" data-native-shell={nativeChrome ? 'true' : undefined}>
       <main className="mobile-stage" inert={globalModalOpen}>
         {route.kind === 'account' ? (
           <AccountScreen
@@ -100,7 +130,7 @@ export function MobileApp() {
           <InboxScreen
             onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
             onCompose={compose}
-            onSearch={() => dispatch({ type: 'changeTab', tab: 'search' })}
+            onSearch={() => changeTab('search')}
             onArchive={(keys) => keys.forEach((key) => act(key, 'archive'))}
             onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
             onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
@@ -111,13 +141,15 @@ export function MobileApp() {
         ) : <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />}
       </main>
 
-      {route.kind === 'inbox' && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={(tab) => dispatch({ type: 'changeTab', tab })} />}
+      {route.kind === 'inbox' && nativeTabBar === false && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={changeTab} />}
       {composerOpen && <ComposeSheet onSent={() => announce('Sent')} />}
       {sheet?.kind === 'later' && (
         <LaterSheet
           count={sheet.threadKeys.length}
           onClose={closeSheet}
           onPick={(wakeAt) => {
+            // The haptic rides `useDefer`, beside the cache patch every Later
+            // surface shares.
             sheet.threadKeys.forEach((threadKey) => defer.mutate({ threadKey, wakeAt }))
             closeSheet()
           }}
@@ -140,10 +172,17 @@ export function MobileApp() {
   )
 }
 
+/**
+ * The web tab bar. On iOS it is never rendered — the system UITabBarController
+ * owns that chrome, and a second bar in the document would also give VoiceOver
+ * a second set of tabs to read. It stays because the `?mobile=1` browser
+ * preview is the only way to reach Search and Settings outside the simulator,
+ * and captures and design review run there.
+ */
 function TabBar({ active, inert, onChange }: { active: MobileTab; inert: boolean; onChange: (tab: MobileTab) => void }) {
   return (
     <nav className="mobile-tab-bar" aria-label="Primary navigation" inert={inert}>
-      {TAB_ITEMS.map((item) => <button key={item.id} type="button" className={active === item.id ? 'is-active' : ''} onClick={() => onChange(item.id)} aria-current={active === item.id ? 'page' : undefined}><MobileIcon name={item.icon} scale="large" /><span>{item.label}</span></button>)}
+      {MOBILE_TABS.map((tab) => <button key={tab} type="button" className={active === tab ? 'is-active' : ''} onClick={() => onChange(tab)} aria-current={active === tab ? 'page' : undefined}><MobileIcon name={MOBILE_TAB_CHROME[tab].icon} scale="large" /><span>{MOBILE_TAB_CHROME[tab].label}</span></button>)}
     </nav>
   )
 }

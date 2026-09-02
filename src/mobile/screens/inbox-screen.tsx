@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 
 import type { MailView, Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
@@ -11,7 +11,6 @@ import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
 import { buildMobileRowModel } from '../state'
 import { usePullRefresh } from '../use-pull-refresh'
-import './inbox-screen.css'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
 const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
@@ -38,7 +37,9 @@ export function InboxScreen({
   const [editing, setEditing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [rootFontSizePx, setRootFontSizePx] = useState(readRootFontSize)
-  const scroller = useRef<HTMLDivElement>(null)
+  const region = useRef<HTMLDivElement>(null)
+  const list = useRef<HTMLDivElement>(null)
+  const [listTop, setListTop] = useState(0)
   const now = useNow()
   const service = useMailService()
   const view: MailView = accountId === 'all'
@@ -50,13 +51,27 @@ export function InboxScreen({
     () => threads.map((thread) => ({ thread, model: buildMobileRowModel(thread, selfEmails, now) })),
     [threads, selfEmails, now],
   )
-  const virtualizer = useVirtualizer({
+  // The window, not a container. UIKit minimizes the Liquid Glass tab bar off
+  // the WKWebView's own scroll view, so the inbox has to move the document
+  // (mobile.css). `scrollMargin` is what tells the virtualizer how far the list
+  // starts below the top of the page — the sticky header and the pull
+  // indicator sit above it.
+  const virtualizer = useWindowVirtualizer({
     count: rows.length,
-    getScrollElement: () => scroller.current,
     estimateSize: () => MOBILE_ROW_ROOT_MULTIPLIER * rootFontSizePx,
     getItemKey: (index) => rows[index].thread.key,
     overscan: 8,
+    scrollMargin: listTop,
   })
+  // Measured rather than assumed: the header grows with Dynamic Type and with
+  // the Edit row. Those are the only things that move the list's top, so they
+  // are the dependencies — re-measuring on every render costs a layout read
+  // per frame of a scroll and never returns a different number. React bails
+  // out when the value is unchanged, so this settles in one pass.
+  useLayoutEffect(() => {
+    const top = list.current?.offsetTop ?? 0
+    setListTop((current) => (current === top ? current : top))
+  }, [rootFontSizePx, editing, query.isPending, rows.length === 0])
   useEffect(() => {
     const update = () => setRootFontSizePx(readRootFontSize())
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
@@ -72,7 +87,7 @@ export function InboxScreen({
     }
   }, [])
   useEffect(() => virtualizer.measure(), [rootFontSizePx, virtualizer])
-  const { refreshing, drag } = usePullRefresh(scroller, async () => {
+  const { refreshing, drag } = usePullRefresh(region, async () => {
     await service.refresh()
     await query.refetch()
   })
@@ -109,7 +124,7 @@ export function InboxScreen({
         </button>
       </header>
 
-      <div ref={scroller} className="mobile-scroll mobile-inbox-scroll" {...drag}>
+      <div ref={region} className="mobile-scroll mobile-inbox-scroll" {...drag}>
         <div className="mobile-pull-indicator" aria-live="polite">
           <MobileIcon name="sync" className={refreshing ? 'is-spinning' : ''} scale="action" />
           <span className="mobile-pull-copy">Pull to refresh</span>
@@ -117,7 +132,7 @@ export function InboxScreen({
           <span className="mobile-refreshing-copy">Refreshing…</span>
         </div>
         {query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? <EmptyInbox /> : (
-          <div className="mobile-thread-list" aria-describedby={SWIPE_HINT_ID} style={{ height: virtualizer.getTotalSize() }}>
+          <div ref={list} className="mobile-thread-list" aria-describedby={SWIPE_HINT_ID} style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index]
               return (
@@ -126,7 +141,7 @@ export function InboxScreen({
                   className="mobile-virtual-row"
                   data-index={virtualRow.index}
                   key={row.thread.key}
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+                  style={{ transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)` }}
                 >
                   <SwipeThreadRow
                     thread={row.thread}
