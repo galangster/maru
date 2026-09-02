@@ -486,7 +486,17 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
       )}
     >
       <ApprovalsBadge />
-      {!collapsed && <SyncLine sync={sync} waiting={waiting} openSettings={openSettings} />}
+      {/* The status line's own box, which stays whatever the line inside it
+          does. It owns the flex-1 that pushes the three chrome buttons to the
+          right edge, so the row keeps its arrangement at the width where the
+          line drops out (issue 3). No `overflow-hidden` here: the line clips
+          itself, and the button form's -mx-1 hover fill is meant to bleed into
+          the gap on either side. */}
+      {!collapsed && (
+        <div className="flex min-w-0 flex-1 items-center">
+          <SyncLine sync={sync} waiting={waiting} openSettings={openSettings} />
+        </div>
+      )}
       {/* Collapsed, the status line is gone — so without this a dead grant is
           invisible at 68 px and mail silently stops. Exactly one addition, and
           only for the two states a person can act on: the rail is a column of
@@ -515,10 +525,11 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
         name="panelLeft"
         label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!collapsed}
+        className="shrink-0"
         onClick={toggleSidebar}
       />
-      <IconButton name="settings" label="Settings" onClick={() => openSettings()} />
-      <IconButton name={themeIcon} label={themeLabel} onClick={toggle} />
+      <IconButton name="settings" label="Settings" className="shrink-0" onClick={() => openSettings()} />
+      <IconButton name={themeIcon} label={themeLabel} className="shrink-0" onClick={toggle} />
     </div>
   )
 }
@@ -542,6 +553,21 @@ function SyncLine({
   // Settings too, so `action !== null` would have let a dropped connection take
   // the destructive glyph and displace the approvals pill.
   const urgent = isUrgent(sync)
+
+  /**
+   * Whether there is room for the line at all.
+   *
+   * The three chrome buttons and their gaps take ~128 px and no longer shrink;
+   * the approvals pill takes ~56 px more when it is up. At the sidebar's 200 px
+   * floor — which the panel group reaches at about a 950 px window — that left
+   * the line a 1 px box, and its 16 px glyph overhung the collapse button
+   * beside it (issue 3). Below the gate the line drops out whole: a glyph drawn
+   * on top of a control is not information.
+   *
+   * Written out in full, both branches, so Tailwind can see the class names.
+   */
+  const room = waiting > 0 ? 'hidden @[13rem]:flex' : 'flex'
+
   const body = (
     <>
       <Icon
@@ -619,7 +645,7 @@ function SyncLine({
     return (
       <span
         title={sync.detail}
-        className="text-ink-3 flex min-w-0 flex-1 items-center gap-2 text-xs"
+        className={cn('text-ink-3 min-w-0 flex-1 items-center gap-2 overflow-hidden text-xs', room)}
       >
         {body}
       </span>
@@ -638,7 +664,8 @@ function SyncLine({
               // NavRow's own radius and focus ring, so the hit target reads as
               // the same kind of object as a mailbox row. -mx-1 px-1 = 4 px, on
               // grid.
-              'rounded-row focus-ring text-ink-2 -mx-1 flex min-w-0 flex-1 items-center gap-2 px-1 text-xs',
+              'rounded-row focus-ring text-ink-2 -mx-1 min-w-0 flex-1 items-center gap-2 overflow-hidden px-1 text-xs',
+              room,
               'duration-(--wren-dur-fast) ease-(--wren-ease-out) transition-colors',
               'hover:bg-fill-hover hover:text-ink',
             )}
