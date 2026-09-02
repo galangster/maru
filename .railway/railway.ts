@@ -26,6 +26,11 @@ export default defineRailway(() => {
       PORT: "8787",
       PUBSUB_AUDIENCE: "maru-sync",
       PUBSUB_SERVICE_ACCOUNT: "maru-push@maru-mail-prod.iam.gserviceaccount.com",
+      APNS_KEY_ID: "T89G5MWVBQ",
+      APNS_TEAM_ID: "2M8UE59WH7",
+      APNS_BUNDLE_ID: "app.getmaru.ios",
+      APNS_ENV: "production",
+      // APNS_KEY_P8 is a secret set by hand in Railway; never declared here.
       MARU_ALLOWLIST: "nick@metadao.fi,galangsterr@gmail.com,nicholasgalang@gmail.com",
       MARU_COMPED: "nick@metadao.fi,galangsterr@gmail.com,nicholasgalang@gmail.com",
     },

@@ -26,3 +26,16 @@ send one test push, record the first delivery.
 - Still owner-only: the APNs key (Apple), and the second Owner, which the
   API refuses for a consumer Gmail address outside an organisation
   (`INVALID_ARGUMENT`); the console's Grant access sends the invitation.
+
+## Apple side, 2026-09-01 (agent in Nick's Chrome, Nick's go-ahead)
+
+- App ID `app.getmaru.ios` ("Maru") registered on team 2M8UE59WH7 with Push
+  Notifications enabled (needed by the topic-specific key and by App Store
+  Connect).
+- APNs key **`T89G5MWVBQ`** ("Maru push"): Production, topic-specific to
+  `app.getmaru.ios`. The team's two team-scoped key slots were already
+  taken, and Topic Specific is only offered for a single environment, so
+  this key is production-only; a Sandbox twin can be added when a
+  development device needs push. The `.p8` downloads once; Nick holds it.
+- Railway `sync`: `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`,
+  `APNS_ENV=production` set and in IaC. `APNS_KEY_P8` is Nick's to set.
