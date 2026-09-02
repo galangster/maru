@@ -26,10 +26,25 @@ import type {
 } from '../types'
 import { parseThreadKey } from '../types'
 import type { LabelDelta } from '../service/actions'
-import { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, WOKE_RETENTION_MS, viewLabel } from '../defaults'
+import { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, DEFERRAL_TTL_MS, WOKE_RETENTION_MS, viewLabel } from '../defaults'
 import { CIPHERTEXT_PREFIX, type Keyring, keyringFor } from '../crypto/keyring'
 
 export { DEFAULT_PAGE_SIZE, DEFAULT_SETTINGS, FOLDER_LABELS } from '../defaults'
+
+/**
+ * One deferral fact, in device-local terms: a `thread_key`, and the moment the
+ * decision behind it was made.
+ *
+ * `until: null` is a tombstone — a deferral that was cleared. `at` is `set_at`
+ * for a live row and `cleared_at` for a tombstone, which is exactly what the
+ * vault merge in MARU-ACCOUNT.md §6 compares.
+ */
+export interface DeferralRecord {
+  threadKey: string
+  accountId: string
+  until: number | null
+  at: number
+}
 
 /**
  * Numbered migrations. Append only — the array index plus one is the stamped
@@ -312,6 +327,31 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_thread_defer_wake ON thread_defer (wake_at);
   CREATE INDEX IF NOT EXISTS idx_thread_defer_account ON thread_defer (account_id);
   `,
+
+  // 7 — the deferral tombstone (A9). Later crosses devices now, and a DELETE
+  // does not cross anything.
+  //
+  // Owner ruling, Nick 2026-09-02: deferrals sync inside the encrypted vault.
+  // The moment they do, "cleared" needs a representation. A row that is simply
+  // gone is indistinguishable from a row this device never had, so the other
+  // device's copy of the old `until` would win every merge and re-hide a thread
+  // the person deliberately brought back. The tombstone is what makes a clear
+  // an event rather than an absence.
+  //
+  // Its own table, for migration 6's reason exactly: `thread_defer` is deleted
+  // from by `sweepDeferrals`, `deleteThreads` and `clearDeferral`, and a
+  // tombstone that lived there would have to survive all three.
+  //
+  // Bounded by `sweepDeferrals`, which drops tombstones past DEFERRAL_TTL_MS.
+  `
+  CREATE TABLE IF NOT EXISTS thread_defer_cleared (
+    thread_key TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    cleared_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_thread_defer_cleared_at ON thread_defer_cleared (cleared_at);
+  CREATE INDEX IF NOT EXISTS idx_thread_defer_cleared_account ON thread_defer_cleared (account_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -514,6 +554,8 @@ const THREAD_COLUMNS = 12
 const LABEL_ROW_COLUMNS = 3
 const MESSAGE_COLUMNS = 22
 const FLAG_COLUMNS = 4
+const DEFER_COLUMNS = 4
+const DEFER_CLEARED_COLUMNS = 3
 
 function chunkRows<T>(rows: T[], columns: number): T[][] {
   const size = Math.max(1, Math.floor(MAX_BOUND_PARAMS / columns))
@@ -797,7 +839,7 @@ export class Store {
     // `thread_defer` belongs in this loop, not beside it: leaving deferral rows
     // behind after a "delete my data" is exactly the promise the `keyring.destroy`
     // below is careful to keep.
-    for (const table of ['messages', 'thread_labels', 'threads', 'thread_defer', 'labels', 'sync_state']) {
+    for (const table of ['messages', 'thread_labels', 'threads', 'thread_defer', 'thread_defer_cleared', 'labels', 'sync_state']) {
       await this.db.execute(`DELETE FROM ${table} WHERE account_id = $1`, [accountId])
     }
     await this.db.execute('DELETE FROM accounts WHERE id = $1', [accountId])
@@ -915,6 +957,10 @@ export class Store {
       // deferral row, and the row would then match a later thread that happened
       // to reuse the key.
       await this.db.execute(`DELETE FROM thread_defer WHERE thread_key IN (${list})`, group)
+      // The tombstone goes with it. An evicted thread is not a cleared
+      // deferral, and a tombstone for a thread nobody holds any more is a row
+      // that can only ever lose a merge.
+      await this.db.execute(`DELETE FROM thread_defer_cleared WHERE thread_key IN (${list})`, group)
       await this.db.execute(`DELETE FROM threads WHERE key IN (${list})`, group)
     }
   }
@@ -932,17 +978,118 @@ export class Store {
        VALUES ($1, $2, $3, $4, NULL)`,
       [threadKey, accountId, wakeAt, now],
     )
+    // Saving it again answers the tombstone, so the tombstone goes. Leaving it
+    // would let a merge weigh a clear the person has already superseded.
+    await this.db.execute('DELETE FROM thread_defer_cleared WHERE thread_key = $1', [threadKey])
   }
 
-  /** Take the deferral off — an undo, a reply, an archive, or an explicit cancel. */
-  async clearDeferral(keys: string[]): Promise<void> {
-    if (keys.length === 0) return
+  /**
+   * Take the deferral off — an undo, a reply, an archive, or an explicit cancel.
+   *
+   * Returns how many deferrals actually came off, which is the whole reason it
+   * is not `void`: the engine's reply-wake passes every thread that gained a
+   * message, and almost none of them were deferred. A caller that pushes the
+   * vault on a clear needs to know a clear happened.
+   *
+   * Writes a tombstone for each row it removes, and only for rows it removes
+   * — a "clear" on a thread that was never saved is not an event, and a
+   * tombstone for it would be a row that can never win a merge.
+   */
+  async clearDeferral(keys: string[], now: number = Date.now()): Promise<number> {
+    if (keys.length === 0) return 0
+    let cleared = 0
     for (const group of chunkRows(keys, 1)) {
-      await this.db.execute(
-        `DELETE FROM thread_defer WHERE thread_key IN (${placeholderList(group.length)})`,
+      const list = placeholderList(group.length)
+      const rows = await this.db.select<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM thread_defer WHERE thread_key IN (${list})`,
         group,
       )
+      const hit = rows[0]?.n ?? 0
+      if (hit === 0) continue
+      cleared += hit
+      // account_id comes from the row being deleted, in the same statement, so
+      // the tombstone can never name an account the deferral did not belong to.
+      await this.db.execute(
+        `INSERT OR REPLACE INTO thread_defer_cleared (thread_key, account_id, cleared_at)
+         SELECT thread_key, account_id, $${group.length + 1} FROM thread_defer
+         WHERE thread_key IN (${list})`,
+        [...group, now],
+      )
+      await this.db.execute(`DELETE FROM thread_defer WHERE thread_key IN (${list})`, group)
     }
+    return cleared
+  }
+
+  /**
+   * Every deferral fact this device holds, for the Maru vault — live rows and
+   * tombstones in one list, in the shape MARU-ACCOUNT.md §4 travels in.
+   *
+   * Live rows only while they are live: a woken deferral is already true on
+   * every device, because `wake_at > now` is the same predicate everywhere,
+   * so re-asserting it across the vault would say nothing and cost bytes.
+   */
+  async deferralRecords(): Promise<DeferralRecord[]> {
+    const live = await this.db.select<{ thread_key: string; account_id: string; wake_at: number; set_at: number }>(
+      'SELECT thread_key, account_id, wake_at, set_at FROM thread_defer WHERE woke_at IS NULL',
+    )
+    const cleared = await this.db.select<{ thread_key: string; account_id: string; cleared_at: number }>(
+      'SELECT thread_key, account_id, cleared_at FROM thread_defer_cleared',
+    )
+    return [
+      ...live.map((r) => ({ threadKey: r.thread_key, accountId: r.account_id, until: r.wake_at, at: r.set_at })),
+      ...cleared.map((r) => ({ threadKey: r.thread_key, accountId: r.account_id, until: null, at: r.cleared_at })),
+    ]
+  }
+
+  /**
+   * Write deferral facts that arrived from another device. Returns rows moved.
+   *
+   * A plain write, deliberately: the merge rule lives in `mergeDeferrals` and
+   * has already run against this device's own rows by the time anything gets
+   * here. Two stores implementing precedence twice is how they come to
+   * disagree.
+   */
+  async applyDeferralRecords(records: DeferralRecord[]): Promise<number> {
+    // Partitioned first, then two statements per side, the way every other
+    // batch write in this file works: a pull that carries a hundred deferrals
+    // used to cost two hundred round trips.
+    const live = records.filter((record) => record.until !== null)
+    const tombs = records.filter((record) => record.until === null)
+
+    // `woke_at` is left out of the column list on purpose. INSERT OR REPLACE
+    // rewrites the whole row, so an omitted nullable column lands as NULL —
+    // which is what re-saving a thread means: a fresh deferral, not the old
+    // wake stamp and its place at the top of Today.
+    for (const group of chunkRows(live, DEFER_COLUMNS)) {
+      await this.db.execute(
+        `INSERT OR REPLACE INTO thread_defer (thread_key, account_id, wake_at, set_at)
+         VALUES ${valueGroups(group.length, DEFER_COLUMNS)}`,
+        group.flatMap((record) => [record.threadKey, record.accountId, record.until, record.at]),
+      )
+    }
+    for (const group of chunkRows(live, 1)) {
+      // Saving it again answers the tombstone, so the tombstone goes.
+      await this.db.execute(
+        `DELETE FROM thread_defer_cleared WHERE thread_key IN (${placeholderList(group.length)})`,
+        group.map((record) => record.threadKey),
+      )
+    }
+
+    for (const group of chunkRows(tombs, DEFER_CLEARED_COLUMNS)) {
+      await this.db.execute(
+        `INSERT OR REPLACE INTO thread_defer_cleared (thread_key, account_id, cleared_at)
+         VALUES ${valueGroups(group.length, DEFER_CLEARED_COLUMNS)}`,
+        group.flatMap((record) => [record.threadKey, record.accountId, record.at]),
+      )
+    }
+    for (const group of chunkRows(tombs, 1)) {
+      await this.db.execute(
+        `DELETE FROM thread_defer WHERE thread_key IN (${placeholderList(group.length)})`,
+        group.map((record) => record.threadKey),
+      )
+    }
+
+    return records.length
   }
 
   /**
@@ -972,6 +1119,12 @@ export class Store {
     await this.db.execute(
       'DELETE FROM thread_defer WHERE woke_at IS NOT NULL AND woke_at <= $1',
       [now - WOKE_RETENTION_MS],
+    )
+    // The tombstone's own garbage collection, on the same lazy sweep — see
+    // DEFERRAL_TTL_MS.
+    await this.db.execute(
+      'DELETE FROM thread_defer_cleared WHERE cleared_at <= $1',
+      [now - DEFERRAL_TTL_MS],
     )
     return { woken }
   }

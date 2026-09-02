@@ -163,6 +163,33 @@ Gmail drafts sync (local draft persistence only), calendar, unified
 > that spine when it arrives. Full reasoning in
 > [P21](../wayfinder/tickets/P21-later-and-swipe.md).
 
+> **Q17 amended again 2026-09-02 — Later syncs, and it is still not snooze.**
+> Nick ruled A9 yes: deferrals travel between a person's own devices inside
+> the encrypted Maru vault. The spine the note above predicted arrived, and
+> `thread_defer` synced on it as predicted.
+>
+> Nothing about the fail-safe design moved. A deferral is still the local
+> predicate `wake_at > now`, evaluated when the query runs, on every device
+> that holds the vault. No device is asked to act at a moment in time, and
+> **no Gmail method is called on this path** — asserted in
+> `tests/later-sync.test.ts` against a client whose every method throws, so
+> the method-scope matrix and the verification submission stay untouched.
+> This is what still separates it from snooze: Gmail's snooze is a promise
+> kept by Google's servers, and Maru's is a predicate each device evaluates
+> for itself.
+>
+> One constraint moved, and only in letter: MARU-ACCOUNT.md §1 now says **no
+> ids the service can read** rather than no ids at all. A Gmail thread id
+> travels, as ciphertext, under a key the service never holds.
+>
+> The permanent sentence changed with it — the old one said "Later is on this
+> Mac", which is now true only when nobody is signed in. It reads: *"Later
+> follows your Maru account when you're signed in, and stays on this device
+> when you're not. Gmail never sees it, so these still show in Gmail's
+> inbox."* It is one exported constant, `LATER_DISCLOSURE`, and the rule for
+> where it appears is stated on it rather than counted here. Full reasoning in
+> [A9](../wayfinder/tickets/A9-later-sync.md).
+
 **Q18 — Build SOP:** sequential single-writer lanes (scaffold → engine →
 shell → features → polish), Opus-floor agents for component-writing lanes,
 one verification gate per boundary, simplify pass before seal. Detail in

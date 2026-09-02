@@ -1,48 +1,33 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Account, Settings } from '../src/core/types'
+import type { Settings } from '../src/core/types'
 import {
   applyVault,
   buildVault,
   mergeVault,
   type LocalCredential,
   type VaultDocument,
-  type VaultLocal,
 } from '../src/core/account/vault'
+import { FakeVaultLocal, settings as baseSettings, vaultDocument } from './fixtures/domain'
 
+// This suite is the one that cares about the bring-your-own Google client, so
+// it is the one that adds those two fields to the shared baseline.
 const settings: Settings = {
-  theme: 'dark', imagePolicy: 'allow', pollIntervalSec: 60, sounds: false,
-  conversationOrder: 'chronological', googleClientId: 'desktop-client', googleClientSecret: 'never-sync',
+  ...baseSettings,
+  googleClientId: 'desktop-client',
+  googleClientSecret: 'never-sync',
 }
 
-class FakeLocal implements VaultLocal {
+class FakeLocal extends FakeVaultLocal {
   settings = { ...settings }
-  accounts: Account[] = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', color: '#123', addedAt: 1 }]
+  accounts = [{ id: 'local-1', email: 'nick@example.com', displayName: 'Nick', color: '#123', addedAt: 1 }]
   credentials = new Map<string, LocalCredential>([['local-1', { clientId: 'desktop-client', refreshToken: 'refresh', issuedAt: 10 }]])
-  consent: string[] = []
-  settingsWrites = 0
-  credentialWrites = 0
-  refreshes = 0
-  getSettings = async () => ({ ...this.settings })
-  setSettings = async (patch: Partial<Settings>) => { this.settingsWrites += 1; this.settings = { ...this.settings, ...patch } }
-  listAccounts = async () => [...this.accounts]
-  upsertAccount = async (account: Account) => { this.accounts.push(account) }
-  removeAccount = async (id: string) => { this.accounts = this.accounts.filter((account) => account.id !== id) }
-  loadCredential = async (id: string) => this.credentials.get(id) ?? null
-  saveCredential = async (id: string, credential: LocalCredential) => { this.credentialWrites += 1; this.credentials.set(id, credential) }
-  clearCredential = async (id: string) => { this.credentials.delete(id) }
-  setDirectedConsent = (emails: string[]) => { this.consent = emails }
-  newAccountId = () => `new-${this.accounts.length}`
-  now = () => 100
-  refreshAfterApply = async () => { this.refreshes += 1 }
 }
 
-const document = (patch: Partial<VaultDocument> = {}): VaultDocument => ({
-  v: 1,
+const document = (patch: Partial<VaultDocument> = {}): VaultDocument => vaultDocument({
   updatedAt: 10,
   settings: { theme: 'light', imagePolicy: 'block', pollIntervalSec: 300, sounds: true, conversationOrder: 'newestFirst' },
   accounts: [{ email: 'nick@example.com', label: 'Nick' }],
-  credentials: { desktop: {}, ios: {} },
   ...patch,
 })
 

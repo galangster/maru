@@ -10,7 +10,6 @@ import {
   derivePasswordKeys,
   deriveRecoveryKeys,
   generateRecoveryPhrase,
-  normalizeEmail,
   recoveryEntropy,
   restoredSummary,
   unwrapByPassword,
@@ -28,8 +27,8 @@ import {
 import type { DemoAccountBackend } from '@/core/demo/account-demo'
 import { base64UrlEncodeBytes } from '@/core/mime'
 import type { Platform } from '@/core/platform'
-import type { PlatformFamily, VaultLocal } from '@/core/service/vault-port'
-import type { MailService } from '@/core/types'
+import { normalizeEmail, type PlatformFamily, type VaultLocal } from '@/core/service/vault-port'
+import type { MailEvent, MailService } from '@/core/types'
 import { useUi } from '@/features/mail/ui-store'
 import { accountDeviceIdentity } from '@/lib/env'
 
@@ -131,6 +130,24 @@ async function device() {
   return accountDeviceIdentity()
 }
 
+/**
+ * Which local changes owe the Maru vault a push — MARU-ACCOUNT.md §6.
+ *
+ * A named predicate rather than an inline condition because it is the whole
+ * definition of "a local change" and it is worth being able to test on its
+ * own. `deferralsChanged` joined it under A9 (owner ruling, Nick, 2026-09-02):
+ * a Later commit, a bring-it-back, an archive that ends a deferral and the
+ * engine's reply-wake all reach here.
+ *
+ * `threadsChanged` deliberately does NOT: it fires on every sync pass, and
+ * mail itself never syncs.
+ */
+export function schedulesPush(event: MailEvent): boolean {
+  return event.type === 'accountsChanged'
+    || event.type === 'settingsChanged'
+    || event.type === 'deferralsChanged'
+}
+
 function stopRuntime(): void {
   runtime?.sync?.stop()
   runtime?.unsubscribe()
@@ -164,7 +181,7 @@ export async function startAccountSync({
     : new AccountClient(platform!)
   const unsubscribe = service.onEvent((event) => {
     if (event.type === 'accountsChanged') runtime?.sync?.invalidateCredentialCache()
-    if (event.type === 'accountsChanged' || event.type === 'settingsChanged') runtime?.sync?.schedulePush()
+    if (schedulesPush(event)) runtime?.sync?.schedulePush()
   })
   runtime = { client, session, sync: null, local, family, platform, demoBackend, unsubscribe }
 

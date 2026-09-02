@@ -1,5 +1,5 @@
 import { base64UrlEncodeBytes, decodeBase64Url } from '../mime'
-import { normalizeEmail } from './vault'
+import { normalizeEmail } from '../service/vault-port'
 
 export const DEFAULT_KDF = { algo: 'argon2id', m: 65_536, t: 3, p: 4 } as const
 

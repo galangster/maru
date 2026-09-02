@@ -1,6 +1,12 @@
 // Domain-object builders for store, sync and service tests.
 
-import type { Account, Label, Message, Thread } from '../../src/core/types'
+import type {
+  LocalCredential,
+  VaultDeferral,
+  VaultDocument,
+  VaultLocal,
+} from '../../src/core/account/vault'
+import type { Account, Label, Message, Settings, Thread } from '../../src/core/types'
 import { threadKey } from '../../src/core/types'
 
 export function makeAccount(patch: Partial<Account> = {}): Account {
@@ -60,4 +66,79 @@ export function makeMessage(patch: Partial<Message> & { accountId?: string; thre
 
 export function makeLabel(patch: Partial<Label> = {}): Label {
   return { id: 'INBOX', accountId: 'acct-1', name: 'INBOX', type: 'system', ...patch }
+}
+
+// -- the Maru vault -----------------------------------------------------------
+
+/**
+ * The settings every vault suite starts from. Deliberately without the
+ * bring-your-own Google client fields: a suite that needs them adds them, and
+ * the ones that do not get to assert "nothing was written" without listing
+ * five values a third time.
+ */
+export const settings: Settings = {
+  theme: 'dark',
+  imagePolicy: 'allow',
+  pollIntervalSec: 60,
+  sounds: false,
+  conversationOrder: 'chronological',
+}
+
+/** A valid v1 vault document, for the field the test is actually about. */
+export function vaultDocument(patch: Partial<VaultDocument> = {}): VaultDocument {
+  return {
+    v: 1,
+    updatedAt: 1_800_000_000_000,
+    settings,
+    accounts: [{ email: 'nick@gmail.com', label: 'Personal' }],
+    credentials: { desktop: {}, ios: {} },
+    ...patch,
+  }
+}
+
+/**
+ * A whole `VaultLocal` in memory, with the counters the apply tests assert on.
+ *
+ * A base class rather than three near-identical fakes: every one of them grew
+ * the same eight pass-through methods, and a fake that drifts from the port it
+ * stands in for tests nothing. A suite subclasses it and overrides only the
+ * state it cares about — deferrals, a seeded account, a different clock.
+ */
+export class FakeVaultLocal implements VaultLocal {
+  settings: Settings = { ...settings }
+  accounts: Account[] = []
+  credentials = new Map<string, LocalCredential>()
+  consent: string[] = []
+  settingsWrites = 0
+  credentialWrites = 0
+  refreshes = 0
+  getSettings = async () => ({ ...this.settings })
+  setSettings = async (patch: Partial<Settings>) => {
+    this.settingsWrites += 1
+    this.settings = { ...this.settings, ...patch }
+  }
+  listAccounts = async () => [...this.accounts]
+  upsertAccount = async (account: Account) => { this.accounts.push(account) }
+  removeAccount = async (id: string) => { this.accounts = this.accounts.filter((a) => a.id !== id) }
+  loadCredential = async (id: string) => this.credentials.get(id) ?? null
+  saveCredential = async (id: string, credential: LocalCredential) => {
+    this.credentialWrites += 1
+    this.credentials.set(id, credential)
+  }
+  clearCredential = async (id: string) => { this.credentials.delete(id) }
+  setDirectedConsent = (emails: string[]) => { this.consent = emails }
+  newAccountId = () => `new-${this.accounts.length}`
+  now = () => 100
+  refreshAfterApply = async () => { this.refreshes += 1 }
+}
+
+/** The deferral half, for the suites that exercise Later across devices. */
+export class FakeDeferralLocal extends FakeVaultLocal {
+  deferrals: VaultDeferral[] = []
+  applied: VaultDeferral[][] = []
+  listDeferrals = async () => [...this.deferrals]
+  applyDeferrals = async (entries: VaultDeferral[]) => {
+    this.applied.push(entries)
+    return entries.length
+  }
 }

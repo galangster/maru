@@ -147,6 +147,25 @@ export const MORNING_HOUR = 9
  * drift on how long a return stays at the top.
  */
 export const WOKE_RETENTION_MS = 86_400_000
+/**
+ * **The 30-day rule, stated here and nowhere else.** Every other site — the
+ * vault's prune, the store's sweep, the migration note, MARU-ACCOUNT.md §6 —
+ * points back at this constant rather than repeating the number, because six
+ * copies of a number is five chances to change five of them.
+ *
+ * How long a deferral fact keeps travelling in the Maru vault, and how long the
+ * store keeps a tombstone — A9, owner ruling 2026-09-02, and MARU-ACCOUNT.md §6.
+ *
+ * It bounds two things with one number: a cleared-deferral tombstone, which
+ * exists only to outlive the stale `until` it cancels, and a live entry whose
+ * moment has passed. `MAX_DEFER_DAYS` is the same 30 days, so no live deferral
+ * can ever be older than its own stamp by more than this. That is what keeps
+ * the vault document inside its 256 KiB cap with no server-side sweep.
+ *
+ * Here rather than in the account layer because the store prunes tombstones on
+ * the same lazy sweep that wakes deferrals, and the two must not drift.
+ */
+export const DEFERRAL_TTL_MS = 30 * 86_400_000
 /** "This evening" stops being offered once the evening is close enough to be now. */
 export const EVENING_CUTOFF_HOUR = 16
 

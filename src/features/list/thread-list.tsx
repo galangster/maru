@@ -429,11 +429,11 @@ export function ThreadList() {
 
       <SyncNotice />
 
-      {/* Disclosure site 2 of 3, permanent and directly under the word
-          "Later". It is its own strip rather than the header's inline
-          subtitle because the sentence is 73 characters and the header
-          truncates — and a truncated disclosure is not a disclosure. Nothing
-          dismisses it: dismissible means misremembered six months later. */}
+      {/* The disclosure, permanent and directly under the word "Later". It is
+          its own strip rather than the header's inline subtitle because the
+          header truncates — and a truncated disclosure is not a disclosure.
+          Nothing dismisses it: dismissible means misremembered six months
+          later. */}
       {view.kind === 'later' && !searching && (
         <p className="border-hairline text-ink-3 shrink-0 border-b px-4 py-2 text-xs text-pretty">
           {LATER_DISCLOSURE}

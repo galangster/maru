@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { PrimaryButton, SECTION_LABEL, TextField, textButtonClass } from '@/components/wren-controls'
-import { normalizeEmail } from '@/core/account'
+import { normalizeEmail } from '@/core/service/vault-port'
 import { useBusyAction } from './use-busy-action'
 
 export function Danger({

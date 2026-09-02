@@ -291,9 +291,15 @@ export class SyncEngine {
     //
     // Owner's call, and it is one line: deleting this restores "Monday means
     // Monday" and nothing else in the feature moves.
-    await this.store.clearDeferral(
+    const wokeByReply = await this.store.clearDeferral(
       [...newMailThreads.keys()].map((id) => threadKey(this.accountId, id)),
+      this.now(),
     )
+    // A9: the reply-wake is a real deferral change and the vault owes it to the
+    // other devices. Guarded on the count because this call is offered every
+    // arriving thread and clears almost none of them — an unguarded event would
+    // push the vault on every poll pass that saw mail.
+    if (wokeByReply > 0) this.emit({ type: 'deferralsChanged' })
 
     // History names exactly which threads moved, so say so: a listener can
     // then refresh those and leave every other open thread alone.
