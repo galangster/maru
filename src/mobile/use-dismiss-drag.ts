@@ -26,6 +26,14 @@ interface DismissDragOptions {
    * either and two answers to one flick is worse than neither.
    */
   haptic?: boolean
+  /**
+   * The gesture was a tap — released without ever declaring an axis.
+   *
+   * `eligible` does not gate it. That rule is about whether a gesture may MOVE
+   * the surface, and a tap moves nothing: the sheet's scrim has to close on a
+   * tap anywhere on it, while only a gesture from the left edge may drag it.
+   */
+  onTap?: (event: ReactPointerEvent<HTMLElement>) => void
 }
 
 /**
@@ -47,7 +55,7 @@ interface DismissDragOptions {
  * Every ending — a commit, a release short of the threshold, a gesture that
  * went the other way, WebKit taking it — goes through one `settle`.
  */
-export function useDismissDrag({ axis, clamp, past, onCommit, eligible, haptic = false }: DismissDragOptions): {
+export function useDismissDrag({ axis, clamp, past, onCommit, eligible, haptic = false, onTap }: DismissDragOptions): {
   offset: number
   settling: boolean
   handlers: ReturnType<typeof usePointerDrag>
@@ -85,6 +93,7 @@ export function useDismissDrag({ axis, clamp, past, onCommit, eligible, haptic =
       if (commits) onCommit()
     },
     onCancel: settle,
+    onTap,
   })
 
   return {

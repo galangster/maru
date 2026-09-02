@@ -187,14 +187,46 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
  * cancelled the pointer mid-swipe. `pan-y` is the opposite bargain: vertical
  * is the scroll view's, horizontal is ours, and the split is made in the
  * compositor rather than by a JS handler racing it.
+ *
+ * The exception is `[data-gesture]`, and it is written that way so this list
+ * never grows again. It had been an enumeration — the thread row, then the
+ * sheet layer's descendants when the same fault turned up a layer up (issue
+ * 53) — and a third gesture surface would have been a third name to remember
+ * to add here, in a file nothing about that surface makes anyone open. The
+ * attribute goes on the element that CLAIMS the axis, so claiming it and being
+ * excused from the reset are the same act.
+ *
+ * `:not()` takes its highest argument's specificity, so this rule keeps the
+ * (0,2,1) it needs to outrank nothing in particular and be outranked by
+ * nothing either.
  */
-.mobile-app button:not(.mobile-thread-row),
-.mobile-app a,
-.mobile-app input,
-.mobile-app textarea,
-.mobile-app select,
-.mobile-app label {
+.mobile-app :is(button, a, input, textarea, select, label):not([data-gesture], [data-gesture] *) {
   touch-action: manipulation;
+}
+
+/*
+ * The axis a surface claims, and everything inside it.
+ *
+ * Declared on the claimant and on its descendants, because a gesture can start
+ * on any of them and the browser decides what to do with it from the element
+ * the finger lands on. Without the descendant half the edge back received
+ * exactly one `pointermove` on the Mailboxes sheet and was then cancelled by
+ * WebKit's own scroller — the sheet never moved, on any sheet tall enough for
+ * the finger to land on it (issue 53).
+ *
+ * `none` is written second on purpose. A grip sits INSIDE the sheet layer, so
+ * both rules reach it at (0,1,0) and source order is what settles it: the
+ * inner claim wins, which is the only reading that makes a nested claim mean
+ * anything.
+ */
+[data-gesture='pan-y'],
+[data-gesture='pan-y'] * {
+  touch-action: pan-y;
+}
+
+[data-gesture='none'],
+[data-gesture='none'] * {
+  touch-action: none;
 }
 
 /*
@@ -728,7 +760,6 @@ html[data-input-modality='keyboard']
   font: inherit;
   text-align: start;
   transition: background-color var(--wren-dur-fast) var(--wren-ease-out);
-  touch-action: pan-y;
 }
 
 .mobile-thread-row.is-settling {
@@ -997,12 +1028,44 @@ html[data-input-modality='keyboard']
 
 .mobile-thread-heading h1 {
   margin: 0;
+  overflow-wrap: anywhere;
   font-family: var(--wren-font-ui);
   font-size: var(--mobile-text-title);
   line-height: var(--mobile-leading-tight);
   font-weight: 600;
   letter-spacing: -0.025em;
   text-wrap: balance;
+}
+
+/*
+ * Three lines of subject, and then a way to see the rest.
+ *
+ * A subject has no length limit. A pasted paragraph of five thousand
+ * characters drew a 6,113 px title, so the first message of the conversation
+ * started seven and a half screens below the fold and nothing on the screen
+ * said it was down there (issue 62). The mailbox row had always shortened the
+ * same subject; the conversation was the one surface that printed it whole.
+ *
+ * `overflow-wrap: anywhere` above it, because the other way a subject is
+ * hostile is one unbroken 5,000-character token, which a line clamp alone
+ * would let scroll sideways.
+ */
+.mobile-thread-heading h1.is-clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.mobile-thread-title-more {
+  min-height: 44px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--wren-accent-text);
+  font-family: var(--wren-font-ui);
+  font-size: var(--mobile-text-footnote);
+  font-weight: 600;
 }
 
 .mobile-thread-heading p {
@@ -1896,14 +1959,11 @@ html[data-input-modality='keyboard']
  *
  * The drag lives here rather than on the whole sheet because a sheet scrolls —
  * the mailbox picker is nearly full height — and a dismissal that starts
- * anywhere would be fighting that scroll for every gesture. `touch-action` is
- * what stops WebKit claiming the drag for the sheet's own scroller before the
- * axis lock has had a chance to read it.
+ * anywhere would be fighting that scroll for every gesture. The grip claims
+ * both axes with `data-gesture="none"` in bottom-sheet.tsx, which is what
+ * stops WebKit taking the drag for the sheet's own scroller before the axis
+ * lock has had a chance to read it.
  */
-.mobile-sheet-grip {
-  touch-action: none;
-}
-
 .mobile-sheet-grabber {
   display: block;
   width: 36px;

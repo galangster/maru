@@ -112,13 +112,21 @@ export function rowActions(thread: ThreadActionSource): MobileThreadActions {
  */
 export function batchActions(threads: readonly Thread[]): MobileThreadActions {
   if (threads.length === 0) return NOTHING
-  const each = threads.map(rowActions)
-  const remove = each[0].remove
-  return {
-    remove: each.every((one) => one.remove === remove) ? remove : null,
-    defer: each.every((one) => one.defer),
-    trash: each.every((one) => one.trash),
+  let shared = rowActions(threads[0])
+  for (let index = 1; index < threads.length; index += 1) {
+    const one = rowActions(threads[index])
+    shared = {
+      remove: shared.remove === one.remove ? shared.remove : null,
+      defer: shared.defer && one.defer,
+      trash: shared.trash && one.trash,
+    }
+    // Narrowed to nothing, and an intersection cannot widen again — so the
+    // rest of the list is not asked. Search is why it is worth not asking:
+    // one answer holds every mailbox at once and is the longest list the
+    // phone draws, and this runs for all of it on every result set.
+    if (!shared.remove && !shared.defer && !shared.trash) return NOTHING
   }
+  return shared
 }
 
 /**
@@ -157,6 +165,40 @@ const REMOVE_CHROME: Record<RemoveAction, { label: string; swipe: string; icon: 
  */
 export function removeChrome(remove: RemoveAction | null): { label: string; swipe: string; icon: IconName } {
   return REMOVE_CHROME[remove ?? 'archive']
+}
+
+/**
+ * The gesture help a list announces, for the gestures that list actually has.
+ *
+ * One sentence used to be shared by every mailbox — "Swipe right to archive,
+ * or to restore from Trash. Swipe left to save for later. Long press for more
+ * actions." — and in Sent and in Later neither swipe does anything, because
+ * `rowActions` had correctly stopped offering them. So the only instructions a
+ * screen-reader user got in Sent were for two gestures that are not there
+ * (issue 63). The visible behaviour was right in both; it was what the list
+ * SAID that was wrong.
+ *
+ * Built from the same resolved verbs the rows are drawn from, and named with
+ * the same `REMOVE_CHROME` vocabulary, so the help and the strip behind the
+ * row cannot come to describe different gestures. The long press is
+ * unconditional: the actions sheet always has something in it, which is the
+ * fact that made Sent usable while its swipes did nothing.
+ *
+ * Given a whole list's `batchActions` — the intersection — so the help
+ * promises only what EVERY row in the list will do. Search is the list that
+ * needs that: one result set holds inbox mail, sent mail and trashed mail at
+ * once, and a promise that holds for some of the rows is the same defect one
+ * row further down.
+ */
+export function gestureHint(actions: MobileThreadActions): string {
+  const said: string[] = []
+  if (actions.remove) {
+    const { label } = removeChrome(actions.remove)
+    said.push(`Swipe right to ${label[0].toLowerCase()}${label.slice(1)}.`)
+  }
+  if (actions.defer) said.push('Swipe left to save for later.')
+  said.push('Long press for more actions.')
+  return said.join(' ')
 }
 
 /**

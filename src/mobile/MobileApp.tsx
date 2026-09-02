@@ -47,6 +47,7 @@ import { useInputModality } from './use-input-modality'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
 import { usePushAccountNudge } from './use-push-account-nudge'
 import { useRouteScroll } from './use-route-scroll'
+import { useMobileUndoOffer } from './undo-offer'
 import '@/features/shell/toast.css'
 import './mobile.css'
 
@@ -59,6 +60,13 @@ export function MobileApp() {
   useMailEvents()
   useWakeSweep()
   useInputModality()
+  // The phone's one undo door rather than the desktop's per-entry offers. The
+  // registry underneath is the same ten-deep stack; what a burst of archives
+  // must not do on a 393 px screen is raise six toasts, five of them behind
+  // the newest and none of those tappable (issue 65). Installed once, at the
+  // seam every inline Undo passes through, so nothing below has to remember
+  // it — see undo-offer.ts.
+  useMobileUndoOffer()
 
   const [navigation, dispatch] = useReducer(mobileRouteReducer, initialMobileRoute)
   // Which mailbox the list screen is showing. Shell state rather than route
@@ -128,6 +136,8 @@ export function MobileApp() {
 
   const act = (threadKey: string, type: MailActionType) => {
     const action = { threadKey, type }
+    // The desktop's own registration and the desktop's own offer. What the
+    // phone changes about it is upstream of here, in the presenter.
     registerUndoable((next) => perform.mutate(next), action)
     perform.mutate(action)
     // The archive haptic rides usePerformAction with the completion sound, so

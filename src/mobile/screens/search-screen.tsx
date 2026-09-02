@@ -1,14 +1,16 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
 import type { BulkActionType } from '@/features/list/bulk'
+import { initialSearchInput, searchInput, type SearchInputEvent, type SearchInputState } from '@/features/list/list-search'
 import { MIN_SEARCH_LENGTH, useAccountsById, useSearch } from '@/features/mail/queries'
 import { useNow } from '@/lib/use-now'
 import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
-import { buildMobileRowModel, deferTarget, type DeferTarget } from '../state'
+import { buildMobileRowModel, deferTarget, visibleResults, type DeferTarget } from '../state'
+import { batchActions, gestureHint } from '../thread-actions'
 import './search-screen.css'
 
 const SEARCH_HINT_ID = 'mobile-search-gesture-hint'
@@ -56,11 +58,39 @@ export function SearchScreen({
   const results = useSearch(query)
   const { selfEmails } = useAccountsById()
   const now = useNow()
-  // Built once per result set, the way the inbox builds its own. `useNow`
-  // ticks every minute and every relative time on the screen comes off it, so
-  // without this the whole list of models — and every callback closed over one
-  // — was rebuilt each minute for rows that had not changed.
-  const rows = useMemo(
+  /**
+   * What the field shows, and what is worth searching for.
+   *
+   * Two strings rather than one, because an IME fills the field with syllables
+   * nobody has chosen yet — `searchInput` in features/list is the rule, and it
+   * is the desktop's own. Seeded from the query the shell is holding, so
+   * coming back to this screen finds the field as it was left (issue 49).
+   */
+  const [input, setInput] = useState<SearchInputState>(() => initialSearchInput(query))
+  const enter = (event: SearchInputEvent) => {
+    const next = searchInput(input, event)
+    setInput(next)
+    if (next.query !== query) onQuery(next.query)
+  }
+  /**
+   * The results this screen has already put away, until the cache agrees.
+   *
+   * `patchLists` drops an acted-on result from `keys.search` now, and the
+   * events that follow refetch it — so this is no longer the mechanism, it is
+   * the frame in front of it. It covers the one gap the cache cannot: the
+   * refetch is a round trip, and a row that stayed put for it would offer to
+   * be archived a second time in the meantime (issue 64).
+   */
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
+  const putAway = (key: string) => setRemoved((current) => new Set(current).add(key))
+  // A new query is a new list. Nothing that was dropped from the old one has
+  // anything to say about it.
+  useEffect(() => setRemoved(new Set()), [query])
+  // Built once per result set. `useNow` ticks every minute and every relative
+  // time on the screen comes off it, so without this the whole list of models
+  // — and every callback closed over one — was rebuilt each minute for rows
+  // that had not changed.
+  const models = useMemo(
     () =>
       (results.data ?? []).map((thread) => ({
         thread,
@@ -68,18 +98,40 @@ export function SearchScreen({
       })),
     [results.data, selfEmails, now],
   )
+  // The subtraction is its own memo, so putting one row away rebuilds the
+  // filter and not every model behind it.
+  const rows = useMemo(() => visibleResults(models, removed), [models, removed])
+  // A result set holds inbox mail, sent mail and trashed mail at once, so the
+  // help is the intersection: only the gestures every row in the answer will
+  // answer to (issue 63). Off the answer rather than off `rows`, which the
+  // minute tick rebuilds: what the search FOUND is what the help describes.
+  const hint = useMemo(() => gestureHint(batchActions(results.data ?? [])), [results.data])
   return (
     <section className="mobile-screen" aria-label="Search">
       <header className="mobile-nav mobile-search-nav">
         <h1>Search</h1>
         <label className="mobile-search-input">
           <MobileIcon name="search" /><span className="sr-only">Search mail</span>
-          <input type="search" value={query} onChange={(event) => onQuery(event.target.value)} placeholder={`Search mail (${SEARCH_OPERATOR_HINTS[0]})`} spellCheck={false} autoComplete="off" />
-          {query && <button type="button" onClick={() => onQuery('')} aria-label="Clear search"><MobileIcon name="close" scale="small" /></button>}
+          <input
+            type="search"
+            value={input.text}
+            onChange={(event) => enter({ type: 'input', value: event.target.value, isComposing: (event.nativeEvent as InputEvent).isComposing })}
+            // The composition is the IME's, and these two are the only way to
+            // know it is running. Its end carries the settled text, which is
+            // the first thing worth searching for since it started.
+            onCompositionStart={() => enter({ type: 'compositionstart' })}
+            onCompositionEnd={(event) => {
+              enter({ type: 'compositionend', value: event.currentTarget.value })
+            }}
+            placeholder={`Search mail (${SEARCH_OPERATOR_HINTS[0]})`}
+            spellCheck={false}
+            autoComplete="off"
+          />
+          {input.text && <button type="button" onClick={() => enter({ type: 'compositionend', value: '' })} aria-label="Clear search"><MobileIcon name="close" scale="small" /></button>}
         </label>
         <div className="mobile-operator-strip" aria-label="Search operators">
           {SEARCH_OPERATOR_HINTS.map((operator) => (
-            <button key={operator} type="button" onClick={() => onQuery(`${query}${query && !query.endsWith(' ') ? ' ' : ''}${operator}`)}>{operator}</button>
+            <button key={operator} type="button" onClick={() => enter({ type: 'compositionend', value: `${input.text}${input.text && !input.text.endsWith(' ') ? ' ' : ''}${operator}` })}>{operator}</button>
           ))}
         </div>
       </header>
@@ -87,7 +139,14 @@ export function SearchScreen({
         {query.trim().length < MIN_SEARCH_LENGTH ? (
           <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="Find anything" copy="Search people, subjects, words, or use an operator above." />
         ) : results.isPending ? <MobileListSkeleton /> : rows.length === 0 ? (
-          <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="No results" copy="Try fewer words or a different operator." />
+          // Two different empties. "Try fewer words" is the wrong sentence for
+          // a list that DID find things and has since had all of them put away
+          // — that person's search worked.
+          (results.data?.length ?? 0) > 0 ? (
+            <MobilePrompt icon={<MobileIcon name="archive" scale="hero" />} title="All dealt with" copy="Everything this search found has been put away." />
+          ) : (
+            <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="No results" copy="Try fewer words or a different operator." />
+          )
         ) : (
           <div className="mobile-thread-list" aria-describedby={SEARCH_HINT_ID}>
             {rows.map(({ thread, model }) => (
@@ -96,7 +155,7 @@ export function SearchScreen({
                 thread={thread}
                 model={model}
                 onOpen={() => onOpen(thread.key)}
-                onRemove={(type) => onAct([thread.key], type)}
+                onRemove={(type) => { onAct([thread.key], type); putAway(thread.key) }}
                 onLater={() => onLater([deferTarget(thread)])}
                 onContext={() => onContext(thread)}
                 onStar={() => onStar(thread)}
@@ -105,7 +164,7 @@ export function SearchScreen({
           </div>
         )}
       </div>
-      <p className="sr-only" id={SEARCH_HINT_ID}>Swipe right to archive, or to restore from Trash. Swipe left to save for later. Long press for more actions.</p>
+      <p className="sr-only" id={SEARCH_HINT_ID}>{hint}</p>
     </section>
   )
 }

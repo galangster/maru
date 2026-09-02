@@ -4,6 +4,9 @@ import type { Thread } from '@/core/types'
 import { threadActions as desktopThreadActions } from '@/features/mail/thread-actions'
 import { wakeTime } from '@/lib/format'
 import {
+  EDGE_BACK_START_PX,
+  EDGE_BACK_THRESHOLD,
+  THREAD_TITLE_CLIP,
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
   SHEET_DISMISS_THRESHOLD,
@@ -22,6 +25,8 @@ import {
   sheetDismisses,
   sheetDragOffset,
   tabAtIndex,
+  threadTitleName,
+  visibleResults,
   visibleScreen,
   type MobileRoute,
   type MobileStackEntry,
@@ -29,6 +34,7 @@ import {
 } from '@/mobile/state'
 import {
   batchActions,
+  gestureHint,
   moveTargets,
   removeChrome,
   rowActions,
@@ -652,5 +658,172 @@ describe('sheet drag to dismiss', () => {
     // for the life of a gesture, so neither can be running while the other is.
     expect(resolveDragAxis(0, 120)).toBe('vertical')
     expect(resolveDragAxis(120, 0)).toBe('horizontal')
+  })
+})
+
+/**
+ * The edge back OUT of a sheet — the half of issue 53 that stayed open.
+ *
+ * Two rules had to change and both are here as data. The scrim releases rather
+ * than dismissing on touch-down, so a gesture that starts on the dimmed area
+ * above a short sheet is a gesture; and the layer declares its axis, which is
+ * CSS and so is proved by the injected touch paths rather than here.
+ *
+ * "Was that a tap" is now `usePointerDrag`'s own answer — a release that never
+ * declared an axis — and the scrim asks it rather than holding a copy. What is
+ * left to check here is the rule underneath both: what counts as declaring.
+ */
+describe('edge back out of a sheet', () => {
+  it('declares no axis for a release that never travelled — the scrim\'s tap', () => {
+    expect(resolveDragAxis(0, 0)).toBeNull()
+    expect(resolveDragAxis(4, 3)).toBeNull()
+    expect(resolveDragAxis(9, 9)).toBeNull()
+  })
+
+  it('declares one for a release that did travel — the end of a gesture', () => {
+    // The whole of the reopened bug: this release used to close the sheet on
+    // its way DOWN, before the finger had moved at all, so the gesture that
+    // followed had nothing left to move.
+    expect(resolveDragAxis(60, 4)).toBe('horizontal')
+    expect(resolveDragAxis(0, 60)).toBe('vertical')
+  })
+
+  it('starts at the edge and commits further in than a row swipe does', () => {
+    // The gesture is the back gesture because of where it STARTED, and it asks
+    // the same distance of a sheet that it asks of a screen.
+    expect(EDGE_BACK_START_PX).toBeLessThan(EDGE_BACK_THRESHOLD)
+    expect(EDGE_BACK_THRESHOLD).toBe(SWIPE_ACTION_THRESHOLD)
+  })
+})
+
+/**
+ * What a conversation is called, when its subject is a pasted paragraph.
+ *
+ * The visible clamp is CSS and is measured on the element, so it is proved by
+ * capture. The NAME is a pure rule and is proved here: it is what the screen,
+ * the heading and VoiceOver all answer with, and issue 62 is what happens when
+ * the answer is the whole subject.
+ */
+describe('the conversation title', () => {
+  const paragraph = 'Quarterly planning '.repeat(300)
+
+  it('announces a clipped form of a very long subject', () => {
+    const name = threadTitleName(paragraph)
+    expect(name.length).toBeLessThanOrEqual(THREAD_TITLE_CLIP)
+    expect(name.endsWith('…')).toBe(true)
+    expect(paragraph.length).toBeGreaterThan(5_000)
+  })
+
+  it('leaves a normal subject exactly as it is', () => {
+    expect(threadTitleName('Plans for Friday')).toBe('Plans for Friday')
+  })
+
+  it('breaks on a word rather than mid-word where it can', () => {
+    const body = threadTitleName(paragraph).slice(0, -1)
+    expect(paragraph.startsWith(body)).toBe(true)
+    expect(paragraph[body.length]).toBe(' ')
+  })
+
+  it('names a blank subject the way the screen draws it', () => {
+    // The eye reads "(No subject)", so the ear must not be handed an unnamed
+    // heading instead.
+    expect(threadTitleName('')).toBe('(No subject)')
+    expect(threadTitleName('   ')).toBe('(No subject)')
+  })
+
+  it('flattens the whitespace a pasted paragraph brings with it', () => {
+    expect(threadTitleName('Two\n\nlines')).toBe('Two lines')
+  })
+})
+
+/**
+ * The gesture help a list gives a screen reader.
+ *
+ * Sent and Later announced the inbox's sentence — swipe right to archive,
+ * swipe left to save for later — while correctly refusing both gestures, so
+ * the only instructions a screen-reader user got in Sent were for two things
+ * that are not there (issue 63). The help is derived from the same resolved
+ * verbs the rows are drawn from now, so it cannot say one thing while the row
+ * does another.
+ */
+describe('gesture help', () => {
+  const inboxed = thread({ labelIds: ['INBOX', 'UNREAD'] })
+  const sent = thread({ key: 'account/sent-1', labelIds: ['SENT'] })
+  const trashed = thread({ key: 'account/trash-1', labelIds: ['TRASH'] })
+
+  it('names both swipes in the inbox', () => {
+    expect(gestureHint(batchActions([inboxed]))).toBe(
+      'Swipe right to archive. Swipe left to save for later. Long press for more actions.',
+    )
+  })
+
+  it('names only the long press in Sent', () => {
+    expect(gestureHint(batchActions([sent]))).toBe('Long press for more actions.')
+  })
+
+  it('names the restore Trash actually offers, in the words the row uses', () => {
+    expect(gestureHint(batchActions([trashed]))).toBe(
+      'Swipe right to move to Inbox. Long press for more actions.',
+    )
+  })
+
+  it('promises only what every row in a mixed list will do', () => {
+    // Search reaches inbox mail, sent mail and trashed mail at once. A promise
+    // that holds for some of the rows is the same defect one row further down.
+    expect(gestureHint(batchActions([inboxed, sent, trashed]))).toBe('Long press for more actions.')
+  })
+
+  it('never promises a gesture the row would refuse', () => {
+    for (const list of [[inboxed], [sent], [trashed], [inboxed, sent], [sent, trashed]]) {
+      const actions = batchActions(list)
+      const hint = gestureHint(actions)
+      expect(hint.includes('Swipe right')).toBe(actions.remove !== null)
+      expect(hint.includes('Swipe left')).toBe(actions.defer)
+      expect(hint.endsWith('Long press for more actions.')).toBe(true)
+    }
+  })
+
+  it('says nothing at all about swipes over an empty list', () => {
+    expect(gestureHint(batchActions([]))).toBe('Long press for more actions.')
+  })
+})
+
+/**
+ * A search result that has been acted on.
+ *
+ * The inbox drops a row optimistically, because `patchLists` patches the list
+ * the row is in. Nothing patches `keys.search`, so an archived result stayed
+ * in the results looking untouched and could be archived a second time —
+ * reporting "Archived" for a conversation that was already archived (issue
+ * 64).
+ */
+describe('search results after they have been put away', () => {
+  const rows = [
+    { thread: thread({ key: 'account/one' }) },
+    { thread: thread({ key: 'account/two' }) },
+    { thread: thread({ key: 'account/three' }) },
+  ]
+
+  it('drops exactly the result that was acted on', () => {
+    const left = visibleResults(rows, new Set(['account/two']))
+    expect(left.map((row) => row.thread.key)).toEqual(['account/one', 'account/three'])
+  })
+
+  it('drops a run of them', () => {
+    expect(visibleResults(rows, new Set(['account/one', 'account/three']))).toEqual([rows[1]])
+  })
+
+  it('hands an untouched list back unchanged, and by identity', () => {
+    // The list feeds a virtualizer. A fresh array per render for a screen that
+    // has acted on nothing is a prop change per render.
+    expect(visibleResults(rows, new Set())).toBe(rows)
+  })
+
+  it('ignores a key the results never held', () => {
+    expect(visibleResults(rows, new Set(['account/elsewhere']))).toHaveLength(3)
+  })
+
+  it('can empty the list', () => {
+    expect(visibleResults(rows, new Set(rows.map((row) => row.thread.key)))).toEqual([])
   })
 })

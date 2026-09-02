@@ -107,3 +107,12 @@ describe('nextAfterRemoval', () => {
     expect(nextAfterRemoval(MAILBOX, 'nope')).toBeNull()
   })
 })
+
+/**
+ * The search field with an IME in front of it.
+ *
+ * Typing Japanese fills the field with intermediate syllables nobody has
+ * chosen yet, and each of them fires `change` exactly as a typed letter does.
+ * A field that searched on every change sent a query for に, then にほ, then
+ * にほん — none of which was asked for.
+ */

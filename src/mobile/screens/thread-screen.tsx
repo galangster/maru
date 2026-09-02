@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import type { Message, Thread } from '@/core/types'
 import { usePerformAction, useSettings, useThread, useUserLabels } from '@/features/mail/queries'
@@ -10,7 +10,7 @@ import { useNow } from '@/lib/use-now'
 import { MobileMessageCard } from '../components/message-card'
 import { MobileIcon } from '../components/mobile-icon'
 import { MobileListSkeleton } from '../components/placeholders'
-import { deferTarget, type DeferTarget } from '../state'
+import { deferTarget, threadTitleName, type DeferTarget } from '../state'
 import { removeChrome, rowActions, type RemoveAction } from '../thread-actions'
 import { useEdgeBack } from '../use-edge-back'
 import './thread-screen.css'
@@ -41,6 +41,7 @@ export function ThreadScreen({
   const perform = usePerformAction()
   const now = useNow()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const title = useClampedTitle(threadKey)
   const userLabels = useUserLabels(detail.data?.thread.accountId)
   // The desktop's session-scoped override, and its own reading of it.
   const imagesAllowed = useUi((state) => state.imagesAllowed)
@@ -72,7 +73,7 @@ export function ThreadScreen({
       className={`mobile-screen mobile-thread-screen${edge.settling ? ' is-settling' : ''}`}
       style={{ transform: `translateX(${edge.offset}px)` }}
       {...edge.handlers}
-      aria-label={`Thread: ${thread.subject}`}
+      aria-label={`Thread: ${threadTitleName(thread.subject)}`}
     >
       <header className="mobile-nav mobile-thread-nav">
         <button className="mobile-nav-back" type="button" onClick={onBack} aria-label={`Back to ${backLabel}`}><MobileIcon name="chevronRight" className="mobile-icon-back" scale="large" /><span>{backLabel}</span></button>
@@ -92,7 +93,33 @@ export function ThreadScreen({
       </header>
       <div className="mobile-scroll mobile-thread-scroll">
         <div className="mobile-thread-heading">
-          <h1>{thread.subject || '(No subject)'}</h1>
+          <h1
+            id={TITLE_ID}
+            ref={title.ref}
+            className={title.open ? undefined : 'is-clamped'}
+            // Clamped, the heading's own text is a fragment, so the name it is
+            // announced by is the clipped sentence rather than the fragment.
+            // Open, the text IS the subject and a second name would be a
+            // second answer to the same question.
+            aria-label={title.open ? undefined : threadTitleName(thread.subject)}
+            // A subject in Arabic or Hebrew reads right to left, and nothing
+            // above this element knows which — the browser reads the string's
+            // own first strong character, which is the only thing that can.
+            dir="auto"
+          >
+            {thread.subject || '(No subject)'}
+          </h1>
+          {title.overflows && (
+            <button
+              className="mobile-thread-title-more"
+              type="button"
+              aria-expanded={title.open}
+              aria-controls={TITLE_ID}
+              onClick={() => title.setOpen(!title.open)}
+            >
+              {title.open ? 'Less' : 'More'}
+            </button>
+          )}
           <p>{messages.length} message{messages.length === 1 ? '' : 's'}</p>
           {userLabels.length > 0 && (
             <div className="mobile-thread-labels">
@@ -131,4 +158,62 @@ export function ThreadScreen({
 
 function ToolbarButton({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
   return <button type="button" onClick={onClick} aria-label={label}>{icon}</button>
+}
+
+const TITLE_ID = 'mobile-thread-title'
+
+/**
+ * A subject shown in full, three lines at a time.
+ *
+ * The clamp is CSS and the affordance is measured, which is the split that
+ * makes this correct at every text size: `-webkit-line-clamp` decides what
+ * three lines hold, and the only honest test of whether anything is hidden is
+ * to ask the element. A character count would guess, and it would guess
+ * differently at the accessibility sizes, where three lines hold a third as
+ * much (issue 62).
+ *
+ * A `ResizeObserver` rather than a one-shot measurement, because the two
+ * things that change the answer — the system text size and the rotation — both
+ * change the element's box and neither re-renders this screen.
+ *
+ * Keyed on the conversation, so opening a long title and going back does not
+ * leave the next conversation's title already open.
+ */
+function useClampedTitle(threadKey: string): {
+  ref: (node: HTMLHeadingElement | null) => void
+  open: boolean
+  setOpen: (next: boolean) => void
+  overflows: boolean
+} {
+  const [open, setOpen] = useState(false)
+  const [overflows, setOverflows] = useState(false)
+  const node = useRef<HTMLHeadingElement | null>(null)
+
+  useLayoutEffect(() => {
+    setOpen(false)
+  }, [threadKey])
+
+  const measure = useCallback(() => {
+    const el = node.current
+    // Measured on the clamped box only. Open, it is never clipped, so the
+    // answer would always be "no" and the control would withdraw itself the
+    // moment it was used.
+    if (el && !el.classList.contains('is-clamped')) return
+    if (el) setOverflows(el.scrollHeight > el.clientHeight + 1)
+  }, [])
+
+  const ref = useCallback(
+    (next: HTMLHeadingElement | null) => {
+      node.current = next
+      if (!next) return
+      measure()
+      if (typeof ResizeObserver === 'undefined') return
+      const observer = new ResizeObserver(measure)
+      observer.observe(next)
+      return () => observer.disconnect()
+    },
+    [measure],
+  )
+
+  return { ref, open, setOpen, overflows }
 }

@@ -2,7 +2,7 @@ import type { IconName } from '@/components/ui/icon'
 import type { VaultHistoryEntry } from '@/core/account'
 import { isDeferred } from '@/core/defaults'
 import type { Thread } from '@/core/types'
-import { correspondents, participantLine, relativeTime, wakeTime } from '@/lib/format'
+import { clip, correspondents, participantLine, relativeTime, wakeTime } from '@/lib/format'
 import type { NativeTab } from '@/platform/shell'
 
 export type MobileTab = 'inbox' | 'search' | 'settings'
@@ -222,6 +222,64 @@ export function sheetDragOffset(dy: number): number {
 /** Whether letting go here closes the sheet. */
 export function sheetDismisses(offset: number): boolean {
   return offset >= SHEET_DISMISS_THRESHOLD
+}
+
+/**
+ * How much of a subject the conversation ANNOUNCES itself by.
+ *
+ * A subject has no length limit and a pasted paragraph is a legal one. Five
+ * thousand characters printed a 6,113 px title, so the first message started
+ * seven and a half screens down and a screen reader read the whole paragraph
+ * before it said anything else about the conversation (issue 62).
+ *
+ * 120 characters is about two spoken seconds and comfortably more than the
+ * three lines the title draws, so the ear gets the same sentence the eye does
+ * and neither gets the paragraph. `clip` breaks on a word where it can, so
+ * what is announced is the beginning of a sentence rather than half a word.
+ */
+export const THREAD_TITLE_CLIP = 120
+
+/** How many lines of subject the conversation shows before it offers the rest. */
+export const THREAD_TITLE_LINES = 3
+
+/**
+ * What the conversation is CALLED — the screen's accessible name, and the
+ * title's own when the title is still clamped.
+ *
+ * One function for both, because the eye and the ear must not be given two
+ * different names for the same conversation. The blank case is here too: a
+ * mail with no subject is "(No subject)" on the screen, so it is "(No
+ * subject)" to VoiceOver rather than an unnamed heading.
+ */
+export function threadTitleName(subject: string): string {
+  return subject.trim() ? clip(subject, THREAD_TITLE_CLIP) : '(No subject)'
+}
+
+/**
+ * The search results still worth showing, after some of them have been put away.
+ *
+ * A search result that was archived stayed in the list looking exactly as it
+ * had, so the list invited you to archive it a second time — and said
+ * "Archived" again for a conversation that was already archived (issue 64).
+ * The inbox never had that problem: its list is patched optimistically by
+ * `patchLists` and `threadMatchesView` drops the row before the service
+ * answers. Search results are a query of their own, under `keys.search`, which
+ * nothing patches — so the drop is made here, from the keys the screen has
+ * acted on, and it IS the same drop: keyed on the thread, applied before the
+ * service answers.
+ *
+ * The set is the screen's own and does not outlive it. Coming back to a search
+ * refetches, so what is on screen after a round trip is what the mailbox
+ * really holds rather than a list of local subtractions.
+ *
+ * The identity of an untouched list is preserved, so a screen that has acted
+ * on nothing hands the virtualizer the same array it had.
+ */
+export function visibleResults<Row extends { thread: Thread }>(
+  rows: readonly Row[],
+  removed: ReadonlySet<string>,
+): readonly Row[] {
+  return removed.size === 0 ? rows : rows.filter((row) => !removed.has(row.thread.key))
 }
 
 export const EDGE_BACK_START_PX = 28
