@@ -1,0 +1,10 @@
+<!-- Derived, not vendored. Anron ships no Style=Filled calendar, and Later
+     was the one mailbox with no selected state because of it (issue 42).
+     Built from the Line original in ../calendar.svg and nothing else: the
+     same body contour, the same two ticks at the Line stroke's painted
+     extent, and the same six dot centres, knocked out of the solid so the
+     grid survives at 20 px. Replace it wholesale the day Anron ships one. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+  <path d="M11.6 22H12.4C15.7603 22 17.4405 22 18.7239 21.346C19.8529 20.7708 20.7708 19.8529 21.346 18.7239C22 17.4405 22 15.7603 22 12.4V11.6C22 8.23969 22 6.55953 21.346 5.27606C20.7708 4.14708 19.8529 3.2292 18.7239 2.65396C17.4405 2 15.7603 2 12.4 2H11.6C8.23969 2 6.55953 2 5.27606 2.65396C4.14708 3.2292 3.2292 4.14708 2.65396 5.27606C2 6.55953 2 8.23969 2 11.6V12.4C2 15.7603 2 17.4405 2.65396 18.7239C3.2292 19.8529 4.14708 20.7708 5.27606 21.346C6.55953 22 8.23969 22 11.6 22ZM6.4 12.5A1.1 1.1 0 1 1 8.6 12.5A1.1 1.1 0 1 1 6.4 12.5ZM10.9 12.5A1.1 1.1 0 1 1 13.1 12.5A1.1 1.1 0 1 1 10.9 12.5ZM15.4 12.5A1.1 1.1 0 1 1 17.6 12.5A1.1 1.1 0 1 1 15.4 12.5ZM6.4 16.5A1.1 1.1 0 1 1 8.6 16.5A1.1 1.1 0 1 1 6.4 16.5ZM10.9 16.5A1.1 1.1 0 1 1 13.1 16.5A1.1 1.1 0 1 1 10.9 16.5ZM15.4 16.5A1.1 1.1 0 1 1 17.6 16.5A1.1 1.1 0 1 1 15.4 16.5Z"/>
+  <path d="M8 0.25C8.41421 0.25 8.75 0.585786 8.75 1V4C8.75 4.41421 8.41421 4.75 8 4.75C7.58579 4.75 7.25 4.41421 7.25 4V1C7.25 0.585786 7.58579 0.25 8 0.25ZM16 0.25C16.4142 0.25 16.75 0.585786 16.75 1V4C16.75 4.41421 16.4142 4.75 16 4.75C15.5858 4.75 15.25 4.41421 15.25 4V1C15.25 0.585786 15.5858 0.25 16 0.25Z"/>
+</svg>

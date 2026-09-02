@@ -250,9 +250,48 @@ export function maxDeferAt(now: number): number {
   return atLocalHour(now, MAX_DEFER_DAYS, MORNING_HOUR)
 }
 
+/**
+ * The first date a custom pick may name — tomorrow, as a local date at 9:00.
+ *
+ * The same instant as the "Tomorrow" preset, because it is the same promise:
+ * the custom field is not a way to reach a time the presets cannot offer, it
+ * is a way to reach a day further out than they list.
+ */
+export function minDeferAt(now: number): number {
+  return atLocalHour(now, 1, MORNING_HOUR)
+}
+
 /** A custom date from the picker, landing at the morning hour like the presets. */
 export function deferAtDate(year: number, month: number, day: number): number {
   const d = new Date(year, month, day)
   d.setHours(MORNING_HOUR, 0, 0, 0)
   return d.getTime()
+}
+
+/** A date field's value, as the local day it names: `2026-09-02`. */
+export function isoDay(timestamp: number): string {
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * A typed date, brought inside the Later window at BOTH ends.
+ *
+ * `min` and `max` on the input are what the calendar popup obeys; typing into
+ * the field reaches past them, which is how a date in 2020 got through and was
+ * confirmed as "Back this evening, 9:00" — a time that never came, and a
+ * sentence that contradicted itself (issue 43). The far end was already
+ * clamped here and the toast named the clamped day; the near end now behaves
+ * the same way, so a date that has gone comes back as the picker's own
+ * earliest day rather than as a promise nothing can keep.
+ *
+ * Both ends are stated to the reader under the field itself — a clamp the
+ * confirmation reports but never explains is a confirmation about a day the
+ * person did not choose.
+ */
+export function clampedDeferDay(value: string, now: number): number | null {
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+  const at = deferAtDate(year, month - 1, day)
+  return Math.min(Math.max(at, minDeferAt(now)), maxDeferAt(now))
 }

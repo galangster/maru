@@ -5,6 +5,7 @@
 import { create } from 'zustand'
 
 import type { AttachmentSource, ComposeDraft, EmailAddress } from '@/core/types'
+import { rememberFocusOrigin, restoreFocusOrigin } from '@/features/shell/surface-store'
 import type { AttachmentFacts } from '@/lib/compose'
 
 /**
@@ -119,7 +120,10 @@ export const useComposer = create<ComposeState>((set) => ({
   draft: emptyDraft(),
   lastAccountId: '',
 
-  openWith: (init) =>
+  openWith: (init) => {
+    // Only on the way in — the rule is inside `rememberFocusOrigin`, which
+    // keeps the slot it already holds until a close spends it.
+    rememberFocusOrigin('composer')
     set((s) => {
       // A blank compose after a crash gets the unsent draft back.
       const restore = blankInit(init) ? recovered : null
@@ -134,12 +138,18 @@ export const useComposer = create<ComposeState>((set) => ({
           (restore ?? init).cc !== undefined && ((restore ?? init).cc?.length ?? 0) > 0,
         draft: restore ?? { ...emptyDraft(), accountId: s.lastAccountId, ...init },
       }
-    }),
+    })
+  },
   close: () => {
     // Close is a decision (the dirty confirm stands in front of it), so the
     // crash mirror goes too.
     persistDraft(null)
     set({ open: false, minimized: false, dirty: false, confirming: false, draft: emptyDraft() })
+    // Back to the sidebar row, the list row or the toolbar button that opened
+    // it — the tab position a keyboard user had before they pressed C, which
+    // Escape used to throw away (issue 44). Every path out of the composer
+    // runs through here, the send included.
+    restoreFocusOrigin('composer')
   },
   setMinimized: (minimized) => set({ minimized }),
   setConfirming: (confirming) => set({ confirming }),

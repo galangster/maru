@@ -37,6 +37,17 @@ describe('Icon filled', () => {
     expect(svg.props.strokeWidth).toBe(1.5)
   })
 
+  it('draws Later as a solid, so every mailbox has the same selected state', () => {
+    // Issue 42: `calendar` had no twin, so the one mailbox that never looked
+    // selected and the one console warning in the build were the same fact.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(ANRON_FILLED_PATHS).toHaveProperty('calendar')
+    const svg = render('calendar', true)
+    expect(svg.props.fill).toBe('currentColor')
+    expect(svg.props.strokeWidth).toBe(0)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
   it('warns once per name in dev, not once per render', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     render('compose', true)
@@ -65,6 +76,7 @@ describe('Icon semantic fill', () => {
     expect(styleOf('trash', true)?.color).toBe('var(--wren-destructive)')
     expect(styleOf('inbox', true)?.color).toBe('var(--wren-accent)')
     expect(styleOf('sent', true)?.color).toBe('var(--wren-hue-blue)')
+    expect(styleOf('calendar', true)?.color).toBe('var(--wren-accent)')
   })
 
   it('leaves a resting Line glyph inheriting its text tier', () => {

@@ -10,8 +10,39 @@
 // So `action` is always present here, and is `undefined` unless the send can
 // genuinely still be taken back.
 
+import { clip } from '@/lib/format'
+
 /** One toast at a time. A second send replaces this one rather than stacking. */
 export const SEND_TOAST = 'wren-send'
+
+/**
+ * The longest description the toast will print.
+ *
+ * A toast names what happened; it is not a place to read a subject. A 5,000
+ * character subject pasted into the composer printed in full and made the
+ * confirmation about 3,700 px tall — a column down the left of the window for
+ * the whole four seconds, with the Undo button at the bottom of it (issue 41).
+ *
+ * 140 is about two lines at the toast's width, which is what the sentence
+ * needs to stay a sentence. The clamp is here rather than in the composer
+ * because every caller of this helper has the same problem, and a subject is
+ * not the only string that reaches it — a thrown error message arrives on the
+ * failure path with no length of its own either.
+ *
+ * The character clamp is the guarantee about *content*; `[data-description]`
+ * in surfaces.css clamps the rendered box to two lines, which is the guarantee
+ * about *geometry* for a value that carries no spaces to break on.
+ */
+export const TOAST_TEXT_MAX = 140
+
+/**
+ * One or two lines, and an ellipsis for the rest.
+ *
+ * `clip` is the shared cut — whitespace collapses first, because a pasted
+ * subject can carry newlines and a newline inside a toast is a second line of
+ * height for no words at all. The only thing this adds is the number.
+ */
+export const clampToastText = (text: string): string => clip(text, TOAST_TEXT_MAX)
 
 export interface SendToastOptions {
   id: string
@@ -34,7 +65,7 @@ export function sendToastOptions(
 ): SendToastOptions {
   return {
     id: SEND_TOAST,
-    description,
+    description: clampToastText(description),
     duration: undo?.durationMs,
     action: undo ? { label: 'Undo', onClick: undo.onClick } : undefined,
   }

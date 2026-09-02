@@ -12,7 +12,8 @@
     "tauri": "tauri",
     "poses:check": "node scripts/build-wren-poses.mjs --check",
     "contrast": "node scripts/contrast-audit.mjs",
-    "contrast:check": "node scripts/contrast-audit.mjs --check"
+    "contrast:check": "node scripts/contrast-audit.mjs --check",
+    "narrow:check": "node scripts/narrow-audit.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
