@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
@@ -8,7 +8,7 @@ import { useNow } from '@/lib/use-now'
 import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
-import { buildMobileRowModel, deferTarget, type DeferTarget } from '../state'
+import { buildMobileRowModel, deferTarget, visibleResults, type DeferTarget } from '../state'
 import { batchActions, gestureHint } from '../thread-actions'
 import './search-screen.css'
 
@@ -57,17 +57,49 @@ export function SearchScreen({
   const results = useSearch(query)
   const { selfEmails } = useAccountsById()
   const now = useNow()
+  /**
+   * The results this screen has already put away.
+   *
+   * Nothing patches `keys.search`, so an archived result used to sit in the
+   * list unchanged and offer to be archived again (issue 64). This is the same
+   * optimistic drop the inbox gets from `patchLists`, made where the search
+   * screen can make it.
+   */
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
+  const putAway = (key: string) => setRemoved((current) => new Set(current).add(key))
+  // A new query is a new list. Nothing that was dropped from the old one has
+  // anything to say about it.
+  useEffect(() => setRemoved(new Set()), [query])
+  /**
+   * Ask again on the way back in.
+   *
+   * The query and its results survive a conversation round trip on purpose
+   * (issue 49) — but "the results are still here" must not mean "the results
+   * are still what they were before you acted on them". This screen unmounts
+   * whenever anything covers it, so mounting IS returning, and the local drops
+   * above are replaced by the answer rather than added to it.
+   */
+  const refetch = results.refetch
+  useEffect(() => {
+    if (query.trim().length >= MIN_SEARCH_LENGTH) void refetch()
+    // Once, on the way in. A refetch per keystroke is what `useSearch`'s own
+    // key already does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Built once per result set, the way the inbox builds its own. `useNow`
   // ticks every minute and every relative time on the screen comes off it, so
   // without this the whole list of models — and every callback closed over one
   // — was rebuilt each minute for rows that had not changed.
   const rows = useMemo(
     () =>
-      (results.data ?? []).map((thread) => ({
-        thread,
-        model: buildMobileRowModel(thread, selfEmails, now),
-      })),
-    [results.data, selfEmails, now],
+      visibleResults(
+        (results.data ?? []).map((thread) => ({
+          thread,
+          model: buildMobileRowModel(thread, selfEmails, now),
+        })),
+        removed,
+      ),
+    [results.data, selfEmails, now, removed],
   )
   // A result set holds inbox mail, sent mail and trashed mail at once, so the
   // help is the intersection: only the gestures every row on screen will
@@ -92,7 +124,14 @@ export function SearchScreen({
         {query.trim().length < MIN_SEARCH_LENGTH ? (
           <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="Find anything" copy="Search people, subjects, words, or use an operator above." />
         ) : results.isPending ? <MobileListSkeleton /> : rows.length === 0 ? (
-          <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="No results" copy="Try fewer words or a different operator." />
+          // Two different empties. "Try fewer words" is the wrong sentence for
+          // a list that DID find things and has since had all of them put away
+          // — that person's search worked.
+          (results.data?.length ?? 0) > 0 ? (
+            <MobilePrompt icon={<MobileIcon name="archive" scale="hero" />} title="All dealt with" copy="Everything this search found has been put away." />
+          ) : (
+            <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="No results" copy="Try fewer words or a different operator." />
+          )
         ) : (
           <div className="mobile-thread-list" aria-describedby={SEARCH_HINT_ID}>
             {rows.map(({ thread, model }) => (
@@ -101,7 +140,7 @@ export function SearchScreen({
                 thread={thread}
                 model={model}
                 onOpen={() => onOpen(thread.key)}
-                onRemove={(type) => onAct([thread.key], type)}
+                onRemove={(type) => { onAct([thread.key], type); putAway(thread.key) }}
                 onLater={() => onLater([deferTarget(thread)])}
                 onContext={() => onContext(thread)}
                 onStar={() => onStar(thread)}
@@ -110,7 +149,6 @@ export function SearchScreen({
           </div>
         )}
       </div>
-      <p className="sr-only" id={SEARCH_HINT_ID}>Swipe right to archive, or to restore from Trash. Swipe left to save for later. Long press for more actions.</p>
       <p className="sr-only" id={SEARCH_HINT_ID}>{hint}</p>
     </section>
   )

@@ -27,6 +27,7 @@ import {
   sheetDragOffset,
   tabAtIndex,
   threadTitleName,
+  visibleResults,
   visibleScreen,
   type MobileRoute,
   type MobileStackEntry,
@@ -790,5 +791,45 @@ describe('gesture help', () => {
 
   it('says nothing at all about swipes over an empty list', () => {
     expect(gestureHint(batchActions([]))).toBe('Long press for more actions.')
+  })
+})
+
+/**
+ * A search result that has been acted on.
+ *
+ * The inbox drops a row optimistically, because `patchLists` patches the list
+ * the row is in. Nothing patches `keys.search`, so an archived result stayed
+ * in the results looking untouched and could be archived a second time —
+ * reporting "Archived" for a conversation that was already archived (issue
+ * 64).
+ */
+describe('search results after they have been put away', () => {
+  const rows = [
+    { thread: thread({ key: 'account/one' }) },
+    { thread: thread({ key: 'account/two' }) },
+    { thread: thread({ key: 'account/three' }) },
+  ]
+
+  it('drops exactly the result that was acted on', () => {
+    const left = visibleResults(rows, new Set(['account/two']))
+    expect(left.map((row) => row.thread.key)).toEqual(['account/one', 'account/three'])
+  })
+
+  it('drops a run of them', () => {
+    expect(visibleResults(rows, new Set(['account/one', 'account/three']))).toEqual([rows[1]])
+  })
+
+  it('hands an untouched list back unchanged, and by identity', () => {
+    // The list feeds a virtualizer. A fresh array per render for a screen that
+    // has acted on nothing is a prop change per render.
+    expect(visibleResults(rows, new Set())).toBe(rows)
+  })
+
+  it('ignores a key the results never held', () => {
+    expect(visibleResults(rows, new Set(['account/elsewhere']))).toHaveLength(3)
+  })
+
+  it('can empty the list', () => {
+    expect(visibleResults(rows, new Set(rows.map((row) => row.thread.key)))).toEqual([])
   })
 })

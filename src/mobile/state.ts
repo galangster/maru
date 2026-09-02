@@ -254,6 +254,34 @@ export const THREAD_TITLE_LINES = 3
 export function threadTitleName(subject: string): string {
   return subject.trim() ? clip(subject, THREAD_TITLE_CLIP) : '(No subject)'
 }
+
+/**
+ * The search results still worth showing, after some of them have been put away.
+ *
+ * A search result that was archived stayed in the list looking exactly as it
+ * had, so the list invited you to archive it a second time — and said
+ * "Archived" again for a conversation that was already archived (issue 64).
+ * The inbox never had that problem: its list is patched optimistically by
+ * `patchLists` and `threadMatchesView` drops the row before the service
+ * answers. Search results are a query of their own, under `keys.search`, which
+ * nothing patches — so the drop is made here, from the keys the screen has
+ * acted on, and it IS the same drop: keyed on the thread, applied before the
+ * service answers.
+ *
+ * The set is the screen's own and does not outlive it. Coming back to a search
+ * refetches, so what is on screen after a round trip is what the mailbox
+ * really holds rather than a list of local subtractions.
+ *
+ * The identity of an untouched list is preserved, so a screen that has acted
+ * on nothing hands the virtualizer the same array it had.
+ */
+export function visibleResults<Row extends { thread: Thread }>(
+  rows: readonly Row[],
+  removed: ReadonlySet<string>,
+): readonly Row[] {
+  return removed.size === 0 ? rows : rows.filter((row) => !removed.has(row.thread.key))
+}
+
 export const EDGE_BACK_START_PX = 28
 export const EDGE_BACK_THRESHOLD = 72
 export const PULL_MAX_OFFSET = 92
