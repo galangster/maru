@@ -165,7 +165,16 @@ worktree; use `git show rev:path > path`.
    distribution signing; Stripe product, prices and webhook created by Nick
    via the setup script (price ids on Railway and in IaC; the two secrets go
    in through `server/scripts/stripe-secrets.sh`).
-11. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
+11. **TestFlight**: the first "Maru Mail" build (0.1.8, real Gmail client)
+   is uploaded, processed VALID, in the internal group "Maru internal", Nick
+   invited. Signed with the Admin key `G52RSWR37N` (cloud-managed
+   distribution; Xcode minted the cert and profile). Commands and three traps
+   in `docs/APP-STORE.md` §6.
+12. **Stripe live**: product, prices, webhook, tax, secrets; the live billing
+   probe (`MARU_LIVE_MODE=billing`) gets real Checkout and Portal URLs; one
+   defect fixed by it (`customer_update.address = auto` for Stripe Tax).
+   Unexercised: a real paid subscription end to end.
+13. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
    of the day (resets 2026-09-06 19:28 PT). Two lanes died mid-run; both
    were sealed from the orchestrator after re-running the gates, and the
    simulator proofs ran on Claude Opus subagents. Memory
@@ -176,11 +185,12 @@ worktree; use `git show rev:path > path`.
 ```
 Resume wren from handoffs/2026-09-01-grill-4-account-iphone.md. Main is at
 bd4303a, pushed; the sync service is live and proven; v0.1.8 is published.
-Maps 4 and 5 are code-complete except: TestFlight upload (I6; needs the
-distribution profile and an archive from this Mac), the physical-device push
-wake (Nick's iPhone), Stripe (Nick), A9 (Nick's decision), the second Owner
-acceptance (Nick), and the deferred I8 item (keep InboxScreen mounted across a
-thread push). Start with the TestFlight archive path in docs/APP-STORE.md §6.
-Codex is out of credits until 2026-09-06; lanes run on Opus subagents. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
+Maps 4 and 5 are code-complete and live: TestFlight has build 0.1.8, Stripe
+is wired, A9 shipped, the second Owner accepted. Open: Nick's physical-device
+pass (install from TestFlight, push wake, VoiceOver), one real paid
+subscription run, the I8 lane-5 merge if it has not landed, the Google
+verification submission (map 3's last owner thread), and the dossier's
+frozen-build fields. Codex is out of credits until 2026-09-06; lanes run on
+Opus subagents. Owner items stay in wayfinder/NICK-QUEUE.md. Standing
 order: work autonomously.
 ```
