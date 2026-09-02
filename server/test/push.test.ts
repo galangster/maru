@@ -1,8 +1,9 @@
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from "jose";
 import { describe, expect, it, vi } from "vitest";
+import { alertPush } from "../src/apns.js";
 import { createPubSubVerifier } from "../src/push.js";
 import type { PubSubVerifier, PushSender } from "../src/types.js";
-import { allow, bearer, close, fixture, signup } from "./helpers.js";
+import { allow, bearer, close, fixture, ready, signup } from "./helpers.js";
 
 describe("Gmail push relay", () => {
   it("rejects a bad JWT and accepts a locally signed matching JWT", async () => {
@@ -89,3 +90,85 @@ describe("Gmail push relay", () => {
   });
 });
 
+describe("Test push", () => {
+  const ALERT = { title: "Maru", body: "Test notification from your Maru account" };
+
+  async function account(sendAlert?: PushSender["sendAlert"]) {
+    const pushSender: PushSender = { send: vi.fn(async () => undefined) };
+    if (sendAlert) pushSender.sendAlert = sendAlert;
+    const value = await ready({ pushSender });
+    const created = await signup(value.app);
+    const headers = bearer(created.body.token);
+    const register = (apnsToken: string | null) => value.app.request("/v1/push/register", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ apnsToken }),
+    });
+    const test = () => value.app.request("/v1/push/test", { method: "POST", headers });
+    return { ...value, pushSender, register, test };
+  }
+
+  it("builds a visible alert that also wakes the app", () => {
+    expect(alertPush(ALERT)).toEqual({
+      payload: JSON.stringify({
+        aps: { alert: { title: ALERT.title, body: ALERT.body }, "content-available": 1 },
+      }),
+      pushType: "alert",
+      priority: "10",
+    });
+  });
+
+  it("returns 404 when the device registered no APNs token", async () => {
+    const sendAlert = vi.fn(async () => ({ status: 200 }));
+    const value = await account(sendAlert);
+    const response = await value.test();
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: "no_token" });
+    expect(sendAlert).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when APNs is not configured", async () => {
+    const value = await account();
+    await value.register("apns-device-token");
+    const response = await value.test();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: "push_unavailable" });
+  });
+
+  it("sends one alert to this device's token", async () => {
+    const sendAlert = vi.fn(async () => ({ status: 200 }));
+    const value = await account(sendAlert);
+    await value.register("apns-device-token");
+    const response = await value.test();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, sent: true });
+    expect(sendAlert).toHaveBeenCalledTimes(1);
+    expect(sendAlert).toHaveBeenCalledWith("apns-device-token", ALERT);
+  });
+
+  it("returns Apple's status and reason with HTTP 200", async () => {
+    const sendAlert = vi.fn(async () => ({ status: 400, reason: "BadDeviceToken" }));
+    const value = await account(sendAlert);
+    await value.register("stale-device-token");
+    const response = await value.test();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: false,
+      sent: false,
+      apns: { status: 400, reason: "BadDeviceToken" },
+    });
+  });
+
+  it("allows six sends per minute per device", async () => {
+    const sendAlert = vi.fn(async () => ({ status: 200 }));
+    const value = await account(sendAlert);
+    await value.register("apns-device-token");
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      expect((await value.test()).status).toBe(200);
+    }
+    const limited = await value.test();
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toMatchObject({ error: "rate_limited" });
+    expect(sendAlert).toHaveBeenCalledTimes(6);
+  });
+});

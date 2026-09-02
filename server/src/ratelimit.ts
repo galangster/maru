@@ -6,7 +6,8 @@ interface Bucket {
   updatedAt: number;
 }
 
-export class TokenBucketRateLimiter implements RateLimiter {
+// One refilling bucket per key. Callers choose what a key means.
+export class KeyedRateLimiter {
   private readonly buckets = new Map<string, Bucket>();
 
   constructor(
@@ -15,14 +16,8 @@ export class TokenBucketRateLimiter implements RateLimiter {
     private readonly refillMs = RATE_LIMIT_REFILL_MS,
   ) {}
 
-  consume(email: string, ip: string) {
+  consume(key: string) {
     const now = this.nowMs();
-    const emailAllowed = this.consumeKey(`email:${email}`, now);
-    const ipAllowed = this.consumeKey(`ip:${ip}`, now);
-    return emailAllowed && ipAllowed;
-  }
-
-  private consumeKey(key: string, now: number) {
     let bucket = this.buckets.get(key);
     if (!bucket) {
       this.sweep(now);
@@ -43,5 +38,24 @@ export class TokenBucketRateLimiter implements RateLimiter {
     for (const [key, bucket] of this.buckets) {
       if (now - bucket.updatedAt > this.refillMs) this.buckets.delete(key);
     }
+  }
+}
+
+export class TokenBucketRateLimiter implements RateLimiter {
+  private readonly keyed: KeyedRateLimiter;
+
+  constructor(
+    nowMs: () => number = Date.now,
+    capacity = RATE_LIMIT_CAPACITY,
+    refillMs = RATE_LIMIT_REFILL_MS,
+  ) {
+    this.keyed = new KeyedRateLimiter(nowMs, capacity, refillMs);
+  }
+
+  consume(email: string, ip: string) {
+    // Both buckets always pay, so one exhausted key cannot shield the other.
+    const emailAllowed = this.keyed.consume(`email:${email}`);
+    const ipAllowed = this.keyed.consume(`ip:${ip}`);
+    return emailAllowed && ipAllowed;
   }
 }

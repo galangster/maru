@@ -30,7 +30,8 @@ The service runs on Node 22, Hono, and Postgres. It applies the SQL files in
 | `STRIPE_PRICE_YEARLY` | For checkout | Stripe price ID for the $50 yearly plan. |
 
 The server starts without Pub/Sub, APNs, or Stripe settings. An unconfigured
-APNs sender records a JSON count and sends nothing. Unconfigured billing routes
+APNs sender records a JSON count and sends nothing, and `POST /v1/push/test`
+returns `503 push_unavailable`. Unconfigured billing routes
 return `503 billing_unavailable`. The Pub/Sub endpoint rejects tokens until its
 audience and service account are configured.
 
@@ -137,5 +138,9 @@ these choices:
   Unix epoch. A watch must expire in the future.
 - `platform` is an opaque client label. `family` accepts only `desktop` or
   `ios` because credentials are scoped by that boundary.
+- `POST /v1/push/test` sends one visible alert to the calling device's own
+  registered token, at most six per minute per device. An APNs rejection
+  answers `200` with `{ok:false, sent:false, apns:{status, reason}}` so the
+  phone can display Apple's reason instead of a generic failure.
 - Unknown and known prelogin requests both perform one indexed user lookup.
   Both return the same response fields and the deterministic section 3 salt.

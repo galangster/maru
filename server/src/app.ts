@@ -36,6 +36,7 @@ export function createApp(deps: AppDeps) {
     "/v1/account",
     "/v1/push/register",
     "/v1/push/watch",
+    "/v1/push/test",
     "/v1/me",
     "/v1/billing/checkout",
     "/v1/billing/portal",
@@ -47,6 +48,7 @@ export function createApp(deps: AppDeps) {
     ["POST", "/v1/vault/restore"],
     ["POST", "/v1/push/register"],
     ["POST", "/v1/push/watch"],
+    ["POST", "/v1/push/test"],
     ["GET", "/v1/me"],
   ] as const) app.on(method, path, entitlement);
 

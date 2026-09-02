@@ -74,8 +74,21 @@ export interface PubSubVerifier {
   verify(token: string): Promise<void>;
 }
 
+export interface ApnsAlert {
+  title: string;
+  body: string;
+}
+
+export interface ApnsResult {
+  status: number;
+  reason?: string;
+}
+
 export interface PushSender {
   send(tokens: string[]): Promise<void>;
+  // Present only when APNs is configured. POST /v1/push/test reports
+  // 503 push_unavailable when a sender cannot send an alert.
+  sendAlert?(token: string, alert: ApnsAlert): Promise<ApnsResult>;
 }
 
 export interface BillingClient {
