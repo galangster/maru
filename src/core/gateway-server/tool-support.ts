@@ -255,15 +255,6 @@ export function quoteSubject(subject: string): string {
   return `“${subject.trim() || '(no subject)'}”`
 }
 
-/** Cuts to `max` characters on a word boundary where one is close enough. */
-export function clip(text: string, max: number): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  if (flat.length <= max) return flat
-  const cut = flat.slice(0, max)
-  const space = cut.lastIndexOf(' ')
-  return `${space > max * 0.6 ? cut.slice(0, space) : cut}…`
-}
-
 /**
  * The account a write is attributed to.
  *

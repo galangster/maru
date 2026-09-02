@@ -10,6 +10,8 @@
 // So `action` is always present here, and is `undefined` unless the send can
 // genuinely still be taken back.
 
+import { clip } from '@/lib/format'
+
 /** One toast at a time. A second send replaces this one rather than stacking. */
 export const SEND_TOAST = 'wren-send'
 
@@ -36,14 +38,11 @@ export const TOAST_TEXT_MAX = 140
 /**
  * One or two lines, and an ellipsis for the rest.
  *
- * Whitespace collapses first: a pasted subject can carry newlines, and a
- * newline inside a toast is a second line of height for no words at all.
+ * `clip` is the shared cut — whitespace collapses first, because a pasted
+ * subject can carry newlines and a newline inside a toast is a second line of
+ * height for no words at all. The only thing this adds is the number.
  */
-export function clampToastText(text: string): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  if (flat.length <= TOAST_TEXT_MAX) return flat
-  return `${flat.slice(0, TOAST_TEXT_MAX - 1).trimEnd()}…`
-}
+export const clampToastText = (text: string): string => clip(text, TOAST_TEXT_MAX)
 
 export interface SendToastOptions {
   id: string

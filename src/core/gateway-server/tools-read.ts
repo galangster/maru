@@ -18,12 +18,11 @@ import { CAPABILITIES, liveGrants, minutesLeft } from '../agents'
 import type { Capability } from '../agents'
 import { base64EncodeBytes, htmlToText } from '../mime'
 import { MAX_FRAME_BYTES } from './frames'
-import { correspondents, formatBytes } from '../../lib/format'
+import { clip, correspondents, formatBytes } from '../../lib/format'
 import { formatAddress } from '../../lib/compose'
 import {
   addressesOut,
   addressOut,
-  clip,
   expectKeys,
   isoDate,
   optionalInt,

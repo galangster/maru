@@ -67,9 +67,14 @@ function snapToWholePixels(panel: PanelImperativeHandle | null, inPixels: number
  * used to be the only stops in the app with nothing on screen to say they had
  * focus. At full strength rather than the hover's 40%: a 1 px line is the
  * thinnest indicator in the build, and it is the only thing marking the stop.
+ *
+ * `focus-visible:ring-0` takes off the base handle's ring, which is not a
+ * second indicator here — a ring drawn around a 1 px-wide element is a ring
+ * nobody can see. The background IS the indicator, so the ring is removed
+ * rather than left underneath it claiming to be one.
  */
 const CHANNEL_HANDLE =
-  'bg-transparent hover:bg-brand/40 focus-visible:bg-brand ' +
+  'bg-transparent hover:bg-brand/40 focus-visible:bg-brand focus-visible:ring-0 ' +
   'transition-colors duration-(--wren-dur-fast) after:w-2'
 
 /** Collapse snaps once a drag comes within this of the collapsed width. */

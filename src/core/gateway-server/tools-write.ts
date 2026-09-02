@@ -15,14 +15,13 @@
 
 import type { Account, ComposeDraft, MailActionType, OutgoingAttachment } from '../types'
 import { deriveRecipients, quoteOriginal, replySubject, type ReplyMode } from '../../lib/compose'
-import { fullTimestamp } from '../../lib/format'
+import { clip, fullTimestamp } from '../../lib/format'
 import { base64DecodedBytes, htmlToText } from '../mime'
 import { markdownToHtml, MARKDOWN_SUBSET, textToHtml } from './body'
 import { requireThread } from './tools-read'
 import {
   addressesOut,
   addressList,
-  clip,
   expectKeys,
   optionalString,
   quoteSubject,

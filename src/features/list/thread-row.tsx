@@ -200,14 +200,14 @@ export const ThreadRow = memo(function ThreadRow({
           >
             {thread.subject || '(no subject)'}
           </span>
-          {/* Below ~380 px of list the snippet degrades to one or two
-              characters and an ellipsis, which is noise, not preview. It is
-              dropped outright at that width and the row falls back to sender
-              plus subject. */}
-          <span className="text-ink-3 hidden min-w-0 flex-1 truncate text-sm leading-5 @min-[380px]:block">
+          {/* Below `--container-row` (380 px of list) the snippet degrades to
+              one or two characters and an ellipsis, which is noise, not
+              preview. It is dropped outright at that width and the row falls
+              back to sender plus subject. */}
+          <span className="text-ink-3 hidden min-w-0 flex-1 truncate text-sm leading-5 @min-row:block">
             {thread.snippet}
           </span>
-          <span className="min-w-0 flex-1 @min-[380px]:hidden" />
+          <span className="min-w-0 flex-1 @min-row:hidden" />
           {/* Both are state, not controls. ARIA forbids focusable content
               inside a `role="option"`, and a screen reader flattens an option
               to its text label anyway, so the star used to be announced
@@ -306,7 +306,8 @@ function ArchiveTick() {
  * 334 px and `elementFromPoint` at its centre is a button; at 820 px it is
  * 354 px and the centre is the row.
  *
- * The threshold is the container query the snippet already uses — 380 px of
+ * The threshold is the container query the snippet already uses —
+ * `--container-row` in src/index.css, 380 px of
  * *list*, which is a 364 px row and leaves 10 px between the strip and the
  * centre. One breakpoint rather than two: below it the row drops the snippet
  * and the mouse's shortcut together, and falls back to sender plus subject
@@ -366,11 +367,11 @@ function QuickActions({
       aria-hidden
       className={cn(
         'bg-raised absolute right-3 bottom-1 items-center overflow-hidden rounded-md shadow-md',
-        // Below 380 px of list the cluster is not shown at all — see the note
-        // above. `hidden` rather than `pointer-events-none`,
-        // because a strip a click passes through is still a strip sitting on
-        // the words (issue 39).
-        'hidden @min-[380px]:flex',
+        // Below `--container-row` the cluster is not shown at all — see the
+        // note above. `hidden` rather than `pointer-events-none`, because a
+        // strip a click passes through is still a strip sitting on the words
+        // (issue 39).
+        'hidden @min-row:flex',
         'transition-[opacity,transform] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         // The 4 px slide is what makes the cluster read as arriving rather
         // than switching on. Reduced motion drops the offset, so there is no

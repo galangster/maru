@@ -7,6 +7,32 @@ import type { IconName } from '@/components/ui/icon'
 
 const DAY = 86_400_000
 
+/**
+ * Cuts `text` to `max` characters, on a word boundary where one is close
+ * enough, collapsing whitespace first.
+ *
+ * The one copy. It was written three times — the agent tools' snippets, the
+ * demo fixtures' snippets and the send toast — and all three wanted the same
+ * three things in the same order: flatten the whitespace, because a newline
+ * inside a preview is a line of height for no words; cut; say that a cut
+ * happened. Two of the three even used the same 140.
+ *
+ * `max` is the whole budget, ellipsis included, so a caller that has to fit a
+ * box can pass the number of characters the box holds. (The tools' copy
+ * counted the ellipsis as extra and could return `max + 1`; the toast's copy
+ * did not, and the toast is the caller with a real geometric limit.)
+ *
+ * Whitespace collapse is why this cannot be a bare `slice`: a pasted subject
+ * carries newlines, and the toast is two lines tall by construction.
+ */
+export function clip(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  if (flat.length <= max) return flat
+  const cut = flat.slice(0, max - 1)
+  const space = cut.lastIndexOf(' ')
+  return `${space > max * 0.6 ? cut.slice(0, space) : cut}…`
+}
+
 export function displayName(addr: EmailAddress): string {
   return addr.name?.trim() || addr.email
 }

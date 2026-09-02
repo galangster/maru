@@ -110,7 +110,7 @@ function blankInit(init: Partial<Draft>): boolean {
   return Object.keys(init).length === 0
 }
 
-export const useComposer = create<ComposeState>((set, get) => ({
+export const useComposer = create<ComposeState>((set) => ({
   open: false,
   minimized: false,
   showCc: false,
@@ -121,11 +121,9 @@ export const useComposer = create<ComposeState>((set, get) => ({
   lastAccountId: '',
 
   openWith: (init) => {
-    // Only on the way in. The composer re-opens itself on an account switch
-    // and on a failed send, and by then the thing that had focus is the
-    // composer — which is about to be replaced, and is not where the person
-    // was standing when they pressed C.
-    if (!get().open) rememberFocusOrigin('composer')
+    // Only on the way in — the rule is inside `rememberFocusOrigin`, which
+    // keeps the slot it already holds until a close spends it.
+    rememberFocusOrigin('composer')
     set((s) => {
       // A blank compose after a crash gets the unsent draft back.
       const restore = blankInit(init) ? recovered : null

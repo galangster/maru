@@ -55,11 +55,6 @@ import { cn } from '@/lib/utils'
 export const LATER_DISCLOSURE =
   "Later follows your Maru account when you're signed in, and stays on this device when you're not. Gmail never sees it, so these still show in Gmail's inbox."
 
-// Both live in core/defaults now, beside the window they enforce, and are
-// re-exported here because this is where the mobile Later sheet reaches for
-// them. The window has two ends and the clamp now honours both — issue 43.
-export { clampedDeferDay, isoDay }
-
 export interface LaterPickerProps {
   /**
    * Save the target threads for `wakeAt`, or bring them back now with `null`.

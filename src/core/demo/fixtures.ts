@@ -8,6 +8,7 @@
 import type { Account, Attachment, EmailAddress, Label, Message, Thread } from '../types'
 import { mapGmailThread } from '../gmail/mapping'
 import { htmlToText } from '../mime'
+import { clip } from '../../lib/format'
 import { ACCOUNT_PALETTE } from '../palette'
 
 export const DEMO_ACCOUNT_SEEDS = [
@@ -768,9 +769,13 @@ export const THREAD_SPECS: ThreadSpec[] = [
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 
+/**
+ * The preview line a demo thread carries, cut to the same 140 characters the
+ * agent tools' `SNIPPET_CHARS` uses — the literal rather than that constant,
+ * because the demo fixtures must not reach into the gateway server.
+ */
 function snippetOf(html: string): string {
-  const text = htmlToText(html).replace(/\s+/g, ' ').trim()
-  return text.length > 140 ? `${text.slice(0, 139)}…` : text
+  return clip(htmlToText(html), 140)
 }
 
 export interface DemoData {

@@ -57,6 +57,16 @@
     --shadow-lg: var(--wren-shadow-lg);
     --shadow-xl: var(--wren-shadow-xl);
 
+    /* The one width the thread list's rows answer to — `@min-row:`.
+       Not a viewport breakpoint: the list is a user-draggable pane, so the
+       row asks how wide its own container is. Below it a row drops BOTH the
+       snippet and the hover cluster, and the two must move together — the
+       cluster is hidden because it has reached the row's midpoint and steals
+       a click aimed at the subject (issue 39), which is a hit-target rule,
+       not a cosmetic one. Named here so the two rules cannot drift apart and
+       so scripts/narrow-audit.mjs is auditing a number with a name. */
+    --container-row: 380px;
+
     /* Motion: DIRECTION §9. */
     --ease-out: var(--wren-ease-out);
     --ease-in-out: var(--wren-ease-in-out);

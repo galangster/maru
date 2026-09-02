@@ -105,7 +105,7 @@ export const useSurfaces = create<SurfaceState>((set) => ({
   openLater: (keys, bulk = false) => set(keys.length ? { later: { keys, bulk }, palette: false } : {}),
   closeLater: () => set({ later: null }),
   openSearch: () => {
-    if (!useSurfaces.getState().searchOpen) rememberFocusOrigin('search')
+    rememberFocusOrigin('search')
     set({ searchOpen: true })
   },
   closeSearch: () => {
@@ -155,8 +155,19 @@ export type InlineSurface = 'composer' | 'search'
 
 const focusOrigin = new Map<InlineSurface, HTMLElement>()
 
-/** Called as the surface opens, before it takes focus. */
+/**
+ * Called as the surface opens, before it takes focus.
+ *
+ * **Only on the way in, and the rule lives here.** The composer re-opens
+ * itself on an account switch and on a failed send, and by then the thing
+ * holding focus is the composer — which is about to be replaced, and is not
+ * where the person was standing when they pressed C. A filled slot therefore
+ * wins over a later remember. `restoreFocusOrigin` spends the slot, so the
+ * next genuine open records again, and no caller has to carry an
+ * `if (!alreadyOpen)` of its own.
+ */
 export function rememberFocusOrigin(surface: InlineSurface): void {
+  if (focusOrigin.has(surface)) return
   if (typeof document === 'undefined') return
   const active = document.activeElement
   if (active instanceof HTMLElement && active !== document.body) {
