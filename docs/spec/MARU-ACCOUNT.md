@@ -16,7 +16,12 @@ stores blobs it cannot read, and it holds no key that opens them.
 Hard constraints, unchanged from grill 3 and re-ratified in grill 4:
 
 - **Mail never syncs.** Each device fetches mail from Gmail with its own copy of
-  the tokens. No message bytes, headers, or ids reach the service.
+  the tokens. No message bytes, no headers, and **no ids the service can read**.
+  Amended 2026-09-02 by the A9 owner ruling: Later deferrals name a Gmail
+  thread id, and they travel — inside the vault ciphertext, under a key the
+  service does not hold. The letter of the constraint moves from "no ids reach
+  the service" to "no ids the service can read"; the promise it was written to
+  make is unchanged.
 - **Agent grants never sync.** A grant is a trust decision made on one machine.
 - **The audit log does not sync in v1.**
 - **Push is content-free.** The relay says "something changed for this
@@ -104,7 +109,11 @@ old one stops working.
       }
     },
     "ios": {}
-  }
+  },
+  "deferrals": [                         // Later, across devices (A9)
+    { "threadId": "18f2c…", "accountEmail": "nick@example.com", "until": 1756900000000, "setAt": 1756800000000 },
+    { "threadId": "18f2d…", "accountEmail": "nick@example.com", "until": null, "clearedAt": 1756850000000 }
+  ]
 }
 ```
 
@@ -122,8 +131,22 @@ Rules:
   A device of a different family shows the address in the "From your other
   device" directed-consent list instead (P5/G2 v1 behaviour).
 - Access tokens are never stored. Devices mint their own from the refresh token.
+- `deferrals` is the Later list (**added 2026-09-02, owner ruling A9: yes**).
+  One entry per saved thread, identified by `accountEmail` plus the **Gmail
+  thread id**. This is the only place a Gmail id appears in the protocol, and it
+  appears as ciphertext only — see the amended constraint in §1.
+  - `until` is the ms epoch the thread returns to the inbox. `until: null`
+    marks a **tombstone**: a deferral that was cleared on some device.
+  - `setAt` is when the deferral was saved; `clearedAt` is when it was cleared.
+    Exactly one of the two is present, and it is what §6 compares. A payload
+    with neither is treated as stamped at 0, so a tombstone beats it.
+  - Deferral is still a **local predicate** (`wake_at > now`) on every device.
+    Nothing in this section asks a device to act at a moment in time, and
+    nothing here reaches Google. P21's fail-safe property is unchanged: a
+    device that never runs simply never hides the mail.
 - The document is capped at 256 KiB plaintext. The server rejects a blob over
-  384 KiB ciphertext.
+  384 KiB ciphertext. `deferrals` is bounded by the pruning rule in §6 and by
+  `MAX_DEFER_DAYS` (30), so it cannot grow without limit.
 
 ## 5. Wire API
 
@@ -159,18 +182,37 @@ device's `lastSeenAt`.
 
 - **Pull** at launch, on foreground, and every 5 minutes. `GET /v1/vault`; if
   the version is newer than the local copy, open, merge, apply.
-- **Push** after any local change to settings, the account list, or a
-  credential (debounced 2 s). `PUT` with the last-seen version. On 409, open
+- **Push** after any local change to settings, the account list, a credential,
+  or a **deferral** — saving a thread for later, bringing one back, and the
+  engine's reply-wake all schedule one (debounced 2 s). `PUT` with the last-seen version. On 409, open
   the returned blob, merge, re-seal, `PUT` again with its version. Give up
   after 3 rounds and surface a "sync paused" state.
 - **Merge** is per section: `settings` = the copy with the newer `updatedAt`;
   `accounts` = union by email, order from the newer copy; `credentials` =
   union per family and email, newer `issuedAt` wins.
+- **Merge `deferrals`** = union by `(accountEmail, threadId)`. Within one key:
+  - two live entries — the **later `until` wins**. A deferral is an absolute
+    time, not a delta, so the later answer is the later decision.
+  - two tombstones — the later `clearedAt` wins.
+  - a live entry against a tombstone — the **tombstone beats an older `until`**:
+    it wins unless the live entry's `setAt` is after the tombstone's
+    `clearedAt`, which is a re-save made after the clear.
+  - **Pruning, at build time and after every merge:** an entry whose stamp is
+    more than **30 days** in the past is dropped — a tombstone by `clearedAt`,
+    a live entry by `until`. Tombstones cannot accumulate, and a deferral that
+    expired a month ago stops travelling.
 - **Apply** on a device: settings replace local settings (except device-local
   fields, if any are later declared); accounts absent locally are added —
   with tokens if this family has them, otherwise into the directed-consent
   list; accounts absent remotely are removed locally, their tokens deleted
   from the keychain.
+- **Apply `deferrals`:** a device writes the merged list into its own
+  `thread_defer` table, **for the accounts it actually has** — an entry naming
+  an address this device has not signed into is ignored, not queued. A live
+  entry becomes a deferral row; a tombstone removes one. The device re-runs the
+  merge rule above against its own rows first, so a pull can never undo a
+  deferral this device set more recently. **No Gmail method is called on this
+  path, by construction** — the OAuth method-scope matrix is untouched.
 - A device never writes tokens for a family other than its own.
 
 ## 7. Devices
