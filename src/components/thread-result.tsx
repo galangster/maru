@@ -1,9 +1,10 @@
 // A search hit: the compact 52 px row DIRECTION §5 reserves for results and
 // palette rows. Same fixed sender column as the list, so subjects still start
-// at the same x.
+// at the same x — and after that column, everything left on the line is the
+// subject's.
 
 import { Icon } from '@/components/ui/icon'
-import { AccountAvatar, DATE_COLUMN, ICON_SLOT } from '@/components/wren-controls'
+import { AccountAvatar, ICON_SLOT } from '@/components/wren-controls'
 import type { Thread } from '@/core/types'
 import { correspondents, participantLine, relativeTime } from '@/lib/format'
 import { hueFor } from '@/lib/hue'
@@ -47,21 +48,35 @@ export function ThreadResult({
           across a 76 px band and seven of the nine truncated, in the one place
           a person is hunting hardest (issue #23). The measure is its own token
           rather than the list's 152, because this row is one line and the two
-          share it — see tokens.css for the 96 / 140 split. */}
+          share it. */}
       <span className="font-ui text-ink w-(--wren-result-sender-w) shrink-0 truncate text-base font-medium">
         {participantLine(people)}
       </span>
+      {/* Everything after the sender column, and it is the last thing on the
+          line — issue #23, second pass.
+
+          Fixing the ragged left edge did not stop the truncation it was filed
+          beside: a 400 px list card leaves 236 px for sender and subject
+          together, so the split gave the subject 140 and seven of the nine
+          demo results still stopped mid-title, the longest needing 244. The
+          arithmetic is the whole finding. A one-line row cannot hold a sender
+          column, a subject and a trailing column in 236 px, and DIRECTION §5
+          reserves the single-line 52 px row for exactly this surface — so the
+          column that leaves is the trailing one.
+
+          The relative time went. It is the tertiary datum on a hunting
+          surface: results are ordered by it, the reading pane states it in
+          full the moment a result is opened, and no one scans a search list
+          for a timestamp. Cutting seven subjects in nine to keep it is the
+          wrong way round. It is still ANNOUNCED — the `time` below is
+          sr-only — so nothing is lost to a screen reader, only to the column
+          that was starving the subject. */}
       <span className="text-ink-2 min-w-0 flex-1 truncate text-sm">
         {thread.subject || '(no subject)'}
       </span>
-      {/* Same `w-16 text-right` as thread-row.tsx: "Yesterday" and "Sun" are
-          different widths, and a shrink-to-fit column leaves the left edge of
-          the timestamps ragged down the list — the one thing DIRECTION §1 says
-          a column may never do. The rule was written on the list row and not
-          applied here (S3). */}
-      <span className={DATE_COLUMN}>
+      <time className="sr-only" dateTime={new Date(thread.lastMessageAt).toISOString()}>
         {relativeTime(thread.lastMessageAt, now)}
-      </span>
+      </time>
     </span>
   )
 }

@@ -654,11 +654,16 @@
        it; the 152 px measure above is sized for the two-line list row, where
        the subject has line 2 to itself. Left uncapped, the sender set the
        column and nine results started their subjects across a 76 px band with
-       seven of nine truncated. Given the 384 px list card at 1280, the 236 px
-       that sender and subject share splits 96 / 140: 96 holds six of the nine
-       demo senders whole, and every subject gets the same 140 px — where the
-       worst previously got 98. Fixed, so the subjects line up; smaller than
-       152, because 152 would have left the subject 84. */
+       seven of nine truncated. Fixed at 96, the subjects line up and 96 holds
+       six of the nine demo senders whole; smaller than 152, because 152 would
+       have left the subject 84.
+
+       The first pass then gave the subject the 140 px that remained beside a
+       trailing date column, and seven of nine still truncated — the longest
+       needing 244. The row now ends at the subject instead (see
+       `components/thread-result.tsx`), so the sender column is the ONLY fixed
+       measure on the line and the subject takes everything after it: 216 px in
+       the 400 px list card, 340 in the palette. */
     --wren-result-sender-w: 96px;
     /* The inset rounded row (AMIE-STUDY §5): every row is its own rounded rect
        with a small gap, hover and selection fill THAT rect, and no divider is
