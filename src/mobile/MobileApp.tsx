@@ -12,6 +12,7 @@ import {
   useSyncStatus,
   useWakeSweep,
 } from '@/features/mail/queries'
+import { runBatchAction } from '@/features/list/bulk'
 import { usePush } from '@/features/notifications/use-push'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { nativeShellPossible } from '@/platform/shell'
@@ -109,6 +110,23 @@ export function MobileApp() {
     // every surface gets it and a bulk archive stays one tap.
     if (type === 'archive') announce('Archived')
   }
+  /**
+   * Archive one conversation, or a whole batch.
+   *
+   * The batch goes through the desktop's own `runBatchAction` rather than a
+   * loop over `act` (issue 8). The loop registered one undoable per
+   * conversation into a store that holds exactly one, so Undo put back the
+   * last row of the batch and quietly abandoned the rest — and the toast said
+   * "Archived" whether it had taken one conversation or forty.
+   *
+   * One row keeps the single-thread toast, because "Archived" beside the row
+   * you just flicked is the better sentence and its undo was never wrong.
+   */
+  const archive = (threadKeys: string[]) => {
+    if (threadKeys.length === 0) return
+    if (threadKeys.length === 1) return act(threadKeys[0], 'archive')
+    announce(runBatchAction((next) => perform.mutate(next), threadKeys, 'archive', 'conversation'))
+  }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
   const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
   const openPushSheet = useCallback(() => dispatch({ type: 'openSheet', sheet: { kind: 'pushAccount' } }), [])
@@ -140,7 +158,7 @@ export function MobileApp() {
           onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
           onCompose={compose}
           onSearch={() => changeTab('search')}
-          onArchive={(keys) => keys.forEach((key) => act(key, 'archive'))}
+          onArchive={archive}
           onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
           onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
@@ -158,7 +176,7 @@ export function MobileApp() {
             threadKey={route.threadKey}
             onBack={() => dispatch({ type: 'back' })}
             onReply={replyTo}
-            onArchive={(key) => { act(key, 'archive'); dispatch({ type: 'back' }) }}
+            onArchive={(key) => { archive([key]); dispatch({ type: 'back' }) }}
             onLater={(key) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys: [key] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           />

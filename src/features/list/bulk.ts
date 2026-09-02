@@ -60,25 +60,59 @@ export function bulkAction(
     ui.setSelected(nextAfterRemoval(visible, keys), 'keyboard')
   }
 
-  for (const key of keys) mutate({ type, threadKey: key })
+  runBatchAction(mutate, [...keys], type)
+  ui.clearChecked()
+  return targets.length
+}
 
-  // "2 threads archived", "3 threads moved to trash" — the count leads, and
-  // the verb is the same past-tense vocabulary every single-thread toast uses.
+/**
+ * What a batch's confirmation says: "2 threads archived", "3 conversations
+ * moved to trash". The count leads, and the verb is the same past-tense
+ * vocabulary every single-thread toast uses.
+ *
+ * The noun is a parameter because the two shells name the same object
+ * differently — the desktop list calls it a thread, the phone calls it a
+ * conversation — and nothing else about a batch differs between them.
+ */
+export function batchActionLabel(type: BulkActionType, count: number, noun = 'thread'): string {
   const verb = UNDO_LABELS[type]
-  const label = `${targets.length} thread${targets.length === 1 ? '' : 's'} ${
-    verb[0].toLowerCase() + verb.slice(1)
-  }`
+  return `${count} ${noun}${count === 1 ? '' : 's'} ${verb[0].toLowerCase() + verb.slice(1)}`
+}
+
+/**
+ * ONE batch, one mutation per thread, ONE undo, one toast.
+ *
+ * This is the mechanism issue 8 was about. The phone had no batch at all: its
+ * bulk bar looped the single-thread path, and every pass registered its own
+ * undoable into a store that holds exactly one (lib/undo.ts). The last write
+ * won, so Undo returned a single conversation out of forty and said nothing
+ * about the other thirty-nine.
+ *
+ * Both bulk bars come through here now, so the count in the toast and the
+ * breadth of the undo cannot disagree with each other or with the desktop.
+ * The selection each shell keeps is its own — the desktop's checkmarks live in
+ * `useUi`, the phone's live in the inbox screen — so the caller clears its own
+ * and hands the keys in.
+ */
+export function runBatchAction(
+  mutate: (action: MailAction) => void,
+  threadKeys: readonly string[],
+  type: BulkActionType,
+  noun = 'thread',
+): string {
+  for (const key of threadKeys) mutate({ type, threadKey: key })
+
+  const label = batchActionLabel(type, threadKeys.length, noun)
   const reverse = reverseAction(type)
-  ui.registerUndo({
+  useUi.getState().registerUndo({
     id: `bulk:${type}`,
     label,
     run: () => {
-      for (const key of keys) mutate({ type: reverse, threadKey: key })
+      for (const key of threadKeys) mutate({ type: reverse, threadKey: key })
     },
   })
-  ui.clearChecked()
   showUndoToast(label)
-  return targets.length
+  return label
 }
 
 /**
@@ -116,20 +150,46 @@ export function bulkDefer(
     ui.setSelected(nextAfterRemoval(visible, keys), 'keyboard')
   }
 
-  for (const key of keys) defer(key, wakeAt)
+  runBatchDefer(defer, before, wakeAt, now)
+  ui.clearChecked()
+  return targets.length
+}
 
-  const count = targets.length
-  const plural = `${count} thread${count === 1 ? '' : 's'}`
-  const label =
-    wakeAt === null ? `${plural} back in the inbox` : `${plural} saved for ${wakeTime(wakeAt, now)}`
-  ui.registerUndo({
+/** "3 threads saved for tomorrow morning", "2 conversations back in the inbox". */
+export function batchDeferLabel(
+  count: number,
+  wakeAt: number | null,
+  now: number,
+  noun = 'thread',
+): string {
+  const plural = `${count} ${noun}${count === 1 ? '' : 's'}`
+  return wakeAt === null ? `${plural} back in the inbox` : `${plural} saved for ${wakeTime(wakeAt, now)}`
+}
+
+/**
+ * `runBatchAction`'s Later sibling, and the same promise: one undoable for the
+ * whole batch, one toast, and the count said out loud.
+ *
+ * The prior wake times are taken rather than assumed, so undoing puts each
+ * thread back on its own schedule instead of on one shared guess.
+ */
+export function runBatchDefer(
+  defer: (threadKey: string, wakeAt: number | null) => void,
+  before: ReadonlyMap<string, number | null>,
+  wakeAt: number | null,
+  now: number,
+  noun = 'thread',
+): string {
+  for (const key of before.keys()) defer(key, wakeAt)
+
+  const label = batchDeferLabel(before.size, wakeAt, now, noun)
+  useUi.getState().registerUndo({
     id: 'bulk:later',
     label,
     run: () => {
       for (const [key, prior] of before) defer(key, prior)
     },
   })
-  ui.clearChecked()
   showUndoToast(label)
-  return count
+  return label
 }

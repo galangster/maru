@@ -205,7 +205,11 @@ export function InboxScreen({
 
       {editing && (
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-          <button type="button" disabled={selected.size === 0} onClick={() => onArchive(selectedKeys)}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
+          {/* The batch's rows are gone, so the checkmarks that named them are
+              stale. The desktop clears its own for the same reason — bulk.ts,
+              `runBatchAction` — and the two selections are kept in different
+              places, so each shell clears the one it owns. */}
+          <button type="button" disabled={selected.size === 0} onClick={() => { onArchive(selectedKeys); setSelected(new Set()) }}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
           <button type="button" disabled={selected.size === 0} onClick={() => onLater(selectedKeys)}><MobileIcon name="calendar" scale="action" /><span>Later</span></button>
           <button type="button" disabled={selected.size === 0} onClick={stopEditing}><MobileIcon name="check" scale="action" /><span>Done</span></button>
         </div>

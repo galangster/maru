@@ -3,7 +3,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 vi.mock('sonner', () => ({ toast: vi.fn() }))
 
 import type { MailAction } from '../src/core/types'
-import { bulkAction, bulkDefer, checkedInView } from '../src/features/list/bulk'
+import {
+  batchActionLabel,
+  batchDeferLabel,
+  bulkAction,
+  bulkDefer,
+  checkedInView,
+  runBatchAction,
+  runBatchDefer,
+} from '../src/features/list/bulk'
 import { useUi } from '../src/features/mail/ui-store'
 import { wakeTime } from '../src/lib/format'
 import { makeThread } from './fixtures/domain'
@@ -130,5 +138,73 @@ describe('bulkDefer', () => {
     useUi.setState({ checked: new Set([key('b')]), selected: key('b') })
     bulkDefer(() => {}, threads, WAKE, NOW)
     expect(useUi.getState().selected).toBe(key('c'))
+  })
+})
+
+// The mechanism the phone's bulk bar shares with this one (issue 8). The phone
+// keeps its checkmarks in the inbox screen rather than in `useUi`, so it hands
+// the keys in and clears its own — everything else about a batch is the same
+// batch, and these are the tests that say so.
+describe('runBatchAction', () => {
+  const KEYS = [key('a'), key('b'), key('c')]
+
+  it('registers ONE undoable for the whole batch, whatever its size', () => {
+    const sent: MailAction[] = []
+    runBatchAction((a) => sent.push(a), KEYS, 'archive')
+    expect(sent).toHaveLength(3)
+    expect(useUi.getState().undoable).toMatchObject({ id: 'bulk:archive' })
+
+    sent.length = 0
+    useUi.getState().runUndo()
+    expect(sent).toEqual(KEYS.map((threadKey) => ({ type: 'unarchive', threadKey })))
+  })
+
+  it('names the count, so the confirmation cannot say "Archived" over forty rows', () => {
+    expect(runBatchAction(() => {}, KEYS, 'archive')).toBe('3 threads archived')
+    expect(useUi.getState().undoable?.label).toBe('3 threads archived')
+  })
+
+  it('takes the shell\'s own noun for the same object', () => {
+    expect(runBatchAction(() => {}, KEYS, 'archive', 'conversation')).toBe(
+      '3 conversations archived',
+    )
+  })
+
+  it('agrees with the number in singular and plural', () => {
+    expect(batchActionLabel('trash', 1)).toBe('1 thread moved to trash')
+    expect(batchActionLabel('trash', 2, 'conversation')).toBe('2 conversations moved to trash')
+    expect(batchActionLabel('markUnread', 4)).toBe('4 threads marked unread')
+  })
+})
+
+describe('runBatchDefer', () => {
+  const NOW = 1_800_000_000_000
+  const WAKE = NOW + 86_400_000
+
+  it('offers one undo that returns every thread to its own prior schedule', () => {
+    const before = new Map<string, number | null>([
+      [key('a'), null],
+      [key('b'), NOW + 5_000],
+    ])
+    const sent: [string, number | null][] = []
+    const label = runBatchDefer((k, at) => sent.push([k, at]), before, WAKE, NOW, 'conversation')
+
+    expect(label).toBe(`2 conversations saved for ${wakeTime(WAKE, NOW)}`)
+    expect(sent).toEqual([
+      [key('a'), WAKE],
+      [key('b'), WAKE],
+    ])
+
+    sent.length = 0
+    useUi.getState().runUndo()
+    expect(sent).toEqual([
+      [key('a'), null],
+      [key('b'), NOW + 5_000],
+    ])
+  })
+
+  it('says where the batch went in both directions', () => {
+    expect(batchDeferLabel(1, null, NOW, 'conversation')).toBe('1 conversation back in the inbox')
+    expect(batchDeferLabel(3, WAKE, NOW)).toBe(`3 threads saved for ${wakeTime(WAKE, NOW)}`)
   })
 })
