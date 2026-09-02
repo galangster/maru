@@ -159,3 +159,13 @@ the manual route is closed the same way.
 
 The reviewer-account items further up this page are unchanged and are not on
 the TestFlight path — internal builds need no Beta App Review.
+
+## Signing key — 2026-09-02
+
+`wren-notary` (PTF7XH7JWF) holds the Developer role and Apple keys cannot gain
+services after creation, so a new team key **"Maru release" `G52RSWR37N`**
+(Admin) was generated in App Store Connect with Nick's go-ahead; Admin keys
+carry cloud-managed distribution signing. It lives at
+`~/.wren-release/AuthKey_G52RSWR37N.p8` once downloaded (never in git). The
+export block in `docs/APP-STORE.md` §6 uses it; `wren-notary` stays for
+notarization.
