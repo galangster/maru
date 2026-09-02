@@ -746,8 +746,28 @@ html[data-input-modality='keyboard']
   white-space: nowrap;
 }
 
+/*
+ * The top line reflows rather than crushing the sender (issue 20).
+ *
+ * At the accessibility text sizes the timestamp kept its full width on the
+ * same line and the sender took whatever was left — "Priya, Jules +1" became
+ * "Pri…", three characters of the first thing the row is for. The subject and
+ * the preview below it were fine, so this was one line rather than a layout
+ * giving up.
+ *
+ * `9ch` is a floor in the row's own type, so it scales with Dynamic Type
+ * instead of being a pixel guess that stops meaning anything at 53px: below
+ * nine characters of sender the line wraps and the timestamp takes the second
+ * row on its own. At every size the phone actually ships at the default, that
+ * floor is never reached and the line is exactly what it was.
+ */
+.mobile-row-topline {
+  flex-wrap: wrap;
+}
+
 .mobile-row-topline strong {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 9ch;
   font-family: var(--wren-font-ui);
   font-size: var(--mobile-text-body);
   line-height: var(--mobile-leading-tight);
