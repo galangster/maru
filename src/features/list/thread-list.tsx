@@ -463,10 +463,12 @@ export function ThreadList() {
           outranks the lens bar — a pending batch is the more urgent fact
           about the list.
 
-          Tighter than the other strips (`gap-1.5 px-3`, not `gap-3 px-4`), and
+          Tighter than the other strips (`gap-1 px-3`, not `gap-3 px-4`), and
           measured rather than guessed. At the old spacing, six verbs plus the
           count plus select-all came to 444 px in the pane's default 400, which
-          pushed `Clear` clean off the end the moment Later was added.
+          pushed `Clear` clean off the end the moment Later was added. The gap
+          went 6 → 4 with issue #24, which is DIRECTION §1's grid and also what
+          buys Trash its 8 px of clear space.
 
           The case that sets the number is not "2 selected · All 37" but
           "99 selected · All 100", which is 407 px here. That is 7 px into the
@@ -479,7 +481,7 @@ export function ThreadList() {
           There is no room left. A seventh verb needs a real answer — a wrap,
           or one fewer verb — not another 2 px. */}
       {!searching && checkedCount > 0 && (
-        <div className="border-hairline flex h-8 shrink-0 items-center gap-1.5 border-b px-3 text-xs">
+        <div className="border-hairline flex h-8 shrink-0 items-center gap-1 border-b px-3 text-xs">
           <span className="text-ink font-medium whitespace-nowrap tabular-nums">
             {checkedCount} selected
           </span>
@@ -498,7 +500,7 @@ export function ThreadList() {
               {/* Between Archive and Trash, because the three answer the same
                   question in ascending finality: not ever, not now, gone. */}
               <StripButton label="Later" onClick={onBulkLater} />
-              <StripButton label="Trash" onClick={() => onBulk('trash')} />
+              <StripButton label="Trash" danger onClick={() => onBulk('trash')} />
             </>
           )}
           <StripButton label="Read" onClick={() => onBulk('markRead')} />
@@ -699,21 +701,40 @@ export function ThreadList() {
 
 /** The 8-high strips' one text button — the bulk bar's verbs and the lens
  *  bar's Reset. Feature-local on purpose: the kit's textButtonClass is
- *  surface geometry (h-8 rounded-full), not strip geometry. */
+ *  surface geometry (h-8 rounded-full), not strip geometry.
+ *
+ *  `h-6` is the whole of issue #24's fix: the box was as tall as its 11.5 px
+ *  label — 16 px — against WCAG 2.2 SC 2.5.8's 24 × 24 floor, while every
+ *  label is already at least 24 px wide. Height is free here. The strip is 32,
+ *  so a 24 px target sits inside it with 4 px above and below and no verb
+ *  moves; padding, which is what a target normally grows by, would have cost
+ *  84 px in a bar that has 407 px of content in a 400 px pane.
+ *
+ *  `danger` is the batch Trash. It acts on up to every thread on screen, and
+ *  it sat 6 px from Later on one side and 6 px from Read on the other. */
 function StripButton({
   label,
   hint,
+  danger,
   onClick,
 }: {
   label: string
   hint?: string
+  danger?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="focus-ring text-ink-2 hover:text-ink rounded-sm font-medium whitespace-nowrap"
+      className={cn(
+        'focus-ring text-ink-2 inline-flex h-6 items-center rounded-sm font-medium whitespace-nowrap',
+        // 4 px of margin each side, on top of the strip's 4 px gap: the
+        // destructive verb keeps 8 px of clear space where the reversible ones
+        // keep 4. The gap paid for it — it was 6 px, off DIRECTION §1's grid,
+        // and dropping the six of them to 4 returns 12 px against the 8 spent.
+        danger ? 'mx-1 hover:text-destructive' : 'hover:text-ink',
+      )}
     >
       {label}
       {hint && <span className="text-ink-3 ml-1">{hint}</span>}
