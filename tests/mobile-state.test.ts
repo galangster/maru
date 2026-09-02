@@ -12,6 +12,7 @@ import {
   nativeTabs,
   resolveSwipeIntent,
   tabAtIndex,
+  visibleScreen,
 } from '@/mobile/state'
 
 function thread(overrides: Partial<Thread> = {}): Thread {
@@ -90,6 +91,40 @@ describe('mobile route reducer', () => {
 
     expect(mobileRouteReducer(sheet, { type: 'back' })).toEqual(account)
     expect(mobileRouteReducer(account, { type: 'back' })).toEqual(settings)
+  })
+})
+
+describe('visible screen', () => {
+  it('is the tab while the stack is at its root', () => {
+    expect(visibleScreen(initialMobileRoute)).toBe('inbox')
+    for (const tab of MOBILE_TABS) {
+      expect(visibleScreen(mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab }))).toBe(tab)
+    }
+  })
+
+  it('is the pushed screen, whichever tab it was pushed from', () => {
+    const search = mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'search' })
+    const thread = mobileRouteReducer(search, {
+      type: 'push',
+      entry: { kind: 'thread', threadKey: 'account/thread-1' },
+    })
+    expect(visibleScreen(thread)).toBe('thread')
+
+    const settings = mobileRouteReducer(initialMobileRoute, { type: 'changeTab', tab: 'settings' })
+    expect(visibleScreen(mobileRouteReducer(settings, { type: 'push', entry: { kind: 'account' } }))).toBe('account')
+  })
+
+  it('is unchanged by a sheet, and returns to the tab on back', () => {
+    const thread = mobileRouteReducer(initialMobileRoute, {
+      type: 'push',
+      entry: { kind: 'thread', threadKey: 'account/thread-1' },
+    })
+    const sheet = mobileRouteReducer(thread, {
+      type: 'openSheet',
+      sheet: { kind: 'later', threadKeys: ['account/thread-1'] },
+    })
+    expect(visibleScreen(sheet)).toBe('thread')
+    expect(visibleScreen(mobileRouteReducer(mobileRouteReducer(sheet, { type: 'back' }), { type: 'back' }))).toBe('inbox')
   })
 })
 

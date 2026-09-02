@@ -107,6 +107,24 @@ export function mobileRouteReducer(state: MobileRoute, action: MobileRouteAction
   }
 }
 
+/**
+ * Which screen the stage shows on top.
+ *
+ * The stage keeps exactly one screen mounted for the life of the shell — the
+ * inbox — and mounts every other screen only while it is on top. So this one
+ * answer does two jobs: it names the screen to draw over the inbox, and, by
+ * not being `'inbox'`, it is the reason the inbox is hidden.
+ *
+ * A tab is only the visible screen while the stack is at its root, because
+ * `changeTab` resets the stack and a push covers whichever tab it started from.
+ */
+export type MobileScreen = MobileTab | 'thread' | 'account'
+
+export function visibleScreen(route: MobileRoute): MobileScreen {
+  const top = route.stack[route.stack.length - 1]
+  return top.kind === 'inbox' ? route.tab : top.kind
+}
+
 export const SWIPE_ACTION_THRESHOLD = 72
 export const SWIPE_AXIS_RATIO = 0.72
 export const SWIPE_OFFSET_LIMIT = 104

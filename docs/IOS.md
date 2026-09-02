@@ -182,6 +182,58 @@ No `overscroll-behavior` is set. Rubber-banding stays the system's.
 A long press is cancelled by `scroll` and by `touchmove`.
 The scroll view claims the gesture, so the row stops seeing pointer events.
 
+### The inbox stays mounted
+
+The stage keeps one screen mounted for the life of the shell: the inbox.
+Every other screen mounts when it becomes the visible screen.
+It unmounts when it stops being the visible screen.
+That is the rule for the thread, the account, search and settings.
+
+The inbox is the exception because a remount costs the most there.
+It owns a window virtualizer, its measured row heights,
+and the measured top of its list.
+It is also the screen a thread is opened from and returned to.
+Search and settings hold no measurement worth keeping.
+
+`visibleScreen()` in `src/mobile/state.ts` states the rule.
+It returns the tab while the stack is at its root.
+It returns `thread` or `account` while a screen is pushed.
+`tests/mobile-state.test.ts` asserts it.
+
+`MobileApp` passes `hidden` to `InboxScreen`.
+`InboxScreen` sets `hidden` and `inert` on its own section.
+`hidden` takes the screen out of flow. `inert` keeps VoiceOver and focus out.
+`.mobile-screen[hidden] { display: none }` is required in `mobile.css`.
+The UA rule for `[hidden]` loses to the author `display: flex` without it.
+
+The screen must leave the flow, not just become invisible.
+The document is the scroller, so the page height must be the top screen's.
+The thread screen keeps its push transform, because it is the only screen
+in flow while it is up.
+
+`hidden` also sets `enabled: false` on the virtualizer. That does three things.
+
+1. It drops the window scroll listener.
+   A thread's scrolling then re-renders nothing behind it.
+2. It disconnects the row `ResizeObserver`.
+   A `display: none` row measures zero, and that zero would be cached.
+3. It reports a size of zero, so the range empties and no row renders.
+
+The measured row heights survive all three. That is the point of the change.
+
+Returning to the inbox sets `enabled: true` again.
+The virtualizer then asks `initialOffset` for the scroll position.
+It asks during the render, one commit before `useRouteScroll` restores it.
+So `useRouteScroll` returns `readScrollTop`, and `InboxScreen` passes that.
+`readScrollTop` gives the offset the page is going to,
+not the offset of the screen being left.
+`window.scrollY` would give the wrong one, and the first frame would be wrong.
+`initialRect` is answered with the real viewport for the same reason.
+
+The restore is exact, and it is no longer racing a remount.
+The list is full height on the frame it appears, from the cached measurements,
+so `window.scrollTo` cannot be clamped to a shorter page.
+
 ### Commands and events
 
 The plugin owns these commands:

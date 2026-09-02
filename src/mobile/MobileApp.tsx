@@ -29,6 +29,7 @@ import {
   initialMobileRoute,
   mobileRouteReducer,
   tabAtIndex,
+  visibleScreen,
   type MobileTab,
 } from './state'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
@@ -72,13 +73,13 @@ export function MobileApp() {
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
+  const screen = visibleScreen(navigation)
   const sheet = navigation.sheet
   // One key per screen the shell can show. The page is the scroller, so each
-  // one needs its own remembered offset.
-  useRouteScroll(
-    route.kind === 'thread' ? `thread:${route.threadKey}`
-      : route.kind === 'account' ? 'account'
-      : `tab:${navigation.tab}`,
+  // one needs its own remembered offset. Threads are keyed individually: two
+  // of them are never the same page.
+  const readScrollTop = useRouteScroll(
+    route.kind === 'thread' ? `thread:${route.threadKey}` : `screen:${screen}`,
   )
   const globalModalOpen = composerOpen || (sheet !== null && route.kind !== 'account')
   const syncAnnouncement = useMemo(() => {
@@ -119,6 +120,26 @@ export function MobileApp() {
   return (
     <div className="mobile-app" data-testid="mobile-app" data-native-shell={nativeChrome ? 'true' : undefined}>
       <main className="mobile-stage" inert={globalModalOpen}>
+        {/*
+          The inbox is mounted for the life of the shell and hidden while
+          anything is on top of it; every other screen mounts when it becomes
+          the visible one and unmounts when it stops being it. One screen earns
+          that exception because one screen pays for a remount — the window
+          virtualizer, its measured rows and the measured top of its list —
+          and it is the screen a thread is opened from and returned to.
+          docs/IOS.md, "The inbox stays mounted", holds the rule.
+        */}
+        <InboxScreen
+          hidden={screen !== 'inbox'}
+          readScrollTop={readScrollTop}
+          onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
+          onCompose={compose}
+          onSearch={() => changeTab('search')}
+          onArchive={(keys) => keys.forEach((key) => act(key, 'archive'))}
+          onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
+          onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
+          onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
+        />
         {route.kind === 'account' ? (
           <AccountScreen
             onBack={() => dispatch({ type: 'back' })}
@@ -135,19 +156,11 @@ export function MobileApp() {
             onLater={(key) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys: [key] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           />
-        ) : navigation.tab === 'inbox' ? (
-          <InboxScreen
-            onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
-            onCompose={compose}
-            onSearch={() => changeTab('search')}
-            onArchive={(keys) => keys.forEach((key) => act(key, 'archive'))}
-            onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
-            onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
-            onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
-          />
-        ) : navigation.tab === 'search' ? (
+        ) : screen === 'search' ? (
           <SearchScreen onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })} />
-        ) : <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />}
+        ) : screen === 'settings' ? (
+          <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />
+        ) : null}
       </main>
 
       {route.kind === 'inbox' && nativeTabBar === false && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={changeTab} />}

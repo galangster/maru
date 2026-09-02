@@ -15,7 +15,15 @@ import { usePullRefresh } from '../use-pull-refresh'
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
 const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
 
+/**
+ * The inbox. It is mounted for the life of the phone shell and hidden while
+ * another screen is on top of it — docs/IOS.md, "The inbox stays mounted" —
+ * so `hidden` is not a styling detail here. It is the switch that parks the
+ * virtualizer, and `readScrollTop` is how the virtualizer finds its way back.
+ */
 export function InboxScreen({
+  hidden,
+  readScrollTop,
   onOpen,
   onCompose,
   onSearch,
@@ -24,6 +32,8 @@ export function InboxScreen({
   onContext,
   onStar,
 }: {
+  hidden: boolean
+  readScrollTop: () => number
   onOpen: (key: string) => void
   onCompose: () => void
   onSearch: () => void
@@ -56,22 +66,47 @@ export function InboxScreen({
   // (mobile.css). `scrollMargin` is what tells the virtualizer how far the list
   // starts below the top of the page — the sticky header and the pull
   // indicator sit above it.
+  //
+  // `enabled` is the whole of the hidden state, and it is doing three jobs.
+  // It drops the window scroll listener, so a thread's scrolling does not
+  // re-render a screen nobody can see. It disconnects the row ResizeObserver,
+  // which would otherwise measure every row of a `display: none` list as zero
+  // pixels tall and cache that. And the size it reports falls to zero, so the
+  // range empties and no row is rendered at all. What survives is the only
+  // thing worth keeping: the measured height of every row already seen.
+  //
+  // Turning it back on clears the remembered offset, so `initialOffset` is
+  // asked again — one render before `useRouteScroll` restores the page. That
+  // is why it is `readScrollTop` and not `window.scrollY`: the first frame of
+  // the return is drawn for the offset the page is going to, not the one it is
+  // leaving. `initialRect` is asked in the same breath, and answering it with
+  // the real viewport keeps that first frame a full screen of rows rather than
+  // an empty one waiting on a resize callback.
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
     estimateSize: () => MOBILE_ROW_ROOT_MULTIPLIER * rootFontSizePx,
     getItemKey: (index) => rows[index].thread.key,
     overscan: 8,
     scrollMargin: listTop,
+    enabled: !hidden,
+    initialOffset: readScrollTop,
+    initialRect: viewportRect(),
   })
   // Measured rather than assumed: the header grows with Dynamic Type and with
   // the Edit row. Those are the only things that move the list's top, so they
   // are the dependencies — re-measuring on every render costs a layout read
   // per frame of a scroll and never returns a different number. React bails
   // out when the value is unchanged, so this settles in one pass.
+  // `hidden` is a dependency and a guard: a hidden screen has no box, so
+  // `offsetTop` reads zero, and a refetch that lands behind a thread would
+  // otherwise overwrite the real measurement with it. Re-measured on the way
+  // back, before the page is restored, because `offsetTop` does not depend on
+  // where the page is scrolled to.
   useLayoutEffect(() => {
+    if (hidden) return
     const top = list.current?.offsetTop ?? 0
     setListTop((current) => (current === top ? current : top))
-  }, [rootFontSizePx, editing, query.isPending, rows.length === 0])
+  }, [hidden, rootFontSizePx, editing, query.isPending, rows.length === 0])
   useEffect(() => {
     const update = () => setRootFontSizePx(readRootFontSize())
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
@@ -102,7 +137,7 @@ export function InboxScreen({
   const selectedKeys = [...selected]
 
   return (
-    <section className="mobile-screen" aria-label="Inbox">
+    <section className="mobile-screen" aria-label="Inbox" hidden={hidden} inert={hidden}>
       <header className="mobile-nav mobile-inbox-nav">
         <div className="mobile-nav-row">
           <label className="mobile-account-lens">
@@ -172,6 +207,11 @@ export function InboxScreen({
       )}
     </section>
   )
+}
+
+function viewportRect(): { width: number; height: number } {
+  if (typeof window === 'undefined') return { width: 0, height: 0 }
+  return { width: window.innerWidth, height: window.innerHeight }
 }
 
 function readRootFontSize(): number {
