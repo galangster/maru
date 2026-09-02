@@ -196,7 +196,26 @@ export const ThreadRow = memo(function ThreadRow({
           </time>
         </div>
 
-        <div className="flex items-baseline gap-2 leading-5">
+        {/* The hover cluster's lane — issue #32. The cluster is opaque, 160 px
+            wide and absolutely positioned over this line's right end, so
+            hovering "Bike service — ready Thursday" hid "Thursday" and the
+            whole preview behind it: the row's own text, covered by a control
+            that was summoned by pointing at it.
+
+            The line now reserves the lane while the cluster is there. 160 px
+            against a cluster that starts 4 px further right, so the text stops
+            with a visible ellipsis 4 px clear of the cluster's edge rather than
+            disappearing under it. Reserved only on hover, because reserving it
+            at rest would spend 160 px of every row in the list on a state that
+            is true for one row at a time. The padding takes the cluster's own
+            duration, so the two move together. */}
+        <div
+          className={cn(
+            'flex items-baseline gap-2 leading-5',
+            'transition-[padding] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
+            'group-hover:pr-40',
+          )}
+        >
           <span
             className={cn(
               'truncate text-sm leading-5',
