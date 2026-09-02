@@ -22,7 +22,7 @@ import { describe, expect, it } from 'vitest'
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
 import { ratio } from '../scripts/lib/color.mjs'
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
-import { backdropsFor, fillsFor } from '../scripts/lib/fills.mjs'
+import { backdropsFor, fillsFor, hoverOver } from '../scripts/lib/fills.mjs'
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
 import { tokenReader } from '../scripts/lib/tokens.mjs'
 
@@ -110,6 +110,40 @@ describe('the on-fill tier — issues #26, #27, #29, #30', () => {
       const [, onFillC, onFillH] = coords(raw('wren-accent-on-fill', theme))
       expect([onFillC, onFillH], `${theme} accent-on-fill hue and chroma`).toEqual([accentC, accentH])
     }
+  })
+
+  it('carries the dark menu\'s highlighted row — issue #55', () => {
+    // The measured pair, from the rendered pixels of the Save for later menu
+    // in dark: the return time on the first row, which opens highlighted.
+    // rgb(148,145,144) on rgb(55,52,51) = 3.94, against 4.61 for the same time
+    // on the three rows below it — the row a person is about to choose was the
+    // least readable row on the surface.
+    //
+    // The fill is the neutral hover fill over `raised`, which is the lightest
+    // ground in the set and was not on the certified list at all. Adding it
+    // without moving the ink swapped 3.94 for 4.36, so the on-fill step moved
+    // with it.
+    const highlighted = hoverOver('dark', rgb('wren-surface-raised', 'dark'))
+    expect(highlighted).toEqual([55, 52, 51])
+    expect(ratio(rgb('wren-text-3', 'dark'), highlighted)).toBeCloseTo(3.94, 2)
+    expect(
+      ratio(rgb('wren-text-on-fill', 'dark'), highlighted),
+      'the tier the highlighted row now paints its meta text in',
+    ).toBeGreaterThanOrEqual(TEXT)
+  })
+
+  it('paints that tier from the fill utility, not from a colour at the label', () => {
+    // The fix is the third fill utility, matching `bg-sunken` and
+    // `bg-fill-selected`: painting a fill and certifying the text on it are one
+    // act. A one-off colour on the picker's own row would have left every other
+    // hover fill in the app uncertified.
+    const css = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../src/index.css'),
+      'utf8',
+    )
+    const utility = css.match(/@utility bg-fill-hover \{[\s\S]*?\n\}/)
+    expect(utility, 'the bg-fill-hover utility moved out of src/index.css').not.toBeNull()
+    expect(utility![0]).toContain('--wren-text-3: var(--wren-text-on-fill)')
   })
 
   it('leaves the ruled wash alphas alone', () => {

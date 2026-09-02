@@ -426,10 +426,24 @@
     --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.59 fails · ink 11.29 */
 
     /* The same row, dark. text-3 #949190 measured 4.28 on the selected row's
-       14% wash, which is the row the reader is on. The on-fill step measures
-       selected wash over surface 4.75 · surface 6.07 · raised 5.10 · sunken
-       7.24, and the accent step 6.27 on the same wash. */
-    --wren-text-on-fill: oklch(0.685 0.004 50); /* #9C9998                    */
+       14% wash, which is the row the reader is on, and 3.94 on the hover fill
+       over `raised` — the highlighted first row of the Save for later menu,
+       the row a person is about to choose (issue #55).
+
+       The step moved 0.685 → 0.700 for that second one. The hover fill was not
+       on the certified list when the step was chosen, and it is the LIGHTEST
+       ground in the set: 5% white over `raised` composites to #373433, where
+       the old step measured 4.36 — the tier that exists to clear 4.5 on a fill
+       did not clear it on the fill nobody had listed. Adding the fill to
+       `scripts/lib/fills.mjs` without moving the ink would have swapped one
+       failure for a smaller one.
+
+       The step now measures, worst first: hover over raised 4.62 · selected
+       wash over surface 5.04 · hover over surface 5.64 · selected wash over
+       base 5.93 · hover over base 6.58 · sunken 7.67. Same hue, same chroma,
+       one notch of lightness — still a step of text-3 and not a second
+       palette, and still under text-2 at 0.742. */
+    --wren-text-on-fill: oklch(0.700 0.004 50); /* #A09E9C                    */
     --wren-accent-on-fill: oklch(0.775 0.12 13); /* #F895A0                   */
 
     /* Same rule, same one token. See the light block for the measurements. */

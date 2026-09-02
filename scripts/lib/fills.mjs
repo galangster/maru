@@ -14,12 +14,32 @@
 import { over } from './color.mjs'
 import { tokenReader } from './tokens.mjs'
 
-const { token } = tokenReader()
+const { token, raw } = tokenReader()
 
 const rgb = (name, theme) => token(name, theme).rgb
 
 /** The alpha DIRECTION §3 gives the selected-row wash, per theme. */
 export const SELECTED_ALPHA = { light: 0.08, dark: 0.14 }
+
+/**
+ * The neutral hover fill, composited on a backdrop.
+ *
+ * It was left off this list for a wave because it is *neutral* — 4.5% black in
+ * light, 5% white in dark — and a fill that faint reads as no fill at all. It
+ * is a fill, and in dark it is the one under the **highlighted** row of a menu:
+ * the Save for later picker opens with its first row already highlighted, and
+ * the return time on it measured 3.94:1 while the same time on the rows below
+ * it measured 4.61 (issue #55).
+ *
+ * The alpha is read off the token rather than restated, because the whole point
+ * of this file is that the gate measures what ships.
+ */
+export function hoverOver(theme, backdrop) {
+  const value = raw('wren-fill-hover', theme)
+  const alpha = value.match(/\/\s*([\d.]+)\s*\)/)
+  if (!alpha) throw new Error(`--wren-fill-hover carries no alpha for ${theme}: ${value}`)
+  return over(rgb('wren-fill-hover', theme), backdrop, Number(alpha[1]))
+}
 
 /**
  * The character's halo, in light only.
@@ -41,6 +61,12 @@ export function fillsFor(theme) {
     ['sunken', rgb('wren-surface-sunken', theme)],
     ['selected wash over surface', over(accent, rgb('wren-surface', theme), alpha)],
     ['selected wash over base', over(accent, rgb('wren-surface-base', theme), alpha)],
+    // The hover fill sits on all three certified surfaces: list rows on
+    // `surface`, menu and popover rows on `raised`, sidebar rows on the card.
+    // `raised` is the picker's, and it is the one that failed.
+    ['hover fill over surface', hoverOver(theme, rgb('wren-surface', theme))],
+    ['hover fill over base', hoverOver(theme, rgb('wren-surface-base', theme))],
+    ['hover fill over raised', hoverOver(theme, rgb('wren-surface-raised', theme))],
     ...(theme === 'light' ? [['halo (sampled)', HALO]] : []),
   ]
 }
