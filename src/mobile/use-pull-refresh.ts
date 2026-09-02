@@ -76,11 +76,19 @@ export function usePullRefresh(
     })
   }
   const drag = usePointerDrag({
+    // Vertical, so a horizontal swipe across a row at the top of the list no
+    // longer drags the refresh indicator down with it.
+    axis: 'vertical',
     onMove: ({ dy }) => {
       if (!usingTouch.current) move(dy)
     },
     onCommit: ({ dy }) => {
       if (!usingTouch.current) commit(dy)
+    },
+    onCancel: () => {
+      if (usingTouch.current) return
+      ready.current = false
+      writePull(region.current, 0, true, false)
     },
   })
 

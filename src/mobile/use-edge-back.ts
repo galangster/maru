@@ -7,7 +7,17 @@ export function useEdgeBack(onBack: () => void) {
   const [offset, setOffset] = useState(0)
   const [settling, setSettling] = useState(true)
   const eligible = useRef(false)
+  const settle = () => {
+    eligible.current = false
+    setSettling(true)
+    setOffset(0)
+  }
   const drag = usePointerDrag({
+    // The edge back is horizontal, and saying so is what stops a scroll that
+    // happens to start within `EDGE_BACK_START_PX` of the left edge from
+    // dragging the whole screen sideways. Before the lock lived in the hook,
+    // nothing here tested the axis at all.
+    axis: 'horizontal',
     onMove: ({ dx }) => {
       if (!eligible.current) return
       setSettling(false)
@@ -15,10 +25,9 @@ export function useEdgeBack(onBack: () => void) {
     },
     onCommit: ({ dx }) => {
       if (eligible.current && dx >= EDGE_BACK_THRESHOLD) onBack()
-      eligible.current = false
-      setSettling(true)
-      setOffset(0)
+      settle()
     },
+    onCancel: settle,
   })
 
   return {

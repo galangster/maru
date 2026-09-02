@@ -111,6 +111,10 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  /* A long press on a row is the actions menu. Without this the phone offers
+     its own copy/share callout over the top of it, and the two gestures fight
+     for the same 480ms. */
+  -webkit-touch-callout: none;
 }
 
 /*
@@ -133,7 +137,21 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   box-sizing: border-box;
 }
 
-.mobile-app button,
+/*
+ * `manipulation` on every control, because it takes away the 350ms the phone
+ * otherwise spends waiting to see whether a tap is a double-tap zoom.
+ *
+ * It must not reach a control that is *also* a gesture surface, and that
+ * exception is the whole of "swiping doesn't work" in build 0.1.8. A thread
+ * row is a `<button>`, so `.mobile-app button` (0,1,1) outranked
+ * `.mobile-thread-row` (0,1,0) and the row's `pan-y` never applied on the
+ * phone at all. `manipulation` lets the browser pan in *both* axes, so
+ * WKWebView handed every horizontal drag on a row to its own scroll view and
+ * cancelled the pointer mid-swipe. `pan-y` is the opposite bargain: vertical
+ * is the scroll view's, horizontal is ours, and the split is made in the
+ * compositor rather than by a JS handler racing it.
+ */
+.mobile-app button:not(.mobile-thread-row),
 .mobile-app a,
 .mobile-app input,
 .mobile-app textarea,
@@ -188,10 +206,35 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   transform: scale(0.96);
 }
 
-.mobile-app button:focus-visible,
-.mobile-app textarea:focus-visible,
-.mobile-app select:focus-visible,
-.mobile-app [role='button']:focus-visible {
+/*
+ * A ring is a keyboard's answer to "where am I". A finger already knows.
+ *
+ * `:focus-visible` alone does not get this right in WKWebView. WebKit resolves
+ * it from the *element*, not only from the gesture: anything it considers
+ * keyboard-operable — a `<select>`, every text field — matches `:focus-visible`
+ * the moment a finger taps it, and focus restored to the opener when a sheet
+ * closes inherits the match from whatever had it before. That is where build
+ * 0.1.8's "random focus boxes" came from. They were random because they
+ * tracked the element type, not the interaction.
+ *
+ * So the modality is measured instead, in `use-input-modality.ts`, and written
+ * on the root as `data-input-modality`. Every ring in the phone shell — here,
+ * in settings-screen.css and in account-screen.css — hangs off
+ * `[data-input-modality='keyboard']`, and this reset clears the ring WebKit
+ * would otherwise draw for anything else, its own UA outline included. A
+ * keyboard user loses nothing: the first key press flips the attribute, and
+ * keydown lands before the focus it moves.
+ */
+.mobile-app :focus,
+.mobile-app :focus-visible {
+  outline: none;
+}
+
+html[data-input-modality='keyboard'] .mobile-app button:focus-visible,
+html[data-input-modality='keyboard'] .mobile-app textarea:focus-visible,
+html[data-input-modality='keyboard'] .mobile-app input:focus-visible,
+html[data-input-modality='keyboard'] .mobile-app select:focus-visible,
+html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   outline: 2px solid var(--wren-text-1);
   outline-offset: 2px;
 }

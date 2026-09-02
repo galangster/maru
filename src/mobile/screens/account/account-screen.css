@@ -152,10 +152,14 @@
   color: var(--wren-text-3);
 }
 
-.mobile-account-field input:focus-visible,
-.mobile-account-field textarea:focus-visible,
-.mobile-account-device-form input:focus-visible,
-.mobile-account-check-row input:focus-visible + .mobile-account-checkbox {
+/* Gated on the input modality, like every other ring in the shell — the
+   reasoning is in mobile.css beside the reset. These are the fields that made
+   the problem visible: WebKit matches `:focus-visible` on a text input the
+   moment a thumb lands in it. */
+html[data-input-modality='keyboard'] .mobile-account-field input:focus-visible,
+html[data-input-modality='keyboard'] .mobile-account-field textarea:focus-visible,
+html[data-input-modality='keyboard'] .mobile-account-device-form input:focus-visible,
+html[data-input-modality='keyboard'] .mobile-account-check-row input:focus-visible + .mobile-account-checkbox {
   outline: 2px solid var(--wren-text-1);
   outline-offset: 2px;
 }

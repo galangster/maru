@@ -1,4 +1,6 @@
-.mobile-toggle-row input:focus-visible + .mobile-switch {
+/* Gated on the input modality, like every other ring in the shell — the
+   reasoning is in mobile.css beside the reset. */
+html[data-input-modality='keyboard'] .mobile-toggle-row input:focus-visible + .mobile-switch {
   outline: 2px solid var(--wren-text-1);
   outline-offset: 2px;
 }

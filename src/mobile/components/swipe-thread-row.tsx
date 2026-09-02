@@ -1,10 +1,11 @@
 import { memo, useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import type { Thread } from '@/core/types'
+import { nativeShell } from '@/platform/shell'
 import { MobileIcon } from './mobile-icon'
 import {
   LONG_PRESS_DELAY_MS,
-  LONG_PRESS_MOVE_THRESHOLD,
+  SWIPE_ACTION_THRESHOLD,
   SWIPE_OFFSET_LIMIT,
   resolveSwipeIntent,
   type MobileRowModel,
@@ -39,6 +40,8 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
   const [settling, setSettling] = useState(true)
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressClick = useRef(false)
+  /** Whether the row has been dragged far enough to commit, right now. */
+  const armed = useRef(false)
 
   const cancelLongPress = useCallback(function cancel() {
     if (longPress.current) clearTimeout(longPress.current)
@@ -47,25 +50,51 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
     window.removeEventListener('touchmove', cancel)
   }, [])
 
+  /** Back to rest, with the transition on. Every ending goes through here. */
+  const settle = useCallback(() => {
+    armed.current = false
+    setSettling(true)
+    setOffset(0)
+  }, [])
+
   const drag = usePointerDrag({
-    onMove: ({ dx, dy }) => {
+    // The hook now owns the axis. This row only ever hears about a gesture
+    // that locked horizontal, so a scroll cannot move it and a swipe of its
+    // own cannot scroll the page — `touch-action: pan-y` on the row is the
+    // other half of that, and mobile.css explains why it was not applying.
+    axis: 'horizontal',
+    onMove: ({ dx }) => {
       if (editing) return
-      if (Math.abs(dx) > LONG_PRESS_MOVE_THRESHOLD || Math.abs(dy) > LONG_PRESS_MOVE_THRESHOLD) {
-        cancelLongPress()
-      }
-      if (Math.abs(dx) <= Math.abs(dy)) return
+      // A gesture that reached this callback has travelled at least
+      // `AXIS_LOCK_THRESHOLD`, which is further than a long press is allowed
+      // to wander. It is a drag, so it is not a press.
+      cancelLongPress()
       setSettling(false)
-      setOffset(Math.max(-SWIPE_OFFSET_LIMIT, Math.min(SWIPE_OFFSET_LIMIT, dx)))
+      const next = Math.max(-SWIPE_OFFSET_LIMIT, Math.min(SWIPE_OFFSET_LIMIT, dx))
+      setOffset(next)
+      // The tap at the threshold, on the way out only: this is the moment the
+      // action behind the row becomes the thing that will happen, and a thumb
+      // covering the label is exactly who needs telling.
+      const past = Math.abs(next) >= SWIPE_ACTION_THRESHOLD
+      if (past !== armed.current) {
+        armed.current = past
+        if (past) void nativeShell.impact('light')
+      }
     },
     onCommit: ({ dx, dy }) => {
       cancelLongPress()
-      if (editing) return
+      if (editing) return settle()
       const intent = resolveSwipeIntent(dx, dy)
       if (intent) suppressClick.current = true
-      setSettling(true)
-      setOffset(0)
+      settle()
       if (intent === 'archive') onArchive()
       if (intent === 'later') onLater()
+    },
+    // A tap, a scroll, or WebKit taking the gesture. None of them committed to
+    // anything, so the row goes back the way it came.
+    onCancel: () => {
+      cancelLongPress()
+      settle()
     },
   })
 
@@ -73,6 +102,11 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
     drag.onPointerDown(event)
     if (editing) return
     suppressClick.current = false
+    armed.current = false
+    // The start of the drag, not the crossing. `prepare()` needs the head
+    // start if the tap at the threshold is to land on the frame the label
+    // appears — the same bargain `usePullRefresh` makes.
+    void nativeShell.prepareHaptics()
     // The page is the scroller now, so a press that becomes a scroll can stop
     // reaching this row entirely: WebKit hands the gesture to the scroll view
     // and `onMove` never fires to cancel the timer. A drag is never a long

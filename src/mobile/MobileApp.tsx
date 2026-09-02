@@ -33,6 +33,7 @@ import {
   visibleScreen,
   type MobileTab,
 } from './state'
+import { useInputModality } from './use-input-modality'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
 import { useRouteScroll } from './use-route-scroll'
 import './mobile.css'
@@ -45,6 +46,7 @@ export function MobileApp() {
   useThemeEffect()
   useMailEvents()
   useWakeSweep()
+  useInputModality()
 
   const [navigation, dispatch] = useReducer(mobileRouteReducer, initialMobileRoute)
   const onNativeTab = useCallback((index: number) => {
