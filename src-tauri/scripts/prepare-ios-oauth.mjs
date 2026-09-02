@@ -8,10 +8,21 @@ import {
 const clientId = process.env.VITE_MARU_IOS_GOOGLE_CLIENT_ID?.trim()
   || IOS_GOOGLE_CLIENT_ID_PLACEHOLDER;
 const callbackScheme = iosCallbackScheme(clientId);
+// Export compliance (App Store Connect, and the encryption question on every
+// upload). Maru's iOS build encrypts only with AES-GCM through Apple's own
+// CryptoKit/CommonCrypto and with TLS through the system stack. Both are
+// "standard encryption algorithms accepted as international standards", so the
+// build is exempt under Category 5 Part 2 note 4 and needs no CCATS and no
+// annual self-classification report. Declaring it here means App Store Connect
+// stops asking on every upload, and TestFlight builds are never held for the
+// answer. If Maru ever ships its own cipher, or proprietary crypto, this key
+// must be revisited before the build that carries it.
 const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
