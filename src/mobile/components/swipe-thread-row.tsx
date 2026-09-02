@@ -82,6 +82,10 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
     window.addEventListener('scroll', cancelLongPress, { once: true, passive: true })
     window.addEventListener('touchmove', cancelLongPress, { once: true, passive: true })
     longPress.current = setTimeout(() => {
+      // The press won, so the listeners it armed have no one left to cancel.
+      // They are `once`, but a gesture that ends without a scroll or a
+      // touchmove never fires them, and they would outlive the row.
+      cancelLongPress()
       suppressClick.current = true
       onContext()
     }, LONG_PRESS_DELAY_MS)

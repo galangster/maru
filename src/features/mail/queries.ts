@@ -23,8 +23,6 @@ import { toast } from 'sonner'
 
 import { cue } from '@/lib/cue'
 import { playSound } from '@/lib/sound'
-import { RATE_LIMIT_MS, rateLimit } from '@/lib/sound-policy'
-import { nativeShell } from '@/platform/shell'
 import { dedupeAddresses } from '@/lib/compose'
 import { correspondents } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
@@ -403,11 +401,9 @@ export function useDefer() {
     mutationFn: ({ threadKey, wakeAt }) => service.defer(threadKey, wakeAt),
     onMutate: async ({ threadKey: key, wakeAt }) => {
       // The commit, not the sheet, so the reading toolbar and the desktop list
-      // get it too. `undefer` fans out the same way a bulk archive does, and
-      // the Later sheet sends one mutation per selected thread, so it shares
-      // `complete`'s window: one gesture, one tap. No sound — deferring is an
-      // intent rather than a completion (SOUNDS §2).
-      if (rateLimit('defer', RATE_LIMIT_MS.complete)) void nativeShell.impact('medium')
+      // get it too. `defer` is the soundless cue, and it carries its own
+      // window; `lib/cue.ts` states both.
+      cue('defer')
       await client.cancelQueries({ queryKey: ['threads'] })
       const detail = client.getQueryData<{ thread: Thread; messages: Message[] }>(keys.thread(key))
 

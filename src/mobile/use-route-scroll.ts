@@ -21,9 +21,22 @@ export function useRouteScroll(routeKey: string): void {
   const current = useRef(routeKey)
 
   useEffect(() => {
-    const sample = () => positions.current.set(current.current, window.scrollY)
+    // One read per frame. WebKit fires `scroll` far more often than it paints,
+    // and `window.scrollY` is a layout read: coalescing into a frame keeps the
+    // sample as fresh as anything on screen and stops the thrash.
+    let frame = 0
+    const sample = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        positions.current.set(current.current, window.scrollY)
+      })
+    }
     window.addEventListener('scroll', sample, { passive: true })
-    return () => window.removeEventListener('scroll', sample)
+    return () => {
+      window.removeEventListener('scroll', sample)
+      if (frame) cancelAnimationFrame(frame)
+    }
   }, [])
 
   useLayoutEffect(() => {

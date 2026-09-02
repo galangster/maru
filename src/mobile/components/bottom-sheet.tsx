@@ -1,8 +1,8 @@
-import { useEffect, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
-import { nativeShell } from '@/platform/shell'
 import { MobileIcon } from './mobile-icon'
+import { useHapticBoundary } from '../use-native-shell'
 import { useModalFocus } from '../use-modal-focus'
 
 export function BottomSheet({
@@ -15,11 +15,7 @@ export function BottomSheet({
   children: ReactNode
 }) {
   const dialogRef = useModalFocus<HTMLElement>(onClose)
-  // A sheet is a haptic about to happen: Later commits one, the actions sheet
-  // archives. This is the boundary that makes `prepare()` worth the call.
-  useEffect(() => {
-    void nativeShell.prepareHaptics()
-  }, [])
+  useHapticBoundary()
   const layer = (
     <div
       className="mobile-sheet-layer mobile-bottom-layer"
@@ -38,12 +34,9 @@ export function BottomSheet({
       </section>
     </div>
   )
-  // Into the shell root, not the calling screen. The thread and account screens
-  // keep a transform from their push animation, and a transformed ancestor is
-  // the containing block for a fixed child — the sheet would be pinned to the
-  // bottom of a page-tall screen instead of the bottom of the phone. The host
-  // is `.mobile-app` rather than the body because the shell's resets are
-  // scoped to it.
+  // Into `.mobile-app`, not the calling screen, which is transformed — see
+  // docs/IOS.md. The host is the shell rather than the body because the
+  // shell's resets are scoped to it.
   const host = typeof document === 'undefined' ? null : document.querySelector('.mobile-app')
   return host ? createPortal(layer, host) : layer
 }

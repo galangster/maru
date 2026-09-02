@@ -158,13 +158,18 @@ The only scroll view present is the WKWebView's own.
 A fixed-position shell never moves it, and the bar never minimizes.
 
 `src/mobile/mobile.css` holds the layout and the reasons.
-Headers hold their place with `position: sticky`.
-The web tab bar and the bulk toolbar are fixed.
-The thread toolbar is sticky, because its screen carries a transform.
+
+Sticky or fixed follows one rule. The push and the edge-back animation put a
+transform on the thread screen and the account screen. A transformed ancestor
+is the containing block for a fixed child, so a fixed element inside those
+screens pins to the bottom of a page-tall screen instead of the bottom of the
+phone. Inside a transformed screen, use `position: sticky` or portal the
+element to `.mobile-app`. Everywhere else, `position: fixed` is correct.
+Headers are sticky. The web tab bar and the bulk toolbar are fixed. The thread
+toolbar is sticky. Sheets portal.
+
 The inbox list uses `useWindowVirtualizer`.
 Pull to refresh reads `window.scrollY`.
-Sheets render into `.mobile-app` through a portal,
-because the thread and account screens carry a transform.
 A sheet holds the page still through CSS, not by pinning the body:
 `html:has(.mobile-sheet-layer)`.
 Pinning the body would report a scroll offset of zero to the virtualizer.

@@ -56,19 +56,31 @@ html:has(.mobile-sheet-layer) .mobile-stage {
 /*
  * Toasts clear the bottom chrome.
  *
- * Sonner mounts outside the shell, so it cannot read `--mobile-tab-height`. It
- * reads the plugin's published measurement of the glass instead, and falls back
- * to the web bar's height for the `?mobile=1` preview. The undo offer and the
- * sign-in result were both landing under the bar.
+ * Sonner mounts outside the shell, so it cannot read `--mobile-tab-height`.
+ * `--mobile-toast-offset` is that height restated on the root, where the
+ * toaster can see it, and it is derived the same two ways `.mobile-app` and
+ * `.mobile-app[data-native-shell='true']` derive theirs — the web bar's height
+ * for the `?mobile=1` preview, and the plugin's published measurement of the
+ * glass behind it, falling back to zero rather than to a guess. The undo offer
+ * and the sign-in result were both landing under the bar.
  *
- * `!important` because sonner writes both offsets as inline styles on its own
- * container, and an inline declaration is the only thing a stylesheet cannot
- * otherwise outrank. The alternative is an `offset` prop in `main.tsx`, which
+ * Scoped to the phone shell: the desktop shares this toaster and wants none of
+ * it. `!important` stays even so, because sonner writes both offsets as inline
+ * styles on its own container, and an inline declaration is the one thing no
+ * selector outranks. The alternative is an `offset` prop in `main.tsx`, which
  * the desktop shares and does not need.
  */
-[data-sonner-toaster][data-y-position='bottom'] {
-  --offset-bottom: calc(var(--maru-native-tab-inset, 84px) + env(safe-area-inset-bottom) + 12px) !important;
-  --mobile-offset-bottom: calc(var(--maru-native-tab-inset, 84px) + env(safe-area-inset-bottom) + 12px) !important;
+html:has(.mobile-app) {
+  --mobile-toast-offset: calc(84px + env(safe-area-inset-bottom) + 12px);
+}
+
+html:has(.mobile-app[data-native-shell='true']) {
+  --mobile-toast-offset: calc(var(--maru-native-tab-inset, 0px) + env(safe-area-inset-bottom) + 12px);
+}
+
+html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
+  --offset-bottom: var(--mobile-toast-offset) !important;
+  --mobile-offset-bottom: var(--mobile-toast-offset) !important;
 }
 
 /*
@@ -199,9 +211,7 @@ html:has(.mobile-sheet-layer) .mobile-stage {
   background: var(--wren-surface-base);
 }
 
-/* Sticky rather than fixed: fixed would need the content padded by hand, and
-   inside the thread and account screens it would be trapped by their transform
-   anyway. */
+/* Sticky, not fixed — docs/IOS.md, "The phone scrolls the document". */
 .mobile-nav {
   position: sticky;
   z-index: 6;
@@ -230,7 +240,7 @@ html:has(.mobile-sheet-layer) .mobile-stage {
   bottom: 100%;
   left: 0;
   right: 0;
-  height: 100vh;
+  height: max(env(safe-area-inset-top), 64px);
   background: var(--wren-surface-base);
   pointer-events: none;
 }
@@ -362,7 +372,6 @@ html:has(.mobile-sheet-layer) .mobile-stage {
    but the scrolling is the document's now. `flex: 1` is what pushes a sticky
    bottom bar to the foot of a short screen. */
 .mobile-scroll {
-  min-height: 0;
   flex: 1;
 }
 
@@ -612,8 +621,7 @@ html:has(.mobile-sheet-layer) .mobile-stage {
   backdrop-filter: blur(24px) saturate(1.25);
 }
 
-/* Fixed, not sticky: it appears over the list while Edit is on, and nothing
-   above it creates a containing block. */
+/* Fixed: no transformed ancestor here — docs/IOS.md. */
 .mobile-bulk-toolbar {
   position: fixed;
   bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom));
@@ -870,11 +878,9 @@ html:has(.mobile-sheet-layer) .mobile-stage {
   color: var(--wren-text-3);
 }
 
-/* Sticky, not fixed. `.mobile-thread-screen` carries a transform for the push
-   and the edge-back drag, and a transformed ancestor is the containing block
-   for a fixed child -- the toolbar would ride the bottom of a page-tall screen
-   instead of the bottom of the glass. Sticky also reserves its own room at the
-   end of the column, so the last message clears it without a padding rule. */
+/* Sticky: `.mobile-thread-screen` is transformed — docs/IOS.md. Sticky also
+   reserves its own room at the end of the column, so the last message clears
+   it without a padding rule. */
 .mobile-thread-toolbar {
   position: sticky;
   bottom: 0;

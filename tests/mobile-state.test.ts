@@ -131,15 +131,13 @@ describe('native tab bar positions', () => {
       { title: 'Search', symbol: 'magnifyingglass' },
       { title: 'Settings', symbol: 'gearshape' },
     ])
-    expect(nativeTabs()).toHaveLength(MOBILE_TABS.length)
   })
 
-  it('names and draws every tab, on both bars', () => {
+  it('draws every tab on the web bar', () => {
+    // The label and the SF Symbol are already asserted, exactly, by the
+    // descriptor test above. The web icon is the half only this bar uses.
     for (const tab of MOBILE_TABS) {
-      const chrome = MOBILE_TAB_CHROME[tab]
-      expect(chrome.label).toBeTruthy()
-      expect(chrome.icon).toBeTruthy()
-      expect(chrome.symbol).toBeTruthy()
+      expect(MOBILE_TAB_CHROME[tab].icon).toBeTruthy()
     }
   })
 

@@ -12,7 +12,7 @@ import { cue } from '@/lib/cue'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
 import { MobileIcon } from '../components/mobile-icon'
 import { useModalFocus } from '../use-modal-focus'
-import { nativeShell } from '@/platform/shell'
+import { useHapticBoundary } from '../use-native-shell'
 
 const RECIPIENT_KINDS = ['to', 'cc', 'bcc'] as const
 type RecipientKind = (typeof RECIPIENT_KINDS)[number]
@@ -56,10 +56,7 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
     closeStore()
   }
   const dialogRef = useModalFocus<HTMLElement>(close)
-  // The composer ends in `notify('success')`. Same boundary, same reason.
-  useEffect(() => {
-    void nativeShell.prepareHaptics()
-  }, [])
+  useHapticBoundary()
   const send = async () => {
     const committed = recipientEntries.map(([kind]) => recipientRefs.current[kind]?.commit())
     if (committed.some((result) => result?.state.invalid)) {

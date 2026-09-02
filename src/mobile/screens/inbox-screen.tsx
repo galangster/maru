@@ -11,7 +11,6 @@ import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
 import { buildMobileRowModel } from '../state'
 import { usePullRefresh } from '../use-pull-refresh'
-import './inbox-screen.css'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
 const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
@@ -65,12 +64,14 @@ export function InboxScreen({
     scrollMargin: listTop,
   })
   // Measured rather than assumed: the header grows with Dynamic Type and with
-  // the Edit row. React bails out when the value is unchanged, so this settles
-  // in one pass instead of looping.
+  // the Edit row. Those are the only things that move the list's top, so they
+  // are the dependencies — re-measuring on every render costs a layout read
+  // per frame of a scroll and never returns a different number. React bails
+  // out when the value is unchanged, so this settles in one pass.
   useLayoutEffect(() => {
     const top = list.current?.offsetTop ?? 0
     setListTop((current) => (current === top ? current : top))
-  })
+  }, [rootFontSizePx, editing, query.isPending, rows.length === 0])
   useEffect(() => {
     const update = () => setRootFontSizePx(readRootFontSize())
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
@@ -140,7 +141,7 @@ export function InboxScreen({
                   className="mobile-virtual-row"
                   data-index={virtualRow.index}
                   key={row.thread.key}
-                  style={{ transform: `translateY(${virtualRow.start - listTop}px)` }}
+                  style={{ transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)` }}
                 >
                   <SwipeThreadRow
                     thread={row.thread}

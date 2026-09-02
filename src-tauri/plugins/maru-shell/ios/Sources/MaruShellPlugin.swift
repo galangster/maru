@@ -343,8 +343,7 @@ final class MaruShellPlugin: Plugin, UITabBarControllerDelegate {
     haptic(invoke, "impact \(args.style)") { [weak self] in
       guard let self else { return }
       self.warmGenerators(prepare: false)
-      let style = Self.impactStyles[args.style] == nil ? "medium" : args.style
-      self.impactGenerators[style]?.impactOccurred()
+      (self.impactGenerators[args.style] ?? self.impactGenerators["medium"])?.impactOccurred()
     }
   }
 

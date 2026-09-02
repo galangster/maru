@@ -8,6 +8,20 @@ import { inboxBadgeValue, indexOfTab, nativeTabs, type MobileTab } from './state
 const INBOX_VIEW = { kind: 'unified', folder: 'inbox' } as const
 
 /**
+ * Wakes the Taptic Engine at a point where a haptic is about to be asked for.
+ *
+ * `prepare()` decays in a couple of seconds, so calling it one line before the
+ * impact pays the cost and buys nothing. A sheet opening is the boundary that
+ * makes it worth the call: Later commits an impact, the actions sheet
+ * archives, and the composer ends in `notify('success')`.
+ */
+export function useHapticBoundary(): void {
+  useEffect(() => {
+    void nativeShell.prepareHaptics()
+  }, [])
+}
+
+/**
  * `null` while the probe is in flight, then `true` if the native tab bar is
  * driving navigation and `false` if the web one must.
  *

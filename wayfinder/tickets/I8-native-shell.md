@@ -268,3 +268,68 @@ Captures in `wayfinder/captures/ios/`: `native-tabbar-light.png`,
   by hand; the residual is synthetic-input only, and worth one more look.
 - Lane 3 of the charter — sheets as `UISheetPresentationController` — is
   untouched, and the bottom sheets are still the web's.
+
+## Lane 3 build log — 2026-09-01
+
+The third delegated lane, not charter lane 3 — sheets as
+`UISheetPresentationController` is still untouched. This lane applied the
+orchestrator's two-reviewer pass over the lane 1 and lane 2 diff. Behaviour is
+unchanged except where a finding names a defect.
+
+### Applied
+
+- `src/mobile/screens/inbox-screen.css` deleted with its import: its only rule
+  was an `overscroll-behavior` on an element that no longer scrolls.
+- `lib/cue.ts` narrowed to `CueName = 'complete' | 'sent' | 'defer'`, so `FEEL`
+  is a total `Record` and the `Partial`, the `?.` and the absent-entry
+  paragraph are gone; `defer` is the soundless cue.
+- `useDefer` calls `cue('defer')`; the direct `rateLimit` and `nativeShell`
+  pair, and their imports, are gone from `queries.ts`.
+- The inbox `listTop` measurement runs on
+  `[rootFontSizePx, editing, query.isPending, rows.length === 0]` instead of
+  every render, and the row transform reads `virtualizer.options.scrollMargin`
+  rather than holding a second copy of it.
+- `use-route-scroll.ts` coalesces the scroll sample into one
+  `requestAnimationFrame` per frame, still `passive`.
+- `.mobile-nav::before` is `max(env(safe-area-inset-top), 64px)` tall, not
+  `100vh`.
+- The sonner override is scoped under `html:has(.mobile-app)` and hoists its
+  repeated `calc()` into `--mobile-toast-offset`, whose fallback now agrees
+  with `.mobile-app[data-native-shell]` — zero, not 84px. `!important` stays:
+  sonner writes both offsets as inline styles, which no selector outranks.
+- The leftover `min-height: 0` is off `.mobile-scroll`.
+- One `useHapticBoundary()` in `use-native-shell.ts` replaces the duplicated
+  `prepareHaptics` effect in `bottom-sheet.tsx` and `compose-sheet.tsx`.
+- A successful long press calls `cancelLongPress()` first, so the `scroll` and
+  `touchmove` listeners it armed come off instead of outliving the row.
+- `impact` in `MaruShellPlugin.swift` does one lookup:
+  `(impactGenerators[args.style] ?? impactGenerators["medium"])?.impactOccurred()`.
+- `tests/mobile-state.test.ts` drops a length assertion the `toEqual` above it
+  already made, and the second tab test is reduced to the web `icon`, the only
+  half the descriptor test does not cover.
+- `docs/IOS.md` states the sticky-versus-fixed rule and its cause once — a
+  transformed ancestor from the push and edge-back animation is the containing
+  block for a fixed child — and the four code comments that repeated it
+  (`mobile.css` on `.mobile-nav`, `.mobile-bulk-toolbar` and
+  `.mobile-thread-toolbar`, and the portal comment in `bottom-sheet.tsx`) are
+  now pointers to it.
+
+### Deferred to the next I8 lane
+
+Keep `InboxScreen` mounted across a thread push, so the window virtualizer does
+not rebuild on every return (reviewer efficiency finding 2). Not taken here
+because it changes the stage's mounting model, which is a wider change than a
+cleanup lane should make on its own.
+
+### Attribution correction for lane 1
+
+The lane 1 build log's simplify section describes two review agents. They were
+the lane's own reading of its diff, not a separate review. The orchestrator's
+independent two-reviewer pass ran afterwards; its findings were applied in
+lane 2 and in this lane.
+
+### Gates
+
+`npm run typecheck && npm test && npm run build` pass — 696 tests, 41 files.
+`cargo check` and `cargo check --target aarch64-apple-ios-sim` both clean. The
+Swift change is not covered by either `cargo check`; Xcode compiles that half.
