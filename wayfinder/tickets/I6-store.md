@@ -9,7 +9,7 @@ listing copy, TestFlight internal group, then review.
 
 ## App Store Connect record — created 2026-09-01 (agent in Nick's Chrome, Nick's go-ahead)
 
-- App record **"Maru Mail"** (iOS, English U.S., bundle `app.getmaru.ios`,
+- App record **"Maru Mail"** (Apple ID 6807633550; iOS, English U.S., bundle `app.getmaru.ios`,
   SKU `maru-ios`) on team 2M8UE59WH7. **The store name "Maru" was already
   taken** by another app, which is the name-collision risk the queue
   flagged; "Maru Mail" matches the Google consent screen. The home-screen
