@@ -13,9 +13,9 @@ import { useRef } from 'react'
 import type { Account } from '@/core/types'
 import { useSyncStatus } from '@/features/mail/queries'
 import { useMailMode } from '@/features/mail/service'
-import { syncPreview } from '@/lib/env'
+import { platformOS, syncPreview } from '@/lib/env'
 import { useNow } from '@/lib/use-now'
-import { describeSync, type SyncSummary } from './sync-summary'
+import { deviceNounFor, describeSync, type SyncSummary } from './sync-summary'
 
 /**
  * Subscribes to the minute tick, so whatever calls this re-renders once a
@@ -34,5 +34,17 @@ export function useSyncSummary(accounts: Account[]): SyncSummary {
   // "Demo data" is the truest thing to say about a demo window. But the demo
   // service is the only way to reach the failure states in a browser, so
   // `?sync=` has to be allowed past it or the flag could never show anything.
-  return describeSync(accounts, statuses, demo && !syncPreview, now, startedAt.current)
+  // The fifth ingredient, and the one both shells were getting wrong in the
+  // same direction: two of the six sentences name the machine, and the phone
+  // said "on this Mac" on an iPhone (issue 52). Resolved once, here, beside
+  // the clock and the demo flag, so neither shell composes a device noun of
+  // its own and Windows stops being called a Mac too.
+  return describeSync(
+    accounts,
+    statuses,
+    demo && !syncPreview,
+    now,
+    startedAt.current,
+    deviceNounFor(platformOS),
+  )
 }

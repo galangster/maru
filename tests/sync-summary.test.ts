@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Account, SyncStatus } from '@/core/types'
-import { describeSync, isUrgent } from '@/features/sidebar/sync-summary'
+import { DEVICE_NOUNS, describeSync, deviceNounFor, isUrgent } from '@/features/sidebar/sync-summary'
 
 const NOW = 1_788_200_000_000
 
@@ -262,6 +262,81 @@ describe('describeSync', () => {
     ]
     for (const s of cases) {
       expect(describeSync(FOUR, s, false, NOW).short.length).toBeLessThanOrEqual(11)
+    }
+  })
+})
+
+/**
+ * The machine the two local-state sentences are about (issue 52).
+ *
+ * Four of the six failure messages say nothing about a device and read
+ * correctly everywhere. Two are about THIS machine — an OAuth client that was
+ * never configured here, and a keychain that holds no sign-in here — and both
+ * said "on this Mac" on an iPhone, and on a PC.
+ */
+describe('the device the sentence names', () => {
+  const local = (id: string): SyncStatus => ({
+    accountId: id,
+    state: 'error',
+    needsReauth: true,
+    noCredentials: true,
+  })
+
+  it('names each platform once', () => {
+    expect(deviceNounFor('ios')).toBe('this phone')
+    expect(deviceNounFor('mac')).toBe('this Mac')
+    expect(deviceNounFor('windows')).toBe('this PC')
+    // Linux and anything else. Named rather than left out: a sentence with a
+    // hole in it is worse than one that is merely unspecific.
+    expect(deviceNounFor('other')).toBe('this computer')
+  })
+
+  it('says "this phone" on the phone, for the missing client', () => {
+    const missing: SyncStatus = {
+      accountId: 'a',
+      state: 'error',
+      needsReauth: true,
+      clientFailure: true,
+      noClientConfigured: true,
+    }
+    const sync = describeSync(FOUR, statuses(missing), false, NOW, NOW, DEVICE_NOUNS.ios)
+    expect(sync.detail).toBe(
+      'Maru has no Google OAuth client configured on this phone, so no mail is ' +
+        'arriving. Nothing at Google is wrong. Open Settings to add a client ID.',
+    )
+    expect(sync.detail).not.toContain('Mac')
+  })
+
+  it('says "this phone" on the phone, for the empty keychain', () => {
+    const all = describeSync(
+      FOUR,
+      statuses(local('a'), local('b'), local('c'), local('d')),
+      false,
+      NOW,
+      NOW,
+      DEVICE_NOUNS.ios,
+    )
+    expect(all.detail).toBe(
+      'Maru has no saved sign-in for any account on this phone, ' +
+        'so no mail is arriving. Open Settings to sign in.',
+    )
+
+    const some = describeSync(FOUR, statuses(local('a')), false, NOW, NOW, DEVICE_NOUNS.ios)
+    expect(some.detail).toContain('for nick@metadao.fi on this phone,')
+  })
+
+  it('leaves the four device-neutral sentences alone', () => {
+    // The noun reaches two messages and no others. A summary that started
+    // naming the device in every state would be four regressions for one fix.
+    const blip = (id: string): SyncStatus => ({
+      accountId: id,
+      state: 'error',
+      error: 'network timeout',
+      lastSyncAt: NOW - 120_000,
+    })
+    for (const device of Object.values(DEVICE_NOUNS)) {
+      const stalled = describeSync(FOUR, statuses(blip('a'), blip('b'), blip('c'), blip('d')), false, NOW, NOW, device)
+      expect(stalled.detail).not.toContain(device)
     }
   })
 })

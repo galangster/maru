@@ -18,6 +18,35 @@ import type { Account, SyncStatus } from '@/core/types'
 /** Which recovery a state routes to, or none. */
 export type SyncAction = 'accounts' | 'google' | null
 
+/**
+ * What the two local-state sentences call the machine they are about.
+ *
+ * Two of the six failure messages are about THIS device and not about the
+ * account: an OAuth client that was never configured here, and a keychain that
+ * holds no sign-in here. Both said "on this Mac", and the phone said it too —
+ * on an iPhone, about an iPhone (issue 52). The other four are device-neutral
+ * and read correctly everywhere, which is why this is a noun and not a second
+ * set of sentences.
+ *
+ * A parameter rather than a read of `platformOS` inside `describeSync`,
+ * because this file is a pure function over its arguments and that is what
+ * lets the six sentences be tested as data. `useSyncSummary` resolves it, the
+ * same way it resolves the clock and the demo flag.
+ */
+export const DEVICE_NOUNS: Record<'ios' | 'mac' | 'windows' | 'other', string> = {
+  ios: 'this phone',
+  mac: 'this Mac',
+  windows: 'this PC',
+  // Linux and anything else. Named rather than left out: a sentence with a
+  // hole in it is worse than one that is merely unspecific.
+  other: 'this computer',
+}
+
+/** The noun for a platform. `platformOS`'s four values, and nothing else. */
+export function deviceNounFor(os: keyof typeof DEVICE_NOUNS): string {
+  return DEVICE_NOUNS[os]
+}
+
 /** The winning kind across every account, plus the two states that are not
  *  about one account's health: a demo window, and an app still starting. */
 export type SummaryKind = SyncKind | 'demo' | 'unheard'
@@ -93,6 +122,13 @@ export function describeSync(
   now: number,
   /** When this window started waiting. Defaults to `now`, i.e. no elapsed. */
   startedAt: number = now,
+  /**
+   * What to call the machine, for the two sentences that are about it. The
+   * Mac is the default because it is the platform the desktop shell ships on
+   * first; every caller that is not one resolves its own — `useSyncSummary`
+   * does it for both shells.
+   */
+  device: string = DEVICE_NOUNS.mac,
 ): SyncSummary {
   const plural = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`
 
@@ -151,7 +187,7 @@ export function describeSync(
       short: 'Set up',
       full: 'No Google client',
       detail:
-        'Maru has no Google OAuth client configured on this Mac, so no mail is ' +
+        `Maru has no Google OAuth client configured on ${device}, so no mail is ` +
         'arriving. Nothing at Google is wrong. Open Settings to add a client ID.',
       action: 'google',
     }
@@ -194,11 +230,11 @@ export function describeSync(
     let detail: string
     if (local && dead.length === accounts.length) {
       detail =
-        'Maru has no saved sign-in for any account on this Mac, ' +
+        `Maru has no saved sign-in for any account on ${device}, ` +
         'so no mail is arriving. Open Settings to sign in.'
     } else if (local) {
       detail =
-        `Maru has no saved sign-in for ${names(emails)} on this Mac, ` +
+        `Maru has no saved sign-in for ${names(emails)} on ${device}, ` +
         `so ${one ? 'its' : 'their'} mail has stopped arriving.` +
         rest(idle.length) +
         ' Open Settings to sign in.'
