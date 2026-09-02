@@ -7,8 +7,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { labelDelta, reverseAction } from '../src/core/service/actions'
 import type { MailActionType } from '../src/core/types'
 import {
+  announcesItself,
   clearedUndoable,
   liveUndoable,
+  UNDO_LABELS,
   UNDO_WINDOW_MS,
   type Undoable,
 } from '../src/lib/undo'
@@ -113,5 +115,30 @@ describe('clearedUndoable', () => {
 
   it('is a no-op on an empty registry', () => {
     expect(clearedUndoable(null, 'send')).toBeNull()
+  })
+})
+
+describe('announcesItself', () => {
+  it('announces every action that moves a thread between mailboxes', () => {
+    expect(announcesItself('archive')).toBe(true)
+    expect(announcesItself('trash')).toBe(true)
+    // Issue 5: restoring is the mirror of trashing and was the silent one.
+    expect(announcesItself('untrash')).toBe(true)
+    expect(announcesItself('unarchive')).toBe(true)
+  })
+
+  it('stays quiet for a flag the row still shows', () => {
+    expect(announcesItself('star')).toBe(false)
+    expect(announcesItself('unstar')).toBe(false)
+    expect(announcesItself('markRead')).toBe(false)
+    expect(announcesItself('markUnread')).toBe(false)
+  })
+
+  it('gives every announced action words that say where the thread went', () => {
+    expect(UNDO_LABELS.trash).toBe('Moved to trash')
+    expect(UNDO_LABELS.untrash).toBe('Moved to Inbox')
+    for (const type of ['archive', 'unarchive', 'trash', 'untrash'] as const) {
+      expect(UNDO_LABELS[type].length).toBeGreaterThan(0)
+    }
   })
 })

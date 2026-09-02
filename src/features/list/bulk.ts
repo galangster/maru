@@ -7,7 +7,8 @@
 
 import { reverseAction } from '@/core/service/actions'
 import type { MailAction, MailActionType, Thread } from '@/core/types'
-import { UNDO_LABELS, showUndoToast } from '@/features/mail/queries'
+import { showUndoToast } from '@/features/mail/queries'
+import { UNDO_LABELS } from '@/lib/undo'
 import { useUi } from '@/features/mail/ui-store'
 import { wakeTime } from '@/lib/format'
 

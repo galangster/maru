@@ -35,7 +35,7 @@ import { bulkAction, isBulkAction } from '@/features/list/bulk'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
 import { playSound } from '@/lib/sound'
-import { UNDO_TOAST_ID } from '@/lib/undo'
+import { announcesItself, UNDO_LABELS, UNDO_TOAST_ID } from '@/lib/undo'
 
 import { SHORTCUTS_BY_KEY, type ShortcutId } from './keymap'
 
@@ -83,8 +83,12 @@ export function useShortcuts() {
       // two that remove a thread from view also say so out loud, because the
       // keyboard path has no row animation to stand in for the confirmation.
       registerActionUndo(action.mutate, next)
-      if (type !== 'archive' && type !== 'trash') return
-      showUndoToast(type === 'archive' ? 'Archived' : 'Moved to trash')
+      // Every action that moves a thread between mailboxes says so, restore
+      // from trash included: the keyboard path has no row animation to stand
+      // in for the confirmation, and a key that seems to do nothing is worse
+      // than the action it performed (issue 5).
+      if (!announcesItself(type)) return
+      showUndoToast(UNDO_LABELS[type])
     },
     markRead: (threadKey) => action.mutate({ type: 'markRead', threadKey }),
     compose,
