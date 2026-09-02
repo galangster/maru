@@ -46,7 +46,9 @@ A non-default value enables the real Gmail service.
 Set the client id before an iOS build.
 
 ```sh
-export VITE_MARU_IOS_GOOGLE_CLIENT_ID="<client-id>.apps.googleusercontent.com"
+export VITE_MARU_IOS_GOOGLE_CLIENT_ID="537601059334-302klho3gdlj3kloseb6akr96o26r855.apps.googleusercontent.com"
+# The official iOS client for bundle app.getmaru.ios (created 2026-09-01).
+# CI reads the same value from the repository variable MARU_IOS_GOOGLE_CLIENT_ID.
 ```
 
 The build derives and registers
@@ -170,8 +172,7 @@ Large-text proof files are:
 
 The remaining production setup is one value:
 
-- Create the iOS OAuth client for bundle identifier `app.getmaru.ios`.
-- Paste its client id into `VITE_MARU_IOS_GOOGLE_CLIENT_ID` for the iOS build.
+- ~~Create the iOS OAuth client~~ — created 2026-09-01: `537601059334-302klho3gdlj3kloseb6akr96o26r855.apps.googleusercontent.com`, also the repository variable `MARU_IOS_GOOGLE_CLIENT_ID`.
 
 The client seam, callback registration, PKCE exchange, Keychain filing,
 directed consent, Settings entry, and cancellation handling are implemented.

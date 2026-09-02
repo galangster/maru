@@ -32,11 +32,10 @@ These are the buttons only you can press, in the order they unblock work.
    - **Second Owner**: IAM → Grant access → `galangsterr@gmail.com` → Owner →
      Save, then accept the invite from that account. The API refuses this
      for a consumer address, so it is the console only. Verify the double-r.
-   - Credentials → Create OAuth client → type **iOS**, bundle
-     `app.getmaru.ios`. Tell me the client id. **The phone side is built
-     and proven** (2026-09-01): the id becomes
-     `VITE_MARU_IOS_GOOGLE_CLIENT_ID` at build time and Gmail sign-in on
-     the iPhone turns on; nothing else changes.
+   - ~~iOS OAuth client~~ — created 2026-09-01 by the agent in your Chrome
+     with your go-ahead: `537601059334-302klho3gdlj3kloseb6akr96o26r855.apps.googleusercontent.com`
+     (name "Maru for iPhone", bundle `app.getmaru.ios`, team 2M8UE59WH7).
+     Set as repository variable `MARU_IOS_GOOGLE_CLIENT_ID`.
 4. **Apple, two items** (A4, I6): Certificates → Keys → create an APNs key
    for team 2M8UE59WH7 and give me the `.p8` and its key id (put the file in
    `ops/apple/` locally, never in git); in App Store Connect create the app
