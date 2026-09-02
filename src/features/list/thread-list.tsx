@@ -654,6 +654,7 @@ export function ThreadList() {
                       onAction={onAction}
                       onLater={onLaterOne}
                       onCheck={onCheck}
+                      showWake={view.kind === 'later'}
                     />
                   )}
                 </div>

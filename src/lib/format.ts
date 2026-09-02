@@ -125,6 +125,31 @@ export function wakeGroup(ts: number, now: number): WakeGroup {
   return 'Later this month'
 }
 
+/**
+ * When a saved thread comes back, in the list's 64 px meta column.
+ *
+ * The Later list groups by the day the mail is due back and every row showed
+ * the day it ARRIVED, so a thread saved until this evening sat under "Today"
+ * and printed "Yesterday" on its own row — two dates on screen with nothing to
+ * say which was which (issue #38). `relativeTime` cannot answer this: it
+ * buckets the past, and a future timestamp satisfies its first branch and comes
+ * back as a clock time whatever day it is on.
+ *
+ * The shape mirrors `relativeTime` exactly — clock, weekday, date — so the
+ * Later list's column reads like every other list's. It answers with what the
+ * group header does not already say: inside two days the header has the day, so
+ * the time is the new information; past that the day is.
+ */
+export function wakeStamp(ts: number, now: number): string {
+  const group = wakeGroup(ts, now)
+  if (group === 'Today' || group === 'Tomorrow') return timeFmt.format(ts)
+  if (group === 'This week') return weekdayFmt.format(ts)
+  // MAX_DEFER_DAYS is 30, so a deferral can cross a New Year.
+  return new Date(ts).getFullYear() === new Date(now).getFullYear()
+    ? dateFmt.format(ts)
+    : datedFmt.format(ts)
+}
+
 export function wakeTime(ts: number, now: number): string {
   const clock = timeFmt.format(ts).replace(/^0/, '')
   // Deliberately NOT `dateGroup`. That function buckets a timestamp in the

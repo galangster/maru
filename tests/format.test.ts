@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest'
 
-import { elapsedTime } from '../src/lib/format'
+import { elapsedTime, relativeTime, wakeGroup, wakeStamp } from '../src/lib/format'
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -40,5 +40,44 @@ describe('elapsedTime', () => {
 
   it('never reads as the future when a clock skews', () => {
     expect(elapsedTime(NOW + 5 * MINUTE, NOW)).toBe('just now')
+  })
+})
+
+// The Later list's meta column.
+//
+// It exists because `relativeTime` cannot answer this question: it buckets the
+// PAST, so every future timestamp satisfies its first branch and comes back as
+// a clock time whatever day it lands on. The Later list groups by the day the
+// mail is due back and its rows were printing the day it arrived, which put a
+// "Today" header over a "Yesterday" row (issue #38). These are the boundaries
+// that bug is made of.
+describe('wakeStamp', () => {
+  // Local midnights, because the buckets are counted between them.
+  const local = (y: number, m: number, d: number, h = 9) => new Date(y, m, d, h).getTime()
+  const NOON = local(2026, 7, 29, 12)
+
+  it('proves relativeTime cannot be used for a future date', () => {
+    // The whole reason the function exists: a week out still reads as a clock.
+    expect(relativeTime(local(2026, 8, 5), NOON)).toMatch(/^\d/)
+  })
+
+  it('gives the time for today and tomorrow, where the header has the day', () => {
+    expect(wakeStamp(local(2026, 7, 29, 18), NOON)).toMatch(/18|6:00/)
+    expect(wakeGroup(local(2026, 7, 30, 9), NOON)).toBe('Tomorrow')
+    expect(wakeStamp(local(2026, 7, 30, 9), NOON)).toMatch(/9:00/)
+  })
+
+  it('gives the weekday inside the week, where the header does not', () => {
+    const inWeek = local(2026, 8, 2, 9)
+    expect(wakeGroup(inWeek, NOON)).toBe('This week')
+    expect(wakeStamp(inWeek, NOON)).not.toMatch(/:/)
+    expect(wakeStamp(inWeek, NOON)).toHaveLength(3)
+  })
+
+  it('gives a date past the week, and carries the year when it crosses one', () => {
+    expect(wakeStamp(local(2026, 8, 20, 9), NOON)).toMatch(/Sep/)
+    // MAX_DEFER_DAYS is 30, so a deferral made in late December crosses.
+    const newYear = local(2027, 0, 5, 9)
+    expect(wakeStamp(newYear, local(2026, 11, 20, 12))).toMatch(/2027/)
   })
 })

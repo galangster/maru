@@ -22,7 +22,7 @@ import { Icon } from '@/components/ui/icon'
 import { AVATAR_CHIP, AccountAvatar, DATE_COLUMN, META_TEXT, iconButtonClass } from '@/components/wren-controls'
 import type { Account, MailActionType, Thread } from '@/core/types'
 import { THREAD_ACTION_ORDER, threadActions } from '@/features/mail/thread-actions'
-import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import { correspondents, participantLine, relativeTime, wakeStamp, wakeTime } from '@/lib/format'
 import { hueFor, hueSolid } from '@/lib/hue'
 import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
@@ -56,6 +56,15 @@ export interface ThreadRowProps {
    */
   onLater: (thread: Thread) => void
   onCheck: (thread: Thread) => void
+  /**
+   * The Later list, where the row's date is the day the mail comes BACK.
+   *
+   * The list groups by that day, and the row printed the day the mail arrived
+   * instead — "Today" as a header over "Yesterday" on the row (issue #38).
+   * A flag rather than a formatted string, so the row keeps owning its own
+   * clock and the minute tick still re-renders only the timestamps.
+   */
+  showWake?: boolean
 }
 
 /** The DOM id of a row, so the listbox can point `aria-activedescendant` at it.
@@ -77,6 +86,7 @@ export const ThreadRow = memo(function ThreadRow({
   onAction,
   onLater,
   onCheck,
+  showWake = false,
 }: ThreadRowProps) {
   // The row owns its own clock. Held by the list, the minute tick re-rendered
   // every row in the viewport; here it re-renders only the timestamps.
@@ -84,6 +94,7 @@ export const ThreadRow = memo(function ThreadRow({
   const people = correspondents(thread.participants, selfEmails)
   const sender = participantLine(people)
   const lead = people[0] ?? { email: sender }
+  const wake = showWake ? (thread.deferredUntil ?? null) : null
   const act = useCallback((type: MailActionType) => onAction(thread, type), [onAction, thread])
   const later = useCallback(() => onLater(thread), [onLater, thread])
 
@@ -199,8 +210,20 @@ export const ThreadRow = memo(function ThreadRow({
               left edge of the timestamps ragged down the list, which is the
               one thing DIRECTION §1 says a column may never do. 64 px holds
               the longest value. */}
-          <time className={DATE_COLUMN}>
-            {relativeTime(thread.lastMessageAt, now)}
+          {/* In the Later list this is when the thread comes back, not when it
+              arrived — and it says so to a screen reader, which reads the row
+              as one run of text and would otherwise hear two dates with nothing
+              between them. `wakeStamp` answers with what the group header does
+              not already say. */}
+          <time className={DATE_COLUMN} title={wake === null ? undefined : wakeTime(wake, now)}>
+            {wake === null ? (
+              relativeTime(thread.lastMessageAt, now)
+            ) : (
+              <>
+                <span className="sr-only">Back </span>
+                {wakeStamp(wake, now)}
+              </>
+            )}
           </time>
         </div>
 
