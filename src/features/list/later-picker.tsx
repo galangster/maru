@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Icon } from '@/components/ui/icon'
-import { ICON_SLOT, Keycap } from '@/components/wren-controls'
+import { ICON_SLOT, KEYCAP_SLOT, Keycap } from '@/components/wren-controls'
 import { MAX_DEFER_DAYS, deferAtDate, deferPresets, maxDeferAt } from '@/core/defaults'
 import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
 import { wakeTime } from '@/lib/format'
@@ -244,9 +244,7 @@ function PickerRow({
           into the empty keycap column. In a five-row menu, one row broke the
           column the other four establish. A slot rather than a conditional
           keeps every meta value ending at the same x. */}
-      <span aria-hidden={!hint} className="flex w-5 shrink-0 justify-end">
-        {hint && <Keycap>{hint}</Keycap>}
-      </span>
+      <span className={KEYCAP_SLOT}>{hint && <Keycap>{hint}</Keycap>}</span>
     </button>
   )
 }

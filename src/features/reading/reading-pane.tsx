@@ -17,7 +17,6 @@ import {
   registerActionUndo,
   registerUndoable,
   useLabels,
-  useListSearch,
   usePerformAction,
   useSaveSettings,
   useSettings,
@@ -27,6 +26,7 @@ import {
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 import { useSurfaces } from '@/features/shell/surface-store'
 import { useUi } from '@/features/mail/ui-store'
+import { useListSearch } from '@/features/list/list-search'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 
 import { displayMessages, expandedIds, normalizeExpansion, toggleExpanded } from './conversation'
@@ -48,7 +48,6 @@ export function ReadingPane() {
   const now = useNow()
 
   const detail = useThread(selectedKey)
-  const search = useListSearch()
   const queryClient = useQueryClient()
   const action = usePerformAction()
   const settings = useSettings()
@@ -113,51 +112,7 @@ export function ReadingPane() {
     container.scrollTop = Math.max(0, top - 12)
   }, [thread?.key, messageCount, order])
 
-  // The list's own answer, not a second search: see useListSearch.
-  const noMatches = search.searching && search.hits.length === 0
-
-  if (!selectedKey || !thread) {
-    return (
-      <section
-        aria-label="Reading"
-        tabIndex={-1}
-        // TRANSPARENT, so the shell's field runs behind this pane unbroken.
-        // At rest the ground itself is the character's field, and a pane
-        // painting its own bg-canvas here would cut a grey band out of it.
-        className="flex h-full flex-col outline-none"
-      >
-        {/* Still the drag field, so the window moves by its own top edge with
-            nothing open — but no rule and no fill. There is no toolbar here to
-            head, and a hairline across an empty pane only chops the field in
-            two (owner, 2026-08-31). A childless div with a bare attribute is
-            always a direct hit, so it drags and double-click-zooms. */}
-        <div data-tauri-drag-region className="h-(--wren-toolbar-h) shrink-0" />
-        <div className="min-h-0 flex-1">
-          {/* The bird is always here. A "one Maru on screen" rule briefly
-              stood the perched bird down while the list flew one; the owner
-              overruled it, and the distinction he drew is better than the rule
-              was — the two birds are not duplicates, they are the same
-              character in its two states, and the backgrounds now say which is
-              which. A field is where Maru waits; the disc is where Maru flies. */}
-          {/* The subtitle answers the list, because the two panes are read
-              together. With results on the left, "pick a thread" and "press J"
-              are both true. With a search that matched nothing they are both
-              impossible, and the app was telling a person to do two
-              contradictory things at once (issue #33). The pane names the one
-              move that still works instead. */}
-          <EmptyState
-            mark
-            copy={{
-              title: 'Nothing open',
-              subtitle: noMatches
-                ? 'Nothing on the left to open — try a different search.'
-                : 'Pick a thread on the left, or press J to open the first one.',
-            }}
-          />
-        </div>
-      </section>
-    )
-  }
+  if (!selectedKey || !thread) return <NothingOpen />
 
   const messages = detail.data?.messages ?? []
   const shown = displayMessages(messages, order)
@@ -308,6 +263,62 @@ export function ReadingPane() {
 
           <ReplyBar />
         </motion.div>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * The pane with nothing in it.
+ *
+ * Its own component because it is the only thing in this file that cares
+ * whether a search is running: mounted here, `useListSearch` subscribed the
+ * whole reading pane to the header's every settled keystroke to compose one
+ * sentence that is rendered only when no thread is open. Read mail is the
+ * common case, and it now pays nothing for this.
+ */
+function NothingOpen() {
+  // The list's own answer, not a second search: see useListSearch.
+  const search = useListSearch()
+  const noMatches = search.searching && search.hits.length === 0
+
+  return (
+    <section
+      aria-label="Reading"
+      tabIndex={-1}
+      // TRANSPARENT, so the shell's field runs behind this pane unbroken.
+      // At rest the ground itself is the character's field, and a pane
+      // painting its own bg-canvas here would cut a grey band out of it.
+      className="flex h-full flex-col outline-none"
+    >
+      {/* Still the drag field, so the window moves by its own top edge with
+          nothing open — but no rule and no fill. There is no toolbar here to
+          head, and a hairline across an empty pane only chops the field in
+          two (owner, 2026-08-31). A childless div with a bare attribute is
+          always a direct hit, so it drags and double-click-zooms. */}
+      <div data-tauri-drag-region className="h-(--wren-toolbar-h) shrink-0" />
+      <div className="min-h-0 flex-1">
+        {/* The bird is always here. A "one Maru on screen" rule briefly
+            stood the perched bird down while the list flew one; the owner
+            overruled it, and the distinction he drew is better than the rule
+            was — the two birds are not duplicates, they are the same
+            character in its two states, and the backgrounds now say which is
+            which. A field is where Maru waits; the disc is where Maru flies. */}
+        {/* The subtitle answers the list, because the two panes are read
+            together. With results on the left, "pick a thread" and "press J"
+            are both true. With a search that matched nothing they are both
+            impossible, and the app was telling a person to do two
+            contradictory things at once (issue #33). The pane names the one
+            move that still works instead. */}
+        <EmptyState
+          mark
+          copy={{
+            title: 'Nothing open',
+            subtitle: noMatches
+              ? 'Nothing on the left to open — try a different search.'
+              : 'Pick a thread on the left, or press J to open the first one.',
+          }}
+        />
       </div>
     </section>
   )

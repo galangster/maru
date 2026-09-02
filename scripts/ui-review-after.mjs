@@ -18,6 +18,8 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import sharp from 'sharp'
 
+import { gotoReady, newCaptureContext, parkPointer } from './lib/capture.mjs'
+
 import { ORIGIN, startServerIfNeeded } from './dev-server.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -25,13 +27,20 @@ const OUT = join(ROOT, 'wayfinder/captures/ui-review-desktop/after')
 
 const VIEWPORT = { width: 1280, height: 800 }
 
-/** A thread with several messages and a rich body — the reply tiles' home. */
-const openThird = async (page) => {
-  await page.locator('[data-thread-key]').nth(2).click()
+/** Open the nth row and wait for the pane to have rendered it. The card is the
+ *  signal every shot that opens a thread needs — the row click resolves a query
+ *  and a sleep long enough for that on this machine is not long enough on
+ *  another. */
+const openRow = (index) => async (page) => {
+  await page.locator('[data-thread-key]').nth(index).click()
   await page.waitForSelector('section[aria-label="Reading"] [data-message-card]', {
     timeout: 10_000,
   })
 }
+
+/** A thread with several messages and a rich body — the reply tiles' home. */
+const openThird = openRow(2)
+const openFirst = openRow(0)
 
 const search = (query) => async (page) => {
   await page.keyboard.press('/')
@@ -39,24 +48,37 @@ const search = (query) => async (page) => {
     timeout: 10_000,
   })
   await page.keyboard.type(query)
-  // The debounce, then the query.
+  // The debounce, then the query. The one wait with no DOM signal to take
+  // instead: a search that matches nothing settles by NOT changing the page.
   await page.waitForTimeout(1200)
+}
+
+/** #22 — three tabs from an empty spot in the sidebar lands on "Starred". */
+const focusRing = async (page) => {
+  // Empty sidebar card, below the accounts group: a click that focuses
+  // nothing, so the Tab count below starts where the review's did.
+  await page.mouse.click(130, 620)
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Tab')
+}
+
+/** #27, #31 — the composer's field wells and its disabled Send. */
+const compose = async (page) => {
+  await page.keyboard.press('c')
+  await page.waitForSelector('section[aria-label="New message"]', { timeout: 10_000 })
+  await page.waitForSelector('.wren-editor [contenteditable]', { timeout: 10_000 })
+}
+
+/** #27 — the palette's footer keycaps and its row hints. */
+const palette = async (page) => {
+  await page.keyboard.press('Control+k')
+  await page.waitForSelector('[cmdk-input]', { timeout: 10_000 })
 }
 
 const SHOTS = [
   // #22 — the ring is the same on every control; the sidebar is where the
-  // review sampled it. Three tabs lands on "Starred".
-  {
-    file: 'focus-ring-light-1280.png',
-    act: async (page) => {
-      // Empty sidebar card, below the accounts group: a click that focuses
-      // nothing, so the Tab count below starts where the review's did.
-      await page.mouse.click(130, 620)
-      for (let i = 0; i < 3; i++) await page.keyboard.press('Tab')
-      await page.waitForTimeout(200)
-    },
-  },
-  { file: 'focus-ring-dark-1280.png', theme: 'dark', sameAs: 'focus-ring-light-1280.png' },
+  // review sampled it.
+  { file: 'focus-ring-light-1280.png', act: focusRing },
+  { file: 'focus-ring-dark-1280.png', theme: 'dark', act: focusRing },
 
   // #23 — the fixed sender column.
   { file: 'search-light-1280.png', act: search('is:unread') },
@@ -79,7 +101,6 @@ const SHOTS = [
     act: async (page) => {
       await page.keyboard.press('?')
       await page.waitForSelector('[role="dialog"]', { timeout: 10_000 })
-      await page.waitForTimeout(200)
     },
   },
 
@@ -88,26 +109,12 @@ const SHOTS = [
   { file: 'thread-dark-1280.png', theme: 'dark', act: openThird },
 
   // #27, #31 — the composer's field wells and its disabled Send.
-  {
-    file: 'compose-light-1280.png',
-    act: async (page) => {
-      await page.keyboard.press('c')
-      await page.waitForSelector('section[aria-label="New message"]', { timeout: 10_000 })
-      await page.waitForTimeout(400)
-    },
-  },
-  { file: 'compose-dark-1280.png', theme: 'dark', sameAs: 'compose-light-1280.png' },
+  { file: 'compose-light-1280.png', act: compose },
+  { file: 'compose-dark-1280.png', theme: 'dark', act: compose },
 
   // #27 — the palette's footer keycaps and its row hints.
-  {
-    file: 'palette-light-1280.png',
-    act: async (page) => {
-      await page.keyboard.press('Control+k')
-      await page.waitForSelector('[cmdk-input]', { timeout: 10_000 })
-      await page.waitForTimeout(300)
-    },
-  },
-  { file: 'palette-dark-1280.png', theme: 'dark', sameAs: 'palette-light-1280.png' },
+  { file: 'palette-light-1280.png', act: palette },
+  { file: 'palette-dark-1280.png', theme: 'dark', act: palette },
 
   // #28 — "Maru account", whole.
   {
@@ -115,7 +122,6 @@ const SHOTS = [
     act: async (page) => {
       await page.locator('button[aria-label="Settings"]').click()
       await page.waitForSelector('nav[aria-label="Settings sections"]', { timeout: 10_000 })
-      await page.waitForTimeout(300)
     },
   },
 
@@ -141,11 +147,9 @@ const SHOTS = [
   {
     file: 'toast-archive-light-1280.png',
     act: async (page) => {
-      await page.locator('[data-thread-key]').first().click()
-      await page.waitForTimeout(400)
+      await openFirst(page)
       await page.keyboard.press('e')
       await page.waitForSelector('[data-sonner-toast]', { timeout: 10_000 })
-      await page.waitForTimeout(400)
     },
   },
 
@@ -153,11 +157,9 @@ const SHOTS = [
   {
     file: 'later-light-1280.png',
     act: async (page) => {
-      await page.locator('[data-thread-key]').first().click()
-      await page.waitForTimeout(400)
+      await openFirst(page)
       await page.keyboard.press('h')
       await page.waitForSelector('[role="dialog"]', { timeout: 10_000 })
-      await page.waitForTimeout(300)
     },
   },
 
@@ -170,8 +172,7 @@ const SHOTS = [
     file: 'later-view-light-1280.png',
     live: true,
     act: async (page) => {
-      await page.locator('[data-thread-key]').first().click()
-      await page.waitForTimeout(400)
+      await openFirst(page)
       await page.keyboard.press('h')
       await page.waitForSelector('[role="dialog"]', { timeout: 10_000 })
       // The last preset is always the furthest out, so it survives the sweep.
@@ -189,30 +190,32 @@ const child = await startServerIfNeeded(ROOT)
 await mkdir(OUT, { recursive: true })
 
 try {
+  // One pinned context for the whole set, and one page inside it: the frames
+  // are meant to be compared with each other, so locale, timezone and motion
+  // are settled once rather than per shot. `scripts/lib/capture.mjs`, shared
+  // with scripts/screenshot.mjs.
+  const context = await newCaptureContext(browser, { viewport: VIEWPORT })
+  const page = await context.newPage()
+
   for (const shot of SHOTS) {
-    const act = shot.act ?? SHOTS.find((s) => s.file === shot.sameAs)?.act
-    const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 })
     const flags = shot.live ? '' : '&screenshot=1'
     const theme = shot.theme ?? 'light'
-    await page.goto(`${ORIGIN}/?demo=1${flags}&theme=${theme}`, { waitUntil: 'networkidle' })
-    await page.waitForSelector('[data-thread-key]', { timeout: 20_000 })
-    await page.waitForTimeout(400)
-    if (act) await act(page)
+    await gotoReady(page, `${ORIGIN}/?demo=1${flags}&theme=${theme}`)
+    if (shot.act) await shot.act(page)
     // Park the pointer off every row unless the frame IS a hover state: a
     // click leaves the cursor where it landed, and the row's hover cluster
     // would then cover the very text some of these frames exist to show.
-    if (!shot.keepPointer) {
-      await page.mouse.move(VIEWPORT.width - 1, VIEWPORT.height - 1)
-      await page.waitForTimeout(200)
-    }
+    if (shot.keepPointer) await page.waitForLoadState('networkidle')
+    else await parkPointer(page, VIEWPORT)
     const buffer = await page.screenshot({ type: 'png' })
     // Palette-encoded, no dithering — the review's own encoding, and what keeps
     // a flat interface capture under a tenth of a truecolour one.
     const encoded = await sharp(buffer).png({ palette: true, dither: 0 }).toBuffer()
     await writeFile(join(OUT, shot.file), encoded)
     console.log(`${shot.file}  ${(encoded.length / 1024).toFixed(0)} KB`)
-    await page.close()
   }
+
+  await context.close()
 } finally {
   await browser.close()
   if (child) child.kill('SIGTERM')

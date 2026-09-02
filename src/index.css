@@ -66,7 +66,9 @@
     /* Maru surfaces and text tiers as utilities. Named for what they are, so
        `bg-surface` / `text-ink-2` read as the system, not as hex. */
     --color-canvas: var(--wren-surface-base);
-    --color-sunken: var(--wren-surface-sunken);
+    /* `--color-sunken` and `--color-fill-selected` are deliberately NOT here.
+       The two tinted fills are `@utility` blocks further down, because painting
+       one has to carry the tier that is certified on it — see there. */
     --color-surface: var(--wren-surface);
     --color-raised: var(--wren-surface-raised);
     --color-hairline: var(--wren-hairline);
@@ -74,9 +76,11 @@
     --color-ink: var(--wren-text-1);
     --color-ink-2: var(--wren-text-2);
     --color-ink-3: var(--wren-text-3);
-    /* The on-fill steps — tokens.css. `text-ink-fill` / `text-brand-fill` are
-       for a single label; the `on-fill` utility below is for a container that
-       paints a tinted fill and wants every tier inside it re-certified. */
+    /* The on-fill steps — tokens.css. Which of the two to reach for:
+       `text-ink-fill` / `text-brand-fill` name the step at ONE label whose own
+       tier is not `text-3` (a disabled Send's word, the sidebar's count); the
+       fill utilities below re-point the `text-3` TOKEN, so every quiet tier
+       inside a well is re-certified without naming any of them. */
     --color-ink-fill: var(--wren-text-on-fill);
     --color-brand: var(--wren-accent);
     --color-brand-hover: var(--wren-accent-hover);
@@ -85,7 +89,6 @@
     --color-success: var(--wren-success);
     --color-fill-hover: var(--wren-fill-hover);
     --color-fill-active: var(--wren-fill-active);
-    --color-fill-selected: var(--wren-fill-selected);
 
     /* The category hue family as utilities — `bg-hue-green`, `text-hue-fg`.
        lib/hue.ts still decides *which* hue a thing gets; this only stops the
@@ -155,20 +158,55 @@
     }
 }
 
-/* A container that paints one of the app's tinted fills — the sunken well, the
-   selected row's accent wash, the halo behind the character — declares it here
-   and every tier inside is re-certified against that fill.
+/* The app's two tinted fills, each carrying the tier that is certified on it.
+   Painting a fill and certifying the text on it are ONE act, so they are one
+   utility: `bg-sunken` cannot be written without the tier arriving with it.
 
-   It re-points the TOKEN rather than restating a colour, which is why one class
-   on a well fixes its eyebrow, its placeholder and its meta numerals at once:
-   `@theme inline` makes `text-ink-3` compile to `color: var(--wren-text-3)`, so
-   the value is resolved at the element and follows the cascade.
+   That is the whole point of these three blocks rather than a convention. The
+   tier used to ride along as a separate `on-fill` class applied by hand, which
+   reached 9 of 31 `bg-sunken` sites and 3 of 14 `bg-fill-selected` ones — the
+   command palette's selected row and half the sunken wells were painting a fill
+   the certified tier had never been measured against, which is issues #26 and
+   #27 in the places the first pass missed.
+
+   They re-point the TOKEN rather than restating a colour, which is why one
+   class on a well fixes its eyebrow, its placeholder and its meta numerals at
+   once: `@theme inline` makes `text-ink-3` compile to
+   `color: var(--wren-text-3)`, so the value resolves at the element and follows
+   the cascade.
 
    Only `--wren-text-3` moves. `--wren-accent` deliberately does not: the
    selected wash is derived from it (`--wren-fill-selected`), so re-pointing it
    on the element that paints the wash would move the backdrop the tier was just
    certified against. Accent-on-a-fill is `text-brand-fill`, named at the label
    that needs it. Issues #26, #27, #29, #30. */
+@utility bg-sunken {
+    background-color: var(--wren-surface-sunken);
+    --wren-text-3: var(--wren-text-on-fill);
+}
+
+@utility bg-fill-selected {
+    background-color: var(--wren-fill-selected);
+    --wren-text-3: var(--wren-text-on-fill);
+}
+
+/* The unavailable look, named once — issue #31. A muted fill with legible ink,
+   not the live fill made transparent, and no elevation: a control that is
+   refusing a press must not still float like one that invites it. Applied under
+   both `disabled:` and `aria-disabled:`, which is why it is a utility and not
+   two spellings of the same three declarations. */
+@utility recessed {
+    /* `@apply`, not three hand-written declarations: `shadow-none` in
+       particular has to zero Tailwind's shadow variable rather than the
+       `box-shadow` property, or it would take the focus ring — which composes
+       into the same property — down with it on an `aria-disabled` control that
+       is still focusable. */
+    @apply bg-sunken text-ink-fill shadow-none;
+}
+
+/* The same re-point with no fill of its own, for the one backdrop no class can
+   paint: the radial halo behind the character in the empty state. Everywhere
+   else the fill utility above carries it. */
 @utility on-fill {
     --wren-text-3: var(--wren-text-on-fill);
 }

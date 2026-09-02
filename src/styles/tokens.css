@@ -652,6 +652,14 @@
        rect is that minus the gap, so nothing about the virtualizer moves. */
     --wren-row-inset-x: 8px;
     --wren-row-gap: 4px;
+    /* The hover cluster, and the lane the row's second line gives up to it —
+       issue #32. ONE number, because the two are the same number: the cluster
+       is opaque and absolutely positioned over that line, so a lane narrower
+       than the cluster hides the row's own text under a control the pointer
+       summoned. Five 32 px actions. The 4 px of visible clearance between the
+       truncated text and the cluster's edge is the difference between the
+       cluster's `right-3` and the row's own `px-2`, not a sixth constant. */
+    --wren-row-cluster-w: 160px;
     /* Amie's coloured squircle: a category tile in settings and label rows. */
     --wren-tile: 28px;
     --wren-read-px: 32px;

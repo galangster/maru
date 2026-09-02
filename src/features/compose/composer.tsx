@@ -24,7 +24,6 @@ import {
   META_TEXT,
   PrimaryButton,
   SEND_BUTTON,
-  SEND_CONFIRM,
   SURFACE_TITLE,
   iconButtonClass,
 } from '@/components/wren-controls'
@@ -429,7 +428,7 @@ function ComposerSheet() {
         </>
       )}
 
-      <div className="on-fill bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
+      <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
         <label
           htmlFor="wren-subject"
           className={FIELD_LABEL}
@@ -454,7 +453,7 @@ function ComposerSheet() {
             {draft.attachments.map((attachment) => (
               <li
                 key={attachment.id}
-                className="on-fill bg-sunken text-ink-2 flex h-8 max-w-full items-center gap-2 rounded-full pr-1 pl-3 text-sm"
+                className="bg-sunken text-ink-2 flex h-8 max-w-full items-center gap-2 rounded-full pr-1 pl-3 text-sm"
               >
                 <Icon name="attachment" size={16} className="text-ink-3" />
                 <span className="truncate">{attachment.filename}</span>
@@ -529,12 +528,10 @@ function ComposerSheet() {
                 // the celebration: its fill crossfades to the green solid over
                 // 120 ms, the arrow becomes a check, and it runs one gentle
                 // pop. No particles. Send repeats dozens of times a day, and
-                // frequency is what kills delight.
-                //
-                // The recipe's unavailable look — the recessed fill with the
-                // on-fill ink — would grey the whole confirmation out the
-                // moment `sending` goes true, so SEND_CONFIRM restates the
-                // green in the `disabled:` variant.
+                // frequency is what kills delight. `confirming` is what keeps
+                // the recipe's unavailable look off it while `sending` holds
+                // the button disabled.
+                confirming={sending}
                 style={
                   sending
                     ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
@@ -544,7 +541,7 @@ function ComposerSheet() {
                 // keeps its pointer events, which is what lets the tooltip and
                 // the press explain themselves. The dimming that goes with it
                 // is PrimaryButton's, not this call site's.
-                className={cn(SEND_BUTTON, sending && SEND_CONFIRM)}
+                className={SEND_BUTTON}
               />
             }
           >
@@ -578,7 +575,7 @@ function FromRow({
   onChange: (accountId: string) => void
 }) {
   return (
-    <div className="on-fill bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
+    <div className="bg-sunken rounded-md flex min-h-9 items-center gap-3 px-3">
       <span className={FIELD_LABEL}>From</span>
       {accounts.length > 1 ? (
         <Select value={account?.id ?? ''} onValueChange={(value) => onChange(String(value))}>

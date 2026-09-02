@@ -230,9 +230,11 @@ function NavRow({
       'rounded-row font-ui group flex h-9 w-full items-center text-base outline-none',
       'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
       'focus-ring',
-      // `on-fill` rides with the wash, as it does on a thread row: the tiers
-      // inside an active row stand on the accent at 8%, not on the card.
-      active ? 'on-fill bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
+      // The certified tier rides with the wash, as it does on a thread row:
+      // the tiers inside an active row stand on the accent at 8%, not on the
+      // card. `bg-fill-selected` carries that re-point itself (index.css), so
+      // there is no second class to remember here.
+      active ? 'bg-fill-selected text-ink font-medium' : 'text-ink-2 hover:bg-fill-hover',
       collapsed ? 'justify-center px-0' : 'gap-2 px-2',
       indent && !collapsed && 'pl-8',
     ),

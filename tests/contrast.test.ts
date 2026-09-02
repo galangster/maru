@@ -9,8 +9,9 @@
 // shipped token values, with the formula the review used, and fails when a
 // token moves back under its floor.
 //
-// The maths is `scripts/lib/color.mjs`, shared with `scripts/contrast-audit.mjs`
-// so the gate and the report can never disagree.
+// The maths is `scripts/lib/color.mjs` and the list of fills is
+// `scripts/lib/fills.mjs`, both shared with `scripts/contrast-audit.mjs` so the
+// gate and the report can never disagree about either the formula or the table.
 
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -19,7 +20,9 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
-import { over, ratio } from '../scripts/lib/color.mjs'
+import { ratio } from '../scripts/lib/color.mjs'
+// @ts-expect-error -- plain-JS helpers, shared with the audit script.
+import { backdropsFor, fillsFor } from '../scripts/lib/fills.mjs'
 // @ts-expect-error -- plain-JS helpers, shared with the audit script.
 import { tokenReader } from '../scripts/lib/tokens.mjs'
 
@@ -32,48 +35,17 @@ const { token } = tokenReader() as {
 
 const rgb = (name: string, theme: Theme): Rgb => token(name, theme).rgb
 
+const fills = fillsFor as (theme: Theme) => Array<[string, Rgb]>
+const backdrops = backdropsFor as (theme: Theme) => Array<[string, Rgb]>
+
 /** WCAG AA for text below 18.66px — every label in the review's list. */
 const TEXT = 4.5
 /** WCAG 2.2 SC 1.4.11 for a non-text indicator. */
 const INDICATOR = 3
 
-/** DIRECTION §3: the selected row is the accent at 8% light, 14% dark. */
-const SELECTED_ALPHA: Record<Theme, number> = { light: 0.08, dark: 0.14 }
-
-/**
- * The character's halo, in light only.
- *
- * It is a radial gradient of Maru's own pink over the pane, so no single token
- * states it; this is the value the 2026-09-02 review sampled in the page under
- * "Nothing open", where the subtitle measured 4.46 (issue #30). It is lighter
- * than `sunken`, so `sunken` remains the governing light fill — the sampled
- * value is here because it is the pair that was filed, not because it decides
- * anything on its own.
- */
-const HALO: Rgb = [251, 235, 236]
-
-/** Every backdrop beyond the three certified surfaces that carries small text. */
-function fills(theme: Theme): Array<[string, Rgb]> {
-  const accent = rgb('wren-accent', theme)
-  const alpha = SELECTED_ALPHA[theme]
-  return [
-    ['sunken', rgb('wren-surface-sunken', theme)],
-    ['selected wash over surface', over(accent, rgb('wren-surface', theme), alpha) as Rgb],
-    ['selected wash over base', over(accent, rgb('wren-surface-base', theme), alpha) as Rgb],
-    ...(theme === 'light' ? ([['halo (sampled)', HALO]] as Array<[string, Rgb]>) : []),
-  ]
-}
-
 describe('focus ring — issue #22', () => {
   // It was the accent at 50% alpha: 2.05 on a white card, 2.77 in dark. The
   // ring is one token drawn on every control, so one number covers the app.
-  const backdrops = (theme: Theme): Array<[string, Rgb]> => [
-    ['surface', rgb('wren-surface', theme)],
-    ['base', rgb('wren-surface-base', theme)],
-    ['raised', rgb('wren-surface-raised', theme)],
-    ...fills(theme),
-  ]
-
   for (const theme of ['light', 'dark'] as const) {
     it(`clears 3:1 on every ${theme} surface it is drawn on`, () => {
       const ring = rgb('wren-focus-ring', theme)

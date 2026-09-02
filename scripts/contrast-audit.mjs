@@ -18,7 +18,8 @@
 // `--check` exits non-zero if a text tier fails AA on a surface it is
 // permitted to sit on, so CI or a pre-seal gate can hold the line.
 
-import { hex, over, r2, ratio } from './lib/color.mjs'
+import { hex, r2, ratio } from './lib/color.mjs'
+import { backdropsFor, fillsFor } from './lib/fills.mjs'
 import { tokenReader } from './lib/tokens.mjs'
 
 const { token } = tokenReader()
@@ -85,34 +86,9 @@ for (const theme of ['light', 'dark']) {
 
 // -- the fills, which are translucent and must be composited ------------------
 //
-// DIRECTION §3 certifies its tiers against `base`, `surface` and `raised`.
-// Every contrast failure the 2026-09-02 desktop review found was the same
-// certified tier standing on a fill that table does not cover — the sunken
-// well, the selected row's accent wash, the count wash, the character's halo.
-// This is that missing row: the fills are enumerated once, and every tier that
-// is allowed to sit on one is measured against it.
-
-/** The alpha DIRECTION §3 gives the selected-row wash, per theme. */
-const SELECTED_ALPHA = { light: 0.08, dark: 0.14 }
-
-/** Every backdrop a small label can be drawn on, beyond the three surfaces. */
-function fillsFor(theme) {
-  const accent = token('wren-accent', theme).rgb
-  const base = token('wren-surface-base', theme).rgb
-  const surface = token('wren-surface', theme).rgb
-  const alpha = SELECTED_ALPHA[theme]
-  return [
-    ['sunken', token('wren-surface-sunken', theme).rgb],
-    ['selected/surface', over(accent, surface, alpha)],
-    ['selected/base', over(accent, base, alpha)],
-    // The character's halo, in light only. It is a radial gradient of the
-    // character's own pink over the pane, so no single token states it; this
-    // is the value the 2026-09-02 review sampled in the page under "Nothing
-    // open". It is listed because issue #30 was measured against it, and it is
-    // lighter than `sunken`, so `sunken` is still the governing case.
-    ...(theme === 'light' ? [['halo (sampled)', [251, 235, 236]]] : []),
-  ]
-}
+// The list itself is `scripts/lib/fills.mjs`, shared with the gate in
+// `tests/contrast.test.ts`, and it says there why it is one list. Here it is
+// only measured: every tier that is allowed to sit on a fill, against it.
 
 lines.push('\n## TINTED FILLS (composited over their backdrop)\n')
 for (const theme of ['light', 'dark']) {
@@ -148,13 +124,7 @@ for (const theme of ['light', 'dark']) {
 lines.push('\n## FOCUS RING (WCAG 2.2 SC 1.4.11, 3:1)\n')
 for (const theme of ['light', 'dark']) {
   const ring = token('wren-focus-ring', theme)
-  const backdrops = [
-    ['surface', token('wren-surface', theme).rgb],
-    ['base', token('wren-surface-base', theme).rgb],
-    ['raised', token('wren-surface-raised', theme).rgb],
-    ...fillsFor(theme),
-  ]
-  const cells = backdrops.map(([n, rgb]) => {
+  const cells = backdropsFor(theme).map(([n, rgb]) => {
     const v = ratio(ring.rgb, rgb)
     if (v < 3) failures.push(`${theme}: focus ring on ${n} = ${r2(v)} (needs 3)`)
     return `${n} ${r2(v)}${v < 3 ? ' ✗' : ''}`

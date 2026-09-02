@@ -127,15 +127,15 @@ export const ThreadRow = memo(function ThreadRow({
         'group relative flex h-[calc(var(--wren-row-h)-var(--wren-row-gap))] w-[calc(100%-2*var(--wren-row-inset-x))]',
         'mx-(--wren-row-inset-x) cursor-default items-center gap-3 rounded-row px-2',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-        // `on-fill` rides with every `bg-fill-selected`: the row paints the
-        // accent wash, and the tiers standing on it are certified against
-        // `surface`, not against the wash. In dark the date and the preview
-        // measured 4.28 on it — the row the reader is currently on was the
-        // least readable row in the list (issue #26).
+        // `bg-fill-selected` carries its own certified tier (index.css): the
+        // row paints the accent wash, and the tiers standing on it were
+        // certified against `surface`, not against the wash. In dark the date
+        // and the preview measured 4.28 on it — the row the reader is
+        // currently on was the least readable row in the list (issue #26).
         selected
-          ? 'on-fill bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring group-focus-visible/listbox:ring-inset'
+          ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring group-focus-visible/listbox:ring-inset'
           : checked
-            ? 'on-fill bg-fill-selected'
+            ? 'bg-fill-selected'
             : 'hover:bg-fill-hover',
         ticking && 'pointer-events-none',
       )}
@@ -227,26 +227,24 @@ export const ThreadRow = memo(function ThreadRow({
           </time>
         </div>
 
-        {/* The hover cluster's lane — issue #32. The cluster is opaque, 160 px
-            wide and absolutely positioned over this line's right end, so
-            hovering "Bike service — ready Thursday" hid "Thursday" and the
-            whole preview behind it: the row's own text, covered by a control
-            that was summoned by pointing at it.
+        {/* The hover cluster's lane — issue #32. The cluster is opaque and
+            absolutely positioned over this line's right end, so hovering "Bike
+            service — ready Thursday" hid "Thursday" and the whole preview
+            behind it: the row's own text, covered by a control that was
+            summoned by pointing at it.
 
-            The line now reserves the lane while the cluster is there. 160 px
-            against a cluster that starts 4 px further right, so the text stops
-            with a visible ellipsis 4 px clear of the cluster's edge rather than
-            disappearing under it. Reserved only on hover, because reserving it
-            at rest would spend 160 px of every row in the list on a state that
-            is true for one row at a time. The padding takes the cluster's own
-            duration, so the two move together. */}
-        <div
-          className={cn(
-            'flex items-baseline gap-2 leading-5',
-            'transition-[padding] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
-            'group-hover:pr-40',
-          )}
-        >
+            The line now reserves the lane while the cluster is there, off the
+            same `--wren-row-cluster-w` the cluster is sized by, so the lane
+            cannot be narrower than the thing it is holding room for. Reserved
+            only on hover, because reserving it at rest would spend 160 px of
+            every row in the list on a state that is true for one row at a time.
+
+            The padding SNAPS. It is layout, and animating it re-flows and
+            re-truncates the subject and the snippet on every frame of the
+            cluster's fade — the text visibly crawling left under a control
+            that is only crossfading in. The cluster keeps its own transition;
+            the lane is simply there before it is. */}
+        <div className="flex items-baseline gap-2 leading-5 group-hover:pr-(--wren-row-cluster-w)">
           <span
             className={cn(
               'truncate text-sm leading-5',
@@ -403,7 +401,11 @@ function QuickActions({
     <div
       aria-hidden
       className={cn(
-        'bg-raised absolute right-3 bottom-1 flex items-center overflow-hidden rounded-md shadow-md',
+        // The width is the token, not the sum of what happens to be inside:
+        // the lane the row's second line gives up is the same number, and a
+        // sixth action would otherwise widen the cluster without widening the
+        // lane and put us back under issue #32.
+        'bg-raised absolute right-3 bottom-1 flex w-(--wren-row-cluster-w) items-center justify-center overflow-hidden rounded-md shadow-md',
         'transition-[opacity,transform] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         // The 4 px slide is what makes the cluster read as arriving rather
         // than switching on. Reduced motion drops the offset, so there is no

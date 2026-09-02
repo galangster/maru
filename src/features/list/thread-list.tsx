@@ -22,7 +22,6 @@ import {
   useAccountsById,
   useDefer,
   useLabels,
-  useListSearch,
   usePerformAction,
   useThreads,
   useWakeSweep,
@@ -43,6 +42,7 @@ import { EmptyState } from '@/components/empty-state'
 import { bulkAction, bulkDefer, type BulkActionType } from './bulk'
 import { LATER_DISCLOSURE, LaterPicker } from './later-picker'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
+import { useListSearch } from './list-search'
 import { ListControls } from './list-controls'
 import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
 import { SyncNotice } from './sync-notice'
