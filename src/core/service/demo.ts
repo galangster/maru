@@ -26,8 +26,8 @@ import type {
   Thread,
   ListThreadsOptions,
 } from '../types'
-import { threadKey } from '../types'
-import type { LocalCredential, VaultLocal } from './vault-port'
+import { parseThreadKey, threadKey } from '../types'
+import { normalizeEmail, type LocalCredential, type VaultDeferral, type VaultLocal } from './vault-port'
 import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_SETTINGS,
@@ -50,6 +50,8 @@ export class DemoMailService implements MailService {
    * be erased by the next `performAction` that touched the row.
    */
   private readonly deferrals = new Map<string, { wakeAt: number; setAt: number; wokeAt?: number }>()
+  /** The demo's `thread_defer_cleared` — A9's tombstones, in memory. */
+  private readonly clearedDeferrals = new Map<string, number>()
   private readonly accountCredentials = new Map<string, LocalCredential>()
   // `?images=block` is the capture door onto the blocking surface — see
   // imagePreview in lib/env. Demo-only, so it can never reach real mail.
@@ -294,7 +296,12 @@ export class DemoMailService implements MailService {
     const next = applyActionToThread(thread, action.type)
     // Leaving the inbox ends the deferral, so an archived-then-unarchived
     // thread does not mysteriously hide itself again.
-    if (labelDelta(action.type).remove.includes('INBOX')) this.deferrals.delete(action.threadKey)
+    // Leaving the inbox ends the deferral, and that clear is an event the
+    // vault carries — see `defer` for why the tombstone exists.
+    if (labelDelta(action.type).remove.includes('INBOX') && this.deferrals.delete(action.threadKey)) {
+      this.clearedDeferrals.set(action.threadKey, this.clock())
+      this.emit({ type: 'deferralsChanged' })
+    }
     this.threads.set(next.key, next)
     this.messages.set(
       next.key,
@@ -324,12 +331,19 @@ export class DemoMailService implements MailService {
 
   async defer(key: string, wakeAt: number | null): Promise<void> {
     const thread = this.require(key)
-    if (wakeAt === null) this.deferrals.delete(key)
-    // `woke_at` is deliberately absent on the way in: re-saving a thread that
-    // already came back once starts a fresh deferral rather than inheriting the
-    // old wake stamp and its place at the top of Today.
-    else this.deferrals.set(key, { wakeAt, setAt: Date.now() })
+    if (wakeAt === null) {
+      // A clear leaves a tombstone behind, exactly as the store does: across
+      // devices an absent row and a cleared row are different facts.
+      if (this.deferrals.delete(key)) this.clearedDeferrals.set(key, this.clock())
+    } else {
+      // `woke_at` is deliberately absent on the way in: re-saving a thread that
+      // already came back once starts a fresh deferral rather than inheriting the
+      // old wake stamp and its place at the top of Today.
+      this.deferrals.set(key, { wakeAt, setAt: this.clock() })
+      this.clearedDeferrals.delete(key)
+    }
     this.emit({ type: 'threadsChanged', accountId: thread.accountId, threadKeys: [key] })
+    this.emit({ type: 'deferralsChanged' })
   }
 
   /** The demo's twin of `Store.sweepDeferrals` — same two steps, no SQL. */
@@ -378,7 +392,10 @@ export class DemoMailService implements MailService {
     this.messages.set(key, messages)
     this.threads.set(key, thread)
     // Replying is the loudest possible statement that you are done deferring.
-    if (draft.reply) this.deferrals.delete(draft.reply.threadKey)
+    if (draft.reply && this.deferrals.delete(draft.reply.threadKey)) {
+      this.clearedDeferrals.set(draft.reply.threadKey, this.clock())
+      this.emit({ type: 'deferralsChanged' })
+    }
     this.index.upsert(thread, bodyTextOf(messages))
     this.emit({ type: 'threadsChanged', accountId: account.id, threadKeys: [key] })
   }
@@ -409,6 +426,42 @@ export class DemoMailService implements MailService {
       loadCredential: async (accountId) => this.accountCredentials.get(accountId) ?? null,
       saveCredential: async (accountId, credential) => { this.accountCredentials.set(accountId, credential) },
       clearCredential: async (accountId) => { this.accountCredentials.delete(accountId) },
+      // A9, in memory. Same shape and same rules as the real port; the demo
+      // has no SQLite behind it, so the two maps above are its two tables.
+      listDeferrals: async () => {
+        const byId = new Map(this.accounts.map((a) => [a.id, normalizeEmail(a.email)]))
+        const entries: VaultDeferral[] = []
+        for (const [key, row] of this.deferrals) {
+          const accountEmail = byId.get(parseThreadKey(key).accountId)
+          if (!accountEmail || row.wokeAt !== undefined) continue
+          entries.push({ accountEmail, threadId: parseThreadKey(key).gmailThreadId, until: row.wakeAt, setAt: row.setAt })
+        }
+        for (const [key, clearedAt] of this.clearedDeferrals) {
+          const accountEmail = byId.get(parseThreadKey(key).accountId)
+          if (!accountEmail) continue
+          entries.push({ accountEmail, threadId: parseThreadKey(key).gmailThreadId, until: null, clearedAt })
+        }
+        return entries
+      },
+      applyDeferrals: async (entries) => {
+        const byEmail = new Map(this.accounts.map((a) => [normalizeEmail(a.email), a.id]))
+        let written = 0
+        for (const entry of entries) {
+          const accountId = byEmail.get(normalizeEmail(entry.accountEmail))
+          if (!accountId) continue
+          const key = threadKey(accountId, entry.threadId)
+          if (entry.until === null) {
+            this.deferrals.delete(key)
+            this.clearedDeferrals.set(key, entry.clearedAt ?? 0)
+          } else {
+            this.deferrals.set(key, { wakeAt: entry.until, setAt: entry.setAt ?? 0 })
+            this.clearedDeferrals.delete(key)
+          }
+          written += 1
+        }
+        if (written) this.emit({ type: 'threadsChanged' })
+        return written
+      },
       setDirectedConsent,
       newAccountId: () => crypto.randomUUID(),
       now: () => this.now,

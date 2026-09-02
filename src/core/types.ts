@@ -210,6 +210,19 @@ export type MailEvent =
     }
   | { type: 'accountsChanged' }
   | { type: 'settingsChanged' }
+  /**
+   * A Later deferral was set or taken off on this device — A9.
+   *
+   * Its own event rather than a flag on `threadsChanged`, because the only
+   * listener is the Maru account push trigger and `threadsChanged` fires on
+   * every sync pass. Deferral changes are rare and human-paced; folding them
+   * into the loud event would push the vault on every poll tick.
+   *
+   * Emitted only when a row actually moved, so the engine's reply-wake — which
+   * offers every newly-arrived thread and clears almost none of them — stays
+   * silent on the usual pass.
+   */
+  | { type: 'deferralsChanged' }
 
 export interface Settings {
   theme: 'system' | 'light' | 'dark'

@@ -20,7 +20,7 @@ import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } fro
 import { bodyTextOf, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
 import { parseWatchExpiration } from '../push/watch'
-import type { VaultLocal } from './vault-port'
+import { normalizeEmail, type VaultLocal } from './vault-port'
 import type { PlatformFamily } from './vault-port'
 import type { GmailMessage, GmailThread } from '../gmail/types'
 import type {
@@ -558,8 +558,9 @@ export class RealMailService implements MailService {
     // refused archive must never silently cancel a Later the person set, and
     // writing it here is what makes that true without a rollback to maintain.
     if (before.deferredUntil !== undefined && labelDelta(action.type).remove.includes('INBOX')) {
-      await this.store.clearDeferral([action.threadKey])
+      const cleared = await this.store.clearDeferral([action.threadKey], this.now())
       this.emit({ type: 'threadsChanged', accountId, threadKeys: [action.threadKey] })
+      if (cleared) this.emit({ type: 'deferralsChanged' })
     }
   }
 
@@ -575,9 +576,12 @@ export class RealMailService implements MailService {
    */
   async defer(key: string, wakeAt: number | null): Promise<void> {
     const { accountId } = parseThreadKey(key)
-    if (wakeAt === null) await this.store.clearDeferral([key])
+    if (wakeAt === null) await this.store.clearDeferral([key], this.now())
     else await this.store.setDeferral(key, accountId, wakeAt, this.now())
     this.emit({ type: 'threadsChanged', accountId, threadKeys: [key] })
+    // A9: this is the Later commit and the bring-it-back, and both are a local
+    // change the Maru vault owes the person's other devices.
+    this.emit({ type: 'deferralsChanged' })
   }
 
   async wakeDeferred(now: number): Promise<number> {
@@ -684,7 +688,9 @@ export class RealMailService implements MailService {
     await this.store.upsertMessages([message])
     await this.store.upsertThreads([thread])
     // Replying is the loudest possible statement that you are done deferring.
-    if (draft.reply) await this.store.clearDeferral([draft.reply.threadKey])
+    if (draft.reply && await this.store.clearDeferral([draft.reply.threadKey], this.now())) {
+      this.emit({ type: 'deferralsChanged' })
+    }
     this.index.upsert(thread, bodyTextOf(messages))
     this.emit({ type: 'threadsChanged', accountId: account.id, threadKeys: [key] })
   }
@@ -722,6 +728,41 @@ export class RealMailService implements MailService {
         issuedAt: credential.issuedAt,
       }),
       clearCredential: (accountId) => this.tokenStore.clear(accountId),
+      listDeferrals: async () => {
+        const byId = new Map((await this.store.listAccounts()).map((a) => [a.id, normalizeEmail(a.email)]))
+        return (await this.store.deferralRecords()).flatMap((record) => {
+          // An address this device no longer has cannot be named in the vault,
+          // and a row for it is about to be deleted anyway.
+          const accountEmail = byId.get(record.accountId)
+          if (!accountEmail) return []
+          const threadId = parseThreadKey(record.threadKey).gmailThreadId
+          return [record.until === null
+            ? { accountEmail, threadId, until: null, clearedAt: record.at }
+            : { accountEmail, threadId, until: record.until, setAt: record.at }]
+        })
+      },
+      applyDeferrals: async (entries) => {
+        const byEmail = new Map((await this.store.listAccounts()).map((a) => [normalizeEmail(a.email), a.id]))
+        const records = entries.flatMap((entry) => {
+          // "For the accounts it has" — MARU-ACCOUNT.md §6. An entry for an
+          // address this device has not signed into is dropped, not queued:
+          // there is no thread here to defer, and when that account IS added
+          // the vault still holds the entry to apply.
+          const accountId = byEmail.get(normalizeEmail(entry.accountEmail))
+          if (!accountId) return []
+          return [{
+            threadKey: threadKey(accountId, entry.threadId),
+            accountId,
+            until: entry.until,
+            at: entry.until === null ? entry.clearedAt ?? 0 : entry.setAt ?? 0,
+          }]
+        })
+        const written = await this.store.applyDeferralRecords(records)
+        // threadsChanged, never deferralsChanged: this IS the remote state
+        // arriving, and announcing it as a local change would push it back.
+        if (written) this.emit({ type: 'threadsChanged' })
+        return written
+      },
       setDirectedConsent,
       newAccountId: this.newId,
       now: this.now,

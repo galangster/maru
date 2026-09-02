@@ -2,7 +2,7 @@ import { MaruApiError, type AccountClient, type VaultConflict } from './client'
 import { openText, seal } from './crypto'
 import type { LocalCredential, PlatformFamily } from '../service/vault-port'
 import type { AccountSessionAccess } from './session'
-import { applyVault, buildVault, mergeVault, type ApplyVaultSummary, type VaultDocument, type VaultLocal } from './vault'
+import { applyVault, buildVault, mergeDeferrals, mergeVault, type ApplyVaultSummary, type VaultDocument, type VaultLocal } from './vault'
 
 export type AccountSyncState =
   | { kind: 'idle'; lastSyncAt?: number; summary?: ApplyVaultSummary }
@@ -208,7 +208,7 @@ export class AccountSync {
       const key = await this.accountKey()
       for (let round = 0; round < 3; round += 1) {
         try {
-          this.carryRemoteCredentials(doc)
+          this.carryRemote(doc)
           const ciphertext = await seal(key, JSON.stringify(doc), `maru-vault-v1:${baseVersion + 1}`)
           const result = await this.options.client.putVault(baseVersion, ciphertext)
           await this.options.session.setMeta('vault-version', String(result.version))
@@ -229,12 +229,25 @@ export class AccountSync {
     } catch (error) { await this.handle(error) }
   }
 
-  private carryRemoteCredentials(doc: VaultDocument): void {
+  /**
+   * Fold back what this device cannot see but must not delete.
+   *
+   * A push that does not 409 REPLACES the document, so anything only the other
+   * copy knows has to be carried across by hand: the other family's
+   * credentials, which this device can never mint, and the Later deferrals set
+   * on other devices, which this one may not hold rows for at all. Without the
+   * second half, two signed-in devices would erase each other's Later list on
+   * every clean push.
+   */
+  private carryRemote(doc: VaultDocument): void {
     const otherFamily: PlatformFamily = this.options.family === 'ios' ? 'desktop' : 'ios'
     const remoteCredentials = this.lastRemoteDocument?.credentials[otherFamily] ?? {}
     const activeEmails = new Set(doc.accounts.map((account) => account.email))
     doc.credentials[otherFamily] = Object.fromEntries(
       Object.entries(remoteCredentials).filter(([email]) => activeEmails.has(email)),
     )
+    const remoteDeferrals = this.lastRemoteDocument?.deferrals
+    if (!doc.deferrals && !remoteDeferrals) return
+    doc.deferrals = mergeDeferrals(remoteDeferrals, doc.deferrals, doc.updatedAt)
   }
 }
