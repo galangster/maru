@@ -16,7 +16,7 @@ compaction boundary).
 
 Main is at the commit named in the "Resume" section below; every lane
 below is merged and pushed to `galangster/maru` unless marked otherwise.
-Tests on main: **932 passed, 4 skipped** (was 767 at the start of the night).
+Tests on main: **941 passed, 4 skipped** (was 767 at the start of the night). Every GitHub issue filed tonight (1–56) is closed.
 
 ### Shipped
 
@@ -32,7 +32,7 @@ Tests on main: **932 passed, 4 skipped** (was 767 at the start of the night).
 
 ### Open on GitHub
 
-- **23** (reopened) search subjects still truncate in a fixed 140 px box; **32** (reopened) hover lane shrinks subject/preview; **54** digits typed into the Later date field fire preset shortcuts; **55** dark highlighted Later row time 3.94:1; **56** arrow-key sidebar resize asymmetric. → lane `lane/desktop-fixes-3` (worktree `../wren-lane-df3`); see Resume.
+- None. 23, 32, 54, 55, 56 landed via `lane/desktop-fixes-3` (merged, two-reviewer pass applied). Issue 23 is closed at 2 of 9 search subjects still truncating at 216 px: a one-line 52 px result row (DIRECTION §5) cannot hold sender + subject for the two longest; a wider list, a two-line result row, or dropping the sender name is an owner call.
 - Known, not filed: `npm run contrast:check` reports one pre-existing pair, light accent on surface-base 4.31 (plain accent used as text on the canvas). Owner call: DIRECTION §3 palette stays; `--wren-accent-on-fill` (#B24054) would clear 5.10 there.
 - Owner items left by the device-QA lane, in `wayfinder/tickets/I2-mobile-layer.md` → "Device QA 2026-09-02": duplicated archive/Later/more in thread nav and toolbar; mail bodies not scaling with Dynamic Type; undo toast vs the expanded glass bar; virtualizer re-measure drift under Dynamic Type. Nothing has been re-proved on a physical iPhone tonight.
 
@@ -44,7 +44,7 @@ Tests on main: **932 passed, 4 skipped** (was 767 at the start of the night).
 
 ## Resume
 
-1. Await/land `lane/desktop-fixes-3` (issues 23, 32, 54, 55, 56): two-reviewer pass (reuse/simplification + efficiency/altitude, Opus Explore agents), apply, run `npm run typecheck && npx vitest run && npx vite build && npm run contrast:check`, merge `--no-ff`, push, close the issues, remove the worktree.
+1. Done: `lane/desktop-fixes-3` merged. Main carries every fix; desktop 0.1.9 as published predates issues 23/32/54/55/56's fixes (they are on main, unreleased).
 2. Confirm TestFlight 0.1.9 (5) is `VALID` and in the group: `node <scratch>/asc.mjs` is session-local; use `GET /v1/builds?filter[app]=6807633550&sort=-uploadedDate&limit=1` with key `G52RSWR37N` (issuer `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`, `~/.wren-release/AuthKey_G52RSWR37N.p8`).
 3. Then either cut desktop **0.1.10** with the wave-3 fixes (bump `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `Cargo.toml`, `Cargo.lock`; tag; run `scripts/release-macos.sh` locally with `APPLE_SIGNING_IDENTITY` and `WREN_OFFICIAL_GOOGLE_CLIENT_ID` from `gh variable get`; `gh release create` with the assets and the Windows run's exe/msi), or leave 0.1.9 as the morning build — owner's call.
 4. Wave 4 on both apps only if Nick wants another pass; wave 3 desktop found 3 new (all P2/P3), wave 2 phone found 7. The stop rule (Q7) has not been reached on either app.
