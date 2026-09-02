@@ -155,7 +155,17 @@ worktree; use `git show rev:path > path`.
    Push, APNs key T89G5MWVBQ production topic-specific, App Store Connect
    "Maru Mail" 6807633550), GoDaddy DNS; `sync.getmaru.app` live; the relay
    holds the APNs secret. See `wayfinder/NICK-QUEUE.md` for what remains.
-9. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
+9. **A9 shipped** (Nick ruled yes 2026-09-02): Later deferrals travel in the
+   encrypted vault as `{accountEmail, threadId, until|null, at}` with
+   tombstones, a 30-day prune, batched apply, one merge rule in `vault.ts`,
+   and the fail-safe property asserted by a test whose Gmail client throws on
+   every method. Spec §1 now reads "no ids the service can read". 756 tests.
+10. **Owner items 2026-09-02**: second Owner accepted; App Store Connect Admin
+   key `G52RSWR37N` ("Maru release") created and downloaded for cloud-managed
+   distribution signing; Stripe product, prices and webhook created by Nick
+   via the setup script (price ids on Railway and in IaC; the two secrets go
+   in through `server/scripts/stripe-secrets.sh`).
+11. **Executor outage**: Codex (`gpt-5.6-sol`) hit its usage limit at the end
    of the day (resets 2026-09-06 19:28 PT). Two lanes died mid-run; both
    were sealed from the orchestrator after re-running the gates, and the
    simulator proofs ran on Claude Opus subagents. Memory
