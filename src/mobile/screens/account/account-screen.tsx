@@ -27,11 +27,17 @@ type AuthMode = 'signIn' | 'signUp' | 'recover'
 
 export function AccountScreen({
   onBack,
+  backLabel,
   sheet,
   openSheet,
   closeSheet,
 }: {
   onBack: () => void
+  /** The screen underneath, named. The account route is reached from Settings
+      and, since the notification offer, from the inbox — a back control that
+      says "Settings" and lands on the inbox is a small lie the whole screen
+      has to carry. */
+  backLabel: string
   sheet: MobileSheet | null
   openSheet: (sheet: MobileSheet) => void
   closeSheet: () => void
@@ -49,9 +55,9 @@ export function AccountScreen({
       aria-label="Maru account"
     >
       <header className="mobile-nav mobile-account-nav" inert={Boolean(pending || sheet)}>
-        <button className="mobile-nav-back" type="button" onClick={onBack} aria-label="Back to Settings">
+        <button className="mobile-nav-back" type="button" onClick={onBack} aria-label={`Back to ${backLabel}`}>
           <MobileIcon name="chevronRight" className="mobile-icon-back" scale="large" />
-          <span>Settings</span>
+          <span>{backLabel}</span>
         </button>
         <h1>Maru account</h1>
         <span className="mobile-account-nav-spacer" aria-hidden />

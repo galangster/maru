@@ -1862,3 +1862,49 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   }
 }
 
+
+/*
+ * A sheet that makes an offer rather than a list of choices.
+ *
+ * One paragraph and two buttons, so it borrows nothing from the action lists
+ * above: those are rows you scan, this is a sentence you read and answer.
+ */
+.mobile-offer-copy {
+  margin: 0;
+  padding: 0 16px 4px;
+  color: var(--wren-text-2);
+  font-size: var(--mobile-text-subhead);
+  line-height: var(--mobile-leading-relaxed);
+  text-wrap: pretty;
+}
+
+.mobile-offer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+
+.mobile-offer-primary,
+.mobile-offer-secondary {
+  min-height: 50px;
+  border: 0;
+  border-radius: var(--wren-radius-md);
+  font-family: var(--wren-font-ui);
+  font-size: var(--mobile-text-body);
+  font-weight: 600;
+}
+
+.mobile-offer-primary {
+  background: var(--wren-accent);
+  color: var(--wren-accent-fg);
+}
+
+.mobile-offer-secondary {
+  background: transparent;
+  color: var(--wren-text-2);
+}
+
+.mobile-offer-secondary:active {
+  background: var(--wren-fill-active);
+}

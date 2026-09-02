@@ -22,6 +22,7 @@ import { SettingsScreen } from './screens/settings-screen'
 import { ThreadScreen } from './screens/thread-screen'
 import { ComposeSheet } from './sheets/compose-sheet'
 import { LaterSheet } from './sheets/later-sheet'
+import { PushAccountSheet } from './sheets/push-account-sheet'
 import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
   MOBILE_TABS,
@@ -35,6 +36,7 @@ import {
 } from './state'
 import { useInputModality } from './use-input-modality'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
+import { usePushAccountNudge } from './use-push-account-nudge'
 import { useRouteScroll } from './use-route-scroll'
 import './mobile.css'
 
@@ -108,6 +110,13 @@ export function MobileApp() {
     if (type === 'archive') announce('Archived')
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
+  const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
+  // Only from the inbox at rest. The offer is worth making once and worth
+  // making well, so it waits for a screen with nothing else on it.
+  usePushAccountNudge(
+    screen === 'inbox' && sheet === null && !composerOpen,
+    useCallback(() => dispatch({ type: 'openSheet', sheet: { kind: 'pushAccount' } }), []),
+  )
 
   useNativeShellSync(nativeTabBar, {
     tab: navigation.tab,
@@ -140,6 +149,7 @@ export function MobileApp() {
         {screen === 'account' ? (
           <AccountScreen
             onBack={() => dispatch({ type: 'back' })}
+            backLabel={MOBILE_TAB_CHROME[navigation.tab].label}
             sheet={sheet}
             openSheet={(next) => dispatch({ type: 'openSheet', sheet: next })}
             closeSheet={closeSheet}
@@ -156,7 +166,7 @@ export function MobileApp() {
         ) : screen === 'search' ? (
           <SearchScreen onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })} />
         ) : screen === 'settings' ? (
-          <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />
+          <SettingsScreen onAccount={openAccount} />
         ) : null}
       </main>
 
@@ -184,6 +194,7 @@ export function MobileApp() {
         />
       )}
       {sheet?.kind === 'move' && <MoveSheet onClose={closeSheet} onMove={(type) => { act(sheet.thread.key, type); closeSheet() }} />}
+      {sheet?.kind === 'pushAccount' && <PushAccountSheet onClose={closeSheet} onAccount={openAccount} />}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement.text}{announcement.alternate ? '\u200B' : ''}
       </div>

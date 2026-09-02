@@ -66,6 +66,7 @@ export type MobileSheet =
   | { kind: 'later'; threadKeys: string[] }
   | { kind: 'threadActions'; thread: Thread }
   | { kind: 'move'; thread: Thread }
+  | { kind: 'pushAccount' }
   | { kind: 'accountRestore'; entry: VaultHistoryEntry }
   | { kind: 'accountPassword' }
   | { kind: 'accountDelete' }
