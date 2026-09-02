@@ -531,9 +531,10 @@ function ComposerSheet() {
                 // pop. No particles. Send repeats dozens of times a day, and
                 // frequency is what kills delight.
                 //
-                // `disabled:opacity-40` from the recipe would grey the whole
-                // confirmation out the moment `sending` goes true, so the
-                // sending state overrides it back to full opacity.
+                // The recipe's unavailable look — the recessed fill with the
+                // on-fill ink — would grey the whole confirmation out the
+                // moment `sending` goes true, so SEND_CONFIRM restates the
+                // green in the `disabled:` variant.
                 style={
                   sending
                     ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }

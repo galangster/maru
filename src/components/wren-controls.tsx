@@ -179,12 +179,14 @@ export const ICON_SLOT = 'flex w-(--wren-icon-box) shrink-0 items-center justify
  * The send action's sizing, and its confirmation. One recipe for the composer
  * and the approval queue, because the queue's Approve promises to confirm
  * "exactly as the composer runs it" — a promise a shared constant keeps and a
- * second copy lets drift. `disabled:opacity-100` because both call sites
- * disable the button the moment it fires, and the confirmation must not grey.
+ * second copy lets drift. The `disabled:` half restates the green because both
+ * call sites disable the button the moment it fires, and the confirmation must
+ * not take the recessed unavailable fill on its way past.
  */
 export const SEND_BUTTON =
   'h-8 gap-2 px-4 transition-[background-color,color] duration-(--wren-dur-fast) ease-(--wren-ease-out)'
-export const SEND_CONFIRM = 'bg-hue-green text-hue-fg disabled:opacity-100'
+export const SEND_CONFIRM =
+  'bg-hue-green text-hue-fg disabled:bg-hue-green disabled:text-hue-fg disabled:shadow-xs'
 
 /**
  * The one primary action on a surface: compose, send, add account, get
@@ -209,8 +211,20 @@ export function PrimaryButton({
         // Two ways to be unavailable, one look. `disabled` also drops pointer
         // events; `aria-disabled` deliberately keeps them, so a button that
         // has a reason to give can still be hovered and pressed for it.
-        'disabled:pointer-events-none disabled:opacity-40',
-        'aria-disabled:opacity-40',
+        //
+        // A muted fill with legible ink, not the live fill made transparent —
+        // issue #31. `opacity-40` took white on coral down to white on a pale
+        // coral: 1.78:1 in light and 2.71:1 in dark, so the word "Send" was
+        // legible only if you already knew it was there. The recessed fill with
+        // the on-fill tier measures 4.84 light and 7.24 dark, and it reads as
+        // unavailable more honestly than a faded primary does — a control that
+        // still looks like the primary action, only dimmer, invites the press
+        // it is refusing. The shadow goes with it: an unavailable control does
+        // not float.
+        'disabled:pointer-events-none',
+        'disabled:bg-sunken disabled:text-ink-fill disabled:shadow-none',
+        'aria-disabled:bg-sunken aria-disabled:text-ink-fill aria-disabled:shadow-none',
+        'aria-disabled:hover:bg-sunken',
         className,
       )}
       {...props}
