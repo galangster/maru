@@ -14,7 +14,7 @@ compaction boundary).
 
 ## State at handoff
 
-Main is at the commit named in the "Resume" section below; every lane
+Main is at `bb8a518` plus this edit; every lane
 below is merged and pushed to `galangster/maru` unless marked otherwise.
 Tests on main: **941 passed, 4 skipped** (was 767 at the start of the night). Every GitHub issue filed tonight (1–56) is closed.
 
@@ -39,13 +39,13 @@ Tests on main: **941 passed, 4 skipped** (was 767 at the start of the night). Ev
 ### Housekeeping
 
 - Stray branch `lane-backup-before-recommit` (left by the mobile-fixes-c lane while rewriting its captures into per-issue commits). The execution-guard hook blocks `git branch -D`; delete it by hand or with `ALLOW_SHARED_WORKTREE_REWRITE=1`.
-- `wayfinder/NICK-QUEUE.md` carries the TestFlight install + push check; update it to **0.1.9 (5)**.
+- `wayfinder/NICK-QUEUE.md` carries the TestFlight install + push check at **0.1.9 (5)**.
 - Codex (`gpt-5.6-sol`) is out of credits until 2026-09-06 19:28 PT; every lane tonight ran on Opus subagents.
 
 ## Resume
 
 1. Done: `lane/desktop-fixes-3` merged. Main carries every fix; desktop 0.1.9 as published predates issues 23/32/54/55/56's fixes (they are on main, unreleased).
-2. Confirm TestFlight 0.1.9 (5) is `VALID` and in the group: `node <scratch>/asc.mjs` is session-local; use `GET /v1/builds?filter[app]=6807633550&sort=-uploadedDate&limit=1` with key `G52RSWR37N` (issuer `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`, `~/.wren-release/AuthKey_G52RSWR37N.p8`).
+2. Done: TestFlight 0.1.9 (5) is `VALID` and in the group (6 builds listed). To re-check later, use `GET /v1/builds?filter[app]=6807633550&sort=-uploadedDate&limit=1` with key `G52RSWR37N` (issuer `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`, `~/.wren-release/AuthKey_G52RSWR37N.p8`).
 3. Then either cut desktop **0.1.10** with the wave-3 fixes (bump `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `Cargo.toml`, `Cargo.lock`; tag; run `scripts/release-macos.sh` locally with `APPLE_SIGNING_IDENTITY` and `WREN_OFFICIAL_GOOGLE_CLIENT_ID` from `gh variable get`; `gh release create` with the assets and the Windows run's exe/msi), or leave 0.1.9 as the morning build — owner's call.
 4. Wave 4 on both apps only if Nick wants another pass; wave 3 desktop found 3 new (all P2/P3), wave 2 phone found 7. The stop rule (Q7) has not been reached on either app.
 5. Fix the tag workflow's certificate import (secrets `APPLE_CERTIFICATE`/`APPLE_CERTIFICATE_PASSWORD` in the repo) so releases regain GitHub attestation — owner supplies the .p12.
