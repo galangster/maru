@@ -34,6 +34,7 @@ import {
   type MobileTab,
 } from './state'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
+import { useRouteScroll } from './use-route-scroll'
 import './mobile.css'
 
 const AccountScreen = lazy(() =>
@@ -79,6 +80,13 @@ export function MobileApp() {
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
   const sheet = navigation.sheet
+  // One key per screen the shell can show. The page is the scroller, so each
+  // one needs its own remembered offset.
+  useRouteScroll(
+    route.kind === 'thread' ? `thread:${route.threadKey}`
+      : route.kind === 'account' ? 'account'
+      : `tab:${navigation.tab}`,
+  )
   const globalModalOpen = composerOpen || (sheet !== null && route.kind !== 'account')
   const syncAnnouncement = useMemo(() => {
     const states = accounts.map((account) => syncStatuses[account.id]?.state).filter(Boolean)

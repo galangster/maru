@@ -22,8 +22,16 @@ function writePull(node: HTMLElement | null, offset: number, settling: boolean, 
   node.dataset.refreshing = refreshing ? 'true' : 'false'
 }
 
+/**
+ * Pull to refresh, on the document's scroll position.
+ *
+ * `region` is only written to -- it carries the offset and the state that the
+ * CSS reads. Eligibility comes from `window.scrollY`, because the page itself
+ * scrolls now (mobile.css). A rubber-band overshoot at the top reports a
+ * negative scrollY in WebKit, which is still the top.
+ */
 export function usePullRefresh(
-  scroller: RefObject<HTMLDivElement | null>,
+  region: RefObject<HTMLDivElement | null>,
   refresh: () => Promise<void>,
 ) {
   const [refreshing, setRefreshing] = useState(false)
@@ -34,7 +42,7 @@ export function usePullRefresh(
 
   /** Every gesture entry point starts here, so neither flag can be forgotten. */
   const begin = () => {
-    eligible.current = (scroller.current?.scrollTop ?? 0) <= 0
+    eligible.current = window.scrollY <= 0
     ready.current = false
   }
   const offsetFor = (dy: number) => dy <= 0 ? 0 : Math.min(PULL_MAX_OFFSET, dy * PULL_DISTANCE_FACTOR)
@@ -47,20 +55,20 @@ export function usePullRefresh(
     const crossed = offset >= PULL_REFRESH_THRESHOLD
     if (crossed && !ready.current) void nativeShell.impact('light')
     ready.current = crossed
-    writePull(scroller.current, offset, false, false)
+    writePull(region.current, offset, false, false)
   }
   const commit = (dy: number) => {
     const offset = offsetFor(dy)
     ready.current = false
     if (!eligible.current || offset < PULL_REFRESH_THRESHOLD) {
-      writePull(scroller.current, 0, true, false)
+      writePull(region.current, 0, true, false)
       return
     }
-    writePull(scroller.current, PULL_REFRESH_OFFSET, true, true)
+    writePull(region.current, PULL_REFRESH_OFFSET, true, true)
     setRefreshing(true)
     void refresh().finally(() => {
       setRefreshing(false)
-      writePull(scroller.current, 0, true, false)
+      writePull(region.current, 0, true, false)
     })
   }
   const drag = usePointerDrag({
@@ -115,7 +123,7 @@ export function usePullRefresh(
       },
       onTouchCancel: () => {
         ready.current = false
-        writePull(scroller.current, 0, true, false)
+        writePull(region.current, 0, true, false)
         touch.current = null
         usingTouch.current = false
       },

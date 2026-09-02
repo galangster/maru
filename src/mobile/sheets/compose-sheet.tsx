@@ -10,6 +10,7 @@ import { useAccountsById, useCorrespondents } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
 import { MobileIcon } from '../components/mobile-icon'
+import { useBodyScrollLock } from '../use-body-scroll-lock'
 import { useModalFocus } from '../use-modal-focus'
 
 const RECIPIENT_KINDS = ['to', 'cc', 'bcc'] as const
@@ -54,6 +55,7 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
     closeStore()
   }
   const dialogRef = useModalFocus<HTMLElement>(close)
+  useBodyScrollLock()
   const send = async () => {
     const committed = recipientEntries.map(([kind]) => recipientRefs.current[kind]?.commit())
     if (committed.some((result) => result?.state.invalid)) {

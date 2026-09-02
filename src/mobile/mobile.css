@@ -11,13 +11,51 @@
   --mobile-leading-relaxed: 1.5;
 }
 
+/*
+ * The desktop base layer parks the page: `html, body, #root { height: 100% }`
+ * and `body { overflow: hidden }`, because there the panes own the scrolling.
+ * The phone needs the opposite -- see `.mobile-app` below -- and `:has()` is
+ * how it is asked for without a second global stylesheet or a class on <html>:
+ * the rule applies exactly while a mobile shell is mounted, whichever bundle
+ * this file lands in.
+ */
+html:has(.mobile-app),
+html:has(.mobile-app) body,
+html:has(.mobile-app) #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  /* iOS has no scrollbar; the ?mobile=1 preview should not grow one. */
+  scrollbar-width: none;
+}
+
+html:has(.mobile-app) ::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/*
+ * The document is the scroller on the phone, and that is load-bearing rather
+ * than a style choice: UIKit decides when to minimize the Liquid Glass tab bar
+ * by watching a UIScrollView, and the only one in the hierarchy is the
+ * WKWebView's own. A `position: fixed` root with lists scrolling in DOM
+ * containers never moves it, so the bar never minimizes (I8 lane 1). Every
+ * screen therefore scrolls the page, headers hold their place with
+ * `position: sticky`, and the bottom chrome is fixed or sticky.
+ *
+ * No `overscroll-behavior` here on purpose. Rubber-banding at the top and the
+ * bottom of the page is the system's, and it is the same gesture UIKit reads.
+ */
 .mobile-app {
   --mobile-tab-height: 84px;
-  position: fixed;
-  inset: 0;
+  position: relative;
+  min-height: 100dvh;
   isolation: isolate;
-  overflow: hidden;
-  overscroll-behavior: none;
+  /* `clip`, not `hidden`: the edge-back drag translates a whole screen sideways
+     and the page must not gain a horizontal scrollbar for it, but `hidden`
+     would turn this into a scroll container and take the document's scroll
+     with it. */
+  overflow-x: clip;
   background: var(--wren-surface-base);
   color: var(--wren-text-1);
   font-family: var(--wren-font-body);
@@ -108,19 +146,25 @@
 .mobile-stage,
 .mobile-screen {
   width: 100%;
-  height: 100%;
-  min-height: 0;
 }
 
+/* Still a column, so the bottom chrome can sit last in flow and stick there.
+   `100dvh` is a floor rather than a height: a short inbox still fills the
+   screen, a long one runs past it and scrolls the document. */
 .mobile-screen {
   display: flex;
+  min-height: 100dvh;
   flex-direction: column;
   background: var(--wren-surface-base);
 }
 
+/* Sticky rather than fixed: fixed would need the content padded by hand, and
+   inside the thread and account screens it would be trapped by their transform
+   anyway. */
 .mobile-nav {
-  position: relative;
+  position: sticky;
   z-index: 2;
+  top: 0;
   flex: 0 0 auto;
   padding-block-start: max(env(safe-area-inset-top), 12px);
   padding-inline: max(env(safe-area-inset-left), 16px) max(env(safe-area-inset-right), 16px);
@@ -251,18 +295,12 @@
   font: var(--mobile-text-caption)/var(--mobile-leading-tight) var(--wren-font-body);
 }
 
+/* The name is kept because it is what every screen's main region is called,
+   but the scrolling is the document's now. `flex: 1` is what pushes a sticky
+   bottom bar to the foot of a short screen. */
 .mobile-scroll {
   min-height: 0;
   flex: 1;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  scrollbar-width: none;
-}
-
-.mobile-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .mobile-inbox-scroll,
@@ -500,7 +538,6 @@
 .mobile-bulk-toolbar,
 .mobile-thread-toolbar,
 .mobile-tab-bar {
-  position: absolute;
   z-index: 5;
   inset-inline: 0;
   display: flex;
@@ -512,7 +549,10 @@
   backdrop-filter: blur(24px) saturate(1.25);
 }
 
+/* Fixed, not sticky: it appears over the list while Edit is on, and nothing
+   above it creates a containing block. */
 .mobile-bulk-toolbar {
+  position: fixed;
   bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom));
   min-height: 64px;
 }
@@ -537,6 +577,7 @@
 }
 
 .mobile-tab-bar {
+  position: fixed;
   bottom: 0;
   min-height: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom));
   padding-block: 4px env(safe-area-inset-bottom);
@@ -589,8 +630,9 @@
   display: flex;
 }
 
+/* The sticky toolbar below holds its own room; this is only the gap above it. */
 .mobile-thread-scroll {
-  padding-block-end: calc(66px + env(safe-area-inset-bottom));
+  padding-block-end: 6px;
 }
 
 .mobile-thread-heading {
@@ -765,7 +807,13 @@
   color: var(--wren-text-3);
 }
 
+/* Sticky, not fixed. `.mobile-thread-screen` carries a transform for the push
+   and the edge-back drag, and a transformed ancestor is the containing block
+   for a fixed child -- the toolbar would ride the bottom of a page-tall screen
+   instead of the bottom of the glass. Sticky also reserves its own room at the
+   end of the column, so the last message clears it without a padding rule. */
 .mobile-thread-toolbar {
+  position: sticky;
   bottom: 0;
   min-height: calc(60px + env(safe-area-inset-bottom));
   align-items: flex-start;
