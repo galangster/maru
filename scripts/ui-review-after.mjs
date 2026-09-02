@@ -11,17 +11,11 @@
 // set. The runner and the shared acts are `scripts/lib/capture.mjs` and
 // `scripts/lib/page-acts.mjs`.
 
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
-import { chromium } from 'playwright'
+import { ROOT, runWave } from './lib/capture.mjs'
+import { openComposer, openRow, openSettings, search } from './lib/page-acts.mjs'
 
-import { runShots } from './lib/capture.mjs'
-import { openRow, search } from './lib/page-acts.mjs'
-
-import { startServerIfNeeded } from './dev-server.mjs'
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'wayfinder/captures/ui-review-desktop/after')
 
 const VIEWPORT = { width: 1280, height: 800 }
@@ -36,13 +30,6 @@ const focusRing = async (page) => {
   // nothing, so the Tab count below starts where the review's did.
   await page.mouse.click(130, 620)
   for (let i = 0; i < 3; i++) await page.keyboard.press('Tab')
-}
-
-/** #27, #31 — the composer's field wells and its disabled Send. */
-const compose = async (page) => {
-  await page.keyboard.press('c')
-  await page.waitForSelector('section[aria-label="New message"]', { timeout: 10_000 })
-  await page.waitForSelector('.wren-editor [contenteditable]', { timeout: 10_000 })
 }
 
 /** #27 — the palette's footer keycaps and its row hints. */
@@ -86,21 +73,15 @@ const SHOTS = [
   { file: 'thread-dark-1280.png', theme: 'dark', act: openThird },
 
   // #27, #31 — the composer's field wells and its disabled Send.
-  { file: 'compose-light-1280.png', act: compose },
-  { file: 'compose-dark-1280.png', theme: 'dark', act: compose },
+  { file: 'compose-light-1280.png', act: openComposer },
+  { file: 'compose-dark-1280.png', theme: 'dark', act: openComposer },
 
   // #27 — the palette's footer keycaps and its row hints.
   { file: 'palette-light-1280.png', act: palette },
   { file: 'palette-dark-1280.png', theme: 'dark', act: palette },
 
   // #28 — "Maru account", whole.
-  {
-    file: 'settings-light-1280.png',
-    act: async (page) => {
-      await page.locator('button[aria-label="Settings"]').click()
-      await page.waitForSelector('nav[aria-label="Settings sections"]', { timeout: 10_000 })
-    },
-  },
+  { file: 'settings-light-1280.png', act: openSettings() },
 
   // #29, #30, #34, #35 — the count, the empty pane's subtitle, the read row's
   // sender, the Compose icon. All four are in one frame.
@@ -162,12 +143,4 @@ const SHOTS = [
   },
 ]
 
-const browser = await chromium.launch()
-const child = await startServerIfNeeded(ROOT)
-
-try {
-  await runShots(browser, SHOTS, { out: OUT, viewport: VIEWPORT })
-} finally {
-  await browser.close()
-  if (child) child.kill('SIGTERM')
-}
+await runWave(SHOTS, { out: OUT, viewport: VIEWPORT })

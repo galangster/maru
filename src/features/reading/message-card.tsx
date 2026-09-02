@@ -100,7 +100,7 @@ export function MessageCard({
           <button
             type="button"
             onClick={onAllowImages}
-            className="font-ui text-brand-ink hover:text-brand-hover focus-ring shrink-0 rounded-xs text-sm font-medium"
+            className="font-ui text-brand-ink hover:text-brand-ink-hover focus-ring shrink-0 rounded-xs text-sm font-medium"
           >
             {BLOCKED_IMAGES.action}
           </button>

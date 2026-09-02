@@ -245,6 +245,17 @@
        (index.css); `text-brand` stays the mark. */
     --wren-accent-text: var(--wren-accent-on-fill);
 
+    /* The hover of that word, and it has to be its own token for the reason
+       the tier exists at all. `--wren-accent-hover` is the MARK's hover: it is
+       a step of the plain accent, and a word that hovers into it walks out of
+       the certified tier the moment the pointer lands. So this is a step of
+       `--wren-accent-text`, taken exactly as the mark takes its own — the same
+       −0.05 of lightness, same hue, same chroma.
+
+         light  #A13046  base 6.33 · surface 6.94 · raised 6.94 · sunken 5.96
+                         worst fill (selected wash over base) 5.74 */
+    --wren-accent-text-hover: oklch(0.485 0.149 13); /* #A13046               */
+
     /* --- The focus ring ----------------------------------------------------
        ONE token, because there is one ring and it is drawn on every control in
        the app — the sidebar, the toolbars, the composer, the palette, the
@@ -474,6 +485,11 @@
        accent here. The ruling and the light measurements are in the light
        block. */
     --wren-accent-text: var(--wren-accent);
+
+    /* And dark's hover is the accent's own hover, because it clears 4.5 on
+       every surface and every fill too — worst 6.71, the hover fill over
+       `raised`. Dark pays no second coral for either step. */
+    --wren-accent-text-hover: var(--wren-accent-hover);
 
     /* Same rule, same one token. See the light block for the measurements. */
     --wren-focus-ring: var(--wren-accent);

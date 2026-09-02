@@ -11,17 +11,15 @@
 // audit prints.
 //
 // 1280 px light, same harness and same encoding as every other wave, so a
-// reader can put `-before` next to `-after` and see only the one change.
+// reader can put `-before` next to `-after` and see only the one change. The
+// runner and the shared acts are `scripts/lib/capture.mjs` and
+// `scripts/lib/page-acts.mjs`.
 
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
-import { chromium } from 'playwright'
+import { ROOT, runWave } from './lib/capture.mjs'
+import { openComposer, openRowMatching, openSettings } from './lib/page-acts.mjs'
 
-import { runShots } from './lib/capture.mjs'
-import { startServerIfNeeded } from './dev-server.mjs'
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'wayfinder/captures/ui-review-desktop/after')
 
 const VIEWPORT = { width: 1280, height: 800 }
@@ -34,30 +32,19 @@ if (tag !== 'before' && tag !== 'after') {
 
 /** The one inbox thread that pulls a remote image, so the notice is drawn. */
 const blockedImages = async (page) => {
-  await page
-    .locator('[data-thread-key]')
-    .filter({ hasText: 'Offhours' })
-    .first()
-    .click()
-  await page.waitForSelector('section[aria-label="Reading"] [data-message-card]', {
-    timeout: 10_000,
-  })
+  await openRowMatching('Offhours')(page)
   await page.locator(':text-is("Show")').first().waitFor({ timeout: 10_000 })
 }
 
 /** Settings → Google API, where the disclosure is the accent's own word. */
 const setupGuide = async (page) => {
-  await page.locator('button[aria-label="Settings"]').click()
-  await page.waitForSelector('nav[aria-label="Settings sections"]', { timeout: 10_000 })
-  await page.locator('nav[aria-label="Settings sections"] button', { hasText: 'Google API' }).click()
+  await openSettings('Google API')(page)
   await page.locator('button', { hasText: 'Setup guide' }).first().waitFor({ timeout: 10_000 })
 }
 
 /** The composer's link popover, whose confirm is a coloured word. */
 const addLink = async (page) => {
-  await page.keyboard.press('c')
-  await page.waitForSelector('section[aria-label="New message"]', { timeout: 10_000 })
-  await page.waitForSelector('.wren-editor [contenteditable]', { timeout: 10_000 })
+  await openComposer(page)
   await page.locator('button[aria-label="Link"]').click()
   await page.locator('input[aria-label="Link to"]').waitFor({ timeout: 10_000 })
 }
@@ -68,12 +55,4 @@ const SHOTS = [
   { file: `accent-text-add-link-light-1280-${tag}.png`, act: addLink },
 ]
 
-const browser = await chromium.launch()
-const child = await startServerIfNeeded(ROOT)
-
-try {
-  await runShots(browser, SHOTS, { out: OUT, viewport: VIEWPORT })
-} finally {
-  await browser.close()
-  if (child) child.kill('SIGTERM')
-}
+await runWave(SHOTS, { out: OUT, viewport: VIEWPORT })

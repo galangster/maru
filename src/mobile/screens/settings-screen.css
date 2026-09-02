@@ -51,7 +51,7 @@ html[data-input-modality='keyboard'] .mobile-toggle-row input:focus-visible + .m
   border: 0;
   border-radius: var(--wren-radius-md);
   background: var(--wren-fill-selected);
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font: 500 var(--mobile-text-caption)/var(--mobile-leading-normal) var(--wren-font-ui);
 }
 

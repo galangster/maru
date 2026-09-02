@@ -219,7 +219,7 @@ html[data-input-modality='keyboard'] .mobile-account-check-row input:focus-visib
 .mobile-account-copy {
   padding-inline: 12px;
   background: var(--wren-fill-selected);
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-size: var(--mobile-text-subhead);
 }
 

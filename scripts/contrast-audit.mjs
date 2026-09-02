@@ -39,6 +39,9 @@ const INKS = [
   // text tier did.
   ['accent (mark, non-text)', 'wren-accent', 3.0],
   ['accent-text', 'wren-accent-text', 4.5],
+  // Gated beside it, because a hover that leaves the tier is the tier not
+  // holding: the pointer lands and the word is suddenly uncertified.
+  ['accent-text-hover', 'wren-accent-text-hover', 4.5],
   ['destructive', 'wren-destructive', 4.5],
   ['success', 'wren-success', 4.5],
   // A star is a non-text glyph, so 3.0 is its floor, not 4.5.
@@ -111,6 +114,7 @@ for (const theme of ['light', 'dark']) {
     // blocked-images notice's "Show" is inside a sunken well — so the
     // accent-text tier is gated here too, not only against the three surfaces.
     ['accent-text', 'wren-accent-text'],
+    ['accent-text-hover', 'wren-accent-text-hover'],
   ]) {
     const ink = token(name, theme)
     // text-3 is reported for the record, not gated: it is the tier that fails
@@ -122,7 +126,7 @@ for (const theme of ['light', 'dark']) {
       if (gated && v < 4.5) failures.push(`${theme}: ${label} on ${n} = ${r2(v)}`)
       return `${n} ${r2(v)}${v < 4.5 ? ' ✗' : ''}`
     })
-    lines.push(`  ${label.padEnd(15)} ${hex(ink.rgb)}  ${cells.join(' · ')}`)
+    lines.push(`  ${label.padEnd(17)} ${hex(ink.rgb)}  ${cells.join(' · ')}`)
   }
 }
 

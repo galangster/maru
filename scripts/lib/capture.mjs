@@ -15,11 +15,16 @@
 // same in every script, because it is the same question in every script.
 
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import { chromium } from 'playwright'
 import sharp from 'sharp'
 
-import { ORIGIN } from '../dev-server.mjs'
+import { ORIGIN, startServerIfNeeded } from '../dev-server.mjs'
+
+/** The repository root, from this file rather than from each wave script. */
+export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 /** en-US, Pacific, no motion. The clock is frozen separately by `?screenshot=1`. */
 export const DETERMINISTIC_CONTEXT = {
@@ -114,5 +119,27 @@ export async function runShots(browser, shots, { out, viewport, fileWidth }) {
     }
   } finally {
     for (const { context } of lanes.values()) await context.close()
+  }
+}
+
+/**
+ * A whole wave: browser up, dev server up if it is not already, frames, down.
+ *
+ * `runShots` is the part a caller might want to drive itself; this is the part
+ * no caller ever wants to write differently. Every wave script had its own copy
+ * of the same six lines, and the copies are exactly where a `finally` goes
+ * missing and a headless Chromium survives the run.
+ *
+ * A wave script is then its SHOTS array and one call, which is all it ever had
+ * to say.
+ */
+export async function runWave(shots, { out, viewport, fileWidth }) {
+  const browser = await chromium.launch()
+  const child = await startServerIfNeeded(ROOT)
+  try {
+    await runShots(browser, shots, { out, viewport, fileWidth })
+  } finally {
+    await browser.close()
+    if (child) child.kill('SIGTERM')
   }
 }

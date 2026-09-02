@@ -214,9 +214,24 @@ The palette above stays. The plain light `accent` measures **4.31** on `base`, u
 the 4.5 floor, and the reading region IS the ground — so a coloured word draws in
 `--wren-accent-text` (`text-brand-ink`), which resolves to the certified on-fill step
 in light (**5.10** on `base`, **5.59** on `surface`, worst fill 4.62) and to the plain
-accent in dark (**8.11 / 7.17 / 6.03**, worst fill 5.16). Accent as a **fill, icon,
-ring or border** is unchanged and takes the 3.0 a non-text mark takes. `contrast:check`
-gates both floors, so the earlier 4.31 failure is closed rather than waived.
+accent in dark (**8.11 / 7.17 / 6.03**, worst fill 5.16). Its hover is
+`--wren-accent-text-hover` (`text-brand-ink-hover`), because `--wren-accent-hover` is
+the *mark's* hover and a word that lands on it leaves the tier: light takes the same
+−0.05 step of the text tier (**6.33** on `base`, **6.94** on `surface`, worst fill
+5.74), dark takes the accent's own hover (**10.56 / 9.33 / 7.85**, worst fill 6.71).
+Accent as a **fill, icon, ring or border** is unchanged and takes the 3.0 a non-text
+mark takes. `contrast:check` gates every one of those floors, so the earlier 4.31
+failure is closed rather than waived.
+
+**The rule is app-wide, and both halves ship it.** Desktop draws the word through
+`text-brand-ink`; the phone draws it through `--wren-accent-text` directly in
+`src/mobile`. Thirteen phone rules moved with the desktop's four — the nav and send
+buttons, the active tab, the back control, the recipient chip and the compose row's
+buttons, attach and discard, the Later return line, the current mailbox row, the
+thread-label buttons, the blocked-images "Show", the diagnostics action and the
+account screen's inline buttons. The filled tiles did **not**: an avatar monogram, a
+row icon, the empty-state glyph and the account mark are marks in a wash, and they
+keep the plain accent at 3.0.
 
 **One licensed exception, unchanged.** The light solids for green, teal, orange and
 yellow measure 2.6–2.9:1 against white. They are permitted only as marks sitting

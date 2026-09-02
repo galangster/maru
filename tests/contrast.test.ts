@@ -174,6 +174,28 @@ describe('the on-fill tier — issues #26, #27, #29, #30', () => {
     }
   })
 
+  it('holds the tier through the hover, on every backdrop', () => {
+    // A word that hovers into `--wren-accent-hover` walks out of the certified
+    // tier the moment the pointer lands, because that step is the MARK's. So
+    // accent-as-text has its own hover and it is gated exactly like the resting
+    // step: light takes a −0.05 lightness step of accent-text, dark takes the
+    // accent's own hover, which already clears 4.5 everywhere.
+    for (const theme of ['light', 'dark'] as const) {
+      const ink = rgb('wren-accent-text-hover', theme)
+      for (const [name, bg] of backdrops(theme)) {
+        expect(ratio(ink, bg), `accent-text-hover on ${theme} ${name}`).toBeGreaterThanOrEqual(TEXT)
+      }
+    }
+  })
+
+  it('hovers to a step of the text tier, never to the mark hover', () => {
+    // Dark aliases `--wren-accent-hover` on purpose and that is measured above.
+    // Light must NOT: `--wren-accent-hover` is a step of the plain accent, and
+    // pointing the word there is the ungated exit this test exists to close.
+    expect(rgb('wren-accent-text-hover', 'light')).not.toEqual(rgb('wren-accent-hover', 'light'))
+    expect(rgb('wren-accent-text-hover', 'dark')).toEqual(rgb('wren-accent-hover', 'dark'))
+  })
+
   it('is a step of the accent, not a fourth coral', () => {
     // The same guard the on-fill tier carries: accent-as-text must stay a step
     // of the accent, so a future re-anchor of the coral moves it too. Light
