@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-complete-push"
+description = "Enables the complete_push command without any pre-configured scope."
+commands.allow = ["complete_push"]
+
+[[permission]]
+identifier = "deny-complete-push"
+description = "Denies the complete_push command without any pre-configured scope."
+commands.deny = ["complete_push"]

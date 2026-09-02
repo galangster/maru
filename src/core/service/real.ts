@@ -19,6 +19,7 @@ import { buildRawMessage } from '../mime'
 import { applyLabelChanges, applyActionToThread, isTrashAction, labelDelta } from './actions'
 import { bodyTextOf, sentRowsFor } from './sent'
 import { accountColor } from '../palette'
+import { parseWatchExpiration } from '../push/watch'
 import type { VaultLocal } from './vault-port'
 import type { PlatformFamily } from './vault-port'
 import type { GmailMessage, GmailThread } from '../gmail/types'
@@ -47,6 +48,7 @@ export interface MailGmailClient extends SyncGmailClient {
   untrashThread(id: string): Promise<GmailThread>
   sendMessage(raw: string, threadId?: string): Promise<GmailMessage>
   getAttachment(messageId: string, attachmentId: string): Promise<Uint8Array>
+  watch(topicName: string, labelIds?: string[]): Promise<{ expiration?: string }>
 }
 
 export class MissingOAuthClientError extends Error {
@@ -464,6 +466,18 @@ export class RealMailService implements MailService {
       await Promise.all(accounts.map((a) => this.store.listLabels(a.id)))
     ).flat()
     return searchWithOperators(this.index, q, labels)
+  }
+
+  /**
+   * Ask Gmail to watch one account's inbox and report when the watch lapses.
+   *
+   * The client makes this call with its own token — MARU-ACCOUNT.md §9 — so it
+   * belongs to the mail service, which is the only thing holding one. Push
+   * decides *when*; this only does it.
+   */
+  async startPushWatch(accountId: string, topic: string): Promise<{ expiration: number }> {
+    const response = await this.runtime(accountId).client.watch(topic)
+    return { expiration: parseWatchExpiration(response.expiration) }
   }
 
   async refresh(): Promise<void> {

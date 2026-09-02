@@ -290,6 +290,15 @@ export interface MailService {
   ): Promise<{ thread: Thread; messages: Message[] }>
   /** Hydrates full bodies for a thread's messages if still metadata-only. */
   ensureBodies(threadKey: string): Promise<Message[]>
+  /**
+   * Ask Gmail to publish this account's inbox changes to `topic`, and report
+   * when the watch lapses (epoch ms).
+   *
+   * Optional because only the real service can make the call: the client holds
+   * the Gmail token and the demo service holds fixtures. Absent, push simply
+   * never arms a watch — see `src/core/push/runtime.ts`.
+   */
+  startPushWatch?(accountId: string, topic: string): Promise<{ expiration: number }>
   getAttachment(threadKey: string, messageId: string, attachmentId: string): Promise<Uint8Array>
 
   listLabels(accountId: string): Promise<Label[]>

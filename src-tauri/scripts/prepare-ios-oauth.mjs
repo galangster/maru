@@ -17,12 +17,21 @@ const callbackScheme = iosCallbackScheme(clientId);
 // stops asking on every upload, and TestFlight builds are never held for the
 // answer. If Maru ever ships its own cipher, or proprietary crypto, this key
 // must be revisited before the build that carries it.
+// `UIBackgroundModes: remote-notification` is what lets the content-free APNs
+// push wake Maru to fetch (MARU-ACCOUNT.md §9). Without it iOS delivers the
+// push only while the app is already in the foreground, so it lives here
+// rather than in the checked-in Info.plist: this file is the one plist the
+// iOS build is guaranteed to merge on every run.
 const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>ITSAppUsesNonExemptEncryption</key>
   <false/>
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>remote-notification</string>
+  </array>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

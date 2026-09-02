@@ -5217,6 +5217,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-maru-push"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "tauri-plugin-maru-shell"
 version = "0.1.0"
 dependencies = [
@@ -6860,6 +6871,8 @@ name = "wren"
 version = "0.1.8"
 dependencies = [
  "base64 0.23.1",
+ "core-foundation 0.10.1",
+ "core-foundation-sys",
  "interprocess",
  "keyring",
  "log",
@@ -6867,6 +6880,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "rustls",
+ "security-framework-sys",
  "serde",
  "serde_json",
  "socket2",
@@ -6876,6 +6890,7 @@ dependencies = [
  "tauri-plugin-http",
  "tauri-plugin-log",
  "tauri-plugin-maru-auth",
+ "tauri-plugin-maru-push",
  "tauri-plugin-maru-shell",
  "tauri-plugin-notification",
  "tauri-plugin-opener",

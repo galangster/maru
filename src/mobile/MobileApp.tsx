@@ -12,6 +12,7 @@ import {
   useSyncStatus,
   useWakeSweep,
 } from '@/features/mail/queries'
+import { usePush } from '@/features/notifications/use-push'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
@@ -55,6 +56,14 @@ export function MobileApp() {
   const changeTab = useCallback((tab: MobileTab) => {
     dispatch({ type: 'changeTab', tab })
   }, [])
+  // A tapped notification opens its conversation through the same reducer as
+  // a tapped row, so it lands with an inbox underneath it and a working back.
+  usePush(
+    useCallback(
+      (threadKey: string) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } }),
+      [],
+    ),
+  )
   const perform = usePerformAction()
   const defer = useDefer()
   const composerOpen = useComposer((state) => state.open)

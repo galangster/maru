@@ -11,6 +11,7 @@
   "permissions": [
     "os:default",
     "maru-auth:default",
-    "maru-shell:default"
+    "maru-shell:default",
+    "maru-push:default"
   ]
 }

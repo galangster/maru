@@ -9,3 +9,14 @@
   background: transparent;
   text-align: start;
 }
+
+/* The one line under a group that explains a control rather than labelling it. */
+.mobile-group-note {
+  margin: 7px 12px 0;
+  color: var(--wren-text-3);
+  font: var(--mobile-text-caption)/var(--mobile-leading-normal) var(--wren-font-ui);
+}
+
+.mobile-toggle-row[data-disabled] .mobile-switch {
+  opacity: 0.5;
+}

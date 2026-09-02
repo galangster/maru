@@ -1,6 +1,9 @@
 #[cfg(desktop)]
 mod gateway;
 
+#[cfg(target_os = "ios")]
+mod ios_keychain;
+
 #[cfg(desktop)]
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 #[cfg(desktop)]
@@ -39,54 +42,71 @@ const OAUTH_NOT_FOUND_BODY: &str = "Not Found";
 // Keychain commands
 // ---------------------------------------------------------------------------
 
-fn keyring_entry(key: &str) -> Result<keyring::Entry, String> {
-  keyring::Entry::new(KEYRING_SERVICE, key).map_err(|e| e.to_string())
-}
+#[cfg(target_os = "ios")]
+use crate::ios_keychain as secrets;
 
-/// Store `value` under `key` in the OS keychain.
-///
-/// Delete-then-create, never update-in-place: `set_password` on an existing
-/// item keeps the ACL of whichever build created it, so an item born under
-/// an old signature keeps prompting forever. Recreating the item re-anchors
-/// its ACL to the current app on every write — and since tokens rewrite
-/// themselves on refresh, a user's keychain self-heals to the signed
-/// identity within a session, after which macOS never asks again.
-#[tauri::command]
-async fn secret_set(key: String, value: String) -> Result<(), String> {
-  tauri::async_runtime::spawn_blocking(move || {
-    let entry = keyring_entry(&key)?;
+/// The desktop backend. `keyring` is left exactly as it was here; iOS needs an
+/// accessibility attribute the crate does not expose, so it has its own
+/// (`ios_keychain.rs`).
+#[cfg(not(target_os = "ios"))]
+mod secrets {
+  fn entry(service: &str, key: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(service, key).map_err(|e| e.to_string())
+  }
+
+  /// Delete-then-create, never update-in-place: `set_password` on an existing
+  /// item keeps the ACL of whichever build created it, so an item born under
+  /// an old signature keeps prompting forever. Recreating the item re-anchors
+  /// its ACL to the current app on every write — and since tokens rewrite
+  /// themselves on refresh, a user's keychain self-heals to the signed
+  /// identity within a session, after which macOS never asks again.
+  pub fn set(service: &str, key: &str, value: &str) -> Result<(), String> {
+    let entry = entry(service, key)?;
     match entry.delete_credential() {
       Ok(()) | Err(keyring::Error::NoEntry) => {}
       Err(e) => return Err(e.to_string()),
     }
-    entry.set_password(&value).map_err(|e| e.to_string())
-  })
-  .await
-  .map_err(|e| e.to_string())?
+    entry.set_password(value).map_err(|e| e.to_string())
+  }
+
+  pub fn get(service: &str, key: &str) -> Result<Option<String>, String> {
+    match entry(service, key)?.get_password() {
+      Ok(value) => Ok(Some(value)),
+      Err(keyring::Error::NoEntry) => Ok(None),
+      Err(e) => Err(e.to_string()),
+    }
+  }
+
+  pub fn delete(service: &str, key: &str) -> Result<(), String> {
+    match entry(service, key)?.delete_credential() {
+      Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+      Err(e) => Err(e.to_string()),
+    }
+  }
+}
+
+/// Store `value` under `key` in the OS keychain.
+#[tauri::command]
+async fn secret_set(key: String, value: String) -> Result<(), String> {
+  tauri::async_runtime::spawn_blocking(move || secrets::set(KEYRING_SERVICE, &key, &value))
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Read the value stored under `key`. Returns `None` when no entry exists.
 #[tauri::command]
 async fn secret_get(key: String) -> Result<Option<String>, String> {
-  tauri::async_runtime::spawn_blocking(move || match keyring_entry(&key)?.get_password() {
-    Ok(value) => Ok(Some(value)),
-    Err(keyring::Error::NoEntry) => Ok(None),
-    Err(e) => Err(e.to_string()),
-  })
-  .await
-  .map_err(|e| e.to_string())?
+  tauri::async_runtime::spawn_blocking(move || secrets::get(KEYRING_SERVICE, &key))
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Delete the entry stored under `key`. Missing entries are not an error.
 #[tauri::command]
 async fn secret_delete(key: String) -> Result<(), String> {
-  tauri::async_runtime::spawn_blocking(move || match keyring_entry(&key)?.delete_credential() {
-    Ok(()) => Ok(()),
-    Err(keyring::Error::NoEntry) => Ok(()),
-    Err(e) => Err(e.to_string()),
-  })
-  .await
-  .map_err(|e| e.to_string())?
+  tauri::async_runtime::spawn_blocking(move || secrets::delete(KEYRING_SERVICE, &key))
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Ask where to save, then write — dialog and write both on this side.
@@ -399,9 +419,10 @@ pub fn run() {
     .manage(gateway::GatewayState::default());
 
   #[cfg(target_os = "ios")]
-  let builder = builder.plugin(tauri_plugin_maru_auth::init());
-  #[cfg(target_os = "ios")]
-  let builder = builder.plugin(tauri_plugin_maru_shell::init());
+  let builder = builder
+    .plugin(tauri_plugin_maru_auth::init())
+    .plugin(tauri_plugin_maru_shell::init())
+    .plugin(tauri_plugin_maru_push::init());
 
   #[cfg(desktop)]
   let builder = builder.invoke_handler(tauri::generate_handler![

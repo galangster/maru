@@ -13,6 +13,7 @@
 import { useEffect } from 'react'
 
 import { describeDraft } from '@/core/agents'
+import { composeArrival } from '@/core/push'
 import type { Platform } from '@/core/platform'
 import { useAgentGateway, useMailService, usePlatform } from '@/features/mail/service'
 import { isScreenshot, isTauri } from '@/lib/env'
@@ -86,7 +87,9 @@ export function useNotifications(): void {
       // MAGIC §4.4: one pass is one cue, and a pass over three is silent).
       playSound('newMail', { batchSize: event.threads })
       if (document.hasFocus()) return
-      void notify(platform, event.from, arrivalBody(event.subject, event.threads))
+      // Same words the phone puts on the lock screen, from the same function.
+      const arrival = composeArrival(event)
+      void notify(platform, arrival.title, arrival.body)
     })
 
     return () => {
@@ -94,12 +97,6 @@ export function useNotifications(): void {
       stopAction?.()
     }
   }, [service, platform])
-}
-
-/** One notification for the pass, so five arrivals are not five toasts. */
-function arrivalBody(subject: string, threads: number): string {
-  const lead = subject || '(no subject)'
-  return threads > 1 ? `${lead} — and ${threads - 1} more` : lead
 }
 
 async function notify(platform: Platform | null, from: string, body: string): Promise<void> {

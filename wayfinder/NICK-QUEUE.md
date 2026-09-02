@@ -529,3 +529,20 @@ one client id.
   add windows-x86_64 to latest.json so auto-update covers Windows.
 - **Fullscreen traffic lights** (P2's carried check) — verify the
   re-parented buttons in macOS fullscreen.
+
+- **Push on a physical iPhone** (I4's carried check) — the wake half of
+  push cannot be exercised on a Simulator. `simctl push` reaches the
+  Simulator's user-notification system (an alert payload draws its
+  banner) but never calls the application delegate: neither
+  `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)`
+  nor the legacy variant fires, foreground or background, with
+  `UIBackgroundModes` set and `aps-environment` in the simulated
+  entitlements. There is no background-wake path to simulate.
+
+  Everything up to the delegate is verified live on the Simulator, and
+  the delegate proxy is proven by the APNs device token arriving through
+  it. What is owed on a device is one run of the rest: send a
+  `{"aps":{"content-available":1}}` push through the relay and confirm
+  the log shows `pushReceived`, then `badge set to N`, then
+  `sync finished for push <id>`. `docs/IOS.md` § What the Simulator
+  cannot show has the detail.

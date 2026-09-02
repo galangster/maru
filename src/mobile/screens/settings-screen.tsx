@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { useAccountsById, useSaveSettings, useSettings } from '@/features/mail/queries'
+import type { PushPermission } from '@/core/push'
+import { usePushUi } from '@/features/notifications/push-store'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import { useBusyAction } from '@/features/settings/account/use-busy-action'
 import { MobileIcon } from '../components/mobile-icon'
@@ -13,6 +15,12 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
   const save = useSaveSettings()
   const service = useMailService()
   const { demo } = useMailMode()
+  // Field by field: the row redraws when the permission changes, not when
+  // an unrelated part of the push state does.
+  const pushAvailable = usePushUi((state) => state.available)
+  const pushPermission = usePushUi((state) => state.permission)
+  const pushRequesting = usePushUi((state) => state.requesting)
+  const requestPush = usePushUi((state) => state.requestPermission)
   const { isBusy, run } = useBusyAction((error) => {
     const code = 'code' in error ? error.code : undefined
     toast.error(code === 'cancelled' ? 'Sign-in cancelled' : error.message)
@@ -49,6 +57,22 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
           <SettingsToggle icon={<MobileIcon name="image" scale="action" />} title="Load images" checked={(current?.imagePolicy ?? 'allow') === 'allow'} onChange={(checked) => save.mutate({ imagePolicy: checked ? 'allow' : 'block' })} />
           <SettingsToggle icon={<MobileIcon name="sliders" scale="action" />} title="Sounds" checked={current?.sounds ?? false} onChange={(sounds) => save.mutate({ sounds })} />
         </SettingsGroup>
+        {pushAvailable && (
+          <SettingsGroup title="Notifications" note="New mail can only reach this phone with a Maru account signed in.">
+            <SettingsToggle
+              icon={<MobileIcon name="unread" scale="action" />}
+              title="New mail"
+              detail={notificationsDetail(pushPermission, pushRequesting)}
+              checked={pushPermission === 'granted'}
+              // Granted and denied are both final from in here: iOS shows its
+              // alert once ever, and only iPhone Settings can change the
+              // answer afterwards. The row says so rather than offering a
+              // switch that would silently do nothing.
+              disabled={pushRequesting || pushPermission !== 'prompt'}
+              onChange={() => void requestPush()}
+            />
+          </SettingsGroup>
+        )}
         <SettingsGroup title="Maru account"><SettingsRow icon={<MobileIcon name="unread" scale="action" />} title="Maru account" detail="Sync, devices and recovery" onClick={onAccount} /></SettingsGroup>
         <SettingsGroup title="About"><SettingsRow icon={<MobileIcon name="info" scale="action" />} title="Maru for iPhone" detail={`Version 0.1.8 · ${demo ? 'Demo mode' : 'Gmail mode'}`} /></SettingsGroup>
       </div>
@@ -56,8 +80,21 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
   )
 }
 
-function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="mobile-group"><h2>{title}</h2><div>{children}</div></section>
+function notificationsDetail(permission: PushPermission, requesting: boolean): string {
+  if (requesting) return 'Waiting for your answer…'
+  if (permission === 'granted') return 'On'
+  if (permission === 'denied') return 'Off — turn it on in iPhone Settings'
+  return 'Ask iPhone to allow notifications'
+}
+
+function SettingsGroup({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+  return (
+    <section className="mobile-group">
+      <h2>{title}</h2>
+      <div>{children}</div>
+      {note && <p className="mobile-group-note">{note}</p>}
+    </section>
+  )
 }
 function SettingsRow({ icon, title, detail, onClick }: { icon: ReactNode; title: string; detail: string; onClick?: () => void }) {
   const content = <><span className="mobile-row-icon">{icon}</span><span><strong>{title}</strong><small>{detail}</small></span>{onClick && <MobileIcon name="chevronRight" />}</>
@@ -65,11 +102,11 @@ function SettingsRow({ icon, title, detail, onClick }: { icon: ReactNode; title:
     ? <button type="button" className="mobile-row mobile-settings-link mobile-press" onClick={onClick} aria-label={`${title}. ${detail}`}>{content}</button>
     : <div className="mobile-row">{content}</div>
 }
-function SettingsToggle({ icon, title, checked, onChange }: { icon: ReactNode; title: string; checked: boolean; onChange: (checked: boolean) => void }) {
+function SettingsToggle({ icon, title, detail, checked, disabled, onChange }: { icon: ReactNode; title: string; detail?: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="mobile-row mobile-toggle-row">
-      <span className="mobile-row-icon">{icon}</span><span><strong>{title}</strong></span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className="mobile-row mobile-toggle-row" data-disabled={disabled || undefined}>
+      <span className="mobile-row-icon">{icon}</span><span><strong>{title}</strong>{detail && <small>{detail}</small>}</span>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
       <span className="mobile-switch" aria-hidden><span /></span>
     </label>
   )
