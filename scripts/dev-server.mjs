@@ -5,7 +5,16 @@
 import { spawn } from 'node:child_process'
 import { createConnection } from 'node:net'
 
-export const PORT = 1420
+/**
+ * 1420 is Tauri's fixed port and stays the default.
+ *
+ * `WREN_DEV_PORT` overrides it, and the reason is not preference. Several
+ * worktrees of this repository are driven at once, and `startServerIfNeeded`
+ * REUSES whatever is already answering on the port — so a capture run in one
+ * worktree silently photographed another worktree's build. A run that must be
+ * of its own code names its own port.
+ */
+export const PORT = Number(process.env.WREN_DEV_PORT ?? 1420)
 export const ORIGIN = `http://localhost:${PORT}`
 
 function portOpen(port) {
@@ -40,7 +49,13 @@ export async function startServerIfNeeded(root, port = PORT) {
     return null
   }
   console.log('starting vite…')
-  const child = spawn('npm', ['run', 'dev'], { cwd: root, stdio: 'ignore', detached: false })
+  // `--strictPort`, so a port already taken by another worktree fails here
+  // rather than letting vite pick a free one that nothing is pointed at.
+  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--strictPort'], {
+    cwd: root,
+    stdio: 'ignore',
+    detached: false,
+  })
   if (!(await waitForPort(port))) {
     child.kill('SIGTERM')
     throw new Error(`vite did not come up on ${port}`)
