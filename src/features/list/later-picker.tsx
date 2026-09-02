@@ -21,17 +21,28 @@ import { useNow } from '@/lib/use-now'
 import { cn } from '@/lib/utils'
 
 /**
- * The sentence that rides permanently with Later, verbatim, in all three of its
- * homes: here at the point of the action, the Later view's header, and Settings.
+ * The sentence that rides permanently with Later, verbatim, in all four of its
+ * homes: here at the point of the action, the Later view's header, Settings,
+ * and the phone's Later sheet.
  *
- * Exported so the three cannot drift into three different promises. Deliberately
+ * Exported so the four cannot drift into four different promises. Deliberately
  * NOT in the confirmation toast: that fires many times a day, and a permanent
  * caveat on a frequent toast is read as chrome inside a week. And deliberately
  * not a first-run tip — dismissible means misremembered six months later, which
  * is exactly how a limitation turns into a broken promise.
+ *
+ * Rewritten 2026-09-02 for A9 (owner ruling: yes). Until then it said "saved on
+ * this device", which was the whole truth; now it is the truth only when nobody
+ * is signed in, and a disclosure that overstates a limitation is as wrong as
+ * one that hides it. One sentence still, and still unconditional: it states
+ * both cases rather than branching on the account, because a caveat that
+ * appears and disappears is a caveat nobody learns.
+ *
+ * The Gmail half is unchanged and always true. Later reaches no Gmail method
+ * on any device, signed in or not — see MARU-ACCOUNT.md §6.
  */
 export const LATER_DISCLOSURE =
-  'Later is saved on this device. Gmail on other devices still shows these in your inbox.'
+  "Later follows your Maru account when you're signed in, and stays on this device when you're not. Gmail never sees it, so these still show in Gmail's inbox."
 
 export function isoDay(timestamp: number): string {
   const date = new Date(timestamp)
@@ -181,7 +192,7 @@ function PickerBody({
         )}
       </ul>
 
-      {/* Disclosure site 1 of 3, at the point of the action, every single time.
+      {/* Disclosure site 1 of 4, at the point of the action, every single time.
           A rule above it rather than a card around it: it is a caveat on the
           choice just made, not a fifth option. */}
       <p className="border-hairline text-ink-3 border-t px-4 py-3 text-xs text-pretty">

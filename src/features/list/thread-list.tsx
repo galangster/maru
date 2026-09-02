@@ -429,9 +429,9 @@ export function ThreadList() {
 
       <SyncNotice />
 
-      {/* Disclosure site 2 of 3, permanent and directly under the word
+      {/* Disclosure site 2 of 4, permanent and directly under the word
           "Later". It is its own strip rather than the header's inline
-          subtitle because the sentence is 73 characters and the header
+          subtitle because the sentence runs past 150 characters and the header
           truncates — and a truncated disclosure is not a disclosure. Nothing
           dismisses it: dismissible means misremembered six months later. */}
       {view.kind === 'later' && !searching && (

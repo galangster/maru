@@ -832,9 +832,10 @@ function LaterBlock() {
     <div className="flex flex-col gap-1">
       <FieldLabel htmlFor="wren-later">Later</FieldLabel>
       <p id="wren-later" className="text-ink-3 text-sm text-pretty">
-        {LATER_DISCLOSURE} Deferrals live in this Mac's database and are never
-        sent to Google, so Maru's inbox count and Gmail's will disagree by
-        however many threads you have saved.
+        {LATER_DISCLOSURE} Signed in, they travel inside your encrypted vault
+        and nowhere else; signed out, they never leave this Mac. Either way
+        Google is never told, so Maru's inbox count and Gmail's will disagree
+        by however many threads you have saved.
       </p>
     </div>
   )
