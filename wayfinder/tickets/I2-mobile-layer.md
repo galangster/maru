@@ -180,6 +180,15 @@ over the axis lock. No Rust or Swift changed.
   size leaves rows briefly overlapping until the next scroll re-measures them.
   Closing it still means anchoring the restore on an item index rather than a
   pixel offset.
+- The undo toast clears the *minimized* Liquid Glass tab bar but not the
+  expanded one. `--mobile-toast-offset` is derived from
+  `--maru-native-tab-inset`, the plugin's published measurement of the glass,
+  and that measurement does not appear to be re-published when UIKit expands
+  the bar again — so an archive performed just after a tab change draws the bar
+  over "Archived" and half of "Undo". Left alone deliberately: the fix belongs
+  to the plugin's measurement (I8), and guessing a larger constant on the web
+  side would lift the toast off the bar in the minimized state, which is the
+  state it is usually in.
 - Nothing here has been re-proved on Nick's physical iPhone. The simulator
   reproduces the touch handling faithfully, but the scroll physics and the
   keyboard still want a hands-on pass.
