@@ -86,6 +86,10 @@ a deploy. Use `enforce on` to close signup again.
 
 ## Stripe setup
 
+The one-shot path: `server/scripts/stripe-connect.sh` asks for the live key
+without echoing it, runs the setup below, and writes the four variables into
+the Railway `sync` service. Nothing secret is printed.
+
 Create or find the `Maru Sync` product and its two prices with:
 
 ```bash
