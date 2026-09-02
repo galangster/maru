@@ -1,4 +1,11 @@
 export { badgeCount } from './badge'
+export {
+  emptyPushDiagnostics,
+  registrationLabel,
+  type PushDiagnostics,
+  type PushRegistration,
+  type PushTestResponse,
+} from './diagnostics'
 export { composeArrival, type ArrivalInput } from './notification'
 export {
   PushRuntime,

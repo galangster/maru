@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { useAccountsById, useSaveSettings, useSettings } from '@/features/mail/queries'
-import type { PushPermission } from '@/core/push'
+import { registrationLabel, type PushPermission } from '@/core/push'
 import { usePushUi } from '@/features/notifications/push-store'
 import { useMailMode, useMailService } from '@/features/mail/service'
 import { useBusyAction } from '@/features/settings/account/use-busy-action'
@@ -21,6 +21,8 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
   const pushPermission = usePushUi((state) => state.permission)
   const pushRequesting = usePushUi((state) => state.requesting)
   const requestPush = usePushUi((state) => state.requestPermission)
+  // The relay registers devices against a Maru account, so a test push has
+  // nowhere to go without one — MARU-ACCOUNT.md §9.
   const { isBusy, run } = useBusyAction((error) => {
     const code = 'code' in error ? error.code : undefined
     toast.error(code === 'cancelled' ? 'Sign-in cancelled' : error.message)
@@ -71,6 +73,7 @@ export function SettingsScreen({ onAccount }: { onAccount: () => void }) {
               disabled={pushRequesting || pushPermission !== 'prompt'}
               onChange={() => void requestPush()}
             />
+            <PushDiagnosticsRow />
           </SettingsGroup>
         )}
         <SettingsGroup title="Maru account"><SettingsRow icon={<MobileIcon name="unread" scale="action" />} title="Maru account" detail="Sync, devices and recovery" onClick={onAccount} /></SettingsGroup>
@@ -85,6 +88,42 @@ function notificationsDetail(permission: PushPermission, requesting: boolean): s
   if (permission === 'granted') return 'On'
   if (permission === 'denied') return 'Off — turn it on in iPhone Settings'
   return 'Ask iPhone to allow notifications'
+}
+
+/**
+ * What the phone knows about its own push registration, and the one action
+ * that proves it end to end.
+ *
+ * Everything here is otherwise invisible from the device: APNs refuses in a
+ * delegate callback, the relay refuses in a promise nobody reads, and a device
+ * row with no token looks exactly like a working one from in here.
+ */
+function PushDiagnosticsRow() {
+  const tokenPrefix = usePushUi((state) => state.tokenPrefix)
+  const registration = usePushUi((state) => state.registration)
+  const lastError = usePushUi((state) => state.lastError)
+  const testing = usePushUi((state) => state.testing)
+  const lastTest = usePushUi((state) => state.lastTest)
+  const sendTestPush = usePushUi((state) => state.sendTestPush)
+  return (
+    <div className="mobile-row mobile-diagnostics-row">
+      <span className="mobile-row-icon"><MobileIcon name="info" scale="action" /></span>
+      <span>
+        <strong>Push diagnostics</strong>
+        <small>Device token · {tokenPrefix ? `${tokenPrefix}…` : 'no token'}</small>
+        <small>Relay · {registrationLabel(registration, lastError)}</small>
+        {lastTest && <small>Test push · {lastTest}</small>}
+      </span>
+      <button
+        type="button"
+        className="mobile-diagnostics-action mobile-press"
+        disabled={testing}
+        onClick={() => void sendTestPush()}
+      >
+        {testing ? 'Sending…' : 'Send test push'}
+      </button>
+    </div>
+  )
 }
 
 function SettingsGroup({ title, note, children }: { title: string; note?: string; children: ReactNode }) {

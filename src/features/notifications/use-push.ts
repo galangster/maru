@@ -23,14 +23,12 @@ export function usePush(openThread: (threadKey: string) => void): void {
   // event channel and the plugin's buffered pushes with it.
   const openRef = useRef(openThread)
   openRef.current = openThread
-  // Sign-in and sign-out are the two moments push starts and stops mattering,
-  // but neither rebuilds the runtime — see the second effect below.
-  const accountEmail = useMaruAccount((state) => state.email)
   const runtimeRef = useRef<PushRuntime | null>(null)
 
   useEffect(() => {
     let alive = true
     let stopForeground: (() => void) | null = null
+    let stopAccount: (() => void) | null = null
 
     void (async () => {
       const [{ pushPort }, { accountRelayClient }] = await Promise.all([
@@ -52,6 +50,7 @@ export function usePush(openThread: (threadKey: string) => void): void {
         watches: localWatchStore(),
         openThread: (threadKey) => openRef.current(threadKey),
         onPermission: (permission) => setPushUi({ permission }),
+        onDiagnostics: setPushUi,
         log: (message) => console.warn(`[push] ${message}`),
       })
 
@@ -64,6 +63,14 @@ export function usePush(openThread: (threadKey: string) => void): void {
             setPushUi({ requesting: false })
           }
         },
+        sendTestPush: async () => {
+          setPushUi({ testing: true })
+          try {
+            setPushUi({ lastTest: (await runtimeRef.current?.testPush()) ?? null })
+          } finally {
+            setPushUi({ testing: false })
+          }
+        },
       })
 
       await runtimeRef.current.start()
@@ -72,6 +79,16 @@ export function usePush(openThread: (threadKey: string) => void): void {
         runtimeRef.current = null
         return
       }
+
+      // Signing in is the moment a device can first be registered and a watch
+      // first armed. It is not a reason to tear the runtime down: the plugin's
+      // event channel is what holds the pushes that arrived before the webview
+      // was ready, and closing it would drop them. Subscribed after `start`,
+      // so a sign-in can never land on a runtime that does not exist yet;
+      // `start` itself covers an account that hydrated before this point.
+      stopAccount = useMaruAccount.subscribe((state, previous) => {
+        if (state.email && state.email !== previous.email) void runtimeRef.current?.onRelayAvailable()
+      })
 
       // Coming back to the app is the cheapest place to notice a watch that
       // lapsed while the phone was shut, and the only place a permission
@@ -91,18 +108,10 @@ export function usePush(openThread: (threadKey: string) => void): void {
     return () => {
       alive = false
       stopForeground?.()
-      setPushUi({ requestPermission: noPushRequest })
+      stopAccount?.()
+      setPushUi({ requestPermission: noPushRequest, sendTestPush: noPushRequest })
       runtimeRef.current?.stop()
       runtimeRef.current = null
     }
   }, [service])
-
-  // Signing in is the moment a device can first be registered and a watch
-  // first armed. It is not a reason to tear the runtime down: the plugin's
-  // event channel is what holds the pushes that arrived before the webview
-  // was ready, and closing it would drop them.
-  useEffect(() => {
-    if (!accountEmail) return
-    void runtimeRef.current?.onRelayAvailable()
-  }, [accountEmail])
 }
