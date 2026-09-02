@@ -591,7 +591,7 @@ one client id.
 
 ## 2026-09-02 overnight
 
-- [ ] **Install TestFlight 0.1.9 (5)** — the last cut of the night; adds the phone wave-2 fixes (Sent/Trash actions, search survives opening a result, putting a conversation away closes it, sheet drag-to-dismiss, "this phone"). Supersedes (4) and (3): adds every phone fix from the overnight QA waves (bulk undo, sync-failure banner, scroll restore, Mailboxes picker with Later/Sent/Starred/Trash/labels, search-result actions, blocked-images notice, label picker, Dynamic Type reflow). Same push check applies.
+- [ ] **Install TestFlight 0.1.10 (6)** — the current cut; adds the phone wave-3 fixes (sheet back gesture, long-subject title, one Undo toast for a burst, IME and RTL) on top of (5)'s the phone wave-2 fixes (Sent/Trash actions, search survives opening a result, putting a conversation away closes it, sheet drag-to-dismiss, "this phone"). Supersedes (4) and (3): adds every phone fix from the overnight QA waves (bulk undo, sync-failure banner, scroll restore, Mailboxes picker with Later/Sent/Starred/Trash/labels, search-result actions, blocked-images notice, label picker, Dynamic Type reflow). Same push check applies.
 - [ ] ~~Install TestFlight 0.1.8 (3)~~ — superseded by 0.1.9 (4). **Original note:** — the second cut of the night (App
   Store Connect renumbered it; the archive said 2). It carries the real Maru
   icon, finger swipes (right archives, left is Later), keyboard-only focus
