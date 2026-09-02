@@ -31,6 +31,9 @@ export default defineRailway(() => {
       APNS_BUNDLE_ID: "app.getmaru.ios",
       APNS_ENV: "production",
       // APNS_KEY_P8 is a secret set by hand in Railway; never declared here.
+      STRIPE_PRICE_MONTHLY: "price_1UB6LY9GRlyl1yugHzLceThn",
+      STRIPE_PRICE_YEARLY: "price_1UB6LZ9GRlyl1yugQuUmI3tx",
+      // STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are set by hand in Railway.
       MARU_ALLOWLIST: "nick@metadao.fi,galangsterr@gmail.com,nicholasgalang@gmail.com",
       MARU_COMPED: "nick@metadao.fi,galangsterr@gmail.com,nicholasgalang@gmail.com",
     },
