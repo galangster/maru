@@ -90,6 +90,29 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
 }
 
 /*
+ * A confirmation names what happened; it is not a place to read a subject.
+ *
+ * `surfaces.css` carries exactly this rule for the desktop, and the phone
+ * never gets it: that file is imported by `App.tsx`, which the phone shell
+ * does not mount. So the description had the content clamp from
+ * `send-toast.ts` — 140 characters, whitespace collapsed — and no clamp on
+ * the BOX. A pasted subject with no spaces in it has nothing to break on, so
+ * 140 characters could still stack one character per line and grow the toast
+ * up the screen until it covered the app (issue 47).
+ *
+ * `anywhere` gives it somewhere to break, and the two-line box holds it
+ * whatever it breaks into. Both halves are needed: the character clamp is the
+ * guarantee about content, this is the guarantee about geometry.
+ */
+html:has(.mobile-app) [data-sonner-toaster] [data-sonner-toast] [data-description] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/*
  * The document is the scroller on the phone, and that is load-bearing rather
  * than a style choice: UIKit decides when to minimize the Liquid Glass tab bar
  * by watching a UIScrollView, and the only one in the hierarchy is the

@@ -2,6 +2,8 @@
 // still be taken back. Issue 2 was the other case — "Sent" on screen with a
 // live-looking Undo that did nothing.
 
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import { SEND_TOAST, TOAST_TEXT_MAX, clampToastText, sendToastOptions } from '@/features/compose/send-toast'
@@ -63,5 +65,39 @@ describe('clampToastText', () => {
   it('never returns more than the maximum', () => {
     expect(clampToastText('a'.repeat(TOAST_TEXT_MAX)).length).toBe(TOAST_TEXT_MAX)
     expect(clampToastText('a'.repeat(TOAST_TEXT_MAX + 1)).length).toBe(TOAST_TEXT_MAX)
+  })
+})
+
+/**
+ * The other half of the same guarantee, and the half the phone was missing.
+ *
+ * `clampToastText` bounds the string; the two-line box bounds what the string
+ * becomes when it has nothing to break on. The desktop gets that box from
+ * `features/shell/surfaces.css`, which `App.tsx` imports — and the phone shell
+ * never mounts `App.tsx`, so a 140-character subject with no spaces still grew
+ * the confirmation up the screen until it covered the app (issue 47).
+ *
+ * Asserted against the stylesheet rather than a rendered toast because sonner
+ * renders into a portal outside any component under test, and the defect is a
+ * missing rule rather than a wrong value.
+ */
+describe('the phone shell clamps the toast description box', () => {
+  const css = readFileSync(new URL('../src/mobile/mobile.css', import.meta.url), 'utf8')
+  const rule = css.slice(
+    css.indexOf('html:has(.mobile-app) [data-sonner-toaster] [data-sonner-toast] [data-description]'),
+  )
+
+  it('scopes the rule to the phone shell', () => {
+    expect(css).toContain(
+      'html:has(.mobile-app) [data-sonner-toaster] [data-sonner-toast] [data-description]',
+    )
+  })
+
+  it('holds the description to two lines', () => {
+    expect(rule.slice(0, rule.indexOf('}'))).toContain('-webkit-line-clamp: 2')
+  })
+
+  it('lets a subject with no spaces in it break', () => {
+    expect(rule.slice(0, rule.indexOf('}'))).toContain('overflow-wrap: anywhere')
   })
 })
