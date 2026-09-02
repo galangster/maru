@@ -52,7 +52,11 @@ export function sentRowsFor(draft: SendableDraft, ctx: SentContext): SentRows {
     id: ctx.messageId,
     threadId: ctx.gmailThreadId,
     accountId: account.id,
-    from: { name: account.displayName, email: account.email },
+    // The sender's NAME, never the account's label — issue #61. `senderName`
+    // is undefined for an account that has not been given one, and
+    // `displayName(addr)` falls back to the address, which is what the reading
+    // pane already shows for any message that arrives without a name.
+    from: { name: account.senderName, email: account.email },
     to: draft.to,
     cc: draft.cc,
     bcc: draft.bcc,

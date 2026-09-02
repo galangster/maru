@@ -327,11 +327,17 @@ function ThreadHeader({
 
   return (
     <div className="flex flex-col gap-2">
-      <h1 className="font-ui text-ink text-xl font-semibold text-balance">
+      <h1
+        // Issue #59: the heading takes the subject's own direction, so a
+        // sentence that ends in a full stop puts it on the correct end and the
+        // line is aligned to the edge it reads from.
+        dir="auto"
+        className="font-ui text-ink text-xl font-semibold text-balance"
+      >
         {thread.subject || '(no subject)'}
       </h1>
       <p className="text-ink-3 text-sm">
-        {people}
+        <span dir="auto">{people}</span>
         <span className="tabular-nums">
           {' · '}
           {messages.length} message{messages.length === 1 ? '' : 's'}

@@ -1,9 +1,9 @@
 // Which floating surface is open. One store, so the Esc handler and the
 // shortcut layer never have to guess what is on top.
 //
-// The four dialog surfaces (palette, settings, shortcuts, onboarding) trap
-// focus and own their own Escape. The two inline surfaces (list search, the
-// composer) do not, so `topmostInline` is what the global Esc handler reads.
+// The dialog surfaces trap focus and own their own Escape. The three surfaces
+// that remember where the keyboard came from and hand it back — the composer,
+// the list search and the palette — are `InlineSurface` below.
 
 import { create } from 'zustand'
 
@@ -88,8 +88,21 @@ export const useSurfaces = create<SurfaceState>((set) => ({
   searchOpen: false,
   searchQuery: '',
 
-  setPalette: (palette) => set({ palette }),
-  openSettings: (section = 'accounts') => set({ settings: section, palette: false }),
+  // The palette remembers where the keyboard was on the way IN, and hands it
+  // back on the way out — issue #58. It is the one dialog that opens OVER
+  // another surface rather than replacing it, so "the screen was yours before
+  // this, take it back" is a real answer for it and is not for the other four.
+  setPalette: (palette) => {
+    if (palette) rememberFocusOrigin('palette')
+    set({ palette })
+  },
+  // These two close the palette by TAKING the screen from it, so the slot is
+  // dropped rather than spent: the surface that is arriving owns focus, and a
+  // restore here would pull the keyboard back out of it.
+  openSettings: (section = 'accounts') => {
+    forgetFocusOrigin('palette')
+    return set({ settings: section, palette: false })
+  },
   closeSettings: () => set({ settings: null }),
   setShortcuts: (shortcuts) => set({ shortcuts }),
   setOnboarding: (onboarding) => set({ onboarding }),
@@ -102,7 +115,11 @@ export const useSurfaces = create<SurfaceState>((set) => ({
   // Opening it closes the palette, which is one of the three doors onto it: a
   // picker floating over a palette would be the third glass layer DIRECTION §7
   // rule 1 calls a bug.
-  openLater: (keys, bulk = false) => set(keys.length ? { later: { keys, bulk }, palette: false } : {}),
+  openLater: (keys, bulk = false) => {
+    if (!keys.length) return
+    forgetFocusOrigin('palette')
+    set({ later: { keys, bulk }, palette: false })
+  },
   closeLater: () => set({ later: null }),
   openSearch: () => {
     rememberFocusOrigin('search')
@@ -138,20 +155,20 @@ export function useAnyDialogOpen(): boolean {
 }
 
 /**
- * The two inline surfaces that have somewhere of their own to go back to.
+ * The surfaces that have somewhere of their own to go back to.
  *
- * The four dialogs trap focus and hand it back to the thread list, which is
- * right for them: they take the screen, so there is no "where you were" left
- * to return to. The composer and the search field do not take the screen — a
- * keyboard user reaches them from wherever they had tabbed to, and dropping
- * focus on the page throws that position away. The next Tab then starts again
- * at the first control in the app (issue 44).
+ * The composer and the search field, because they do not take the screen —
+ * and the palette, because it is the one dialog that opens ON TOP of another
+ * surface instead of replacing it (issue #58). Closing it over the Save for
+ * later menu used to drop the keyboard on the thread list while the menu was
+ * still covering the window: one Tab then walked the page underneath a dialog,
+ * and the only way back into the menu was the mouse.
  *
- * One slot per surface rather than one shared slot: both can be open at once,
- * and a search opened from inside a compose must not overwrite where the
- * composer has to go back to.
+ * One slot per surface rather than one shared slot: more than one of them can
+ * be open at once, and a search opened from inside a compose must not
+ * overwrite where the composer has to go back to.
  */
-export type InlineSurface = 'composer' | 'search'
+export type InlineSurface = 'composer' | 'search' | 'palette'
 
 const focusOrigin = new Map<InlineSurface, HTMLElement>()
 
@@ -178,6 +195,38 @@ export function rememberFocusOrigin(surface: InlineSurface): void {
 }
 
 /**
+ * Drop a slot without spending it. For the case where the surface is being
+ * REPLACED rather than closed: the arriving surface takes focus, and handing
+ * it back to where the outgoing one was opened from would pull the keyboard
+ * straight out of it.
+ */
+export function forgetFocusOrigin(surface: InlineSurface): void {
+  focusOrigin.delete(surface)
+}
+
+/**
+ * Spend the slot and answer with the element to focus, without focusing it.
+ *
+ * Base UI's Dialog moves focus itself when it closes, so the palette hands it
+ * this through `finalFocus` rather than racing it with a `focus()` call of its
+ * own — which is how the keyboard ended up on the thread list behind a menu
+ * that was still on screen (issue #58).
+ *
+ * `null` means "this surface has no origin left". The caller decides what that
+ * is worth: nothing, when another dialog is on screen and owns the keyboard.
+ */
+export function takeFocusOrigin(surface: InlineSurface): HTMLElement | null {
+  if (typeof document === 'undefined') return null
+  const origin = focusOrigin.get(surface)
+  focusOrigin.delete(surface)
+  // `getClientRects` rather than `offsetParent`: a control inside a fixed or
+  // collapsed region is still focusable, and an element with no boxes at all
+  // is the case that has to fall through.
+  if (origin?.isConnected && origin.getClientRects().length > 0) return origin
+  return null
+}
+
+/**
  * Called as the surface closes. Back to the element that opened it, or to the
  * thread list when that element has gone — the search field's own trigger is
  * replaced by the field, so closing search lands on the list, which is where
@@ -185,12 +234,8 @@ export function rememberFocusOrigin(surface: InlineSurface): void {
  */
 export function restoreFocusOrigin(surface: InlineSurface): void {
   if (typeof document === 'undefined') return
-  const origin = focusOrigin.get(surface)
-  focusOrigin.delete(surface)
-  // `getClientRects` rather than `offsetParent`: a control inside a fixed or
-  // collapsed region is still focusable, and an element with no boxes at all
-  // is the case that has to fall through.
-  if (origin?.isConnected && origin.getClientRects().length > 0) {
+  const origin = takeFocusOrigin(surface)
+  if (origin) {
     origin.focus()
     return
   }
@@ -204,11 +249,13 @@ export function restoreFocusOrigin(surface: InlineSurface): void {
  * the selection is announced; the pane is the fallback for an empty or
  * searching list, which has no listbox to land on.
  */
+export function threadListElement(): HTMLElement | null {
+  return (
+    document.querySelector<HTMLElement>('[data-wren-listbox]') ??
+    document.querySelector<HTMLElement>('section[aria-label="Threads"]')
+  )
+}
+
 export function focusThreadList(): void {
-  const listbox = document.querySelector<HTMLElement>('[data-wren-listbox]')
-  if (listbox) {
-    listbox.focus()
-    return
-  }
-  document.querySelector<HTMLElement>('section[aria-label="Threads"]')?.focus()
+  threadListElement()?.focus()
 }

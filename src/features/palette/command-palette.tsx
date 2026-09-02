@@ -35,9 +35,15 @@ const PALETTE_ACTIONS: ThreadActionId[] = ['archive', 'later', 'trash', 'star', 
 import { useMailService } from '@/features/mail/service'
 import { DEFAULT_LIST_PREFS, useUi, type ListPrefs } from '@/features/mail/ui-store'
 import { ThreadResult } from '@/components/thread-result'
-import { focusThreadList, useSurfaces } from '@/features/shell/surface-store'
+import {
+  anyDialogOpen,
+  takeFocusOrigin,
+  threadListElement,
+  useSurfaces,
+} from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { useDebounced } from '@/lib/use-debounced'
+import { requestSidebarToggle } from '@/features/sidebar/toggle'
 import { viewForThread } from '@/lib/thread-view'
 
 // Each verb names its end state, so "unread" always shows unread rather than
@@ -57,13 +63,7 @@ export function CommandPalette() {
   const setPalette = useSurfaces((s) => s.setPalette)
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setPalette(next)
-        if (!next) focusThreadList()
-      }}
-    >
+    <Dialog open={open} onOpenChange={setPalette}>
       <DialogContent
         showCloseButton={false}
         aria-label="Command palette"
@@ -72,6 +72,31 @@ export function CommandPalette() {
         // 100+/day keyboard surface and has to be there before the user looks
         // (UI-REVIEW-2026-08-28 S1).
         data-wren-surface="palette"
+        // Where the keyboard goes when the palette closes — issue #58.
+        //
+        // The palette is the one dialog that opens ON TOP of another surface
+        // rather than replacing it, so it is the one dialog with somewhere to
+        // put the keyboard back. It used to call `focusThreadList()` on every
+        // close: with the composer underneath, the caret left the half-written
+        // message; with the Save for later menu underneath, focus landed on
+        // the thread list while the menu was still covering the window, and
+        // one Tab walked to a pane divider underneath a live dialog.
+        //
+        // Handed to Base UI rather than focused by us. Base UI moves focus
+        // itself as the popup unmounts, so a `focus()` call in `onOpenChange`
+        // is a race we lose; `finalFocus` is the same decision made in the
+        // place the library is already going to ask.
+        finalFocus={() => {
+          const origin = takeFocusOrigin('palette')
+          if (origin) return origin
+          // No origin left. Either the palette was opened from nowhere in
+          // particular, or another dialog took the screen from it (the Later
+          // picker and Settings both drop the slot as they open). A dialog on
+          // screen owns the keyboard, so do nothing; otherwise fall back to
+          // the list, which is where every other surface lands.
+          if (anyDialogOpen()) return false
+          return threadListElement() ?? false
+        }}
         className="glass-strong top-[16%] flex w-[600px] max-w-[calc(100%-2rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 ring-0 sm:max-w-[600px]"
       >
         <DialogTitle className="sr-only">Command palette</DialogTitle>
@@ -203,7 +228,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
             label="Toggle sidebar"
             hint={`⌥${MOD}S`}
             onSelect={() =>
-              run(() => useUi.getState().toggleSidebar())
+              run(() => requestSidebarToggle())
             }
           />
           <Row icon="settings" label="Settings" onSelect={() => run(() => openSettings())} />

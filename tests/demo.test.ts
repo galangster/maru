@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { DemoMailService } from '../src/core/service/demo'
 import { THREAD_SPECS } from '../src/core/demo/fixtures'
+import { sentRowsFor } from '../src/core/service/sent'
 import type { MailEvent } from '../src/core/types'
+import { displayName, initials } from '../src/lib/format'
+import { makeAccount } from './fixtures/domain'
 
 const NOW = Date.UTC(2026, 7, 28, 12, 0, 0)
 
@@ -261,6 +264,66 @@ describe('send', () => {
     expect(after[0].subject).toBe('A brand new note')
     expect(after[0].accountId).toBe(account.id)
     expect(events.some((e) => e.type === 'threadsChanged')).toBe(true)
+  })
+
+  /**
+   * A message you just sent names you the way every other message from you
+   * does — issue #61.
+   *
+   * The sender used to be the account's sidebar nickname, "Personal", with a
+   * "PE" avatar, while every other message from the same address in the same
+   * mailbox said "Nick Galang" with "NG". So the newest thing in Sent was the
+   * one message that did not look like it came from you.
+   */
+  it('names the sender by their name, not by the account label', async () => {
+    const { svc } = service()
+    const [account] = await svc.listAccounts()
+    expect(account.displayName).toBe('Personal')
+
+    await svc.send({
+      accountId: account.id,
+      to: [{ name: 'Maya Ellison', email: 'maya@fernwood.dev' }],
+      cc: [],
+      bcc: [],
+      subject: 'A brand new note',
+      bodyHtml: '<p>Hello there</p>',
+      attachments: [],
+    })
+
+    const [newest] = await svc.listThreads({ kind: 'unified', folder: 'sent' }, { limit: 500 })
+    const { messages } = await svc.getThread(newest.key)
+    const sent = messages[messages.length - 1]
+    expect(sent.from).toEqual({ name: 'Nick Galang', email: 'nick@gmail.com' })
+    expect(displayName(sent.from)).toBe('Nick Galang')
+    expect(initials(sent.from)).toBe('NG')
+  })
+
+  it('falls back to the address for an account with no sender name', async () => {
+    // Signing in to Google hands back an address and nothing else, so a real
+    // account has no name to put on its mail until one is entered. The address
+    // is what stands in — which is what the reading pane already shows for any
+    // message that arrives without a name, and is right where showing the
+    // account's label was wrong.
+    const rows = sentRowsFor(
+      {
+        accountId: 'acct-1',
+        to: [{ email: 'maya@fernwood.dev' }],
+        cc: [],
+        bcc: [],
+        subject: 'A note',
+        bodyHtml: '<p>Hello</p>',
+        attachments: [],
+      },
+      {
+        account: makeAccount({ senderName: undefined }),
+        gmailThreadId: 't-new',
+        messageId: 'm-new',
+        date: 1_700_000_100_000,
+        attachmentId: (i) => `a-${i}`,
+      },
+    )
+    expect(rows.message.from).toEqual({ name: undefined, email: 'nick@gmail.com' })
+    expect(displayName(rows.message.from)).toBe('nick@gmail.com')
   })
 
   it('fetches a carried attachment by reference and sends it with the mail', async () => {

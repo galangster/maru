@@ -10,7 +10,13 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { rememberFocusOrigin, restoreFocusOrigin } from '@/features/shell/surface-store'
+import {
+  forgetFocusOrigin,
+  rememberFocusOrigin,
+  restoreFocusOrigin,
+  takeFocusOrigin,
+  useSurfaces,
+} from '@/features/shell/surface-store'
 
 function button(label: string): HTMLButtonElement {
   const el = document.createElement('button')
@@ -81,5 +87,96 @@ describe('inline surface focus', () => {
     elsewhere.focus()
     restoreFocusOrigin('composer')
     expect(document.activeElement).not.toBe(mailbox)
+  })
+})
+
+/**
+ * The palette is the one DIALOG in this set — issue #58.
+ *
+ * The other four replace whatever is up, so the thread list is the right place
+ * for them to land. The palette opens ON TOP: with the composer underneath the
+ * caret used to leave a half-written message, and with the Save for later menu
+ * underneath focus landed on the thread list while the menu was still covering
+ * the window, so one Tab walked to a pane divider under a live dialog.
+ *
+ * The element is taken rather than focused, because Base UI's Dialog moves
+ * focus itself as the popup unmounts and `finalFocus` is where it asks.
+ */
+describe('the command palette over another surface', () => {
+  afterEach(() => {
+    forgetFocusOrigin('palette')
+    useSurfaces.setState({ palette: false, settings: null, later: null })
+  })
+
+  it('hands the keyboard back to the row it was opened from', () => {
+    const menuRow = button('This evening')
+    menuRow.focus()
+
+    useSurfaces.getState().setPalette(true)
+    // What the palette does on open: its own field takes focus.
+    button('Command palette').focus()
+
+    useSurfaces.getState().setPalette(false)
+    expect(takeFocusOrigin('palette')).toBe(menuRow)
+  })
+
+  it('spends the slot, so a later close cannot land on a stale row', () => {
+    const menuRow = button('This evening')
+    menuRow.focus()
+    useSurfaces.getState().setPalette(true)
+
+    expect(takeFocusOrigin('palette')).toBe(menuRow)
+    expect(takeFocusOrigin('palette')).toBeNull()
+  })
+
+  it('keeps the row it was opened from when the palette re-opens over it', () => {
+    const menuRow = button('This evening')
+    menuRow.focus()
+    useSurfaces.getState().setPalette(true)
+    // A failed re-open must not record the palette's own field as the origin.
+    button('Command palette').focus()
+    useSurfaces.getState().setPalette(true)
+
+    expect(takeFocusOrigin('palette')).toBe(menuRow)
+  })
+
+  it('drops the slot when a surface TAKES the screen from the palette', () => {
+    const listRow = button('Threads')
+    listRow.focus()
+
+    useSurfaces.getState().setPalette(true)
+    // Two of the palette's own commands close it by opening something else.
+    useSurfaces.getState().openLater(['thread-1'])
+    expect(useSurfaces.getState().palette).toBe(false)
+    // Nothing to hand back: the picker that just opened owns the keyboard.
+    expect(takeFocusOrigin('palette')).toBeNull()
+
+    listRow.focus()
+    useSurfaces.getState().setPalette(true)
+    useSurfaces.getState().openSettings('accounts')
+    expect(takeFocusOrigin('palette')).toBeNull()
+  })
+
+  it('answers null for an origin that has gone, so the caller can fall back', () => {
+    const gone = button('Row that was re-rendered away')
+    gone.focus()
+    useSurfaces.getState().setPalette(true)
+    gone.remove()
+
+    expect(takeFocusOrigin('palette')).toBeNull()
+  })
+
+  it('leaves the two inline surfaces to their own slots', () => {
+    const mailbox = button('Starred')
+    const listRow = button('Threads')
+
+    mailbox.focus()
+    rememberFocusOrigin('composer')
+    listRow.focus()
+    useSurfaces.getState().setPalette(true)
+
+    expect(takeFocusOrigin('palette')).toBe(listRow)
+    restoreFocusOrigin('composer')
+    expect(document.activeElement).toBe(mailbox)
   })
 })

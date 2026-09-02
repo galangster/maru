@@ -34,6 +34,7 @@ import { useUi } from '@/features/mail/ui-store'
 import { bulkAction, isBulkAction } from '@/features/list/bulk'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 import { anyDialogOpen, useSurfaces } from '@/features/shell/surface-store'
+import { requestSidebarToggle } from '@/features/sidebar/toggle'
 import { playSound } from '@/lib/sound'
 import { isTyping } from '@/lib/typing'
 import { announcesItself, LEAVES_THE_LIST } from '@/lib/undo'
@@ -204,7 +205,7 @@ export function useShortcuts() {
       // ⌥S emits 'ß' on the US layout, so `event.key` is never 's'.
       if (event.altKey && (event.metaKey || event.ctrlKey) && event.code === 'KeyS') {
         event.preventDefault()
-        useUi.getState().toggleSidebar()
+        requestSidebarToggle()
         return
       }
 

@@ -13,7 +13,11 @@ export function makeAccount(patch: Partial<Account> = {}): Account {
   return {
     id: 'acct-1',
     email: 'nick@gmail.com',
+    // The label and the sender's name, which are two different things — issue
+    // #61. The fixture carries both so a test that reaches for one cannot
+    // silently get the other.
     displayName: 'Personal',
+    senderName: 'Nick Galang',
     color: '#3b82f6',
     addedAt: 1_700_000_000_000,
     ...patch,

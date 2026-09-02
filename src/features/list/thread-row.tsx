@@ -191,6 +191,11 @@ export const ThreadRow = memo(function ThreadRow({
               // hierarchy was inverted on read mail, which is most of a mailbox
               // (issue #34). The subject already changed weight alone; the
               // sender now does the same, so the two lines recede together.
+              // A sender written in Arabic or Hebrew reads right to left, and
+              // its truncation ellipsis belongs on the other end — issue #59.
+              // The row's own chrome is untouched: the name gets a direction,
+              // the column it sits in does not.
+              dir="auto"
               className={cn(
                 'font-ui text-ink min-w-0 truncate text-base',
                 thread.unread ? 'font-semibold' : 'font-medium',
@@ -228,6 +233,10 @@ export const ThreadRow = memo(function ThreadRow({
             issue #32, second pass. See `--wren-row-cluster-w`. */}
         <div className="flex items-baseline gap-2 leading-5">
           <span
+            // Issue #59. "(no subject)" is Maru's own words and takes the
+            // chrome's direction, which is what `dir="auto"` resolves an empty
+            // subject to anyway.
+            dir="auto"
             className={cn(
               'truncate text-sm leading-5',
               thread.unread ? 'text-ink font-medium' : 'text-ink font-normal',
@@ -239,7 +248,10 @@ export const ThreadRow = memo(function ThreadRow({
               one or two characters and an ellipsis, which is noise, not
               preview. It is dropped outright at that width and the row falls
               back to sender plus subject. */}
-          <span className="text-ink-3 hidden min-w-0 flex-1 truncate text-sm leading-5 @min-row:block">
+          <span
+            dir="auto"
+            className="text-ink-3 hidden min-w-0 flex-1 truncate text-sm leading-5 @min-row:block"
+          >
             {thread.snippet}
           </span>
           <span className="min-w-0 flex-1 @min-row:hidden" />

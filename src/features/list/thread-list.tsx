@@ -6,7 +6,7 @@
 // group is marked by the space its header sits in — which is what Family 1
 // asked for and what the divider was a compromise against (AMIE-STUDY §5).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 import { Skeleton } from '@/components/ui/skeleton'
@@ -43,7 +43,12 @@ import { bulkAction, bulkDefer, type BulkActionType } from './bulk'
 import { LATER_DISCLOSURE, LaterPicker } from './later-picker'
 import { labelNameFor, mailboxTitle } from '@/features/mail/mailbox-title'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
-import { useListSearch } from './list-search'
+import {
+  initialSearchInput,
+  searchInput,
+  useListSearch,
+  type SearchInputEvent,
+} from './list-search'
 import { ListControls } from './list-controls'
 import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
 import { SyncNotice } from './sync-notice'
@@ -738,9 +743,26 @@ function SearchToggle() {
 
 /** The header's inline field. `/` focuses it; Esc puts the view back. */
 function SearchField() {
-  const query = useSurfaces((s) => s.searchQuery)
   const setQuery = useSurfaces((s) => s.setSearchQuery)
   const closeSearch = useSurfaces((s) => s.closeSearch)
+  // What the field shows and what search has been asked are two values, so an
+  // input method can put candidate characters in the field without search
+  // answering each of them — issue #60. The rule is in `list-search.ts`.
+  const [field, dispatch] = useReducer(
+    searchInput,
+    useSurfaces.getState().searchQuery,
+    initialSearchInput,
+  )
+
+  // The reducer owns `text` and `composing`. The store is written HERE, by the
+  // handler, rather than mirrored out of an effect a render later: `searchInput`
+  // is pure, so asking it for the answer costs nothing, and the query then lands
+  // in the same tick as the keystroke that produced it.
+  const apply = (event: SearchInputEvent) => {
+    const next = searchInput(field, event)
+    dispatch(event)
+    if (next.query !== field.query) setQuery(next.query)
+  }
 
   return (
     // The header above is `data-tauri-drag-region="deep"`. The input blocks the
@@ -756,8 +778,18 @@ function SearchField() {
         spellCheck={false}
         aria-label="Search mail"
         placeholder="Search mail"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        value={field.text}
+        onChange={(event) =>
+          apply({
+            type: 'input',
+            value: event.target.value,
+            isComposing: (event.nativeEvent as InputEvent).isComposing,
+          })
+        }
+        onCompositionStart={() => apply({ type: 'compositionstart' })}
+        onCompositionEnd={(event) =>
+          apply({ type: 'compositionend', value: event.currentTarget.value })
+        }
         onKeyDown={(event) => {
           if (event.key !== 'Escape') return
           event.preventDefault()

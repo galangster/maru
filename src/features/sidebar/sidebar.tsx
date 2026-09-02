@@ -25,12 +25,13 @@ import {
   useLabels,
   useUnreadCount,
 } from '@/features/mail/queries'
-import { useUi, viewKey } from '@/features/mail/ui-store'
+import { selectSidebarCramped, selectSidebarRail, useUi, viewKey } from '@/features/mail/ui-store'
 import { SHELL_CARD } from '@/features/shell/app-shell'
 import { useSurfaces, type SettingsSection } from '@/features/shell/surface-store'
 import { useThemeToggle } from '@/features/shell/use-theme'
 import { isUrgent, type SyncSummary } from '@/features/sidebar/sync-summary'
 import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
+import { requestSidebarToggle } from '@/features/sidebar/toggle'
 import { hueFor, hueSolid, type Hue } from '@/lib/hue'
 import { cn } from '@/lib/utils'
 
@@ -48,7 +49,9 @@ const INBOX_VIEW: MailView = { kind: 'unified', folder: 'inbox' }
 const LATER_VIEW: MailView = { kind: 'later' }
 
 export function Sidebar() {
-  const collapsed = useUi((s) => s.sidebarCollapsed)
+  // The rail, from whichever cause — the shortcut or a window too narrow to
+  // seat the wide form. One mechanism, issue #57.
+  const collapsed = useUi(selectSidebarRail)
   const accounts = useAccounts()
   // Only the inbox shows a count, so only the inbox is subscribed to one. The
   // sidebar used to run a countUnread query per folder and render one of them.
@@ -443,7 +446,9 @@ function AccountSection({ account }: { account: Account }) {
 }
 
 function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: Account[] }) {
-  const toggleSidebar = useUi((s) => s.toggleSidebar)
+  // Named honestly at a width where the wide sidebar is not on offer, rather
+  // than promising an expansion the window cannot hold — issue #57.
+  const cramped = useUi(selectSidebarCramped)
   const { theme, toggle } = useThemeToggle()
   const themeIcon: IconName =
     theme === 'light' ? 'themeLight' : theme === 'dark' ? 'themeDark' : 'themeSystem'
@@ -525,10 +530,16 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
           the palette carry the discoverability the titlebar slot used to. */}
       <IconButton
         name="panelLeft"
-        label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        label={
+          cramped
+            ? 'Sidebar needs a wider window'
+            : collapsed
+              ? 'Expand sidebar'
+              : 'Collapse sidebar'
+        }
         aria-expanded={!collapsed}
         className="shrink-0"
-        onClick={toggleSidebar}
+        onClick={requestSidebarToggle}
       />
       <IconButton name="settings" label="Settings" className="shrink-0" onClick={() => openSettings()} />
       <IconButton name={themeIcon} label={themeLabel} className="shrink-0" onClick={toggle} />

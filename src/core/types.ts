@@ -11,7 +11,30 @@ export interface EmailAddress {
 export interface Account {
   id: string // local uuid, stable across sessions
   email: string
+  /**
+   * The account's LABEL — what the sidebar, Settings and the mailbox switcher
+   * call it. "Personal", "Work", "Fernwood". It defaults to the part of the
+   * address before the @, and a person is free to rename it to anything.
+   *
+   * It is not the sender's name, and nothing outbound may use it (issue #61).
+   */
   displayName: string
+  /**
+   * The name that goes on mail this account SENDS — "Nick Galang".
+   *
+   * Optional, because the only thing Gmail's profile endpoint hands back is an
+   * address: an account added by signing in has no name to put here until one
+   * is entered. Absent, the address stands in for it, which is what every mail
+   * client does and what Maru already does for an incoming message with no
+   * name on it.
+   *
+   * Separate from `displayName` because they answer different questions. The
+   * label is how you find this mailbox among yours; the sender name is how you
+   * appear to everyone else. Sharing one field made a just-sent message read
+   * as being from "Personal", with a "PE" avatar, while every other message
+   * from the same address in the same list said "Nick Galang" with "NG".
+   */
+  senderName?: string
   color: string // hex used for the account dot
   addedAt: number // epoch ms
 }

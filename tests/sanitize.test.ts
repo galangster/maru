@@ -207,6 +207,12 @@ describe('the srcdoc CSP backstop', () => {
     )
   })
 
+  // Issue #59. The sheet is the one surface that cannot ask the direction
+  // helper — it is a document, not a React tree — so it takes the browser's
+  // own first-strong pass, which is the same rule.
+  it('lets the paper find its own reading direction', () => {
+    expect(buildSrcdoc('<p>مرحبا بالعالم.</p>')).toContain('<body dir="auto">')
+  })
 })
 
 describe('stripping a height leaves its neighbours intact', () => {

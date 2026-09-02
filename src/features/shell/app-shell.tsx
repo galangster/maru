@@ -10,7 +10,7 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
 import { ThreadList } from '@/features/list/thread-list'
-import { useUi } from '@/features/mail/ui-store'
+import { selectSidebarRail, useUi } from '@/features/mail/ui-store'
 import { ReadingPane } from '@/features/reading/reading-pane'
 import { Sidebar } from '@/features/sidebar/sidebar'
 import { cn } from '@/lib/utils'
@@ -79,6 +79,15 @@ const CHANNEL_HANDLE =
 
 /** Collapse snaps once a drag comes within this of the collapsed width. */
 const SNAP_SLACK = 8
+
+/**
+ * The reading region's floor. Its own constant rather than a literal in the
+ * JSX, because the narrow-window threshold below is arithmetic over it.
+ */
+const READING_MIN = 360
+
+/** A channel is `w-px` — see components/ui/resizable.tsx. */
+const HANDLE_W = 1
 
 /**
  * One arrow press, in pixels — issue #56.
@@ -156,14 +165,19 @@ export const SHELL_CARD =
   'bg-surface rounded-md shadow-xs flex min-h-0 flex-1 flex-col overflow-hidden'
 
 export function AppShell() {
-  const collapsed = useUi((s) => s.sidebarCollapsed)
+  // ONE mechanism — issue #57. `selectSidebarRail` is the rail's only answer,
+  // so the shortcut's intent and a window too narrow to seat a wide sidebar
+  // produce the same layout instead of the wide layout inside a narrow rail.
+  const rail = useUi(selectSidebarRail)
   // Nothing open ⇒ the ground IS the character's field, channels included,
   // and the sidebar and list read as cards floating on it. The reading pane
   // is transparent, so this is what shows through behind its bird.
   const atRest = useUi((s) => s.selected === null)
   const setCollapsed = useUi((s) => s.setSidebarCollapsed)
+  const setCramped = useUi((s) => s.setSidebarCramped)
   const sidebarRef = useRef<PanelImperativeHandle | null>(null)
   const listRef = useRef<PanelImperativeHandle | null>(null)
+  const groupRef = useRef<HTMLDivElement | null>(null)
 
   // Sidebar and list measures are CARD widths (tokens.css says so at each
   // group). A panel is its card plus the padding below, and that padding is
@@ -191,14 +205,55 @@ export function AppShell() {
   const SIDEBAR_PAD = measures.gutter + measures.seam
   const LIST_PAD = measures.seam * 2
 
+  /**
+   * The narrowest window that can seat a WIDE sidebar — issue #57.
+   *
+   * Every term is a minimum the panel group is already holding: the sidebar's
+   * own floor plus its ground, a channel, the list's floor plus its ground,
+   * a second channel, and the reading region's floor. Below this the group has
+   * nowhere to put a wide sidebar and pins it to the collapsed width on its
+   * own, which is the state the toggle used to draw the wide layout into.
+   *
+   * Derived rather than written down, so it stays true if a measure moves.
+   */
+  const wideSidebarFloor =
+    measures.sidebarMin +
+    SIDEBAR_PAD +
+    HANDLE_W +
+    measures.listMin +
+    LIST_PAD +
+    HANDLE_W +
+    READING_MIN
+
+  // Measured off the group itself rather than off `window`: the shell is the
+  // whole window today, and this stays true if it is ever inset.
+  useEffect(() => {
+    const el = groupRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const measure = (width: number) => {
+      // A zero width is a hidden or not-yet-laid-out shell, not a narrow one.
+      setCramped(width > 0 && width < wideSidebarFloor)
+    }
+    measure(el.getBoundingClientRect().width)
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1]
+      if (entry) measure(entry.contentRect.width)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [wideSidebarFloor, setCramped])
+
   // The footer button drives the panel; dragging the handle past the min
-  // drives the store. Both end up at the same place.
+  // drives the store. Both end up at the same place — and so does a window
+  // too narrow to hold a wide sidebar, which is the whole of issue #57: the
+  // panel follows the RAIL, not the preference, so the two can never disagree
+  // about which layout is on screen.
   useEffect(() => {
     const panel = sidebarRef.current
     if (!panel) return
-    if (collapsed && !panel.isCollapsed()) panel.collapse()
-    if (!collapsed && panel.isCollapsed()) panel.expand()
-  }, [collapsed])
+    if (rail && !panel.isCollapsed()) panel.collapse()
+    if (!rail && panel.isCollapsed()) panel.expand()
+  }, [rail])
 
   return (
     // No titlebar row. `titleBarStyle: "Overlay"` with `hiddenTitle: true`
@@ -214,7 +269,7 @@ export function AppShell() {
     // card: "inbox should always be white" was the actual complaint, and the
     // earned mark now uses .wren-stage so the inbox-zero bird keeps its
     // bounded disc on white.
-    <div className={cn('bg-canvas h-full', atRest && 'wren-empty')}>
+    <div ref={groupRef} className={cn('bg-canvas h-full', atRest && 'wren-empty')}>
       <ResizablePanelGroup className="h-full">
         <ResizablePanel
           panelRef={sidebarRef}
@@ -226,7 +281,16 @@ export function AppShell() {
           collapsible
           collapsedSize={measures.sidebarCollapsed + SIDEBAR_PAD}
           onResize={(size) => {
-            setCollapsed(size.inPixels <= measures.sidebarCollapsed + SIDEBAR_PAD + SNAP_SLACK)
+            // In a cramped window the group collapses the sidebar because it
+            // has no room, not because anyone asked — so that collapse must
+            // not be written into the preference that survives a relaunch.
+            // Widening the window then gives back the sidebar you had.
+            // Read off the store rather than a ref beside it: zustand's `set`
+            // is synchronous, so the measure above has already landed by the
+            // time the group resizes against the same width.
+            if (!useUi.getState().sidebarCramped) {
+              setCollapsed(size.inPixels <= measures.sidebarCollapsed + SIDEBAR_PAD + SNAP_SLACK)
+            }
             snapToWholePixels(sidebarRef.current, size.inPixels)
           }}
           // The card's LEFT edge must stay at x=8: place_traffic_lights in the
@@ -268,7 +332,7 @@ export function AppShell() {
             field that makes the channels read as ground rather than as
             cracks, and it would put white paper on a white card on a white
             pane with a 4%-alpha ring as the only separator. */}
-        <ResizablePanel minSize={360}>
+        <ResizablePanel minSize={READING_MIN}>
           <ReadingPane />
         </ResizablePanel>
       </ResizablePanelGroup>
