@@ -612,9 +612,9 @@ one client id.
   `.p12` with a password. Then, from a terminal in the repo:
   `gh secret set APPLE_CERTIFICATE -R galangster/maru < <(base64 -i ~/Downloads/devid.p12)`
   and `gh secret set APPLE_CERTIFICATE_PASSWORD -R galangster/maru` (paste the
-  password at the prompt). Delete the `.p12` afterwards. Also confirm the four
-  API/updater secrets exist: `gh secret list -R galangster/maru` should show
-  `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_PRIVATE_KEY`,
-  `TAURI_SIGNING_PRIVATE_KEY`. Re-run the failed run with
-  `gh run rerun <id> -R galangster/maru` to prove it.
+  password at the prompt). Delete the `.p12` afterwards. The other five
+  secrets (`APPLE_API_ISSUER`, `APPLE_API_KEY` = the notary key PTF7XH7JWF,
+  `APPLE_API_PRIVATE_KEY`, `APPLE_SIGNING_IDENTITY`, `TAURI_SIGNING_PRIVATE_KEY`)
+  were set on 2026-09-02 by file redirection; the certificate is the only one
+  missing. Then re-run the failed run: `gh run rerun <id> -R galangster/maru`.
 
