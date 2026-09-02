@@ -156,6 +156,66 @@ describe('the on-fill tier — issues #26, #27, #29, #30', () => {
     }
   })
 
+  it('carries the accent as a WORD on every backdrop — owner ruling 2026-09-02', () => {
+    // The last failure the review left open: the plain light accent measures
+    // 4.31 on `base`, and the ground is the reading region. The ruling keeps
+    // DIRECTION §3's palette and moves the TEXT — accent-as-text resolves to
+    // the already-certified on-fill step in light and to the plain accent in
+    // dark, which clears 4.5 everywhere on its own.
+    //
+    // Gated against every backdrop rather than the three surfaces, because a
+    // coloured label sits on a fill as readily as on a surface: the
+    // blocked-images notice's "Show" is inside a sunken well.
+    for (const theme of ['light', 'dark'] as const) {
+      const ink = rgb('wren-accent-text', theme)
+      for (const [name, bg] of backdrops(theme)) {
+        expect(ratio(ink, bg), `accent-text on ${theme} ${name}`).toBeGreaterThanOrEqual(TEXT)
+      }
+    }
+  })
+
+  it('holds the tier through the hover, on every backdrop', () => {
+    // A word that hovers into `--wren-accent-hover` walks out of the certified
+    // tier the moment the pointer lands, because that step is the MARK's. So
+    // accent-as-text has its own hover and it is gated exactly like the resting
+    // step: light takes a −0.05 lightness step of accent-text, dark takes the
+    // accent's own hover, which already clears 4.5 everywhere.
+    for (const theme of ['light', 'dark'] as const) {
+      const ink = rgb('wren-accent-text-hover', theme)
+      for (const [name, bg] of backdrops(theme)) {
+        expect(ratio(ink, bg), `accent-text-hover on ${theme} ${name}`).toBeGreaterThanOrEqual(TEXT)
+      }
+    }
+  })
+
+  it('hovers to a step of the text tier, never to the mark hover', () => {
+    // Dark aliases `--wren-accent-hover` on purpose and that is measured above.
+    // Light must NOT: `--wren-accent-hover` is a step of the plain accent, and
+    // pointing the word there is the ungated exit this test exists to close.
+    expect(rgb('wren-accent-text-hover', 'light')).not.toEqual(rgb('wren-accent-hover', 'light'))
+    expect(rgb('wren-accent-text-hover', 'dark')).toEqual(rgb('wren-accent-hover', 'dark'))
+  })
+
+  it('is a step of the accent, not a fourth coral', () => {
+    // The same guard the on-fill tier carries: accent-as-text must stay a step
+    // of the accent, so a future re-anchor of the coral moves it too. Light
+    // resolves to the on-fill step; dark resolves to the accent itself, which
+    // is why this compares resolved values rather than declared text.
+    expect(rgb('wren-accent-text', 'light')).toEqual(rgb('wren-accent-on-fill', 'light'))
+    expect(rgb('wren-accent-text', 'dark')).toEqual(rgb('wren-accent', 'dark'))
+  })
+
+  it('leaves the accent itself alone as a mark', () => {
+    // The ruling is explicit that accent-as-fill, -icon, -ring and -border are
+    // untouched. The palette is unchanged, so the light accent still measures
+    // 4.31 on the ground — passing the 3.0 a non-text mark takes, and failing
+    // the 4.5 no word draws there any more.
+    const accent = rgb('wren-accent', 'light')
+    const base = rgb('wren-surface-base', 'light')
+    expect(ratio(accent, base)).toBeCloseTo(4.31, 2)
+    expect(ratio(accent, base)).toBeGreaterThanOrEqual(INDICATOR)
+  })
+
   it('leaves the ruled wash alphas alone', () => {
     // DIRECTION §3 rules the selected row as the accent at 8% light and 14%
     // dark. The trap was fixed by certifying a tier against those fills, not by

@@ -414,13 +414,30 @@ html[data-input-modality='keyboard']
   gap: 8px;
 }
 
+/*
+ * The accent as a WORD, on the phone — owner ruling 2026-09-02, and it is
+ * app-wide rather than desktop-only. `--wren-accent` is the MARK: a fill, an
+ * icon, a monogram tile, a ring, a border, and it takes the 3.0 a non-text
+ * mark takes. A coloured LABEL takes `--wren-accent-text`, which is the one
+ * accent step certified on all three surfaces AND on every tinted fill. The
+ * plain light accent measures 4.31 on the ground, and the phone's reading
+ * region is that ground.
+ *
+ * Every `color: var(--wren-accent-text)` below is one of those labels. The
+ * four that stayed on the plain accent are the filled tiles — `.mobile-avatar`,
+ * `.mobile-row-icon`/`.mobile-sheet-icon`, `.mobile-prompt > span` and the
+ * account screen's `.mobile-account-mark` — which carry a glyph or a single
+ * initial inside a wash, not a word. The phone draws no coloured hover: a
+ * pressed label answers with `--wren-fill-active` behind it, so nothing here
+ * needs the `--wren-accent-text-hover` the desktop's three text buttons take.
+ */
 .mobile-nav-text,
 .mobile-send-button {
   min-height: 44px;
   border: 0;
   padding: 0 4px;
   background: transparent;
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-family: var(--wren-font-ui);
   font-size: var(--mobile-text-body);
   font-weight: 600;
@@ -929,7 +946,7 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-tab-bar button.is-active {
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
 }
 
 .mobile-thread-screen {
@@ -961,7 +978,7 @@ html[data-input-modality='keyboard']
 
 .mobile-nav-back {
   gap: 2px;
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-size: var(--mobile-text-body);
 }
 
@@ -1531,7 +1548,7 @@ html[data-input-modality='keyboard']
   border: 0;
   padding-inline: 8px;
   background: transparent;
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-size: var(--mobile-text-footnote);
 }
 
@@ -1624,7 +1641,7 @@ html[data-input-modality='keyboard']
   border-radius: var(--wren-radius-full);
   padding-inline: 10px;
   background: var(--wren-fill-selected);
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-size: var(--mobile-text-footnote);
   line-height: var(--mobile-leading-relaxed);
   text-overflow: ellipsis;
@@ -1739,7 +1756,7 @@ html[data-input-modality='keyboard']
   min-height: 44px;
   border: 0;
   background: transparent;
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-size: var(--mobile-text-footnote);
 }
 
@@ -1833,7 +1850,7 @@ html[data-input-modality='keyboard']
   border: 0;
   padding-inline: 8px;
   background: transparent;
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-size: var(--mobile-text-subhead);
 }
 
@@ -2215,7 +2232,7 @@ html[data-input-modality='keyboard']
   align-items: center;
   gap: 4px;
   margin: 1px 0 0;
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font-size: var(--mobile-text-caption);
   font-weight: 500;
 }
@@ -2232,7 +2249,7 @@ html[data-input-modality='keyboard']
    tile plus accent text — the sidebar's "this is where you are" in the phone's
    own row geometry. */
 .mobile-action-list > button.is-current {
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
 }
 
 .mobile-action-list > button.is-current .mobile-sheet-icon {
@@ -2265,7 +2282,7 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-thread-labels button {
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
 }
 
 .mobile-thread-labels button:active {
@@ -2309,7 +2326,7 @@ html[data-input-modality='keyboard']
   border-radius: var(--wren-radius-sm);
   padding: 0 10px;
   background: transparent;
-  color: var(--wren-accent);
+  color: var(--wren-accent-text);
   font: 600 var(--mobile-text-footnote)/1 var(--wren-font-ui);
 }
 

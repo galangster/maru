@@ -96,6 +96,16 @@
     --color-brand: var(--wren-accent);
     --color-brand-hover: var(--wren-accent-hover);
     --color-brand-fill: var(--wren-accent-on-fill);
+    /* The accent as a WORD — owner ruling 2026-09-02, measured in tokens.css.
+       `text-brand` is the MARK: a dot, an icon, a chip, the ring, a border. A
+       coloured label, link or text button takes `text-brand-ink`, which is the
+       one accent step certified on every surface AND every fill. The light
+       accent measures 4.31 on the ground, so the two cannot be one utility.
+       `text-brand-ink-hover` is the pair to it: `hover:text-brand-hover` on a
+       word is an ungated exit from the tier, because that step is the MARK's.
+       A word hovers within its own tier or it does not hover. */
+    --color-brand-ink: var(--wren-accent-text);
+    --color-brand-ink-hover: var(--wren-accent-text-hover);
     --color-star: var(--wren-star);
     --color-success: var(--wren-success);
     --color-fill-active: var(--wren-fill-active);

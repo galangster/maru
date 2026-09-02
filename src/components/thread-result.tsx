@@ -26,6 +26,7 @@ export function ThreadResult({
 }: ThreadResultProps) {
   const people = correspondents(thread.participants, selfEmails)
   const lead = people[0] ?? { email: '?' }
+  const subject = thread.subject || '(no subject)'
 
   return (
     <span className={cn('flex w-full min-w-0 items-center gap-3', className)}>
@@ -77,8 +78,12 @@ export function ThreadResult({
           reader was re-reading. The full stamp is the better announcement
           anyway: a result list is scanned out of order, and "Sep 2, 2026 at
           14:03" does not depend on when it is read. */}
-      <span className="text-ink-2 min-w-0 flex-1 truncate text-sm">
-        {thread.subject || '(no subject)'}
+      {/* `title` un-clips what the fixed column had to clip — it is not the
+          substitute-for-a-visible-label that UI-REVIEW-2026-08-28 S12 objects
+          to, because the label is already on screen and already whole in the
+          accessible name. `tests/thread-result.test.ts` carries the argument. */}
+      <span className="text-ink-2 min-w-0 flex-1 truncate text-sm" title={subject}>
+        {subject}
       </span>
       <time className="sr-only" dateTime={new Date(thread.lastMessageAt).toISOString()}>
         {fullTimestamp(thread.lastMessageAt)}

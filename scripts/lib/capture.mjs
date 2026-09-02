@@ -15,11 +15,16 @@
 // same in every script, because it is the same question in every script.
 
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import { chromium } from 'playwright'
 import sharp from 'sharp'
 
-import { ORIGIN } from '../dev-server.mjs'
+import { ORIGIN, startServerIfNeeded } from '../dev-server.mjs'
+
+/** The repository root, from this file rather than from each wave script. */
+export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 /** en-US, Pacific, no motion. The clock is frozen separately by `?screenshot=1`. */
 export const DETERMINISTIC_CONTEXT = {
@@ -50,7 +55,7 @@ export async function parkPointer(page, viewport) {
 /**
  * Take one frame per shot, into `out`.
  *
- * A shot is `{ file, act?, theme?, live?, keepPointer?, width? }`. Everything
+ * A shot is `{ file, act?, theme?, live?, keepPointer?, width?, query? }`. Everything
  * a wave script owns is in its own SHOTS array — which surfaces, under which
  * names, at which widths. Everything that would make two waves' frames
  * incomparable is here, once.
@@ -64,6 +69,11 @@ export async function parkPointer(page, viewport) {
  *     way, or the shutter can catch a row mid-load.
  *   - `width` overrides the run's viewport width for the one shot that was
  *     bracketed at another size.
+ *   - `query` appends demo flags the surface itself needs — `&images=block`
+ *     is the only door onto the blocked-images notice, because the demo
+ *     service ships `imagePolicy: 'allow'` and the notice is then never
+ *     drawn. It is a shot's own setup, not the wave's, so it rides here
+ *     rather than in a second copy of this loop.
  *
  * One context per WIDTH, reused across every shot at that width — a context
  * per shot would re-pay the browser profile and let two frames disagree about
@@ -88,7 +98,10 @@ export async function runShots(browser, shots, { out, viewport, fileWidth }) {
     for (const shot of shots) {
       const { page, viewport: size } = await laneFor(shot.width ?? viewport.width)
       const flags = shot.live ? '' : '&screenshot=1'
-      await gotoReady(page, `${ORIGIN}/?demo=1${flags}&theme=${shot.theme ?? 'light'}`)
+      await gotoReady(
+        page,
+        `${ORIGIN}/?demo=1${flags}&theme=${shot.theme ?? 'light'}${shot.query ?? ''}`,
+      )
       if (shot.act) await shot.act(page)
       await page.waitForLoadState('networkidle')
       // Off every row unless the frame is a hover state: a click leaves the
@@ -106,5 +119,27 @@ export async function runShots(browser, shots, { out, viewport, fileWidth }) {
     }
   } finally {
     for (const { context } of lanes.values()) await context.close()
+  }
+}
+
+/**
+ * A whole wave: browser up, dev server up if it is not already, frames, down.
+ *
+ * `runShots` is the part a caller might want to drive itself; this is the part
+ * no caller ever wants to write differently. Every wave script had its own copy
+ * of the same six lines, and the copies are exactly where a `finally` goes
+ * missing and a headless Chromium survives the run.
+ *
+ * A wave script is then its SHOTS array and one call, which is all it ever had
+ * to say.
+ */
+export async function runWave(shots, { out, viewport, fileWidth }) {
+  const browser = await chromium.launch()
+  const child = await startServerIfNeeded(ROOT)
+  try {
+    await runShots(browser, shots, { out, viewport, fileWidth })
+  } finally {
+    await browser.close()
+    if (child) child.kill('SIGTERM')
   }
 }

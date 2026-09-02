@@ -221,7 +221,7 @@ function LinkButton({ editor }: { editor: Editor | null }) {
           <button
             type="button"
             onClick={apply}
-            className="font-ui text-brand hover:text-brand-hover focus-ring h-8 rounded-md px-2 text-base font-medium"
+            className="font-ui text-brand-ink hover:text-brand-ink-hover focus-ring h-8 rounded-md px-2 text-base font-medium"
           >
             Add link
           </button>

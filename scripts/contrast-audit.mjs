@@ -31,7 +31,17 @@ const INKS = [
   ['text-1', 'wren-text-1', 4.5],
   ['text-2', 'wren-text-2', 4.5],
   ['text-3', 'wren-text-3', 4.5],
-  ['accent', 'wren-accent', 4.5],
+  // Two accent rows, because the accent does two jobs and they have different
+  // floors (owner ruling, 2026-09-02). As a MARK — a dot, an icon, a chip
+  // fill, the ring, a border — it is non-text and takes 3.0. As a WORD it
+  // takes 4.5, and the plain light accent measures 4.31 on the ground, so the
+  // word draws in `--wren-accent-text` instead. The palette did not move; the
+  // text tier did.
+  ['accent (mark, non-text)', 'wren-accent', 3.0],
+  ['accent-text', 'wren-accent-text', 4.5],
+  // Gated beside it, because a hover that leaves the tier is the tier not
+  // holding: the pointer lands and the word is suddenly uncertified.
+  ['accent-text-hover', 'wren-accent-text-hover', 4.5],
   ['destructive', 'wren-destructive', 4.5],
   ['success', 'wren-success', 4.5],
   // A star is a non-text glyph, so 3.0 is its floor, not 4.5.
@@ -100,6 +110,11 @@ for (const theme of ['light', 'dark']) {
     ['text-3', 'wren-text-3'],
     ['on-fill', 'wren-text-on-fill'],
     ['accent-on-fill', 'wren-accent-on-fill'],
+    // A coloured label can sit on a fill as easily as on a surface — the
+    // blocked-images notice's "Show" is inside a sunken well — so the
+    // accent-text tier is gated here too, not only against the three surfaces.
+    ['accent-text', 'wren-accent-text'],
+    ['accent-text-hover', 'wren-accent-text-hover'],
   ]) {
     const ink = token(name, theme)
     // text-3 is reported for the record, not gated: it is the tier that fails
@@ -111,7 +126,7 @@ for (const theme of ['light', 'dark']) {
       if (gated && v < 4.5) failures.push(`${theme}: ${label} on ${n} = ${r2(v)}`)
       return `${n} ${r2(v)}${v < 4.5 ? ' ✗' : ''}`
     })
-    lines.push(`  ${label.padEnd(15)} ${hex(ink.rgb)}  ${cells.join(' · ')}`)
+    lines.push(`  ${label.padEnd(17)} ${hex(ink.rgb)}  ${cells.join(' · ')}`)
   }
 }
 
