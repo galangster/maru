@@ -331,11 +331,30 @@ Semibold over DM Sans sub-lines, per `docs/design/DIRECTION.md` §3 and §4:
 `wayfinder/captures/ios/` are 393 × 852 — one pixel per point, not the
 1179 × 2556 an iPhone 16 actually renders. Nothing at that size can fill a
 6.5" or 6.9" canvas, and upscaling a screenshot is the one thing a store
-asset must never be. So the script re-captures the same six screens from the
-same demo build at `deviceScaleFactor: 3`, which is 1179 × 2556 of real
-pixels, then composes each onto the store canvas beneath its caption. The
-device frame is only ever scaled *down* (to 1040 px and 1070 px wide). No
-pixel in either set is invented.
+asset must never be. So every source frame is 1179 × 2556 of real pixels, and
+the composer only ever scales it *down* (to 1040 px and 1070 px wide) onto
+the canvas beneath its caption. No pixel in either set is invented.
+
+**The shipped frames come off the phone, not the browser.** The bottom chrome
+on iPhone is UIKit's Liquid Glass tab bar, and only the native build draws it
+— a browser capture shows the web tab bar that the phone no longer uses. So
+the six sources are taken from the demo simulator build (`docs/IOS.md`,
+"Build and run") on a light-appearance iPhone 16, and `--from-dir` composes
+from them. FlowDeck's own screenshot returns 393 × 852 points and its frame
+capture goes through a lossy video codec, so neither can produce a store
+source pixel; drive Simulator.app's own **File ▸ Save Screen** instead
+(`flowdeck ui mac hotkey cmd+s --app com.apple.iphonesimulator`), which
+writes a lossless 1179 × 2556 PNG to the Desktop. Set a clean status bar
+first with `flowdeck simulator status-bar override -S "iPhone 16" --time
+"9:41"`. The composer rejects any source that is too small or the wrong
+shape, so a 393 × 852 capture cannot reach a canvas by mistake.
+
+```sh
+node scripts/store-screenshots.mjs --from-dir <dir-with-the-six-pngs>
+```
+
+The browser path still works for a quick recompose when no simulator is at
+hand, and it shows the web tab bar, so it is not what ships:
 
 ```sh
 node scripts/store-screenshots.mjs
