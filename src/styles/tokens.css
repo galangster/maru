@@ -195,6 +195,24 @@
     --wren-hue-orange-fg: var(--wren-hue-fg); /* white 2.62 fails · ink 6.85  */
     --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.88 fails · ink 9.53  */
 
+    /* --- The focus ring ----------------------------------------------------
+       ONE token, because there is one ring and it is drawn on every control in
+       the app — the sidebar, the toolbars, the composer, the palette, the
+       settings dialog, the approvals queue.
+
+       It used to be the accent painted at 50% alpha, which composited to
+       #E0A6AF on a white card: 2.05:1, under WCAG 2.2 SC 1.4.11's 3:1 floor
+       for a non-text indicator, and 2.77:1 in dark (issue #22). The colour was
+       never the problem — the alpha was. At full strength the same accent
+       measures, against every surface it can be drawn on:
+
+         light   surface 4.73 · base 4.31 · sunken 4.06 · selected wash 3.91
+         dark    surface 7.17 · base 8.11 · raised 6.03 · selected wash 5.62
+
+       so the fix is to stop halving it, and to name the value once here rather
+       than at the seven call sites that used to spell out the alpha. */
+    --wren-focus-ring: var(--wren-accent);
+
     /* --- Lines and fills --------------------------------------------------- */
     --wren-hairline: oklch(0.923 0.003 50); /* #E7E5E4                       */
     --wren-hairline-strong: oklch(0.872 0.004 50); /* #D6D6DA               */
@@ -275,7 +293,7 @@
     --destructive: var(--wren-destructive);
     --border: var(--wren-hairline);
     --input: var(--wren-hairline);
-    --ring: var(--wren-accent);
+    --ring: var(--wren-focus-ring);
 
     /* Repointed at the hue family, so charts stop being a sixth private
        palette that nothing else in the app reads. */
@@ -294,7 +312,7 @@
     --sidebar-accent: var(--wren-fill-hover);
     --sidebar-accent-foreground: var(--wren-text-1);
     --sidebar-border: var(--wren-hairline);
-    --sidebar-ring: var(--wren-accent);
+    --sidebar-ring: var(--wren-focus-ring);
 }
 
 /* --------------------------------------------------------------------------
@@ -380,6 +398,9 @@
     --wren-hue-orange-fg: var(--wren-hue-fg); /* white 2.17 fails · ink 8.27  */
     --wren-hue-yellow-fg: var(--wren-hue-fg); /* white 1.59 fails · ink 11.29 */
 
+    /* Same rule, same one token. See the light block for the measurements. */
+    --wren-focus-ring: var(--wren-accent);
+
     --wren-hairline: oklch(1 0 0 / 0.08);
     --wren-hairline-strong: oklch(1 0 0 / 0.16);
     --wren-image-outline: oklch(1 0 0 / 0.1);
@@ -438,7 +459,7 @@
     --destructive: var(--wren-destructive);
     --border: var(--wren-hairline);
     --input: var(--wren-hairline-strong);
-    --ring: var(--wren-accent);
+    --ring: var(--wren-focus-ring);
 
     --chart-1: var(--wren-hue-blue);
     --chart-2: var(--wren-hue-teal);
@@ -453,7 +474,7 @@
     --sidebar-accent: var(--wren-fill-hover);
     --sidebar-accent-foreground: var(--wren-text-1);
     --sidebar-border: var(--wren-hairline);
-    --sidebar-ring: var(--wren-accent);
+    --sidebar-ring: var(--wren-focus-ring);
 }
 
 /* --------------------------------------------------------------------------

@@ -137,11 +137,16 @@
    Twenty-odd call sites used to spell out `outline-none focus-visible:ring-3
    focus-visible:ring-ring/50` by hand, which is three chances each to drift on
    width, colour or opacity. Compose where a filled rect needs it inside its own
-   edge: `focus-ring focus-visible:ring-inset`. */
+   edge: `focus-ring focus-visible:ring-inset`.
+
+   The `/50` is gone (issue #22). Half-strength accent composited to 2.05:1 on a
+   white card and 2.77:1 in dark, under the 3:1 an indicator needs; the ring is
+   now `--wren-focus-ring` at full strength, and the alpha is no longer a second
+   decision spelled out per call site. */
 @utility focus-ring {
     outline: none;
     &:focus-visible {
-        @apply ring-3 ring-ring/50;
+        @apply ring-3 ring-ring;
     }
 }
 
@@ -163,7 +168,7 @@
 
 @layer base {
     * {
-        @apply border-border outline-ring/50;
+        @apply border-border outline-ring;
     }
     html,
     body,

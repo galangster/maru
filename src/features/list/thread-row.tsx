@@ -117,7 +117,7 @@ export const ThreadRow = memo(function ThreadRow({
         'mx-(--wren-row-inset-x) cursor-default items-center gap-3 rounded-row px-2',
         'transition-colors duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         selected
-          ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring/50 group-focus-visible/listbox:ring-inset'
+          ? 'bg-fill-selected group-focus-visible/listbox:ring-3 group-focus-visible/listbox:ring-ring group-focus-visible/listbox:ring-inset'
           : checked
             ? 'bg-fill-selected'
             : 'hover:bg-fill-hover',
