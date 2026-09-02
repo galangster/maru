@@ -512,6 +512,63 @@ html[data-input-modality='keyboard']
   font: var(--mobile-text-caption)/var(--mobile-leading-tight) var(--wren-font-body);
 }
 
+/*
+ * The sync notice (issue 9).
+ *
+ * All six failure sentences reached the phone and none of them was ever
+ * drawn — the inbox looked healthy while mail had stopped arriving. It lives
+ * in the sticky header, under the search field, because a notice you have to
+ * scroll to find is the state that was reported.
+ *
+ * `--wren-radius-md` and the sunken fill are the search field's above it, so
+ * the two read as one stack rather than as a banner bolted on. It wraps: the
+ * sentence names an account and a remedy, and truncating either is what the
+ * desktop's own status line refuses to do (sync-summary.ts, `address`).
+ *
+ * Urgency is colour and nothing else. `stalled` — "Maru can't reach Google.
+ * It keeps trying; nothing is lost." — routes to Settings like the rest and
+ * must never be dressed as an alarm, which is the rule sync-summary.ts states
+ * beside `isUrgent`.
+ */
+.mobile-sync-banner {
+  display: flex;
+  width: 100%;
+  align-items: start;
+  gap: 8px;
+  margin-block-end: 10px;
+  border: 0;
+  border-radius: var(--wren-radius-md);
+  padding: 10px 12px;
+  background: var(--wren-surface-sunken);
+  color: var(--wren-text-2);
+  font-size: var(--mobile-text-footnote);
+  line-height: var(--mobile-leading-normal);
+  text-align: start;
+  text-wrap: pretty;
+}
+
+.mobile-sync-banner > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Optically on the first line of the sentence rather than centred on a box
+   whose height depends on how many lines the sentence takes. */
+.mobile-sync-banner .mobile-icon {
+  flex: 0 0 auto;
+  margin-block-start: 1px;
+  color: var(--wren-text-3);
+}
+
+.mobile-sync-banner.is-urgent {
+  background: color-mix(in oklab, var(--wren-destructive) 10%, transparent);
+  color: var(--wren-text-1);
+}
+
+.mobile-sync-banner.is-urgent > .mobile-icon:first-child {
+  color: var(--wren-destructive);
+}
+
 /* The name is kept because it is what every screen's main region is called,
    but the scrolling is the document's now. `flex: 1` is what pushes a sticky
    bottom bar to the foot of a short screen. */

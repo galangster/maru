@@ -1,4 +1,4 @@
-import { lazy, useCallback, useEffect, useMemo, useReducer, useState } from 'react'
+import { lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import type { MailActionType } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
@@ -13,8 +13,12 @@ import {
   useWakeSweep,
 } from '@/features/mail/queries'
 import { runBatchAction } from '@/features/list/bulk'
+import { useMailMode } from '@/features/mail/service'
 import { usePush } from '@/features/notifications/use-push'
 import { useThemeEffect } from '@/features/shell/use-theme'
+import { describeSync } from '@/features/sidebar/sync-summary'
+import { syncPreview } from '@/lib/env'
+import { useNow } from '@/lib/use-now'
 import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
 import { InboxScreen } from './screens/inbox-screen'
@@ -77,6 +81,24 @@ export function MobileApp() {
   const { accounts } = useAccountsById()
   const syncStatuses = useSyncStatus()
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
+  const { demo } = useMailMode()
+  const now = useNow()
+  // When this window started waiting, so "Starting…" can escalate rather than
+  // stand forever — the sidebar's own reason, and the same ref.
+  const startedAt = useRef(now)
+  /**
+   * The sync state, in the words the desktop already writes (issue 9).
+   *
+   * `demo && !syncPreview` mirrors the sidebar exactly: demo outranks every
+   * other state, but `?sync=` has to be allowed past it or the failure states
+   * could never be reviewed. Derived here rather than in the inbox screen
+   * because the sentence has two audiences — the banner and the live region —
+   * and they must not be two different sentences.
+   */
+  const sync = useMemo(
+    () => describeSync(accounts, syncStatuses, demo && !syncPreview, now, startedAt.current),
+    [accounts, syncStatuses, demo, now],
+  )
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
   const screen = visibleScreen(navigation)
@@ -88,19 +110,20 @@ export function MobileApp() {
     route.kind === 'thread' ? `thread:${route.threadKey}` : `screen:${screen}`,
   )
   const globalModalOpen = composerOpen || (sheet !== null && route.kind !== 'account')
-  const syncAnnouncement = useMemo(() => {
-    const states = accounts.map((account) => syncStatuses[account.id]?.state).filter(Boolean)
-    if (states.includes('error')) return 'Mail sync needs attention'
-    if (states.includes('syncing')) return 'Syncing mail'
-    if (states.length === accounts.length && states.length > 0 && states.every((state) => state === 'idle')) return 'Mail is up to date'
-    return ''
-  }, [accounts, syncStatuses])
   const announce = useCallback((text: string) => {
     setAnnouncement((current) => ({ text, alternate: !current.alternate }))
   }, [])
+  // The screen reader hears what the eye reads. It used to hear "Mail sync
+  // needs attention" for all six failure kinds and the eye was given nothing
+  // at all. Spoken on a change of KIND, not of sentence: `detail` carries an
+  // elapsed time that moves every minute, and an announcement per minute is
+  // how a live region teaches people to ignore it.
+  const spokenKind = useRef('')
   useEffect(() => {
-    if (syncAnnouncement) announce(syncAnnouncement)
-  }, [announce, syncAnnouncement])
+    if (spokenKind.current === sync.kind) return
+    spokenKind.current = sync.kind
+    announce(sync.detail)
+  }, [announce, sync.kind, sync.detail])
 
   const act = (threadKey: string, type: MailActionType) => {
     const action = { threadKey, type }
@@ -158,6 +181,8 @@ export function MobileApp() {
           onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
           onCompose={compose}
           onSearch={() => changeTab('search')}
+          sync={sync}
+          onSettings={() => changeTab('settings')}
           onArchive={archive}
           onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
           onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}

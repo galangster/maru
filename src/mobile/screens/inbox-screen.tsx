@@ -5,6 +5,7 @@ import type { MailView, Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
 import { useAccountsById, useThreads } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
+import { isUrgent, type SyncSummary } from '@/features/sidebar/sync-summary'
 import { useNow } from '@/lib/use-now'
 import { EmptyInbox, MobileListSkeleton } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
@@ -35,6 +36,8 @@ export function InboxScreen({
   onLater,
   onContext,
   onStar,
+  sync,
+  onSettings,
 }: {
   paused: boolean
   readScrollTop: () => number
@@ -45,6 +48,8 @@ export function InboxScreen({
   onLater: (keys: string[]) => void
   onContext: (thread: Thread) => void
   onStar: (thread: Thread) => void
+  sync: SyncSummary
+  onSettings: () => void
 }) {
   const { accounts, selfEmails } = useAccountsById()
   const [accountId, setAccountId] = useState('all')
@@ -108,7 +113,7 @@ export function InboxScreen({
     if (paused) return
     const top = list.current?.offsetTop ?? 0
     setListTop((current) => (current === top ? current : top))
-  }, [paused, rootFontSizePx, editing, query.isPending, rows.length === 0])
+  }, [paused, rootFontSizePx, editing, query.isPending, rows.length === 0, sync.action !== null])
   useEffect(() => {
     const update = () => setRootFontSizePx(readRootFontSize())
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
@@ -159,6 +164,28 @@ export function InboxScreen({
         <button className="mobile-search-field" type="button" onClick={onSearch}>
           <MobileIcon name="search" /><span>Search mail</span><kbd>{SEARCH_OPERATOR_HINTS[0]}</kbd>
         </button>
+        {/* Mail has stopped arriving, or is about to say why it has not
+            started. The sentence is `describeSync`'s — the same six the
+            desktop writes, naming the account and the way back — because the
+            phone had all six reaching it and drew none of them (issue 9).
+
+            `action !== null` is the whole test: a state that offers somewhere
+            to go is a state worth a row, and "Up to date" and "Syncing…" are
+            not. It sits in the sticky header rather than in the list, because
+            a notice you have to scroll to find is the state the report
+            described. Urgency is the colour and nothing else — `stalled` is
+            waiting, not an alarm, and sync-summary.ts says so. */}
+        {sync.action !== null && (
+          <button
+            className={`mobile-sync-banner${isUrgent(sync) ? ' is-urgent' : ''}`}
+            type="button"
+            onClick={onSettings}
+          >
+            <MobileIcon name={isUrgent(sync) ? 'error' : 'sync'} scale="action" />
+            <span>{sync.detail}</span>
+            <MobileIcon name="chevronRight" scale="small" />
+          </button>
+        )}
       </header>
 
       <div ref={region} className="mobile-scroll mobile-inbox-scroll" {...drag}>
