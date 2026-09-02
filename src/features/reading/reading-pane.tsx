@@ -16,12 +16,13 @@ import type { ReplyMode } from '@/lib/compose'
 import {
   registerActionUndo,
   registerUndoable,
-  useLabels,
+  toggleLabelChange,
   usePerformAction,
   useSaveSettings,
   useSettings,
   useThread,
   useModifyLabels,
+  useUserLabels,
 } from '@/features/mail/queries'
 import { threadActions, type ThreadActionId } from '@/features/mail/thread-actions'
 import { useSurfaces } from '@/features/shell/surface-store'
@@ -29,6 +30,7 @@ import { useUi } from '@/features/mail/ui-store'
 import { nextAfterRemoval, visibleThreadsSnapshot } from '@/features/list/list-prefs'
 
 import { displayMessages, expandedIds, normalizeExpansion, toggleExpanded } from './conversation'
+import { showRemoteImages } from './remote-images'
 import { EmptyState } from '@/components/empty-state'
 import { displayName } from '@/lib/format'
 import { hueFor, hueVars } from '@/lib/hue'
@@ -52,22 +54,6 @@ export function ReadingPane() {
   const settings = useSettings()
   const saveSettings = useSaveSettings()
   const order = settings.data?.conversationOrder ?? 'chronological'
-  /**
-   * The effective decision for one thread: the setting, OR the per-thread
-   * override. The direction is the contract — the Set can only OPEN what the
-   * setting closed, never close what the setting opened.
-   *
-   * `?? 'block'` is deliberately fail-closed and is NOT a second copy of the
-   * default: it answers "may I fetch, not yet knowing what was chosen?", and
-   * the answer to that is a policy independent of whatever defaults.ts says.
-   * The settings query is mounted from app start, so the window is narrow —
-   * but narrow is not never, and being wrong this way costs one banner frame
-   * and one extra sanitize pass, while being wrong the other way fetches
-   * remote images for someone who chose to block them, once, unrecoverably.
-   */
-  const imagePolicy = settings.data?.imagePolicy ?? 'block'
-  const showRemoteImages = (threadKey: string) =>
-    imagePolicy === 'allow' || imagesAllowed.has(threadKey)
   const expansion = useUi((s) => s.readingExpansion)
   const setExpansion = useUi((s) => s.setReadingExpansion)
   const mode = useMotionMode()
@@ -80,7 +66,7 @@ export function ReadingPane() {
   const { step } = staggerPreset(mode)
 
   const thread = detail.data?.thread
-  const labels = useLabels(thread?.accountId)
+  const userLabels = useUserLabels(thread?.accountId)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Land on the newest message, not the oldest. Messages stay chronological —
@@ -268,7 +254,7 @@ export function ReadingPane() {
           <ThreadHeader
             thread={thread}
             messages={messages}
-            userLabels={(labels.data ?? []).filter((l) => l.type === 'user')}
+            userLabels={userLabels}
           />
 
           <motion.div
@@ -287,7 +273,7 @@ export function ReadingPane() {
                   setExpansion(normalizeExpansion(toggleExpanded(open, message.id), messages))
                 }
                 now={now}
-                imagesAllowed={showRemoteImages(thread.key)}
+                imagesAllowed={showRemoteImages(thread.key, settings.data, imagesAllowed)}
                 onAllowImages={() => allowImages(thread.key)}
               />
             ))}
@@ -367,9 +353,7 @@ function ThreadHeader({
                         onClick={() =>
                           modify.mutate({
                             threadKey: thread.key,
-                            changes: on
-                              ? { addLabelIds: [], removeLabelIds: [label.id] }
-                              : { addLabelIds: [label.id], removeLabelIds: [] },
+                            changes: toggleLabelChange(label.id, on),
                           })
                         }
                       >

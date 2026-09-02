@@ -41,20 +41,50 @@ export function BottomSheet({
   return host ? createPortal(layer, host) : layer
 }
 
+/**
+ * One row in a sheet: a glyph, a name, and a trailing mark.
+ *
+ * Two kinds of row, one component. A row that GOES somewhere ends in a
+ * chevron, which is what `selected` being absent means. A row that CHOOSES
+ * ends in a checkmark when it is the choice and in nothing when it is not —
+ * the mailbox picker and the label picker had each drawn that row out by hand
+ * rather than this one, differing only in whether being chosen is the one
+ * current view or a toggle that is on.
+ */
 export function SheetAction({
   icon,
   label,
   destructive = false,
+  selected,
+  toggle = false,
+  disabled = false,
   onClick,
 }: {
   icon: ReactNode
   label: string
   destructive?: boolean
+  /** A row that chooses. Omit it for a row that goes somewhere. */
+  selected?: boolean
+  /** Whether being chosen is a toggle, or the one current choice. */
+  toggle?: boolean
+  disabled?: boolean
   onClick: () => void
 }) {
+  const chooses = selected !== undefined
   return (
-    <button className={destructive ? 'is-destructive' : ''} type="button" onClick={onClick}>
-      <span className="mobile-sheet-icon">{icon}</span><span>{label}</span><MobileIcon name="chevronRight" />
+    <button
+      className={[destructive ? 'is-destructive' : '', selected ? 'is-current' : ''].filter(Boolean).join(' ')}
+      type="button"
+      disabled={disabled}
+      aria-pressed={chooses && toggle ? selected : undefined}
+      aria-current={chooses && !toggle && selected ? 'true' : undefined}
+      onClick={onClick}
+    >
+      <span className="mobile-sheet-icon">{icon}</span>
+      <span>{label}</span>
+      {chooses
+        ? selected && <MobileIcon name="check" scale="action" />
+        : <MobileIcon name="chevronRight" />}
     </button>
   )
 }

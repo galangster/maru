@@ -44,6 +44,7 @@ import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/empty-state'
 import { bulkAction, bulkDefer, type BulkActionType } from './bulk'
 import { LATER_DISCLOSURE, LaterPicker } from './later-picker'
+import { labelNameFor, mailboxTitle } from '@/features/mail/mailbox-title'
 import { emptyCopyFor, useInboxZeroTier } from './inbox-zero'
 import { ListControls } from './list-controls'
 import { FILTER_LABELS, applyListPrefs, filterEmptyCopy, nextAfterRemoval } from './list-prefs'
@@ -347,17 +348,8 @@ export function ThreadList() {
     [held],
   )
 
-  const labelName =
-    view.kind === 'account'
-      ? (labels.data ?? []).find((l) => l.id === view.labelId)?.name
-      : undefined
-
-  const title =
-    view.kind === 'later'
-      ? 'Later'
-      : view.kind === 'unified'
-        ? view.folder[0].toUpperCase() + view.folder.slice(1)
-        : (labelName ?? 'Label')
+  const labelName = labelNameFor(view, labels.data)
+  const title = mailboxTitle(view, accounts, labelName)
   const subtitle =
     view.kind === 'account' ? accountsById.get(view.accountId)?.email : undefined
 

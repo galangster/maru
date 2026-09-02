@@ -1,18 +1,53 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
+import type { Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
+import type { BulkActionType } from '@/features/list/bulk'
 import { MIN_SEARCH_LENGTH, useAccountsById, useSearch } from '@/features/mail/queries'
 import { useNow } from '@/lib/use-now'
 import { MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
-import { buildMobileRowModel } from '../state'
+import { SwipeThreadRow } from '../components/swipe-thread-row'
+import { buildMobileRowModel, deferTarget, type DeferTarget } from '../state'
 import './search-screen.css'
 
-export function SearchScreen({ onOpen }: { onOpen: (key: string) => void }) {
+const SEARCH_HINT_ID = 'mobile-search-gesture-hint'
+
+/**
+ * Search results are inbox rows. They were their own read-only control until
+ * issue 15 — no swipe, no star, no long press, no unread dot — and search is
+ * the one list on the phone that reaches archived, sent and deferred mail, so
+ * it was the list that could act on the mail nothing else could reach.
+ */
+export function SearchScreen({
+  onOpen,
+  onAct,
+  onLater,
+  onContext,
+  onStar,
+}: {
+  onOpen: (key: string) => void
+  onAct: (keys: string[], type: BulkActionType) => void
+  onLater: (targets: DeferTarget[]) => void
+  onContext: (thread: Thread) => void
+  onStar: (thread: Thread) => void
+}) {
   const [query, setQuery] = useState('')
   const results = useSearch(query)
   const { selfEmails } = useAccountsById()
   const now = useNow()
+  // Built once per result set, the way the inbox builds its own. `useNow`
+  // ticks every minute and every relative time on the screen comes off it, so
+  // without this the whole list of models — and every callback closed over one
+  // — was rebuilt each minute for rows that had not changed.
+  const rows = useMemo(
+    () =>
+      (results.data ?? []).map((thread) => ({
+        thread,
+        model: buildMobileRowModel(thread, selfEmails, now),
+      })),
+    [results.data, selfEmails, now],
+  )
   return (
     <section className="mobile-screen" aria-label="Search">
       <header className="mobile-nav mobile-search-nav">
@@ -31,22 +66,26 @@ export function SearchScreen({ onOpen }: { onOpen: (key: string) => void }) {
       <div className="mobile-scroll mobile-search-results">
         {query.trim().length < MIN_SEARCH_LENGTH ? (
           <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="Find anything" copy="Search people, subjects, words, or use an operator above." />
-        ) : results.isPending ? <MobileListSkeleton /> : (results.data?.length ?? 0) === 0 ? (
+        ) : results.isPending ? <MobileListSkeleton /> : rows.length === 0 ? (
           <MobilePrompt icon={<MobileIcon name="search" scale="hero" />} title="No results" copy="Try fewer words or a different operator." />
         ) : (
-          <div className="mobile-thread-list">
-            {results.data?.map((thread) => {
-              const row = buildMobileRowModel(thread, selfEmails, now)
-              return (
-                <button className="mobile-search-result" type="button" key={thread.key} onClick={() => onOpen(thread.key)}>
-                  <span className="mobile-search-result-copy"><strong>{row.sender}</strong><span>{row.subject}</span><small>{row.snippet}</small></span>
-                  <time>{row.time}</time><MobileIcon name="chevronRight" />
-                </button>
-              )
-            })}
+          <div className="mobile-thread-list" aria-describedby={SEARCH_HINT_ID}>
+            {rows.map(({ thread, model }) => (
+              <SwipeThreadRow
+                key={thread.key}
+                thread={thread}
+                model={model}
+                onOpen={() => onOpen(thread.key)}
+                onArchive={() => onAct([thread.key], 'archive')}
+                onLater={() => onLater([deferTarget(thread)])}
+                onContext={() => onContext(thread)}
+                onStar={() => onStar(thread)}
+              />
+            ))}
           </div>
         )}
       </div>
+      <p className="sr-only" id={SEARCH_HINT_ID}>Swipe right to archive or left to save for later. Long press for more actions.</p>
     </section>
   )
 }

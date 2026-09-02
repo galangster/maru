@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import type { Attachment, Message } from '@/core/types'
 import { useMessageBodyFrame } from '@/features/reading/message-body'
 import { usePhotoData } from '@/features/reading/photo-grid'
+import { BLOCKED_IMAGES } from '@/features/reading/remote-images'
 import { displayName, formatBytes, isPreviewableImage, relativeTime } from '@/lib/format'
 import { MobileIcon } from './mobile-icon'
 
@@ -14,6 +15,7 @@ export function MobileMessageCard({
   allowRemoteImages,
   now,
   onToggle,
+  onAllowImages,
 }: {
   threadKey: string
   message: Message
@@ -22,6 +24,8 @@ export function MobileMessageCard({
   allowRemoteImages: boolean
   now: number
   onToggle: () => void
+  /** Let this one conversation's images through, for this session. */
+  onAllowImages: () => void
 }) {
   return (
     <article className={`mobile-message-card${expanded ? ' is-expanded' : ''}`}>
@@ -36,7 +40,7 @@ export function MobileMessageCard({
       </button>
       {expanded && (
         <div className="mobile-message-content">
-          <SafeMessageBody threadKey={threadKey} message={message} allowRemoteImages={allowRemoteImages} />
+          <SafeMessageBody threadKey={threadKey} message={message} allowRemoteImages={allowRemoteImages} onAllowImages={onAllowImages} />
           {message.attachments.length > 0 && <MobileAttachments threadKey={threadKey} message={message} />}
           {newest && <span className="mobile-newest-label">Newest message</span>}
         </div>
@@ -45,24 +49,48 @@ export function MobileMessageCard({
   )
 }
 
-function SafeMessageBody({ threadKey, message, allowRemoteImages }: { threadKey: string; message: Message; allowRemoteImages: boolean }) {
+function SafeMessageBody({
+  threadKey,
+  message,
+  allowRemoteImages,
+  onAllowImages,
+}: {
+  threadKey: string
+  message: Message
+  allowRemoteImages: boolean
+  onAllowImages: () => void
+}) {
+  // How many images this message lost. The sanitizer counts them on the way
+  // past; the count is the only thing that knows a picture was ever there,
+  // because the layout has already closed over the hole it left.
+  const [blocked, setBlocked] = useState(0)
+  const onBlockedImages = useCallback((count: number) => setBlocked(count), [])
   const { frameRef, height, srcDoc } = useMessageBodyFrame({
     threadKey,
     message,
     allowRemoteImages,
-    onBlockedImages: () => {},
+    onBlockedImages,
   })
   return (
-    <iframe
-      ref={frameRef}
-      className="mobile-message-body"
-      title={message.subject || 'Message body'}
-      sandbox="allow-same-origin allow-top-navigation-by-user-activation"
-      referrerPolicy="no-referrer"
-      srcDoc={srcDoc}
-      tabIndex={-1}
-      style={{ height }}
-    />
+    <>
+      {blocked > 0 && !allowRemoteImages && (
+        <div className="mobile-blocked-images">
+          <MobileIcon name="imageOff" scale="action" />
+          <span>{BLOCKED_IMAGES.notice} <small>· {BLOCKED_IMAGES.why}</small></span>
+          <button type="button" onClick={onAllowImages}>{BLOCKED_IMAGES.action}</button>
+        </div>
+      )}
+      <iframe
+        ref={frameRef}
+        className="mobile-message-body"
+        title={message.subject || 'Message body'}
+        sandbox="allow-same-origin allow-top-navigation-by-user-activation"
+        referrerPolicy="no-referrer"
+        srcDoc={srcDoc}
+        tabIndex={-1}
+        style={{ height }}
+      />
+    </>
   )
 }
 

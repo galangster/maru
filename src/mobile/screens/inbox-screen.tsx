@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 
+import type { IconName } from '@/components/ui/icon'
+import { viewLabel } from '@/core/defaults'
 import type { MailView, Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
+import type { BulkActionType } from '@/features/list/bulk'
+import { emptyCopyFor } from '@/features/list/inbox-zero'
+import { LATER_DISCLOSURE } from '@/features/list/later-picker'
 import { useAccountsById, useThreads } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { isUrgent } from '@/features/sidebar/sync-summary'
 import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
 import { useNow } from '@/lib/use-now'
-import { EmptyInbox, MobileListSkeleton } from '../components/placeholders'
+import { EmptyInbox, MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
+import { mailboxIcon } from '../mailboxes'
 import {
   buildMobileRowModel,
   deferTarget,
@@ -22,6 +28,28 @@ import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
 const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
+
+/**
+ * The Edit bar, in the order the thumb reads it.
+ *
+ * The four verbs are typed `BulkActionType`, so bulk.ts decides what a batch
+ * may take and a verb it refuses will not compile here — Star included, and
+ * bulk.ts says why it is refused. Later is `null` rather than a sixth verb
+ * because it is not one: `runBatchDefer` is `runBatchAction`'s sibling and not
+ * a member of it, so Later leaves through `onLater` carrying each
+ * conversation's prior wake time with it.
+ *
+ * There is no "Done" here either. Edit's own control in the nav row already
+ * says Done, and the room a duplicate would take is what Trash, Read and
+ * Unread now use.
+ */
+const BULK_BAR: readonly { type: BulkActionType | null; icon: IconName; label: string }[] = [
+  { type: 'archive', icon: 'archive', label: 'Archive' },
+  { type: null, icon: 'calendar', label: 'Later' },
+  { type: 'trash', icon: 'trash', label: 'Trash' },
+  { type: 'markRead', icon: 'read', label: 'Read' },
+  { type: 'markUnread', icon: 'unread', label: 'Unread' },
+]
 
 interface InboxRow {
   thread: Thread
@@ -35,22 +63,32 @@ interface InboxRow {
  */
 export function InboxScreen({
   paused,
+  view,
+  title,
   readScrollTop,
   onOpen,
   onCompose,
   onSearch,
-  onArchive,
+  onMailboxes,
+  onAct,
   onLater,
   onContext,
   onStar,
   onSettings,
 }: {
   paused: boolean
+  /** Which mailbox the list is showing. Owned by the shell, picked in the sheet. */
+  view: MailView
+  /** What that mailbox is called. Resolved by the shell, which also names the
+   *  thread screen's back control with it. */
+  title: string
   readScrollTop: () => number
   onOpen: (key: string) => void
   onCompose: () => void
   onSearch: () => void
-  onArchive: (keys: string[]) => void
+  onMailboxes: () => void
+  /** One verb over one or many threads — a swipe, or the Edit bar's batch. */
+  onAct: (keys: string[], type: BulkActionType) => void
   onLater: (targets: DeferTarget[]) => void
   onContext: (thread: Thread) => void
   onStar: (thread: Thread) => void
@@ -62,7 +100,6 @@ export function InboxScreen({
   // nothing, and the stage above it is spared re-rendering every screen and
   // sheet once a minute for a sentence only this header draws.
   const sync = useSyncSummary(accounts)
-  const [accountId, setAccountId] = useState('all')
   const [editing, setEditing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [rootFontSizePx, setRootFontSizePx] = useState(readRootFontSize)
@@ -72,9 +109,8 @@ export function InboxScreen({
   const [listTop, setListTop] = useState(0)
   const now = useNow()
   const service = useMailService()
-  const view: MailView = accountId === 'all'
-    ? { kind: 'unified', folder: 'inbox' }
-    : { kind: 'account', accountId, labelId: 'INBOX' }
+  // Inbox zero earns the character; an empty Sent or an empty label does not.
+  const isInbox = view.kind !== 'later' && viewLabel(view) === 'INBOX'
   const query = useThreads(view)
   const threads = query.data ?? []
   // Pausing starts here: the previous array is handed straight back, so a
@@ -185,26 +221,38 @@ export function InboxScreen({
   const selectedRows = rows.filter((row) => selected.has(row.thread.key))
 
   return (
-    <section className="mobile-screen" aria-label="Inbox" hidden={paused}>
+    <section className="mobile-screen" aria-label={title} hidden={paused}>
       <header ref={header} className="mobile-nav mobile-inbox-nav">
         <div className="mobile-nav-row">
-          <label className="mobile-account-lens">
-            <span className="sr-only">Account lens</span>
-            <select value={accountId} onChange={(event) => setAccountId(event.target.value)} aria-label="Account lens">
-              <option value="all">All inboxes</option>
-              {accounts.map((account) => <option key={account.id} value={account.id}>{account.displayName}</option>)}
-            </select>
-          </label>
-          {editing && rows.length > 0 && <button className="mobile-nav-text" type="button" onClick={() => setSelected(new Set(rows.map((row) => row.thread.key)))}>Select All</button>}
-          {/* No list, no mode to enter. Without this the empty inbox kept an
-              Edit control that could only put an all-disabled bulk bar on the
-              screen and then take it away again. */}
-          {(editing || listToSelect) && <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>}
+          {/* The account lens that used to sit here is gone: it offered three
+              inboxes and nothing else (issue 21), and the title below now
+              opens every place mail can be, its own three included. */}
+          <div className="mobile-nav-row-end">
+            {editing && rows.length > 0 && <button className="mobile-nav-text" type="button" onClick={() => setSelected(new Set(rows.map((row) => row.thread.key)))}>Select All</button>}
+            {/* No list, no mode to enter. Without this the empty inbox kept an
+                Edit control that could only put an all-disabled bulk bar on the
+                screen and then take it away again. */}
+            {(editing || listToSelect) && <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>}
+          </div>
         </div>
         <div className="mobile-title-row">
-          <h1>Inbox</h1>
+          {/* The title IS the mailbox picker. The account lens that used to sit
+              above it offered three inboxes and nothing else (issue 21); this
+              offers every place mail can be, including the account lens's own
+              three. */}
+          <button className="mobile-mailbox-title mobile-press" type="button" onClick={onMailboxes} aria-haspopup="dialog" aria-label={`${title}. Choose a mailbox`}>
+            <h1>{title}</h1>
+            <MobileIcon name="chevronDown" scale="action" />
+          </button>
           <button className="mobile-round-button mobile-press" type="button" onClick={onCompose} aria-label="Compose"><MobileIcon name="compose" scale="action" /></button>
         </div>
+        {/* The disclosure, directly under the word Later, exactly where the
+            desktop puts its own, and above the search field rather than
+            instead of it: search is how the phone reaches everything, and the
+            list's pull indicator parks under the header's last element, which
+            has to be something that paints a background. Nothing dismisses it —
+            dismissible means misremembered six months later. */}
+        {view.kind === 'later' && <p className="mobile-later-disclosure">{LATER_DISCLOSURE}</p>}
         <button className="mobile-search-field" type="button" onClick={onSearch}>
           <MobileIcon name="search" /><span>Search mail</span><kbd>{SEARCH_OPERATOR_HINTS[0]}</kbd>
         </button>
@@ -242,7 +290,9 @@ export function InboxScreen({
         {/* The last refusal of the pause: no `getVirtualItems()`, no
             `getTotalSize()`, and so no row in a `display: none` list for the
             ResizeObserver to measure as zero pixels tall. */}
-        {paused ? null : query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? <EmptyInbox /> : (
+        {paused ? null : query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? (
+          isInbox ? <EmptyInbox /> : <EmptyMailbox view={view} title={title} />
+        ) : (
           <div ref={list} className="mobile-thread-list" aria-describedby={SWIPE_HINT_ID} style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index]
@@ -261,7 +311,7 @@ export function InboxScreen({
                     selected={selected.has(row.thread.key)}
                     onSelect={() => toggle(row.thread.key)}
                     onOpen={() => onOpen(row.thread.key)}
-                    onArchive={() => onArchive([row.thread.key])}
+                    onArchive={() => onAct([row.thread.key], 'archive')}
                     onLater={() => onLater([deferTarget(row.thread)])}
                     onContext={() => onContext(row.thread)}
                     onStar={() => onStar(row.thread)}
@@ -276,12 +326,39 @@ export function InboxScreen({
 
       {editing && (
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-          <button type="button" disabled={selectedRows.length === 0} onClick={() => onArchive(selectedRows.map((row) => row.thread.key))}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
-          <button type="button" disabled={selectedRows.length === 0} onClick={() => onLater(selectedRows.map((row) => deferTarget(row.thread)))}><MobileIcon name="calendar" scale="action" /><span>Later</span></button>
-          <button type="button" disabled={selectedRows.length === 0} onClick={stopEditing}><MobileIcon name="check" scale="action" /><span>Done</span></button>
+          {BULK_BAR.map((verb) => (
+            <button
+              key={verb.label}
+              type="button"
+              disabled={selectedRows.length === 0}
+              onClick={() =>
+                verb.type === null
+                  ? onLater(selectedRows.map((row) => deferTarget(row.thread)))
+                  : onAct(selectedRows.map((row) => row.thread.key), verb.type)
+              }
+            >
+              <MobileIcon name={verb.icon} scale="action" /><span>{verb.label}</span>
+            </button>
+          ))}
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Every mailbox but the inbox, empty. The copy is the desktop's own table
+ * (inbox-zero.ts, phone column) and the glyph is the same one the picker drew
+ * the row with, so a mailbox looks like itself wherever it is empty.
+ */
+function EmptyMailbox({ view, title }: { view: MailView; title: string }) {
+  const copy = emptyCopyFor(view, title, 'phone')
+  return (
+    <MobilePrompt
+      icon={<MobileIcon name={mailboxIcon(view)} scale="hero" />}
+      title={copy.title}
+      copy={copy.subtitle}
+    />
   )
 }
 

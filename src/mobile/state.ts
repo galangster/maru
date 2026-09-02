@@ -1,7 +1,8 @@
 import type { IconName } from '@/components/ui/icon'
 import type { VaultHistoryEntry } from '@/core/account'
+import { isDeferred } from '@/core/defaults'
 import type { Thread } from '@/core/types'
-import { correspondents, participantLine, relativeTime } from '@/lib/format'
+import { correspondents, participantLine, relativeTime, wakeTime } from '@/lib/format'
 import type { NativeTab } from '@/platform/shell'
 
 export type MobileTab = 'inbox' | 'search' | 'settings'
@@ -85,7 +86,11 @@ export function deferTarget(thread: Thread): DeferTarget {
 
 export type MobileSheet =
   | { kind: 'later'; targets: DeferTarget[] }
+  /** The mailbox picker behind the inbox title — every place mail can be. */
+  | { kind: 'mailboxes' }
   | { kind: 'threadActions'; thread: Thread }
+  /** The label picker behind `+ Label` on an open conversation. */
+  | { kind: 'labels'; thread: Thread }
   | { kind: 'move'; thread: Thread }
   | { kind: 'pushAccount' }
   | { kind: 'accountRestore'; entry: VaultHistoryEntry }
@@ -250,6 +255,15 @@ export interface MobileRowContent {
   unread: boolean
   starred: boolean
   messageCount: number
+  /**
+   * When a thread saved for later comes back, in words — `null` for a thread
+   * that was never saved, and for one whose moment has already passed.
+   *
+   * Always computed rather than asked for by the Later list alone: the same
+   * fact is worth having in a search result, which is the other phone surface
+   * a deferred thread can show up in.
+   */
+  until: string | null
 }
 
 /** What a row draws, plus what it announces. */
@@ -271,6 +285,10 @@ export function buildMobileRowModel(
     unread: thread.unread,
     starred: thread.starred,
     messageCount: thread.messageCount,
+    // `isDeferred` and `wakeTime` are the engine's own pair, so the row, the
+    // Later sheet's toast and the desktop all say the same words about the
+    // same moment.
+    until: isDeferred(thread, now) ? wakeTime(thread.deferredUntil as number, now) : null,
   }
   // Composed here, with the rest of the model, rather than in the row: the row
   // is rendered by a virtualizer and re-rendered on every scroll, and the

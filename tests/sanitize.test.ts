@@ -13,10 +13,33 @@
 
 import { describe, expect, it } from 'vitest'
 
+import type { Settings } from '@/core/types'
+import { showRemoteImages } from '@/features/reading/remote-images'
 import { buildSrcdoc, sanitizeBody } from '@/lib/sanitize'
 
 const blocked = (html: string) => sanitizeBody(html, { allowRemoteImages: false })
 const allowed = (html: string) => sanitizeBody(html, { allowRemoteImages: true })
+
+describe('the policy predicate both shells ask', () => {
+  // One function, because the fail-closed reading below is a security promise
+  // and the phone used to keep its own copy of it beside the desktop's.
+  it('fetches nothing until the setting has actually answered', () => {
+    expect(showRemoteImages('t1', undefined, new Set())).toBe(false)
+  })
+
+  it('honours the setting when it says allow', () => {
+    expect(showRemoteImages('t1', { imagePolicy: 'allow' } as Settings, new Set())).toBe(true)
+    expect(showRemoteImages('t1', { imagePolicy: 'block' } as Settings, new Set())).toBe(false)
+  })
+
+  it('lets the per-thread override OPEN what the setting closed, and only that', () => {
+    const override = new Set(['t1'])
+    expect(showRemoteImages('t1', { imagePolicy: 'block' } as Settings, override)).toBe(true)
+    expect(showRemoteImages('t2', { imagePolicy: 'block' } as Settings, override)).toBe(false)
+    // Never the other way round: the Set has no way to close an open policy.
+    expect(showRemoteImages('t2', { imagePolicy: 'allow' } as Settings, override)).toBe(true)
+  })
+})
 
 describe('remote image blocking', () => {
   it('withholds a plain remote image and leaves a chip, not a hole', () => {

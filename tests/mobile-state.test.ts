@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Thread } from '@/core/types'
+import { wakeTime } from '@/lib/format'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
@@ -164,6 +165,46 @@ describe('mobile drag axis lock', () => {
   })
 })
 
+describe('mobile sheets', () => {
+  const thread1 = thread()
+
+  it('opens the mailbox picker and the label picker over the current screen', () => {
+    const pushed = mobileRouteReducer(initialMobileRoute, {
+      type: 'push',
+      entry: { kind: 'thread', threadKey: thread1.key },
+    })
+    const labels = mobileRouteReducer(pushed, {
+      type: 'openSheet',
+      sheet: { kind: 'labels', thread: thread1 },
+    })
+    // The sheet is over the thread, not instead of it: the screen underneath
+    // has to keep drawing, because the picker is about the mail on it.
+    expect(labels.sheet).toEqual({ kind: 'labels', thread: thread1 })
+    expect(visibleScreen(labels)).toBe('thread')
+
+    const mailboxes = mobileRouteReducer(initialMobileRoute, {
+      type: 'openSheet',
+      sheet: { kind: 'mailboxes' },
+    })
+    expect(mailboxes.sheet).toEqual({ kind: 'mailboxes' })
+    expect(visibleScreen(mailboxes)).toBe('inbox')
+  })
+
+  it('closes a picker before it pops a screen', () => {
+    const pushed = mobileRouteReducer(initialMobileRoute, {
+      type: 'push',
+      entry: { kind: 'thread', threadKey: thread1.key },
+    })
+    const open = mobileRouteReducer(pushed, {
+      type: 'openSheet',
+      sheet: { kind: 'labels', thread: thread1 },
+    })
+    const back = mobileRouteReducer(open, { type: 'back' })
+    expect(back.sheet).toBeNull()
+    expect(visibleScreen(back)).toBe('thread')
+  })
+})
+
 describe('mobile swipe intent', () => {
   it('maps a right swipe to archive and a left swipe to Later', () => {
     expect(resolveSwipeIntent(72, 4)).toBe('archive')
@@ -195,6 +236,28 @@ describe('mobile row model', () => {
     expect(model.messageCount).toBe(2)
     expect(model).not.toHaveProperty('key')
     expect(model).not.toHaveProperty('hasAttachments')
+  })
+
+  it('says when a thread saved for later comes back', () => {
+    const now = new Date(2026, 8, 1, 12, 0).getTime()
+    const model = buildMobileRowModel(
+      thread({ deferredUntil: new Date(2026, 8, 2, 9, 0).getTime() }),
+      [],
+      now,
+    )
+    // The engine's own wording, not a second phrasing of the same moment.
+    expect(model.until).toBe(wakeTime(new Date(2026, 8, 2, 9, 0).getTime(), now))
+    expect(model.until).toContain('tomorrow')
+  })
+
+  it('says nothing about a thread that was never saved, or has already woken', () => {
+    const now = new Date(2026, 8, 1, 12, 0).getTime()
+    expect(buildMobileRowModel(thread(), [], now).until).toBeNull()
+    // A deferral whose moment has passed is not a promise any more, so the
+    // row must stop making one. This is `isDeferred`'s boundary, not a
+    // second `> now` written here.
+    const woken = thread({ deferredUntil: new Date(2026, 8, 1, 9, 0).getTime() })
+    expect(buildMobileRowModel(woken, [], now).until).toBeNull()
   })
 })
 
@@ -313,6 +376,7 @@ describe('mobileRowLabel', () => {
     unread: false,
     starred: false,
     messageCount: 1,
+    until: null,
   }
 
   it('announces the state as well as the content', () => {

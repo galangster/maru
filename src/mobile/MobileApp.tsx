@@ -1,28 +1,34 @@
-import { lazy, useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
-import type { Account, MailActionType } from '@/core/types'
+import type { Account, MailActionType, MailView } from '@/core/types'
 import { useComposer } from '@/features/compose/compose-store'
 import { useComposeActions } from '@/features/compose/use-compose-actions'
 import {
   registerUndoable,
   useDefer,
+  useLabels,
   useMailEvents,
   usePerformAction,
   useAccountsById,
   useWakeSweep,
 } from '@/features/mail/queries'
-import { runBatchAction, runBatchDefer } from '@/features/list/bulk'
+import { runBatchAction, runBatchDefer, type BulkActionType } from '@/features/list/bulk'
 import { usePush } from '@/features/notifications/use-push'
+import { labelNameFor } from '@/features/mail/mailbox-title'
 import { useThemeEffect } from '@/features/shell/use-theme'
 import { useSyncSummary } from '@/features/sidebar/use-sync-summary'
+import { viewOverride } from '@/lib/env'
 import { nativeShellPossible } from '@/platform/shell'
 import { MobileIcon } from './components/mobile-icon'
+import { UNIFIED_INBOX, mobileMailboxTitle } from './mailboxes'
 import { InboxScreen } from './screens/inbox-screen'
 import { SearchScreen } from './screens/search-screen'
 import { SettingsScreen } from './screens/settings-screen'
 import { ThreadScreen } from './screens/thread-screen'
 import { ComposeSheet } from './sheets/compose-sheet'
+import { LabelSheet } from './sheets/label-sheet'
 import { LaterSheet } from './sheets/later-sheet'
+import { MailboxSheet } from './sheets/mailbox-sheet'
 import { PushAccountSheet } from './sheets/push-account-sheet'
 import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
@@ -53,6 +59,12 @@ export function MobileApp() {
   useInputModality()
 
   const [navigation, dispatch] = useReducer(mobileRouteReducer, initialMobileRoute)
+  // Which mailbox the list screen is showing. Shell state rather than route
+  // state: it survives a thread push and a tab change the way the mailbox you
+  // are reading in should, and it is not something the back gesture pops.
+  // `?view=` is the desktop's capture seam and it opens the same mailboxes,
+  // so the phone reads it too rather than making the captures drive the picker.
+  const [mailbox, setMailbox] = useState<MailView>(() => viewOverride() ?? UNIFIED_INBOX)
   const onNativeTab = useCallback((index: number) => {
     const tab = tabAtIndex(index)
     if (tab) dispatch({ type: 'changeTab', tab })
@@ -72,12 +84,26 @@ export function MobileApp() {
       [],
     ),
   )
+  // What the mailbox on screen is called. Resolved once, here, because two
+  // screens need the same answer: the list titles itself with it and the
+  // thread's back control names the screen underneath with it. The labels
+  // query is per account and shares react-query's key with the picker's, so
+  // asking for it here costs nothing.
+  const mailboxLabels = useLabels(mailbox.kind === 'account' ? mailbox.accountId : undefined)
   const perform = usePerformAction()
   const defer = useDefer()
   const composerOpen = useComposer((state) => state.open)
   const { accounts } = useAccountsById()
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
+  // Memoized because it is handed to the inbox, which is mounted for the life
+  // of the app and virtualizes its rows: a fresh string on every render of the
+  // shell is a prop change on every render of the list.
+  const labelName = labelNameFor(mailbox, mailboxLabels.data)
+  const mailboxName = useMemo(
+    () => mobileMailboxTitle(mailbox, accounts, labelName),
+    [mailbox, accounts, labelName],
+  )
   const route = navigation.stack[navigation.stack.length - 1]
   const screen = visibleScreen(navigation)
   const sheet = navigation.sheet
@@ -101,7 +127,10 @@ export function MobileApp() {
     if (type === 'archive') announce('Archived')
   }
   /**
-   * Archive one conversation, or a whole batch.
+   * One verb over a list of conversations — a swipe over one, or the Edit
+   * bar's batch. `BulkActionType` is the guard rather than a runtime check:
+   * bulk.ts decides what a batch may take, so a verb it refuses — Star, above
+   * all — will not compile here.
    *
    * The batch goes through the desktop's own `runBatchAction` rather than a
    * loop over `act` (issue 8). The loop registered one undoable per
@@ -112,10 +141,10 @@ export function MobileApp() {
    * One row keeps the single-thread toast, because "Archived" beside the row
    * you just flicked is the better sentence and its undo was never wrong.
    */
-  const archive = (threadKeys: string[]) => {
+  const actMany = (threadKeys: string[], type: BulkActionType) => {
     if (threadKeys.length === 0) return
-    if (threadKeys.length === 1) return act(threadKeys[0], 'archive')
-    announce(runBatchAction((next) => perform.mutate(next), threadKeys, 'archive', 'conversation'))
+    if (threadKeys.length === 1) return act(threadKeys[0], type)
+    announce(runBatchAction((next) => perform.mutate(next), threadKeys, type, 'conversation'))
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
   const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
@@ -144,12 +173,15 @@ export function MobileApp() {
             stays mounted". */}
         <InboxScreen
           paused={screen !== 'inbox'}
+          view={mailbox}
+          title={mailboxName}
           readScrollTop={readScrollTop}
           onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
           onCompose={compose}
           onSearch={() => changeTab('search')}
           onSettings={() => changeTab('settings')}
-          onArchive={archive}
+          onMailboxes={() => dispatch({ type: 'openSheet', sheet: { kind: 'mailboxes' } })}
+          onAct={actMany}
           onLater={(targets) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets } })}
           onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
@@ -165,14 +197,22 @@ export function MobileApp() {
         ) : screen === 'thread' && route.kind === 'thread' ? (
           <ThreadScreen
             threadKey={route.threadKey}
+            backLabel={navigation.tab === 'inbox' ? mailboxName : MOBILE_TAB_CHROME[navigation.tab].label}
             onBack={() => dispatch({ type: 'back' })}
             onReply={replyTo}
-            onArchive={(key) => { archive([key]); dispatch({ type: 'back' }) }}
+            onArchive={(key) => { actMany([key], 'archive'); dispatch({ type: 'back' }) }}
             onLater={(target) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets: [target] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
+            onLabels={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'labels', thread } })}
           />
         ) : screen === 'search' ? (
-          <SearchScreen onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })} />
+          <SearchScreen
+            onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
+            onAct={actMany}
+            onLater={(targets) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets } })}
+            onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
+            onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
+          />
         ) : screen === 'settings' ? (
           <SettingsScreen onAccount={openAccount} />
         ) : null}
@@ -212,6 +252,15 @@ export function MobileApp() {
           }}
         />
       )}
+      {sheet?.kind === 'mailboxes' && (
+        <MailboxSheet
+          accounts={accounts}
+          current={mailbox}
+          onClose={closeSheet}
+          onPick={(view) => { setMailbox(view); closeSheet() }}
+        />
+      )}
+      {sheet?.kind === 'labels' && <LabelSheet thread={sheet.thread} onClose={closeSheet} />}
       {sheet?.kind === 'threadActions' && (
         <ThreadActionsSheet
           thread={sheet.thread}

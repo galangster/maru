@@ -10,7 +10,7 @@ import {
 import { useAccountsById, useCorrespondents } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { sendToastOptions } from '@/features/compose/send-toast'
-import { sendBlockReason } from '@/lib/compose'
+import { sendBlockReason, type ReplyMode } from '@/lib/compose'
 import { cue } from '@/lib/cue'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
 import { MobileIcon } from '../components/mobile-icon'
@@ -19,6 +19,20 @@ import { useHapticBoundary } from '../use-native-shell'
 
 const RECIPIENT_KINDS = ['to', 'cc', 'bcc'] as const
 type RecipientKind = (typeof RECIPIENT_KINDS)[number]
+
+/**
+ * What the screen is called, by what it is about to send.
+ *
+ * The same three words the desktop composer uses, because the title is the
+ * only thing on the phone's sheet that says which of the three you picked —
+ * the recipient field is empty in a forward and in a fresh reply-all alike
+ * (issue 11).
+ */
+const COMPOSE_TITLES: Record<ReplyMode, string> = {
+  reply: 'Reply',
+  replyAll: 'Reply all',
+  forward: 'Forward',
+}
 
 export function ComposeSheet({ onSent }: { onSent: () => void }) {
   const service = useMailService()
@@ -107,7 +121,7 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
       <section ref={dialogRef} className="mobile-compose-sheet" role="dialog" aria-modal="true" aria-label="Compose message" tabIndex={-1}>
         <header className="mobile-sheet-nav">
           <button type="button" className="mobile-nav-text" onClick={close}>Cancel</button>
-          <h2>{draft.reply ? 'Reply' : 'New Message'}</h2>
+          <h2>{draft.reply ? COMPOSE_TITLES[draft.reply.mode] : 'New Message'}</h2>
           <button type="button" className="mobile-send-button" disabled={sending} onClick={() => void send()}>{sending ? 'Sending…' : 'Send'}</button>
         </header>
         <form className="mobile-compose-form" onSubmit={(event) => { event.preventDefault(); void send() }}>

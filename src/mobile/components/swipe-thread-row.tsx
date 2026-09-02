@@ -12,12 +12,16 @@ import {
 import { usePointerDrag } from '../use-pointer-drag'
 import { useThresholdTick } from '../use-threshold-tick'
 
+/** A list with no selection mode passes none of the three below. */
+const NOT_SELECTABLE = () => {}
+
 interface SwipeThreadRowProps {
   thread: Thread
   model: MobileRowModel
-  editing: boolean
-  selected: boolean
-  onSelect: () => void
+  /** Selection mode, which only the inbox has. Absent means never in it. */
+  editing?: boolean
+  selected?: boolean
+  onSelect?: () => void
   onOpen: () => void
   onArchive: () => void
   onLater: () => void
@@ -27,9 +31,9 @@ interface SwipeThreadRowProps {
 
 export const SwipeThreadRow = memo(function SwipeThreadRow({
   model,
-  editing,
-  selected,
-  onSelect,
+  editing = false,
+  selected = false,
+  onSelect = NOT_SELECTABLE,
   onOpen,
   onArchive,
   onLater,
@@ -160,6 +164,11 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
         <div className="mobile-row-copy">
           <div className="mobile-row-topline"><strong>{model.sender}</strong><time>{model.time}</time></div>
           <div className="mobile-row-subject"><span>{model.subject}</span>{model.messageCount > 1 && <small>{model.messageCount}</small>}</div>
+          {/* When it comes back. The phone's list has no date group headers
+              anywhere, so the desktop Later view's "Tomorrow" headers have no
+              counterpart here — the exact moment on the row is the same fact
+              at a higher resolution, and it travels into search results too. */}
+          {model.until && <p className="mobile-row-until"><MobileIcon name="calendar" scale="small" />Back {model.until}</p>}
           <p>{model.snippet}</p>
         </div>
         <span />
