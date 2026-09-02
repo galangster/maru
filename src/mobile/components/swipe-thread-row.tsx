@@ -160,6 +160,11 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
         <div className="mobile-row-copy">
           <div className="mobile-row-topline"><strong>{model.sender}</strong><time>{model.time}</time></div>
           <div className="mobile-row-subject"><span>{model.subject}</span>{model.messageCount > 1 && <small>{model.messageCount}</small>}</div>
+          {/* When it comes back. The phone's list has no date group headers
+              anywhere, so the desktop Later view's "Tomorrow" headers have no
+              counterpart here — the exact moment on the row is the same fact
+              at a higher resolution, and it travels into search results too. */}
+          {model.until && <p className="mobile-row-until"><MobileIcon name="calendar" scale="small" />Back {model.until}</p>}
           <p>{model.snippet}</p>
         </div>
         <span />

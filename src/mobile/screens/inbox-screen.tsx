@@ -1,14 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 
-import type { MailView, Thread } from '@/core/types'
+import type { IconName } from '@/components/ui/icon'
+import { FOLDERS, viewLabel } from '@/core/defaults'
+import type { MailActionType, MailView, Thread } from '@/core/types'
 import { SEARCH_OPERATOR_HINTS } from '@/core/search/operators'
+import { LATER_DISCLOSURE } from '@/features/list/later-picker'
 import { useAccountsById, useThreads } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { useNow } from '@/lib/use-now'
-import { EmptyInbox, MobileListSkeleton } from '../components/placeholders'
+import { EmptyInbox, MobileListSkeleton, MobilePrompt } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
+import { emptyMailboxCopy } from '../mailboxes'
 import { buildMobileRowModel, type MobileRowModel } from '../state'
 import { usePullRefresh } from '../use-pull-refresh'
 
@@ -27,27 +31,36 @@ interface InboxRow {
  */
 export function InboxScreen({
   paused,
+  view,
+  title,
   readScrollTop,
   onOpen,
   onCompose,
   onSearch,
-  onArchive,
+  onMailboxes,
+  onAct,
   onLater,
   onContext,
   onStar,
 }: {
   paused: boolean
+  /** Which mailbox the list is showing. Owned by the shell, picked in the sheet. */
+  view: MailView
+  /** What that mailbox is called. Resolved by the shell, which also names the
+   *  thread screen's back control with it. */
+  title: string
   readScrollTop: () => number
   onOpen: (key: string) => void
   onCompose: () => void
   onSearch: () => void
-  onArchive: (keys: string[]) => void
+  onMailboxes: () => void
+  /** One verb over one or many threads — a swipe, or the Edit bar's batch. */
+  onAct: (keys: string[], type: MailActionType) => void
   onLater: (keys: string[]) => void
   onContext: (thread: Thread) => void
   onStar: (thread: Thread) => void
 }) {
-  const { accounts, selfEmails } = useAccountsById()
-  const [accountId, setAccountId] = useState('all')
+  const { selfEmails } = useAccountsById()
   const [editing, setEditing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [rootFontSizePx, setRootFontSizePx] = useState(readRootFontSize)
@@ -56,9 +69,13 @@ export function InboxScreen({
   const [listTop, setListTop] = useState(0)
   const now = useNow()
   const service = useMailService()
-  const view: MailView = accountId === 'all'
-    ? { kind: 'unified', folder: 'inbox' }
-    : { kind: 'account', accountId, labelId: 'INBOX' }
+  // Inbox zero earns the character; an empty Sent or an empty label does not.
+  const isInbox = view.kind !== 'later' && viewLabel(view) === 'INBOX'
+  const emptyIcon: IconName = view.kind === 'later'
+    ? 'calendar'
+    : view.kind === 'unified'
+      ? (FOLDERS.find((folder) => folder.folder === view.folder)?.icon ?? 'inbox')
+      : 'listBullet'
   const query = useThreads(view)
   const threads = query.data ?? []
   // Pausing starts here: the previous array is handed straight back, so a
@@ -139,23 +156,32 @@ export function InboxScreen({
   const selectedKeys = [...selected]
 
   return (
-    <section className="mobile-screen" aria-label="Inbox" hidden={paused}>
+    <section className="mobile-screen" aria-label={title} hidden={paused}>
       <header className="mobile-nav mobile-inbox-nav">
         <div className="mobile-nav-row">
-          <label className="mobile-account-lens">
-            <span className="sr-only">Account lens</span>
-            <select value={accountId} onChange={(event) => setAccountId(event.target.value)} aria-label="Account lens">
-              <option value="all">All inboxes</option>
-              {accounts.map((account) => <option key={account.id} value={account.id}>{account.displayName}</option>)}
-            </select>
-          </label>
-          {editing && threads.length > 0 && <button className="mobile-nav-text" type="button" onClick={() => setSelected(new Set(threads.map((thread) => thread.key)))}>Select All</button>}
-          <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>
+          <div className="mobile-nav-row-end">
+            {editing && threads.length > 0 && <button className="mobile-nav-text" type="button" onClick={() => setSelected(new Set(threads.map((thread) => thread.key)))}>Select All</button>}
+            <button className="mobile-nav-text" type="button" onClick={() => editing ? stopEditing() : setEditing(true)}>{editing ? 'Done' : 'Edit'}</button>
+          </div>
         </div>
         <div className="mobile-title-row">
-          <h1>Inbox</h1>
+          {/* The title IS the mailbox picker. The account lens that used to sit
+              above it offered three inboxes and nothing else (issue 21); this
+              offers every place mail can be, including the account lens's own
+              three. */}
+          <button className="mobile-mailbox-title mobile-press" type="button" onClick={onMailboxes} aria-haspopup="dialog" aria-label={`${title}. Choose a mailbox`}>
+            <h1>{title}</h1>
+            <MobileIcon name="chevronDown" scale="action" />
+          </button>
           <button className="mobile-round-button mobile-press" type="button" onClick={onCompose} aria-label="Compose"><MobileIcon name="compose" scale="action" /></button>
         </div>
+        {/* The disclosure, directly under the word Later, exactly where the
+            desktop puts its own, and above the search field rather than
+            instead of it: search is how the phone reaches everything, and the
+            list's pull indicator parks under the header's last element, which
+            has to be something that paints a background. Nothing dismisses it —
+            dismissible means misremembered six months later. */}
+        {view.kind === 'later' && <p className="mobile-later-disclosure">{LATER_DISCLOSURE}</p>}
         <button className="mobile-search-field" type="button" onClick={onSearch}>
           <MobileIcon name="search" /><span>Search mail</span><kbd>{SEARCH_OPERATOR_HINTS[0]}</kbd>
         </button>
@@ -171,7 +197,9 @@ export function InboxScreen({
         {/* The last refusal of the pause: no `getVirtualItems()`, no
             `getTotalSize()`, and so no row in a `display: none` list for the
             ResizeObserver to measure as zero pixels tall. */}
-        {paused ? null : query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? <EmptyInbox /> : (
+        {paused ? null : query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? (
+          isInbox ? <EmptyInbox /> : <MobilePrompt icon={<MobileIcon name={emptyIcon} scale="hero" />} {...emptyMailboxCopy(view, title)} />
+        ) : (
           <div ref={list} className="mobile-thread-list" aria-describedby={SWIPE_HINT_ID} style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index]
@@ -190,7 +218,7 @@ export function InboxScreen({
                     selected={selected.has(row.thread.key)}
                     onSelect={() => toggle(row.thread.key)}
                     onOpen={() => onOpen(row.thread.key)}
-                    onArchive={() => onArchive([row.thread.key])}
+                    onArchive={() => onAct([row.thread.key], 'archive')}
                     onLater={() => onLater([row.thread.key])}
                     onContext={() => onContext(row.thread)}
                     onStar={() => onStar(row.thread)}
@@ -204,10 +232,17 @@ export function InboxScreen({
       <p className="sr-only" id={SWIPE_HINT_ID}>Swipe right to archive or left to save for later. Long press for more actions.</p>
 
       {editing && (
+        /* Five verbs, and no sixth "Done": Edit's own control in the nav row
+           already says Done, and the room a duplicate would take is what Trash,
+           Read and Unread now use. Star is deliberately absent here for the
+           same reason the desktop's batch refuses it — a bulk star is how forty
+           threads end up starred and the star stops meaning anything. */
         <div className="mobile-bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-          <button type="button" disabled={selected.size === 0} onClick={() => onArchive(selectedKeys)}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
+          <button type="button" disabled={selected.size === 0} onClick={() => onAct(selectedKeys, 'archive')}><MobileIcon name="archive" scale="action" /><span>Archive</span></button>
           <button type="button" disabled={selected.size === 0} onClick={() => onLater(selectedKeys)}><MobileIcon name="calendar" scale="action" /><span>Later</span></button>
-          <button type="button" disabled={selected.size === 0} onClick={stopEditing}><MobileIcon name="check" scale="action" /><span>Done</span></button>
+          <button type="button" disabled={selected.size === 0} onClick={() => onAct(selectedKeys, 'trash')}><MobileIcon name="trash" scale="action" /><span>Trash</span></button>
+          <button type="button" disabled={selected.size === 0} onClick={() => onAct(selectedKeys, 'markRead')}><MobileIcon name="read" scale="action" /><span>Read</span></button>
+          <button type="button" disabled={selected.size === 0} onClick={() => onAct(selectedKeys, 'markUnread')}><MobileIcon name="unread" scale="action" /><span>Unread</span></button>
         </div>
       )}
     </section>

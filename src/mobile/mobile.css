@@ -636,8 +636,18 @@ html[data-input-modality='keyboard']
     background-color var(--wren-dur-fast) var(--wren-ease-out);
 }
 
+/*
+ * The checked row in Edit mode.
+ *
+ * `--wren-fill-selected` is a translucent wash, and the row sits directly over
+ * the two swipe action panels — so a bare fill let a green Archive bar and a
+ * red Later bar show through every row the person checked. Composited over the
+ * ground it is the same colour with nothing behind it.
+ */
 .mobile-thread-row.is-selected {
-  background: var(--wren-fill-selected);
+  background:
+    linear-gradient(var(--wren-fill-selected), var(--wren-fill-selected)),
+    var(--wren-surface-base);
 }
 
 .mobile-unread-slot,
@@ -1104,51 +1114,6 @@ html[data-input-modality='keyboard']
   box-shadow: var(--wren-shadow-xs);
   color: var(--wren-text-2);
   font-size: var(--mobile-text-footnote);
-}
-
-.mobile-search-result {
-  display: grid;
-  width: 100%;
-  min-height: 84px;
-  grid-template-columns: minmax(0, 1fr) auto 20px;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  padding: 10px 12px 10px 16px;
-  background: transparent;
-  text-align: start;
-}
-
-.mobile-search-result:active {
-  background: var(--wren-fill-active);
-}
-
-.mobile-search-result-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-
-.mobile-search-result-copy strong,
-.mobile-search-result-copy span,
-.mobile-search-result-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mobile-search-result-copy strong {
-  font: 600 var(--mobile-text-subhead)/var(--mobile-leading-tight) var(--wren-font-ui);
-}
-
-.mobile-search-result-copy span {
-  font-size: var(--mobile-text-subhead);
-}
-
-.mobile-search-result-copy small,
-.mobile-search-result time {
-  color: var(--wren-text-3);
-  font-size: var(--mobile-text-caption);
 }
 
 .mobile-settings-scroll {
@@ -1925,7 +1890,6 @@ html[data-input-modality='keyboard']
 
 @media (hover: hover) and (pointer: fine) {
   .mobile-thread-row:hover,
-  .mobile-search-result:hover,
   .mobile-later-options > button:hover,
   .mobile-action-list > button:hover {
     background: var(--wren-fill-hover);
@@ -1970,5 +1934,165 @@ html[data-input-modality='keyboard']
 }
 
 .mobile-offer-secondary:active {
+  background: var(--wren-fill-active);
+}
+
+/* -- Mailboxes, labels and the blocked-image notice -----------------------
+ *
+ * Everything below arrived with the desktop-parity pass: the mailbox picker
+ * behind the inbox title, the label chips on a conversation, and the notice a
+ * message draws when Maru holds its images back.
+ */
+
+/* The nav row's only occupant once the account lens became the title's own
+   picker. `space-between` on an only child puts it at the start, and Edit
+   belongs at the end of the row it has always been at the end of. */
+.mobile-nav-row-end {
+  display: flex;
+  align-items: center;
+  margin-inline-start: auto;
+  gap: 8px;
+}
+
+.mobile-mailbox-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--wren-text-1);
+  text-align: start;
+}
+
+/* The title truncates rather than wrapping: "Personal labels · Receipts" and
+   "All inboxes" are very different lengths, and a two-line title moves the
+   list under it every time the mailbox changes. */
+.mobile-mailbox-title h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-mailbox-title .mobile-icon {
+  flex: 0 0 auto;
+  color: var(--wren-text-3);
+}
+
+.mobile-later-disclosure {
+  margin: 2px 0 4px;
+  color: var(--wren-text-3);
+  font-size: var(--mobile-text-caption);
+  line-height: var(--mobile-leading-normal);
+  text-wrap: pretty;
+}
+
+/* When a deferred thread comes back. Accent, because it is the one line on the
+   row that is a promise rather than a description. */
+.mobile-row-until {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 1px 0 0;
+  color: var(--wren-accent);
+  font-size: var(--mobile-text-caption);
+  font-weight: 500;
+}
+
+.mobile-sheet-group > h3 {
+  margin: 10px 0 2px 16px;
+  color: var(--wren-text-3);
+  font: 600 var(--mobile-text-caption)/var(--mobile-leading-tight) var(--wren-font-ui);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* The mailbox on screen, and the labels already on the conversation. Filled
+   tile plus accent text — the sidebar's "this is where you are" in the phone's
+   own row geometry. */
+.mobile-action-list > button.is-current {
+  color: var(--wren-accent);
+}
+
+.mobile-action-list > button.is-current .mobile-sheet-icon {
+  background: var(--wren-accent);
+  color: var(--wren-accent-fg);
+}
+
+/* Applied labels, in the thread heading. A pill each, then the control that
+   opens the picker — the same row, because "+ Label" is the next item in the
+   list of labels, not a button beside it. */
+.mobile-thread-labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-block-start: 10px;
+}
+
+.mobile-thread-labels span,
+.mobile-thread-labels button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 0;
+  border-radius: var(--wren-radius-full);
+  padding: 0 12px;
+  background: var(--wren-fill-selected);
+  color: var(--wren-text-2);
+  font: 500 var(--mobile-text-caption)/1 var(--wren-font-ui);
+}
+
+.mobile-thread-labels button {
+  color: var(--wren-accent);
+}
+
+.mobile-thread-labels button:active {
+  background: var(--wren-fill-active);
+}
+
+/*
+ * "Remote images blocked · Show" — the desktop's notice, in the phone's card.
+ *
+ * It sits above the body rather than where the image was, because the image is
+ * gone and the layout has already closed over the hole: a notice in the flow of
+ * the message would have nothing to point at. Show is a real 44pt target.
+ */
+.mobile-blocked-images {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 10px;
+  border-radius: var(--wren-radius-row);
+  padding: 8px 8px 8px 10px;
+  background: var(--wren-surface-sunken);
+  color: var(--wren-text-2);
+  font-size: var(--mobile-text-caption);
+  line-height: var(--mobile-leading-normal);
+}
+
+.mobile-blocked-images > span {
+  flex: 1;
+  text-wrap: pretty;
+}
+
+.mobile-blocked-images small {
+  color: var(--wren-text-3);
+  font-size: inherit;
+}
+
+.mobile-blocked-images button {
+  min-height: 44px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--wren-radius-sm);
+  padding: 0 10px;
+  background: transparent;
+  color: var(--wren-accent);
+  font: 600 var(--mobile-text-footnote)/1 var(--wren-font-ui);
+}
+
+.mobile-blocked-images button:active {
   background: var(--wren-fill-active);
 }
