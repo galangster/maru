@@ -333,3 +333,188 @@ lane 2 and in this lane.
 `npm run typecheck && npm test && npm run build` pass — 696 tests, 41 files.
 `cargo check` and `cargo check --target aarch64-apple-ios-sim` both clean. The
 Swift change is not covered by either `cargo check`; Xcode compiles that half.
+
+## Lane 4 build log — 2026-09-01
+
+The deferred item from lane 3 is closed: **`InboxScreen` is mounted for the
+life of the phone shell.** A thread pushes over it, a tab switch hides it, and
+in both cases the window virtualizer, its measured row heights, `listTop` and
+the scroll position survive.
+
+### The rule, written down
+
+The stage keeps one screen mounted: the inbox. Every other screen — thread,
+account, search, settings — mounts when it becomes the visible screen and
+unmounts when it stops being it. The inbox is the exception because it is the
+only screen that pays for a remount, and it is the screen a thread is opened
+from and returned to. `docs/IOS.md` § "The inbox stays mounted" holds the rule
+and the reasons.
+
+`visibleScreen(route)` in `src/mobile/state.ts` is the whole rule as one pure
+function: the tab while the stack is at its root, otherwise `thread` or
+`account`. Three tests in `tests/mobile-state.test.ts` cover it. It also
+replaces the four-way ternary that used to choose the screen in `MobileApp`,
+and it collapses the three route-scroll keys into `screen:<name>`.
+
+### How the inbox hides
+
+- `InboxScreen` puts `hidden` and `inert` on its own section. `hidden` takes it
+  out of flow so the document's height is the top screen's; `inert` keeps
+  focus and VoiceOver out. `.mobile-screen[hidden] { display: none }` is
+  required — a UA `[hidden]` rule loses to the author `display: flex`.
+- `hidden` also sets `enabled: false` on the virtualizer, which is what makes
+  the hidden screen free and safe. It drops the window scroll listener, so a
+  thread's scrolling re-renders nothing behind it. It disconnects the row
+  `ResizeObserver` — without that, every row of a `display: none` list measures
+  zero and the zero is cached, which would be worse than the remount. And the
+  reported size falls to zero, so the range empties and no row renders. The
+  measured heights survive all three.
+- The `listTop` measurement is guarded on `hidden` for the same reason: a
+  hidden screen's `offsetTop` reads zero, and a refetch landing behind a thread
+  would otherwise overwrite the real value with it.
+
+### How the return is exact
+
+Re-enabling the virtualizer clears its remembered offset, so it asks
+`initialOffset` again — during the render, which is one commit before
+`useRouteScroll` restores the page. `window.scrollY` there is the offset of the
+screen being left. So `useRouteScroll` now returns `readScrollTop`, which gives
+the offset the page is *going* to while a restore is pending, and `InboxScreen`
+passes it as `initialOffset`. `initialRect` is answered with the real viewport
+for the same reason: the first frame of the return is a full screen of rows
+instead of an empty one waiting on a resize callback.
+
+`useRouteScroll` also re-asserts the target once on the next frame. Measured:
+the single `scrollTo` does not always stick, because the page moves twice in
+that frame — WebKit re-applies its own idea of the old offset, and the
+virtualizer compensates its first row measurements.
+
+### Simulator — iPhone 16, iOS 26.5, demo mode, FlowDeck
+
+Deployed with `npm run tauri -- ios dev "iPhone 16"` after
+`node --import tsx src-tauri/scripts/prepare-ios-oauth.mjs`. The stale install
+from an earlier lane was uninstalled first.
+
+- Scrolled the inbox to the middle, opened a thread, went back: the inbox is
+  there on the **first frame** — no skeleton, no empty range, no blank strip.
+  The immediate capture and the settled capture are the same screen.
+- The scroll offset is restored exactly. Instrumented on the device:
+  `y=1702` before the push, `y=1702` after the return, with the list's page
+  position (`listAbs=213`) unchanged.
+- Switched to Search and back: same, and the immediate frame is again the full
+  list.
+- The old behaviour was measured on the same simulator for comparison, by
+  reverting only the mounting model: **returning from a thread landed at the
+  top of the inbox**, losing the position completely.
+
+`wayfinder/captures/ios/native-inbox-return-light.png` is the inbox after a
+thread return, deep in the list.
+
+### One finding, carried forward
+
+The restored *offset* is exact, but the rows can sit about one row lower than
+they did, because the list re-measures under it. `@tanstack/virtual` does not
+measure a row while `isScrolling` is true, so rows that scroll past keep the
+`5.5rem` estimate; they are measured for real when they next mount, and the
+list grows. Measured live: the list's height went 3071 → 3176 across one thread
+return, and 3271 → 3071 during ordinary scrolling with no thread involved. So
+this is an estimate-versus-measurement drift in the list, present before this
+lane and independent of the mounting model. Closing it means anchoring the
+restore on an item index rather than a pixel offset, or bringing
+`estimateSize` onto the real row height. Neither belongs in this lane.
+
+### Gates
+
+`npm run typecheck && npm test && npm run build` pass — 730 tests, three new
+over `visibleScreen`. No Rust or Swift changed, so neither `cargo check` was
+re-run.
+
+### Owed
+
+`/simplify` did not run as its own pass. A lane delegate may not spawn the two
+review agents that pass needs, so the orchestrating session owns it. The lane's
+own review of its diff produced the `hidden` guard on the `listTop`
+measurement, the `.mobile-screen[hidden]` rule, and `visibleScreen` replacing
+the ternary chain.
+
+## Lane 5 — the mounted inbox, corrected and simplified
+
+Lane 4 shipped the mounting model. Lane 5 fixes the one thing in it that did
+not do what it said, then lowers the rest of the code to the altitude it
+belongs at.
+
+### The correction
+
+`enabled: !hidden` on the window virtualizer was the opposite of a parking
+brake. `getMeasurements()` in `@tanstack/virtual-core@3.17.8` short-circuits
+when the option is false, and on the way out it empties both
+`measurementsCache` and `itemSizeCache`. The first hidden render therefore
+threw away every measured row height, and the return remeasured the whole list
+from `estimateSize` — exactly the cost the mounting exception exists to avoid.
+
+The virtualizer is now never disabled. The screen is parked by three refusals
+instead:
+
+1. `.mobile-screen[hidden] { display: none }`, so the rows have no box.
+2. The `rows` array is not rebuilt while paused. A `useNow` tick or a mail
+   event arriving behind a thread hands back the previous array from a ref.
+3. `getVirtualItems()` and `getTotalSize()` are not called in the paused
+   branch, so no row is rendered and no range is computed.
+
+`tests/mobile-inbox-virtualizer.test.ts` pins both halves against the installed
+package: the measured heights survive a pause, and `enabled: false` drops them
+back to the estimate.
+
+Two smaller corrections in the same area. `initialRect` was rebuilt on every
+render and is now read once, at first mount. `useRouteScroll` re-asserts its
+target on the next frame only when the target is above zero — a reset to the
+top always sticks, and re-asserting it would fight a finger already scrolling
+the new screen. `readScrollTop` is now a `useCallback` keyed on the route.
+
+### The altitude
+
+- `InboxScreen` takes `paused`, not `hidden`. The stage says the inbox is not
+  the screen on top; the screen decides what that means for it, and `hidden` on
+  its own section is part of that answer.
+- `inert={hidden}` is gone. `display: none` already removes the section from
+  the accessibility tree and from the focus order, and `docs/IOS.md` no longer
+  credits `inert` with it.
+- The stage is one switch on `screen`, not a chain that mixes `screen` and
+  `route.kind`.
+- `atRoot()` sits beside `visibleScreen()` in `state.ts` and answers the
+  stage's other question. It replaces both `route.kind === 'inbox'` tests.
+- `MobileScreen` is derived: `MobileTab | Exclude<MobileStackEntry['kind'],
+  'inbox'>`. A new route kind cannot fall outside the union.
+- The rationale was written five times. `docs/IOS.md` § The inbox stays mounted
+  holds it once; each code site keeps one locally-true sentence and a pointer.
+- The `visibleScreen` tests call it on literal routes, one per branch, instead
+  of replaying reducer choreography.
+
+### Simulator — iPhone 16, iOS 26.5, demo mode
+
+Scrolled the inbox deep into the list, opened *Design review: settings
+surface*, and came back with the header's Inbox control. The return lands on
+the same rows in the same order at the same offset — `Keel Metrics` at the top
+of the list under the sticky header, before and after. No skeleton, no reset to
+the top, no re-measure jump.
+
+### Gates
+
+`npm run typecheck && npm test && npm run build` pass — 733 tests, two new over
+the virtualizer, three rewritten over `visibleScreen` and `atRoot`.
+No Rust or Swift changed.
+
+### Owed
+
+`wayfinder/captures/ios/native-inbox-return-light.png` was **not** re-captured.
+`flowdeck ui simulator screen --screenshot` fails on this machine with
+"No translation object returned for simulator" — the accessibility bridge does
+not come up, on the Maru WebView and on a native app alike, so no FlowDeck
+capture can be written. The file from lane 4 still stands, and the return it
+shows is the behaviour verified again here. See `wayfinder/NICK-QUEUE.md`.
+
+`/simplify` did not run as its own pass. A lane delegate may not spawn the two
+review agents that pass needs, so the orchestrating session owns it. The lane's
+own review of its diff produced the `InboxRow` type, the shared `topEntry`
+helper behind `visibleScreen` and `atRoot`, and the decision to leave the
+paused header rendering rather than early-returning a bare section.

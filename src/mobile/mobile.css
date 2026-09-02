@@ -211,6 +211,13 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   background: var(--wren-surface-base);
 }
 
+/* An author `display` beats the UA `[hidden]` rule whatever the specificity,
+   so the flex above would keep a hidden screen on screen -- docs/IOS.md, "The
+   inbox stays mounted". */
+.mobile-screen[hidden] {
+  display: none;
+}
+
 /* Sticky, not fixed — docs/IOS.md, "The phone scrolls the document". */
 .mobile-nav {
   position: sticky;

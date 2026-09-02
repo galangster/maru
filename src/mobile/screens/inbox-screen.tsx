@@ -9,13 +9,25 @@ import { useNow } from '@/lib/use-now'
 import { EmptyInbox, MobileListSkeleton } from '../components/placeholders'
 import { MobileIcon } from '../components/mobile-icon'
 import { SwipeThreadRow } from '../components/swipe-thread-row'
-import { buildMobileRowModel } from '../state'
+import { buildMobileRowModel, type MobileRowModel } from '../state'
 import { usePullRefresh } from '../use-pull-refresh'
 
 const MOBILE_ROW_ROOT_MULTIPLIER = 5.5
 const SWIPE_HINT_ID = 'mobile-inbox-gesture-hint'
 
+interface InboxRow {
+  thread: Thread
+  model: MobileRowModel
+}
+
+/**
+ * The inbox. It is the one screen the stage keeps mounted, so instead of
+ * unmounting it the stage pauses it, and this screen decides what pausing
+ * means — docs/IOS.md, "The inbox stays mounted".
+ */
 export function InboxScreen({
+  paused,
+  readScrollTop,
   onOpen,
   onCompose,
   onSearch,
@@ -24,6 +36,8 @@ export function InboxScreen({
   onContext,
   onStar,
 }: {
+  paused: boolean
+  readScrollTop: () => number
   onOpen: (key: string) => void
   onCompose: () => void
   onSearch: () => void
@@ -47,31 +61,54 @@ export function InboxScreen({
     : { kind: 'account', accountId, labelId: 'INBOX' }
   const query = useThreads(view)
   const threads = query.data ?? []
-  const rows = useMemo(
-    () => threads.map((thread) => ({ thread, model: buildMobileRowModel(thread, selfEmails, now) })),
-    [threads, selfEmails, now],
-  )
+  // Pausing starts here: the previous array is handed straight back, so a
+  // `useNow` tick or a mail event arriving behind a thread rebuilds no row
+  // model for a screen nobody can see, and the virtualizer's count and item
+  // keys stay exactly where they were.
+  const parked = useRef<InboxRow[]>([])
+  const rows = useMemo(() => {
+    if (paused) return parked.current
+    parked.current = threads.map((thread) => ({ thread, model: buildMobileRowModel(thread, selfEmails, now) }))
+    return parked.current
+  }, [paused, threads, selfEmails, now])
   // The window, not a container. UIKit minimizes the Liquid Glass tab bar off
   // the WKWebView's own scroll view, so the inbox has to move the document
   // (mobile.css). `scrollMargin` is what tells the virtualizer how far the list
   // starts below the top of the page — the sticky header and the pull
   // indicator sit above it.
+  //
+  // There is deliberately no `enabled: !paused` here. That option empties the
+  // measured row heights, which are the whole reason this screen stays mounted
+  // — docs/IOS.md, "The inbox stays mounted", and
+  // tests/mobile-inbox-virtualizer.test.ts. The instance therefore outlives
+  // every screen change, so `initialOffset` and `initialRect` are asked once,
+  // on the first mount, and `readScrollTop` is the reader that stays right
+  // when it is asked during a render.
+  const [initialRect] = useState(viewportRect)
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
     estimateSize: () => MOBILE_ROW_ROOT_MULTIPLIER * rootFontSizePx,
     getItemKey: (index) => rows[index].thread.key,
     overscan: 8,
     scrollMargin: listTop,
+    initialOffset: readScrollTop,
+    initialRect,
   })
   // Measured rather than assumed: the header grows with Dynamic Type and with
   // the Edit row. Those are the only things that move the list's top, so they
   // are the dependencies — re-measuring on every render costs a layout read
   // per frame of a scroll and never returns a different number. React bails
   // out when the value is unchanged, so this settles in one pass.
+  // `paused` is a dependency and a guard: a paused screen has no box, so
+  // `offsetTop` reads zero, and a refetch that lands behind a thread would
+  // otherwise overwrite the real measurement with it. Re-measured on the way
+  // back, before the page is restored, because `offsetTop` does not depend on
+  // where the page is scrolled to.
   useLayoutEffect(() => {
+    if (paused) return
     const top = list.current?.offsetTop ?? 0
     setListTop((current) => (current === top ? current : top))
-  }, [rootFontSizePx, editing, query.isPending, rows.length === 0])
+  }, [paused, rootFontSizePx, editing, query.isPending, rows.length === 0])
   useEffect(() => {
     const update = () => setRootFontSizePx(readRootFontSize())
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
@@ -102,7 +139,7 @@ export function InboxScreen({
   const selectedKeys = [...selected]
 
   return (
-    <section className="mobile-screen" aria-label="Inbox">
+    <section className="mobile-screen" aria-label="Inbox" hidden={paused}>
       <header className="mobile-nav mobile-inbox-nav">
         <div className="mobile-nav-row">
           <label className="mobile-account-lens">
@@ -131,7 +168,10 @@ export function InboxScreen({
           <span className="mobile-pull-ready-copy">Release to refresh</span>
           <span className="mobile-refreshing-copy">Refreshing…</span>
         </div>
-        {query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? <EmptyInbox /> : (
+        {/* The last refusal of the pause: no `getVirtualItems()`, no
+            `getTotalSize()`, and so no row in a `display: none` list for the
+            ResizeObserver to measure as zero pixels tall. */}
+        {paused ? null : query.isPending ? <MobileListSkeleton /> : rows.length === 0 ? <EmptyInbox /> : (
           <div ref={list} className="mobile-thread-list" aria-describedby={SWIPE_HINT_ID} style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index]
@@ -172,6 +212,11 @@ export function InboxScreen({
       )}
     </section>
   )
+}
+
+function viewportRect(): { width: number; height: number } {
+  if (typeof window === 'undefined') return { width: 0, height: 0 }
+  return { width: window.innerWidth, height: window.innerHeight }
 }
 
 function readRootFontSize(): number {

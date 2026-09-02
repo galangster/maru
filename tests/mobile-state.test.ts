@@ -4,6 +4,7 @@ import type { Thread } from '@/core/types'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
+  atRoot,
   buildMobileRowModel,
   inboxBadgeValue,
   indexOfTab,
@@ -12,6 +13,10 @@ import {
   nativeTabs,
   resolveSwipeIntent,
   tabAtIndex,
+  visibleScreen,
+  type MobileRoute,
+  type MobileStackEntry,
+  type MobileTab,
 } from '@/mobile/state'
 
 function thread(overrides: Partial<Thread> = {}): Thread {
@@ -90,6 +95,32 @@ describe('mobile route reducer', () => {
 
     expect(mobileRouteReducer(sheet, { type: 'back' })).toEqual(account)
     expect(mobileRouteReducer(account, { type: 'back' })).toEqual(settings)
+  })
+})
+
+describe('visible screen', () => {
+  const route = (stack: MobileStackEntry[], tab: MobileTab = 'inbox'): MobileRoute => ({ tab, stack, sheet: null })
+  const thread: MobileStackEntry = { kind: 'thread', threadKey: 'account/thread-1' }
+
+  it('is the tab while the stack is at its root', () => {
+    for (const tab of MOBILE_TABS) {
+      expect(visibleScreen(route([{ kind: 'inbox' }], tab))).toBe(tab)
+    }
+  })
+
+  it('is the pushed screen, whichever tab it was pushed from', () => {
+    expect(visibleScreen(route([{ kind: 'inbox' }, thread], 'search'))).toBe('thread')
+    expect(visibleScreen(route([{ kind: 'inbox' }, { kind: 'account' }], 'settings'))).toBe('account')
+  })
+
+  it('is unchanged by a sheet', () => {
+    const withSheet = { ...route([{ kind: 'inbox' }, thread]), sheet: { kind: 'later' as const, threadKeys: ['account/thread-1'] } }
+    expect(visibleScreen(withSheet)).toBe('thread')
+  })
+
+  it('reads the root separately, because the tab bar belongs to the root', () => {
+    expect(atRoot(route([{ kind: 'inbox' }], 'settings'))).toBe(true)
+    expect(atRoot(route([{ kind: 'inbox' }, thread]))).toBe(false)
   })
 })
 

@@ -26,9 +26,11 @@ import { MoveSheet, ThreadActionsSheet } from './sheets/thread-actions-sheet'
 import {
   MOBILE_TABS,
   MOBILE_TAB_CHROME,
+  atRoot,
   initialMobileRoute,
   mobileRouteReducer,
   tabAtIndex,
+  visibleScreen,
   type MobileTab,
 } from './state'
 import { useNativeShell, useNativeShellSync } from './use-native-shell'
@@ -72,13 +74,13 @@ export function MobileApp() {
   const [announcement, setAnnouncement] = useState({ text: '', alternate: false })
   const { compose, replyTo } = useComposeActions()
   const route = navigation.stack[navigation.stack.length - 1]
+  const screen = visibleScreen(navigation)
   const sheet = navigation.sheet
   // One key per screen the shell can show. The page is the scroller, so each
-  // one needs its own remembered offset.
-  useRouteScroll(
-    route.kind === 'thread' ? `thread:${route.threadKey}`
-      : route.kind === 'account' ? 'account'
-      : `tab:${navigation.tab}`,
+  // one needs its own remembered offset. Threads are keyed individually: two
+  // of them are never the same page.
+  const readScrollTop = useRouteScroll(
+    route.kind === 'thread' ? `thread:${route.threadKey}` : `screen:${screen}`,
   )
   const globalModalOpen = composerOpen || (sheet !== null && route.kind !== 'account')
   const syncAnnouncement = useMemo(() => {
@@ -107,7 +109,7 @@ export function MobileApp() {
 
   useNativeShellSync(nativeTabBar, {
     tab: navigation.tab,
-    hidden: route.kind !== 'inbox' || globalModalOpen,
+    hidden: !atRoot(navigation) || globalModalOpen,
   })
 
   // `data-native-shell` answers synchronously, so no strip of dead space is
@@ -119,14 +121,28 @@ export function MobileApp() {
   return (
     <div className="mobile-app" data-testid="mobile-app" data-native-shell={nativeChrome ? 'true' : undefined}>
       <main className="mobile-stage" inert={globalModalOpen}>
-        {route.kind === 'account' ? (
+        {/* The one screen the stage never unmounts. It is paused instead,
+            and it decides what that means for it — docs/IOS.md, "The inbox
+            stays mounted". */}
+        <InboxScreen
+          paused={screen !== 'inbox'}
+          readScrollTop={readScrollTop}
+          onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
+          onCompose={compose}
+          onSearch={() => changeTab('search')}
+          onArchive={(keys) => keys.forEach((key) => act(key, 'archive'))}
+          onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
+          onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
+          onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
+        />
+        {screen === 'account' ? (
           <AccountScreen
             onBack={() => dispatch({ type: 'back' })}
             sheet={sheet}
             openSheet={(next) => dispatch({ type: 'openSheet', sheet: next })}
             closeSheet={closeSheet}
           />
-        ) : route.kind === 'thread' ? (
+        ) : screen === 'thread' && route.kind === 'thread' ? (
           <ThreadScreen
             threadKey={route.threadKey}
             onBack={() => dispatch({ type: 'back' })}
@@ -135,22 +151,14 @@ export function MobileApp() {
             onLater={(key) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys: [key] } })}
             onMore={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
           />
-        ) : navigation.tab === 'inbox' ? (
-          <InboxScreen
-            onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
-            onCompose={compose}
-            onSearch={() => changeTab('search')}
-            onArchive={(keys) => keys.forEach((key) => act(key, 'archive'))}
-            onLater={(threadKeys) => dispatch({ type: 'openSheet', sheet: { kind: 'later', threadKeys } })}
-            onContext={(thread) => dispatch({ type: 'openSheet', sheet: { kind: 'threadActions', thread } })}
-            onStar={(thread) => act(thread.key, thread.starred ? 'unstar' : 'star')}
-          />
-        ) : navigation.tab === 'search' ? (
+        ) : screen === 'search' ? (
           <SearchScreen onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })} />
-        ) : <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />}
+        ) : screen === 'settings' ? (
+          <SettingsScreen onAccount={() => dispatch({ type: 'push', entry: { kind: 'account' } })} />
+        ) : null}
       </main>
 
-      {route.kind === 'inbox' && nativeTabBar === false && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={changeTab} />}
+      {atRoot(navigation) && nativeTabBar === false && <TabBar active={navigation.tab} inert={globalModalOpen} onChange={changeTab} />}
       {composerOpen && <ComposeSheet onSent={() => announce('Sent')} />}
       {sheet?.kind === 'later' && (
         <LaterSheet
