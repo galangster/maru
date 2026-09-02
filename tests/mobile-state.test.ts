@@ -480,3 +480,31 @@ describe('mobile thread actions', () => {
     expect(swipeRange(threadActions(sent), 104)).toEqual({ min: 0, max: 0 })
   })
 })
+
+/**
+ * Coming back from a search result (issue 49).
+ *
+ * The query used to live in `SearchScreen`, which unmounts whenever anything
+ * covers it — a conversation pushed over it, a tab change — so the field came
+ * back empty and the results with it. It is shell state now, beside the
+ * mailbox, for the reason these two assertions state: navigation returns to
+ * exactly the route it left, and the route holds nothing about a screen but
+ * its identity, so there is nothing here for `back` to pop a query out of.
+ */
+describe('search across a thread push and pop', () => {
+  it('returns to the exact route the push was made from', () => {
+    const searching: MobileRoute = { tab: 'search', stack: [{ kind: 'inbox' }], sheet: null }
+    const reading = mobileRouteReducer(searching, {
+      type: 'push',
+      entry: { kind: 'thread', threadKey: 'account/thread-1' },
+    })
+    expect(visibleScreen(reading)).toBe('thread')
+    expect(mobileRouteReducer(reading, { type: 'back' })).toEqual(searching)
+  })
+
+  it('keeps nothing about a screen in the route but its identity', () => {
+    // The query is not here, and must not be: `back` pops the route, and a
+    // query popped by a back gesture is the defect wearing a different cause.
+    expect(Object.keys(initialMobileRoute).sort()).toEqual(['sheet', 'stack', 'tab'])
+  })
+})

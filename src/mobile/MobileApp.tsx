@@ -66,6 +66,12 @@ export function MobileApp() {
   // `?view=` is the desktop's capture seam and it opens the same mailboxes,
   // so the phone reads it too rather than making the captures drive the picker.
   const [mailbox, setMailbox] = useState<MailView>(() => viewOverride() ?? UNIFIED_INBOX)
+  // What the Search tab is searching for. Shell state for the same reason the
+  // mailbox is: the search screen unmounts whenever anything covers it — a
+  // conversation pushed over it, a tab change — and it used to take the query
+  // and its results with it (issue 49). Not route state either, because the
+  // back gesture must not pop a query the way it pops a screen.
+  const [searchQuery, setSearchQuery] = useState('')
   const onNativeTab = useCallback((index: number) => {
     const tab = tabAtIndex(index)
     if (tab) dispatch({ type: 'changeTab', tab })
@@ -214,6 +220,8 @@ export function MobileApp() {
           />
         ) : screen === 'search' ? (
           <SearchScreen
+            query={searchQuery}
+            onQuery={setSearchQuery}
             onOpen={(threadKey) => dispatch({ type: 'push', entry: { kind: 'thread', threadKey } })}
             onAct={actMany}
             onLater={(targets) => dispatch({ type: 'openSheet', sheet: { kind: 'later', targets } })}
