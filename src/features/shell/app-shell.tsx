@@ -61,9 +61,16 @@ function snapToWholePixels(panel: PanelImperativeHandle | null, inPixels: number
  *
  * Neither channel is stroked at rest. A channel is ground showing between two
  * cards, and ground is not a separator — DIRECTION §6.
+ *
+ * **Keyboard focus is reaching for it, so it shows the accent too** (issue 45).
+ * Both channels are real tab stops that resize with the arrow keys, and they
+ * used to be the only stops in the app with nothing on screen to say they had
+ * focus. At full strength rather than the hover's 40%: a 1 px line is the
+ * thinnest indicator in the build, and it is the only thing marking the stop.
  */
 const CHANNEL_HANDLE =
-  'bg-transparent hover:bg-brand/40 transition-colors duration-(--wren-dur-fast) after:w-2'
+  'bg-transparent hover:bg-brand/40 focus-visible:bg-brand ' +
+  'transition-colors duration-(--wren-dur-fast) after:w-2'
 
 /** Collapse snaps once a drag comes within this of the collapsed width. */
 const SNAP_SLACK = 8
@@ -172,7 +179,13 @@ export function AppShell() {
         >
           <Sidebar />
         </ResizablePanel>
-        <ResizableHandle className={CHANNEL_HANDLE} />
+        {/* Named, because it is a tab stop (issue 45). The panel library
+            already gives the channel `role="separator"`, its orientation and
+            a live `aria-valuenow`; what it cannot know is which two things
+            this one sits between. Removing the stop was the other option and
+            was rejected: the arrow keys genuinely resize the panes, so these
+            are useful stops, and every other control in the app is named. */}
+        <ResizableHandle aria-label="Resize the sidebar" className={CHANNEL_HANDLE} />
         <ResizablePanel
           panelRef={listRef}
           defaultSize={measures.list + LIST_PAD}
@@ -183,7 +196,7 @@ export function AppShell() {
         >
           <ThreadList />
         </ResizablePanel>
-        <ResizableHandle className={CHANNEL_HANDLE} />
+        <ResizableHandle aria-label="Resize the thread list" className={CHANNEL_HANDLE} />
         {/* No padding, no card. The reading region IS the ground — it runs
             full-bleed to the window's top, right and bottom edges, and it is
             what the other two float on. Rounding it would delete the ~610 px
