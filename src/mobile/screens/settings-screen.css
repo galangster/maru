@@ -20,3 +20,38 @@
 .mobile-toggle-row[data-disabled] .mobile-switch {
   opacity: 0.5;
 }
+
+/*
+ * The push diagnostics row. Four facts and an action, so it is taller than a
+ * settings row and its content is top-aligned rather than centred on one line.
+ */
+.mobile-diagnostics-row {
+  align-items: flex-start;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.mobile-diagnostics-row > span:nth-child(2) {
+  gap: 2px;
+}
+
+/* A token prefix and an APNs reason both break mid-word rather than overflow. */
+.mobile-diagnostics-row small {
+  overflow-wrap: anywhere;
+}
+
+.mobile-diagnostics-action {
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--wren-radius-md);
+  background: var(--wren-fill-selected);
+  color: var(--wren-accent);
+  font: 500 var(--mobile-text-caption)/var(--mobile-leading-normal) var(--wren-font-ui);
+}
+
+.mobile-diagnostics-action:disabled {
+  color: var(--wren-text-3);
+  opacity: 0.5;
+}

@@ -9,6 +9,13 @@ import {
   type PushRelayClient,
   type WatchStore,
 } from '../src/core/push/runtime'
+import {
+  describeApiError,
+  describeTestResult,
+  tokenPrefix,
+  type PushDiagnostics,
+  type PushTestResponse,
+} from '../src/core/push/diagnostics'
 import type { PushEvent, PushNotification, PushPort, PushStatus } from '../src/core/push/types'
 import {
   GMAIL_PUSH_TOPIC,
@@ -18,6 +25,7 @@ import {
   shouldRenewWatch,
 } from '../src/core/push/watch'
 import type { MailEvent, MailView } from '../src/core/types'
+import { noPushRequest, setPushUi, usePushUi } from '../src/features/notifications/push-store'
 
 const NOW = Date.parse('2026-09-01T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -110,6 +118,55 @@ describe('badge mapping', () => {
   })
 })
 
+describe('diagnostic wording', () => {
+  it('keeps the first eight hex characters of a token, and no more', () => {
+    expect(tokenPrefix('0123456789abcdef')).toBe('01234567')
+    expect(tokenPrefix(null)).toBe(null)
+    expect(tokenPrefix('')).toBe(null)
+  })
+
+  it('names the HTTP status and the code a Maru error carries', () => {
+    expect(describeApiError(Object.assign(new Error('Try again later.'), { status: 429, code: 'rate_limited' })))
+      .toBe('HTTP 429 rate_limited — Try again later.')
+  })
+
+  it('falls back to whatever a thrown non-error says', () => {
+    expect(describeApiError(new Error('boom'))).toBe('boom')
+    expect(describeApiError('boom')).toBe('boom')
+  })
+
+  it("reads a send, Apple's rejection, and a relay that sent nothing", () => {
+    expect(describeTestResult({ ok: true, sent: true })).toBe('Sent')
+    expect(describeTestResult({ ok: false, sent: false, apns: { status: 400, reason: 'TopicDisallowed' } }))
+      .toBe('Apple rejected it — HTTP 400 TopicDisallowed')
+    expect(describeTestResult({ ok: false, sent: false })).toBe('The relay did not send it')
+    expect(describeTestResult(null)).toBe('The relay did not send it')
+  })
+})
+
+describe('push UI store', () => {
+  it('starts with nothing to report and no action to take', () => {
+    expect(usePushUi.getState()).toMatchObject({
+      tokenPrefix: null,
+      registration: 'none',
+      lastError: null,
+      testing: false,
+      lastTest: null,
+      sendTestPush: noPushRequest,
+    })
+  })
+
+  it('takes a diagnostics patch without losing the rest of the state', () => {
+    setPushUi({ permission: 'granted' })
+    setPushUi({ registration: 'failed', lastError: 'APNs: no entitlement' })
+    expect(usePushUi.getState()).toMatchObject({
+      permission: 'granted',
+      registration: 'failed',
+      lastError: 'APNs: no entitlement',
+    })
+  })
+})
+
 // ---------------------------------------------------------------------------
 
 class FakePort implements PushPort {
@@ -179,13 +236,28 @@ class FakeMail implements PushMailService {
 class FakeRelay implements PushRelayClient {
   registered: (string | null)[] = []
   watched: { email: string; expiration: number }[] = []
+  tests = 0
+  /** Thrown by the next pushRegister, then cleared, as a 402 or a 401 would be. */
+  registerFails: unknown = null
+  testResult: PushTestResponse = { ok: true, sent: true }
+  testFails: unknown = null
   async pushRegister(apnsToken: string | null) {
+    if (this.registerFails) {
+      const failure = this.registerFails
+      this.registerFails = null
+      throw failure
+    }
     this.registered.push(apnsToken)
     return { ok: true }
   }
   async pushWatch(email: string, expiration: number) {
     this.watched.push({ email, expiration })
     return { ok: true }
+  }
+  async pushTest() {
+    this.tests += 1
+    if (this.testFails) throw this.testFails
+    return this.testResult
   }
 }
 
@@ -426,6 +498,117 @@ describe('PushRuntime', () => {
     const runtime = build()
     await runtime.start()
     expect(relay.watched).toEqual([{ email: 'two@gmail.com', expiration: NOW + 7 * DAY }])
+  })
+
+  // -------------------------------------------------------------------------
+  // Diagnostics, and the registration race they were written to expose.
+
+  it('sends a token that arrived before the Maru account did, on the next foreground', async () => {
+    // The shape of the live defect: APNs answered while the account was still
+    // hydrating from the keychain, so the relay had a watch and no token.
+    let account: PushRelayClient | null = null
+    const runtime = build({ relay: () => account })
+    await runtime.start()
+    expect(relay.registered).toEqual([])
+
+    account = relay
+    await runtime.onForeground()
+    expect(relay.registered).toEqual(['abcd'])
+  })
+
+  it('registers once, however many times the app comes forward', async () => {
+    const runtime = build()
+    await runtime.start()
+    await runtime.onForeground()
+    await runtime.onForeground()
+    expect(relay.registered).toEqual(['abcd'])
+  })
+
+  it('retries a registration the relay refused', async () => {
+    relay.registerFails = Object.assign(new Error('offline'), { status: 0, code: 'network' })
+    const runtime = build()
+    await runtime.start()
+    expect(relay.registered).toEqual([])
+    expect(runtime.pushDiagnostics().registration).toBe('failed')
+
+    await runtime.onForeground()
+    expect(relay.registered).toEqual(['abcd'])
+    expect(runtime.pushDiagnostics().registration).toBe('registered')
+  })
+
+  it('reports the token prefix and the registration it reached', async () => {
+    port.status = { permission: 'granted', token: '0123456789abcdef' }
+    const diagnostics: PushDiagnostics[] = []
+    const runtime = build({ onDiagnostics: (next) => diagnostics.push(next) })
+    await runtime.start()
+    expect(runtime.pushDiagnostics()).toEqual({
+      tokenPrefix: '01234567',
+      registration: 'registered',
+      lastError: null,
+    })
+    expect(diagnostics.at(-1)?.registration).toBe('registered')
+  })
+
+  it('keeps the HTTP status of a registration the relay refused', async () => {
+    relay.registerFails = Object.assign(new Error('Your Maru plan has expired'), {
+      status: 402,
+      code: 'payment_required',
+    })
+    const runtime = build()
+    await runtime.start()
+    expect(runtime.pushDiagnostics()).toEqual({
+      tokenPrefix: 'abcd',
+      registration: 'failed',
+      lastError: 'HTTP 402 payment_required — Your Maru plan has expired',
+    })
+  })
+
+  it('surfaces an APNs registration failure instead of only logging it', async () => {
+    port.status = { permission: 'granted', token: null }
+    const runtime = build()
+    await runtime.start()
+    port.emit({ event: 'pushFailed', message: 'no valid aps-environment entitlement' })
+    await Promise.resolve()
+    expect(runtime.pushDiagnostics()).toEqual({
+      tokenPrefix: null,
+      registration: 'failed',
+      lastError: 'APNs: no valid aps-environment entitlement',
+    })
+  })
+
+  it('says what the test push did', async () => {
+    const runtime = build()
+    await runtime.start()
+    expect(await runtime.testPush()).toBe('Sent')
+    expect(relay.tests).toBe(1)
+
+    relay.testResult = { ok: false, sent: false, apns: { status: 410, reason: 'BadDeviceToken' } }
+    expect(await runtime.testPush()).toBe('Apple rejected it — HTTP 410 BadDeviceToken')
+
+    relay.testFails = Object.assign(new Error('This device has not registered an APNs token.'), {
+      status: 404,
+      code: 'no_token',
+    })
+    expect(await runtime.testPush()).toBe(
+      'HTTP 404 no_token — This device has not registered an APNs token.',
+    )
+  })
+
+  it('asks for a Maru account rather than testing without one', async () => {
+    const runtime = build({ relay: () => null })
+    await runtime.start()
+    expect(await runtime.testPush()).toBe('Sign in to your Maru account first')
+    expect(relay.tests).toBe(0)
+  })
+
+  it('fills the Settings store through the diagnostics callback', async () => {
+    const runtime = build({ onDiagnostics: (next) => setPushUi(next) })
+    await runtime.start()
+    expect(usePushUi.getState()).toMatchObject({
+      tokenPrefix: 'abcd',
+      registration: 'registered',
+      lastError: null,
+    })
   })
 })
 

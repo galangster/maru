@@ -52,6 +52,7 @@ export function usePush(openThread: (threadKey: string) => void): void {
         watches: localWatchStore(),
         openThread: (threadKey) => openRef.current(threadKey),
         onPermission: (permission) => setPushUi({ permission }),
+        onDiagnostics: setPushUi,
         log: (message) => console.warn(`[push] ${message}`),
       })
 
@@ -64,6 +65,14 @@ export function usePush(openThread: (threadKey: string) => void): void {
             setPushUi({ requesting: false })
           }
         },
+        sendTestPush: async () => {
+          setPushUi({ testing: true })
+          try {
+            setPushUi({ lastTest: (await runtimeRef.current?.testPush()) ?? null })
+          } finally {
+            setPushUi({ testing: false })
+          }
+        },
       })
 
       await runtimeRef.current.start()
@@ -72,6 +81,14 @@ export function usePush(openThread: (threadKey: string) => void): void {
         runtimeRef.current = null
         return
       }
+
+      // The account may have finished hydrating from the keychain while this
+      // effect was still importing the port — in which case the effect below
+      // already fired, against a runtime that did not exist yet, and nothing
+      // would ever have registered the device. Reading the store once here is
+      // what closes that window; the runtime makes the call a no-op when the
+      // registration has already landed.
+      if (useMaruAccount.getState().email) void runtimeRef.current.onRelayAvailable()
 
       // Coming back to the app is the cheapest place to notice a watch that
       // lapsed while the phone was shut, and the only place a permission
@@ -91,7 +108,7 @@ export function usePush(openThread: (threadKey: string) => void): void {
     return () => {
       alive = false
       stopForeground?.()
-      setPushUi({ requestPermission: noPushRequest })
+      setPushUi({ requestPermission: noPushRequest, sendTestPush: noPushRequest })
       runtimeRef.current?.stop()
       runtimeRef.current = null
     }

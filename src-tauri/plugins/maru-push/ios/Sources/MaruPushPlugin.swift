@@ -97,7 +97,6 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
     channel = args.onEvent
     let pending = buffered
     buffered = []
-    let token = deviceToken
     lock.unlock()
     Logger.info("channel open, \(pending.count) buffered event(s)", category: "maru-push")
 
@@ -105,11 +104,15 @@ final class MaruPushPlugin: Plugin, UNUserNotificationCenterDelegate {
       try? args.onEvent.send(event)
     }
 
-    resolvePermissionState { state in
+    resolvePermissionState { [weak self] state in
       if state == "granted" {
         MaruPushPlugin.registerForRemoteNotifications()
       }
-      invoke.resolve(StatusResponse(permission: state, token: token))
+      // Read the token here rather than at the top of this command: reading the
+      // notification settings is a round trip to another process, and a token
+      // that lands inside it would otherwise be reported as "no token" for the
+      // whole of this launch.
+      invoke.resolve(StatusResponse(permission: state, token: self?.currentToken()))
     }
   }
 

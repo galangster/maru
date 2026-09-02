@@ -9,6 +9,14 @@
 
 import type { MailEvent, MailView } from '../types'
 import { badgeCount } from './badge'
+import {
+  describeApiError,
+  describeTestResult,
+  emptyPushDiagnostics,
+  tokenPrefix,
+  type PushDiagnostics,
+  type PushTestResponse,
+} from './diagnostics'
 import { composeArrival } from './notification'
 import type { PushEvent, PushPermission, PushPort } from './types'
 import {
@@ -29,6 +37,8 @@ export interface PushAccount {
 export interface PushRelayClient {
   pushRegister(apnsToken: string | null): Promise<unknown>
   pushWatch(email: string, expiration: number): Promise<unknown>
+  /** One visible alert push to this device's own registered token. §9. */
+  pushTest(): Promise<PushTestResponse>
 }
 
 /** The MailService surface push needs. */
@@ -70,6 +80,8 @@ export interface PushRuntimeOptions {
   /** Opens a thread. The tap on a notification lands here. */
   openThread?: (threadKey: string) => void
   onPermission?: (permission: PushPermission) => void
+  /** Every change to what the phone can say about its own push state. */
+  onDiagnostics?: (diagnostics: PushDiagnostics) => void
   now?: () => number
   log?: (message: string) => void
 }
@@ -85,6 +97,7 @@ export class PushRuntime {
   private registeredToken: string | null = null
   private arrivals = 0
   private permission: PushPermission = 'unsupported'
+  private diagnostics: PushDiagnostics = { ...emptyPushDiagnostics }
   /** The last count actually written to the app icon. */
   private lastBadge: number | null = null
   /** Notifications still being posted. A push waits for these. */
@@ -162,7 +175,13 @@ export class PushRuntime {
 
   private async runForeground(): Promise<void> {
     await this.refreshPermission()
-    await Promise.all([this.renewWatches(), this.syncBadge()])
+    // `registerDevice` is here, and not only on the sign-in edge, because a
+    // registration that never landed is otherwise permanent: the token arrives
+    // once per launch, and if the Maru session had not hydrated from the
+    // keychain by then there was no relay to send it to. Every return to the
+    // app is a chance to notice, and it costs one call only while the device
+    // is unregistered.
+    await Promise.all([this.registerDevice(), this.renewWatches(), this.syncBadge()])
   }
 
   /**
@@ -172,8 +191,30 @@ export class PushRuntime {
    */
   async onRelayAvailable(): Promise<void> {
     if (!this.running) return
-    if (this.seenToken) await this.registerToken(this.seenToken)
-    await this.renewWatches()
+    await Promise.all([this.registerDevice(), this.renewWatches()])
+  }
+
+  /**
+   * Asks the relay to send this device one visible test push, and says what
+   * came back. The APNs rejection reason is the answer people need — a token
+   * the relay will not accept and a topic mismatch look identical from here
+   * otherwise — and MARU-ACCOUNT.md §9 returns it in a 200 for exactly that.
+   */
+  async testPush(): Promise<string> {
+    const relay = this.opts.relay()
+    if (!relay) return 'Sign in to your Maru account first'
+    try {
+      return describeTestResult(await relay.pushTest())
+    } catch (cause) {
+      const text = describeApiError(cause)
+      this.opts.log?.(`test push failed: ${text}`)
+      return text
+    }
+  }
+
+  /** What Settings shows. A copy, so a caller cannot edit the runtime's state. */
+  pushDiagnostics(): PushDiagnostics {
+    return { ...this.diagnostics }
   }
 
   /**
@@ -259,7 +300,11 @@ export class PushRuntime {
         await this.registerToken(event.token)
         return
       case 'pushFailed':
+        // APNs refuses for reasons the app cannot see any other way — a build
+        // with no `aps-environment` entitlement is the loud one — and until
+        // this reached the diagnostics it refused in silence.
         this.opts.log?.(`APNs registration failed: ${event.message}`)
+        this.setDiagnostics({ registration: 'failed', lastError: `APNs: ${event.message}` })
         return
       case 'pushReceived':
         await this.handlePush(event.id)
@@ -272,17 +317,35 @@ export class PushRuntime {
 
   private async registerToken(token: string): Promise<void> {
     this.seenToken = token
+    this.setDiagnostics({ tokenPrefix: tokenPrefix(token) })
     // The relay keys devices by token, so re-sending an unchanged one is only
     // noise. A token does change — restore, reinstall — so this is not "once".
     if (token === this.registeredToken) return
     const relay = this.opts.relay()
+    // No Maru session yet. The token is held in `seenToken` and `registerDevice`
+    // sends it the moment there is somewhere to send it to.
     if (!relay) return
     try {
       await relay.pushRegister(token)
       this.registeredToken = token
+      this.setDiagnostics({ registration: 'registered', lastError: null })
     } catch (cause) {
-      this.opts.log?.(`push registration failed: ${String(cause)}`)
+      // The HTTP status is the whole diagnosis here: 402 is an expired plan,
+      // 401 a lapsed session, 0 a phone with no network.
+      const text = describeApiError(cause)
+      this.opts.log?.(`push registration failed: ${text}`)
+      this.setDiagnostics({ registration: 'failed', lastError: text })
     }
+  }
+
+  /**
+   * Sends the token APNs gave us, if the relay has not already accepted it.
+   * Idempotent and cheap, which is what lets every edge that could have
+   * unblocked a registration simply call it.
+   */
+  private async registerDevice(): Promise<void> {
+    if (!this.seenToken || this.seenToken === this.registeredToken) return
+    await this.registerToken(this.seenToken)
   }
 
   /** Keeps a notification in flight visible to `handlePush`. */
@@ -299,6 +362,11 @@ export class PushRuntime {
     }
     // During a wake `handlePush` writes the badge once, after every arrival.
     if (this.pushes === 0) await this.syncBadge()
+  }
+
+  private setDiagnostics(patch: Partial<PushDiagnostics>): void {
+    this.diagnostics = { ...this.diagnostics, ...patch }
+    this.opts.onDiagnostics?.(this.pushDiagnostics())
   }
 
   private setPermission(permission: PushPermission): void {
