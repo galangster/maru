@@ -27,6 +27,9 @@ iPhone only, iOS 17+, Tauri with a purpose-built mobile layer, bundle id
   restore, "Manage on getmaru.app".
 - [I6 TestFlight and App Store](tickets/I6-store.md) — review account,
   privacy labels, export compliance, screenshots, the listing.
+- [I8 native shell](tickets/I8-native-shell.md) — Liquid Glass tab bar,
+  native sheets, nav bar and back gesture, context menus, haptics, search;
+  the WebView keeps the content. **Lane 1 in flight.**
 - [I7 approvals on the phone](tickets/I7-approvals.md) — the first
   post-launch feature: approve an agent's drafts from the phone.
 
