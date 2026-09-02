@@ -604,3 +604,17 @@ one client id.
 - [ ] Send yourself a mail after that and confirm the banner arrives from
   Gmail push, not only from the test button.
 
+- [ ] **Give the release workflow the Developer ID certificate** so desktop
+  releases regain GitHub attestation (the tag workflow failed at "Import
+  Developer ID certificate" for v0.1.8 and v0.1.9; both were signed locally).
+  In Keychain Access → My Certificates, export "Developer ID Application: The
+  Creative Co. Marketing Firm LLC (2M8UE59WH7)" **with its private key** as a
+  `.p12` with a password. Then, from a terminal in the repo:
+  `gh secret set APPLE_CERTIFICATE -R galangster/maru < <(base64 -i ~/Downloads/devid.p12)`
+  and `gh secret set APPLE_CERTIFICATE_PASSWORD -R galangster/maru` (paste the
+  password at the prompt). Delete the `.p12` afterwards. Also confirm the four
+  API/updater secrets exist: `gh secret list -R galangster/maru` should show
+  `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_PRIVATE_KEY`,
+  `TAURI_SIGNING_PRIVATE_KEY`. Re-run the failed run with
+  `gh run rerun <id> -R galangster/maru` to prove it.
+
