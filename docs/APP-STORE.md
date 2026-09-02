@@ -371,136 +371,202 @@ minimum deployment target is iOS 17.0, which no 5.5" device runs.
 
 ## 6. TestFlight — the first upload from this Mac
 
-Reference. None of it has been run.
+Run on this Mac on 2026-09-01, Xcode 26.6, tauri-cli 2.11.4. The archive
+builds and is correct. **The export does not**, and the wall it hits is a
+permission on the API key, not anything in this repo. Everything below either
+ran or is quoted from the run.
 
-### Before the first upload
+### The API key, settled
 
-1. **The iOS OAuth client id must be in the build.** A build left on
-   `PLACEHOLDER.apps.googleusercontent.com` ships fixture data and would be
-   rejected under guideline 2.1 as non-functional. Export the real one first:
+`~/.wren-release/AuthKey_PTF7XH7JWF.p8` **is** an App Store Connect API key,
+not a notarization key. Key id `PTF7XH7JWF`, issuer
+`52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`.
 
-   ```sh
-   export VITE_MARU_IOS_GOOGLE_CLIENT_ID="537601059334-302klho3gdlj3kloseb6akr96o26r855.apps.googleusercontent.com"
-   ```
+| It can | It cannot |
+| --- | --- |
+| Read the app record, builds, certificates, profiles, bundle ids, users | **Create a certificate.** `POST /v1/certificates` answers `403 FORBIDDEN_ERROR` |
+| Create and delete TestFlight beta groups (§ *The internal group*, below) | Let Xcode use a cloud-managed distribution certificate |
+| Authenticate `altool` (proved with `--list-apps`) | |
 
-2. **A unique build number per upload.** App Store Connect rejects a repeat.
-   Tauri takes `CFBundleShortVersionString` from `version` in
-   `src-tauri/tauri.conf.json` (0.1.8); confirm the build number increments in
-   `src-tauri/gen/apple/project.yml` before each archive.
+So the key clears TestFlight and the upload, and stops at signing.
 
-3. **An App Store distribution certificate and an `app.getmaru.ios`
-   App Store provisioning profile** must exist on this Mac. Team 2M8UE59WH7
-   already holds the App ID and the production APNs key (ticket A4).
+### The two traps, in the order you meet them
 
-### Archive and export
+**1. The prepare hook must run before Tauri, not inside it.** On a clean tree
+`npm run tauri -- ios build` dies before it does anything:
+
+```
+failed to parse plist from Info.ios.generated.plist:
+  Io(Os { code: 2, kind: NotFound, message: "No such file or directory" })
+```
+
+Tauri reads `bundle.iOS.infoPlist` while it parses the config, which is
+*before* it runs `beforeBuildCommand` — and `beforeBuildCommand` is the only
+thing that writes that file. The file is generated, so it is not in git, so
+every fresh clone and every fresh worktree hits this. Run the hook by hand
+once first. It is idempotent and the build runs it again.
+
+**2. Nothing but the Tauri CLI can drive this archive.** The Xcode project's
+"Build Rust Code" phase talks to a live Tauri CLI socket (`docs/IOS.md`), so a
+bare `xcodebuild … archive` on `wren.xcodeproj` cannot compile it. The two-step
+`xcodebuild archive` / `-exportArchive` recipe this section used to carry does
+not work here. Drive the archive with `tauri ios build` and, if you need a
+different export, re-export the archive it leaves behind.
+
+### What actually ran
 
 ```sh
 export PATH="$HOME/.cargo/bin:$PATH"
+export VITE_MARU_IOS_GOOGLE_CLIENT_ID="537601059334-302klho3gdlj3kloseb6akr96o26r855.apps.googleusercontent.com"
+
+# Trap 1. Writes src-tauri/Info.ios.generated.plist.
+node --import tsx src-tauri/scripts/prepare-ios-oauth.mjs
+
+# Tauri turns these three into
+#   -allowProvisioningUpdates -authenticationKeyID
+#   -authenticationKeyPath -authenticationKeyIssuerID
+# on both the xcodebuild archive and the -exportArchive.
+export APPLE_API_KEY=PTF7XH7JWF
+export APPLE_API_ISSUER=52f4e617-a4b3-4cee-bcd0-23f8e653d7b5
+export APPLE_API_KEY_PATH="$HOME/.wren-release/AuthKey_PTF7XH7JWF.p8"
+export CI=true
+
 npm run tauri -- ios build --export-method app-store-connect
 ```
 
-That is the shortest path: Tauri drives `xcodebuild archive` and
-`-exportArchive` for the generated project and leaves an `.ipa` under
-`src-tauri/gen/apple/build/`. To drive Xcode directly instead — the
-`-exportArchive` route the ticket names — the two steps are:
+The archive lands at
+`src-tauri/gen/apple/build/wren_iOS.xcarchive`. It is a real-mode release
+build and it is correct:
 
-The generated project is `src-tauri/gen/apple/wren.xcodeproj` and the scheme
-is `wren_iOS`. A `wren.xcworkspace` appears only after CocoaPods has run, so
-use `-workspace` when it is there and `-project` before that.
+| | |
+| --- | --- |
+| `CFBundleIdentifier` | `app.getmaru.ios` |
+| `CFBundleShortVersionString` | `0.1.8` |
+| `CFBundleVersion` (the build number) | `0.1.8` — set in `src-tauri/gen/apple/project.yml`, which is tracked. Increment it there before the second upload. |
+| `ITSAppUsesNonExemptEncryption` | `false` — §4 of this page, verified in the archived `Maru.app/Info.plist`, not just in the hook's output |
+| `UIBackgroundModes` | `remote-notification` |
+| `CFBundleURLSchemes` | `com.googleusercontent.apps.537601059334-302klho3gdlj3kloseb6akr96o26r855` |
+| Real mode | `dist/assets/env-*.js` carries the real client id and no `PLACEHOLDER`, and the Rust binary that embeds `dist/` was compiled after it |
 
-```sh
-xcodebuild -project src-tauri/gen/apple/wren.xcodeproj \
-  -scheme wren_iOS -configuration Release -sdk iphoneos \
-  -archivePath build/Maru.xcarchive archive
+Do not go looking for the client id with `grep` inside `Maru.app`. Tauri
+embeds the web assets in the binary compressed, `Maru.app/assets/` is empty,
+and the string is not there to find. Check `dist/` and the two mtimes instead.
 
-xcodebuild -exportArchive \
-  -archivePath build/Maru.xcarchive \
-  -exportOptionsPlist build/ExportOptions-appstore.plist \
-  -exportPath build/appstore
+### Where it stops
+
+`-exportArchive` fails. Verbatim, from
+`IDEDistribution.verbose.log` in the `.xcdistributionlogs` bundle:
+
+```
+Error Domain=DeveloperAPIServiceErrorDomain Code=5 "Cloud signing permission
+error" UserInfo={NSLocalizedRecoverySuggestion=You haven't been given access
+to cloud-managed distribution certificates. Please contact your team's Account
+Holder or an Admin to give you access. …}
+
+Error Domain=IDEProfileLocatorErrorDomain Code=1 "No profiles for
+'app.getmaru.ios' were found"
 ```
 
-`src-tauri/gen/apple/ExportOptions.plist` is Tauri's, and says
-`method: debugging`. Do not edit it — it is regenerated. Write a separate
-plist for the store:
+and on stdout:
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key><string>app-store-connect</string>
-  <key>teamID</key><string>2M8UE59WH7</string>
-  <key>destination</key><string>export</string>
-  <key>uploadSymbols</key><true/>
-</dict>
-</plist>
+```
+error: exportArchive Cloud signing permission error
+error: exportArchive No profiles for 'app.getmaru.ios' were found
+** EXPORT FAILED **
 ```
 
-Set `destination` to `upload` and Xcode uploads straight from
-`-exportArchive`, which removes the Transporter step entirely.
+The manual route around it is closed too. There is no iOS distribution
+identity in any keychain on this Mac — `security find-identity -v` returns one
+entry, the Developer ID Application certificate, and its key signs Mac
+software, not App Store builds. The team's existing `DISTRIBUTION` and
+`IOS_DISTRIBUTION` certificates were issued elsewhere, so their private keys
+are not here. Minting a fresh one from a local CSR is what the key is not
+allowed to do:
 
-### Upload
+```
+POST /v1/certificates  →  403
+{ "code": "FORBIDDEN_ERROR",
+  "title": "This request is forbidden for security reasons",
+  "detail": "You are not allowed to perform this operation. Please check with
+             one of your Team Admins, …" }
+```
 
-Either drag the `.ipa` into **Transporter.app** and press Deliver, or upload
-from the command line with the API key:
+### What unblocks it — either one, both owner-only
+
+1. **Give the key cloud signing.** App Store Connect → Users and Access →
+   Integrations → App Store Connect API → the `PTF7XH7JWF` row → enable
+   **Access to Cloud Managed Distribution Certificate** (and Admin, if the
+   toggle is not offered at the key's present role). Then re-run the block
+   above verbatim; Xcode creates the certificate and the `app.getmaru.ios`
+   App Store profile itself, and the export completes.
+2. **Or put a distribution identity on this Mac by hand.** Xcode → Settings →
+   Accounts → sign in → the team → Manage Certificates → **+** → Apple
+   Distribution. `-allowProvisioningUpdates` then has a local identity to use
+   and creates the profile on its own.
+
+The first is better: it leaves the whole path scriptable, and it is the same
+key CI would use.
+
+### The upload, once there is an `.ipa`
+
+The credential path is proved — `altool` authenticated with this key and
+listed the team's apps. Point it at the key's directory rather than copying
+the `.p8` anywhere:
 
 ```sh
-xcrun altool --upload-app -f build/appstore/Maru.ipa -t ios \
+API_PRIVATE_KEYS_DIR="$HOME/.wren-release" xcrun altool --upload-app -t ios \
+  -f <the .ipa -exportArchive wrote under src-tauri/gen/apple/build/> \
   --apiKey PTF7XH7JWF \
-  --apiIssuer «NICK: App Store Connect API issuer id»
+  --apiIssuer 52f4e617-a4b3-4cee-bcd0-23f8e653d7b5
 ```
 
-### What the `.p8` in `~/.wren-release/` can automate
+`altool` searches `./private_keys`, `~/private_keys`, `~/.private_keys`,
+`~/.appstoreconnect/private_keys` and `$API_PRIVATE_KEYS_DIR` for
+`AuthKey_<key id>.p8`. The last one is the only one that does not mean moving
+the key out of `~/.wren-release`.
 
-`~/.wren-release/AuthKey_PTF7XH7JWF.p8` — key id **PTF7XH7JWF**. `altool`
-and `xcodebuild` find it there automatically (they search
-`~/.appstoreconnect/private_keys`, `~/private_keys`, `./private_keys`, and
-the path given by `--apiKeyPath`), so pass `--apiKeyPath` explicitly rather
-than relying on the search path.
+Export compliance is answered in the binary, so the build will not stall at
+"Missing Compliance", and an internal build needs no Beta App Review. Watch it
+land with:
 
-With that key and the issuer id, no password and no app-specific password are
-needed for:
-
-- uploading a build (`altool --upload-app`, or `xcodebuild -exportArchive`
-  with `-authenticationKeyPath/-authenticationKeyID/-authenticationKeyIssuerID`);
-- letting Xcode create and download signing assets non-interactively
-  (`-allowProvisioningUpdates` with the same three flags);
-- everything App Store Connect exposes over its REST API — creating the
-  TestFlight internal group, adding testers, setting "what to test", reading
-  build processing state, pushing listing metadata and screenshots, and
-  submitting for review. `fastlane deliver` and `fastlane pilot` both take
-  exactly these three values.
-
-**Check before relying on it:** the key was created 2026-08-29, in the same
-session as the Developer ID material, so it may be a *notarization* key
-(Developer ID / notary service) rather than an App Store Connect API key with
-App Manager access. They are different keys from different pages. Confirm the
-key's role and capture the **issuer id** — it is shown only on the
-Users and Access → Integrations → App Store Connect API page, and it is the
-one value not recorded anywhere in this repo.
+Processing state is `GET /v1/apps/6807633550/builds` on the same key —
+`processingState` goes `PROCESSING` → `VALID`, usually inside ten minutes.
 
 ### The internal group
 
-1. App Store Connect → **Maru Mail** → TestFlight → Internal Testing → **+**.
-2. Name it `Internal`. Turn **on** automatic distribution of new builds.
-3. Add testers from the team. Internal testers must hold an App Store Connect
-   role (Admin, App Manager, Developer, or Marketer); Nick's Apple ID already
-   qualifies as the account holder. Up to 100 internal testers, each on up to
-   30 devices.
-4. Internal builds need **no** Beta App Review, so a build is installable
-   within minutes of finishing processing. Export compliance is already
-   answered by the plist key, so no build stalls at "Missing Compliance".
-5. Fill **Test Information** once — feedback email `support@getmaru.app`,
-   marketing URL `https://getmaru.app`, privacy policy
-   `https://getmaru.app/privacy`. It is required before external testing and
-   is worth filling now.
-6. Builds expire after 90 days.
+**Created 2026-09-01 over the API, and it is done.** Group `Maru internal`,
+id `c643921a-f60e-4ab5-8f9a-de40b5c84e34`, internal, feedback on, and
+**automatic distribution of every new build on**.
 
-Only move to an **external** group when the beta widens: that one needs Beta
-App Review, and the same "Google restricts sign-in to an allow-list" caveat
-has to reach the testers, or the first three of them will report the
-unverified-app screen as a bug.
+```
+POST /v1/betaGroups
+{ "data": { "type": "betaGroups",
+    "attributes": { "name": "Maru internal",
+                    "isInternalGroup": true,
+                    "hasAccessToAllBuilds": true },
+    "relationships": { "app": { "data": { "type": "apps",
+                                          "id": "6807633550" } } } } }
+```
 
+`hasAccessToAllBuilds` is create-only. A `PATCH` carrying it is refused with
+`409 ENTITY_ERROR.ATTRIBUTE.NOT_ALLOWED`, so if that flag is ever wrong the fix
+is to delete the group and make it again.
+
+Two things are still open on the group, and both are one step each:
+
+- **Testers.** The group has none. Internal testers must hold an App Store
+  Connect role; `nicholasgalang@gmail.com` is Account Holder and Admin and
+  qualifies. Add from TestFlight → Maru internal → Testers, or
+  `POST /v1/betaGroups/c643921a-f60e-4ab5-8f9a-de40b5c84e34/relationships/betaTesters`.
+  Up to 100 internal testers, 30 devices each.
+- **Test Information.** Feedback email `support@getmaru.app`, marketing URL
+  `https://getmaru.app`, privacy policy `https://getmaru.app/privacy`. Not
+  required for internal testing; required before any external group.
+
+Builds expire after 90 days. Move to an **external** group only when the beta
+widens — that one needs Beta App Review, and the "Google restricts sign-in to
+an allow-list" caveat has to reach the testers, or the first three of them
+will report the unverified-app screen as a bug.
 ---
 
 ## 7. What is owner-only
@@ -514,6 +580,6 @@ Nothing below can be done by an agent, and nothing below should be guessed.
 | Allow-list the reviewer | `server/scripts/allow.ts` for the Maru side; the Google Cloud OAuth consent screen's test-user list for the Google side. |
 | Comp the reviewer's Maru account | `server/scripts/allow.ts comp <email>`. |
 | `«NICK: review contact details»` | First name, last name, phone, email on the App Review page. |
-| `«NICK: App Store Connect API issuer id»` | Users and Access → Integrations. Confirm `AuthKey_PTF7XH7JWF.p8` is an App Store Connect key and not a notarization key. |
-| Signing | App Store distribution certificate and an `app.getmaru.ios` App Store profile on this Mac. |
+| ~~API issuer id, and the key's kind~~ | **Settled 2026-09-01.** Issuer `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`. `AuthKey_PTF7XH7JWF.p8` is an App Store Connect key, and it uploads builds and manages TestFlight. |
+| **Cloud signing on the API key** | The one thing blocking the first upload. Enable **Access to Cloud Managed Distribution Certificate** on the `PTF7XH7JWF` key, or create an Apple Distribution certificate on this Mac by hand. §6, "What unblocks it". |
 | A lawyer's read | The privacy policy and terms are still marked draft (ticket A6). Apple requires the URL, not the review — but it is the same text Google's OAuth verification reads. |

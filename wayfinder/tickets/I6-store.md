@@ -90,3 +90,72 @@ frames carry UIKit's Liquid Glass bar. `scripts/store-screenshots.mjs` grew a
 `--from-dir` mode that composes from existing PNGs and refuses a source that
 is too small or the wrong shape; the browser path is still there for a quick
 recompose. `docs/APP-STORE.md` §5 records how the captures are taken.
+
+## TestFlight lane — 2026-09-01. Archive built, upload blocked on one toggle
+
+The whole path was run end to end on this Mac. It gets as far as a correct,
+real-mode App Store archive and stops at code signing. Nothing in the repo is
+in the way; one permission on the API key is. Detail and verbatim errors are in
+[`docs/APP-STORE.md`](../../docs/APP-STORE.md) §6, which is now a record of a
+run rather than a plan.
+
+### Done
+
+- **The archive.** `src-tauri/gen/apple/build/wren_iOS.xcarchive`, release,
+  `arm64`, from `npm run tauri -- ios build --export-method app-store-connect`.
+  Version **0.1.8**, build number **0.1.8** (`CFBundleVersion` in the tracked
+  `src-tauri/gen/apple/project.yml`; increment it there before upload two).
+- **Real mode, verified.** The real iOS client id is in `dist/`, no
+  `PLACEHOLDER` anywhere in it, and the Rust binary that embeds `dist/` was
+  compiled after it. So the guideline 2.1 risk this ticket named is closed for
+  this archive.
+- **Export compliance, verified in the artifact.** `ITSAppUsesNonExemptEncryption
+  = false` is in the archived `Maru.app/Info.plist`, not merely in the hook's
+  output. `UIBackgroundModes = remote-notification` and the OAuth callback
+  scheme are there with it.
+- **The internal tester group exists.** `Maru internal`, id
+  `c643921a-f60e-4ab5-8f9a-de40b5c84e34`, internal, feedback on, automatic
+  distribution of every new build on. Made over the API with the same key.
+- **Two build traps written down** in §6: the generated Info plist must be
+  written before Tauri parses the config, and nothing but the Tauri CLI can
+  drive this archive.
+
+### The API key, no longer an open question
+
+`~/.wren-release/AuthKey_PTF7XH7JWF.p8` is an App Store Connect API key. Key id
+`PTF7XH7JWF`, issuer `52f4e617-a4b3-4cee-bcd0-23f8e653d7b5`.
+
+**It could:** read the app record, builds, certificates, profiles, bundle ids
+and users; create, configure and delete TestFlight beta groups; authenticate
+`altool` (proved with `--list-apps`, which listed the team's apps).
+
+**It could not:** create a signing certificate. `POST /v1/certificates` with a
+locally generated CSR answers `403 FORBIDDEN_ERROR` — "You are not allowed to
+perform this operation." And `xcodebuild -exportArchive` with the same key
+answers:
+
+> Cloud signing permission error … You haven't been given access to
+> cloud-managed distribution certificates. Please contact your team's Account
+> Holder or an Admin to give you access.
+
+followed by `No profiles for 'app.getmaru.ios' were found`. There is no iOS
+distribution identity in any keychain on this Mac either — `security
+find-identity -v` returns only the Developer ID Application certificate — so
+the manual route is closed the same way.
+
+### Owner-only, and it is one item
+
+- [ ] **Give the key cloud signing, or put a distribution identity on this Mac.**
+      App Store Connect → Users and Access → Integrations → App Store Connect
+      API → the `PTF7XH7JWF` row → **Access to Cloud Managed Distribution
+      Certificate**. Or Xcode → Settings → Accounts → Manage Certificates →
+      **+** → Apple Distribution. Either one, then re-run the block in §6
+      verbatim and the export, the upload and TestFlight all follow with no
+      further owner step.
+- [ ] Add a tester to `Maru internal`. It has none. `nicholasgalang@gmail.com`
+      is Account Holder and Admin and qualifies as an internal tester.
+- [ ] Test Information on the group — feedback email, marketing URL, privacy
+      policy. Not required for internal testing; required before external.
+
+The reviewer-account items further up this page are unchanged and are not on
+the TestFlight path — internal builds need no Beta App Review.
