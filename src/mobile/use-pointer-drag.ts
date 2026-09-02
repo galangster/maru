@@ -40,6 +40,13 @@ interface Gesture {
   delta: PointerDragDelta
 }
 
+/** Hands the pointer back, if the lock ever took it. */
+function release(event: ReactPointerEvent<HTMLElement>): void {
+  if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+    event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+}
+
 /**
  * One finger, one axis.
  *
@@ -70,10 +77,10 @@ interface Gesture {
  */
 export function usePointerDrag({ axis, onMove, onCommit, onCancel }: PointerDragOptions): PointerDragHandlers {
   const gesture = useRef<Gesture | null>(null)
-  const wanted = useRef(axis)
-  wanted.current = axis
-  const callbacks = useRef({ onMove, onCommit, onCancel })
-  callbacks.current = { onMove, onCommit, onCancel }
+  // One ref for everything the handlers read from the render, the axis
+  // included, so the handlers themselves never have to be rebuilt.
+  const options = useRef({ axis, onMove, onCommit, onCancel })
+  options.current = { axis, onMove, onCommit, onCancel }
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     gesture.current = {
@@ -93,26 +100,20 @@ export function usePointerDrag({ axis, onMove, onCommit, onCancel }: PointerDrag
       const locked = resolveDragAxis(delta.dx, delta.dy)
       if (!locked) return
       active.axis = locked
-      if (locked === wanted.current) event.currentTarget.setPointerCapture?.(event.pointerId)
+      if (locked === options.current.axis) event.currentTarget.setPointerCapture?.(event.pointerId)
     }
-    if (active.axis !== wanted.current) return
+    if (active.axis !== options.current.axis) return
     active.delta = delta
-    callbacks.current.onMove(delta)
+    options.current.onMove(delta)
   }, [])
-
-  const release = (event: ReactPointerEvent<HTMLElement>) => {
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-  }
 
   const onPointerUp = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     const active = gesture.current
     if (!active || active.pointerId !== event.pointerId) return
     gesture.current = null
     release(event)
-    if (active.axis === wanted.current) callbacks.current.onCommit(active.delta)
-    else callbacks.current.onCancel?.()
+    if (active.axis === options.current.axis) options.current.onCommit(active.delta)
+    else options.current.onCancel?.()
   }, [])
 
   const onPointerCancel = useCallback((event: ReactPointerEvent<HTMLElement>) => {
@@ -120,7 +121,7 @@ export function usePointerDrag({ axis, onMove, onCommit, onCancel }: PointerDrag
     if (!active || active.pointerId !== event.pointerId) return
     gesture.current = null
     release(event)
-    callbacks.current.onCancel?.()
+    options.current.onCancel?.()
   }, [])
 
   return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel }

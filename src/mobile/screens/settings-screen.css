@@ -1,8 +1,10 @@
-/* Gated on the input modality, like every other ring in the shell — the
-   reasoning is in mobile.css beside the reset. */
+/* The ring lands on the switch, not on the checkbox driving it: that input is
+   invisible, so the shell's general rule in mobile.css cannot express this one.
+   Gated on the input modality like the rest — the reasoning is in mobile.css
+   beside the reset. */
 html[data-input-modality='keyboard'] .mobile-toggle-row input:focus-visible + .mobile-switch {
-  outline: 2px solid var(--wren-text-1);
-  outline-offset: 2px;
+  outline: var(--mobile-ring);
+  outline-offset: var(--mobile-ring-offset);
 }
 
 .mobile-settings-link {

@@ -9,6 +9,12 @@
   --mobile-leading-tight: 1.3;
   --mobile-leading-normal: 1.4;
   --mobile-leading-relaxed: 1.5;
+  /* The one focus ring in the phone shell. Written once here so the two
+     sibling-proxy rules that the generic selector cannot express -- a switch
+     and a checkbox, both drawn by an element next to the focused input -- draw
+     the same ring rather than their own copy of it. */
+  --mobile-ring: 2px solid var(--wren-text-1);
+  --mobile-ring-offset: 2px;
 }
 
 /*
@@ -172,7 +178,7 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
  * rule outranks without having to know it exists.
  *
  * Written as `.mobile-app button` it was (0,1,1), which beat every
- * single-class rule in the shell. `.mobile-account-primary` (0,1,0) asks for
+ * single-class rule in the shell. `.mobile-button-primary` (0,1,0) asks for
  * `color: var(--wren-accent-fg)` and `font-size: var(--mobile-text-body)`, and
  * got neither: the phone drew "Sign in" in near-black body text on the coral
  * fill, which is both the wrong colour and a contrast failure on the one
@@ -231,6 +237,48 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
 }
 
 /*
+ * The full-width pair: the thing the screen is asking for, and the way out.
+ *
+ * The account screen and the offer sheet each had their own copy, identical
+ * apart from a 6px difference in height that nothing had decided — which is
+ * how two bottom sheets that sit one tap apart came to draw the same two
+ * buttons at two sizes. One pair, and `.is-destructive` swaps the fill without
+ * changing the shape, because a delete confirmation is the same button asking
+ * a colder question.
+ */
+.mobile-button-primary,
+.mobile-button-secondary {
+  width: 100%;
+  min-height: 50px;
+  border: 0;
+  border-radius: var(--wren-radius-md);
+  padding: 0 16px;
+  font-family: var(--wren-font-ui);
+  font-size: var(--mobile-text-body);
+  font-weight: 600;
+}
+
+.mobile-button-primary {
+  background: var(--wren-accent);
+  color: var(--wren-accent-fg);
+}
+
+.mobile-button-primary.is-destructive {
+  background: var(--wren-destructive);
+  color: var(--wren-accent-fg);
+}
+
+.mobile-button-secondary {
+  background: var(--wren-surface-sunken);
+  color: var(--wren-text-1);
+}
+
+.mobile-button-primary:disabled,
+.mobile-button-secondary:disabled {
+  opacity: 0.42;
+}
+
+/*
  * A ring is a keyboard's answer to "where am I". A finger already knows.
  *
  * `:focus-visible` alone does not get this right in WKWebView. WebKit resolves
@@ -254,13 +302,21 @@ html:has(.mobile-app) [data-sonner-toaster][data-y-position='bottom'] {
   outline: none;
 }
 
-html[data-input-modality='keyboard'] .mobile-app button:focus-visible,
-html[data-input-modality='keyboard'] .mobile-app textarea:focus-visible,
-html[data-input-modality='keyboard'] .mobile-app input:focus-visible,
-html[data-input-modality='keyboard'] .mobile-app select:focus-visible,
-html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
-  outline: 2px solid var(--wren-text-1);
-  outline-offset: 2px;
+/*
+ * Every focusable thing in the shell, in one rule. `:where()` keeps it at the
+ * specificity the five selectors it replaced had, so a component that wants a
+ * different ring still outranks it without knowing it is here.
+ *
+ * The only rings written anywhere else are the two that this selector cannot
+ * reach: a ring drawn on the *sibling* of the focused input, because the input
+ * itself is invisible and the switch or checkbox beside it is the control the
+ * eye sees. Those two use `--mobile-ring` rather than restating it.
+ */
+html[data-input-modality='keyboard']
+  .mobile-app
+  :where(button, textarea, input, select, [role='button']):focus-visible {
+  outline: var(--mobile-ring);
+  outline-offset: var(--mobile-ring-offset);
 }
 
 .mobile-stage,
@@ -369,9 +425,11 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   inset-inline-end: 12px;
   /* Centred rather than pinned at 18px, which only centred it against the 44px
      minimum height and drifted upward as soon as Dynamic Type made the control
-     taller. 4px is half the 7px box. */
+     taller. `translate` is its own property, so it composes with the rotation
+     below instead of being overwritten by it, and it takes half the box's real
+     height rather than a rounded 4px. */
   top: 50%;
-  margin-block-start: -4px;
+  translate: 0 -50%;
   width: 7px;
   height: 7px;
   border-inline-end: 1.5px solid currentColor;
@@ -1141,14 +1199,27 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
  *
  * A background image is the honest one-edge line, and it needs neither a
  * pseudo-element nor `position: relative` under rows that are already flex
- * containers. 58px is the text column measured rather than guessed: 12px of
- * padding, a 34px icon, then the 12px gap.
+ * containers.
+ *
+ * The recipe is written once, for both places in the shell that draw one, and
+ * each site says only the two things that differ: how far in the line starts,
+ * and which edge it sits on (`0` for the top, `100%` for the bottom).
  */
-.mobile-row + .mobile-row {
+.mobile-row + .mobile-row,
+.mobile-compose-field,
+.mobile-compose-to-field,
+.mobile-compose-form > .mobile-recipient-row {
   background-image: linear-gradient(var(--wren-hairline), var(--wren-hairline));
   background-repeat: no-repeat;
-  background-position: 58px 0;
-  background-size: calc(100% - 58px) 1px;
+  background-position: var(--hairline-inset) var(--hairline-edge);
+  background-size: calc(100% - var(--hairline-inset)) 1px;
+}
+
+/* 58px is the text column measured rather than guessed: 12px of padding, a
+   34px icon, then the 12px gap. */
+.mobile-row + .mobile-row {
+  --hairline-inset: 58px;
+  --hairline-edge: 0;
 }
 
 .mobile-row-icon,
@@ -1363,15 +1434,14 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
  * the left, so only that band moved.
  *
  * Same defect and same repair as `.mobile-row + .mobile-row` above; these were
- * the only two in the shell.
+ * the only two in the shell, and they now share the one recipe written there.
+ * Inset to the label, and along the bottom of the field rather than the top.
  */
 .mobile-compose-field,
 .mobile-compose-to-field,
 .mobile-compose-form > .mobile-recipient-row {
-  background-image: linear-gradient(var(--wren-hairline), var(--wren-hairline));
-  background-repeat: no-repeat;
-  background-position: 16px 100%;
-  background-size: calc(100% - 16px) 1px;
+  --hairline-inset: 16px;
+  --hairline-edge: 100%;
 }
 
 .mobile-recipient-row > label {
@@ -1885,21 +1955,15 @@ html[data-input-modality='keyboard'] .mobile-app [role='button']:focus-visible {
   padding: 12px 16px 16px;
 }
 
-.mobile-offer-primary,
-.mobile-offer-secondary {
-  min-height: 50px;
-  border: 0;
-  border-radius: var(--wren-radius-md);
-  font-family: var(--wren-font-ui);
-  font-size: var(--mobile-text-body);
-  font-weight: 600;
-}
-
-.mobile-offer-primary {
-  background: var(--wren-accent);
-  color: var(--wren-accent-fg);
-}
-
+/*
+ * The one place the plain button is not the plain button.
+ *
+ * Declining an offer is not the same act as choosing the other of two options,
+ * and it should not carry the same weight: "Not now" that arrives with a fill
+ * behind it reads as the second half of a decision the person has not been
+ * asked to make. Everything else about the button -- its box, its type, its
+ * disabled state -- comes from `.mobile-button-secondary`.
+ */
 .mobile-offer-secondary {
   background: transparent;
   color: var(--wren-text-2);

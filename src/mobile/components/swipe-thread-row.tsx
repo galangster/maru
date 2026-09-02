@@ -1,7 +1,6 @@
 import { memo, useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import type { Thread } from '@/core/types'
-import { nativeShell } from '@/platform/shell'
 import { MobileIcon } from './mobile-icon'
 import {
   LONG_PRESS_DELAY_MS,
@@ -11,6 +10,7 @@ import {
   type MobileRowModel,
 } from '../state'
 import { usePointerDrag } from '../use-pointer-drag'
+import { useThresholdTick } from '../use-threshold-tick'
 
 interface SwipeThreadRowProps {
   thread: Thread
@@ -40,8 +40,10 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
   const [settling, setSettling] = useState(true)
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressClick = useRef(false)
-  /** Whether the row has been dragged far enough to commit, right now. */
-  const armed = useRef(false)
+  /** The tap at the action threshold, shared with the pull to refresh. */
+  const tick = useThresholdTick()
+  /** Whether this gesture has already warmed the haptic engine. */
+  const primed = useRef(false)
 
   const cancelLongPress = useCallback(function cancel() {
     if (longPress.current) clearTimeout(longPress.current)
@@ -52,10 +54,10 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
 
   /** Back to rest, with the transition on. Every ending goes through here. */
   const settle = useCallback(() => {
-    armed.current = false
+    tick.report(false)
     setSettling(true)
     setOffset(0)
-  }, [])
+  }, [tick])
 
   const drag = usePointerDrag({
     // The hook now owns the axis. This row only ever hears about a gesture
@@ -69,17 +71,21 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
       // `AXIS_LOCK_THRESHOLD`, which is further than a long press is allowed
       // to wander. It is a drag, so it is not a press.
       cancelLongPress()
+      // The first frame of a *swipe*, which is the earliest moment this row
+      // knows there is a threshold ahead to tap at. Warming the engine on
+      // `pointerdown` instead warmed it for every tap and every scroll that
+      // started on a row, which on a list is nearly all of them.
+      if (!primed.current) {
+        primed.current = true
+        tick.prepare()
+      }
       setSettling(false)
       const next = Math.max(-SWIPE_OFFSET_LIMIT, Math.min(SWIPE_OFFSET_LIMIT, dx))
       setOffset(next)
       // The tap at the threshold, on the way out only: this is the moment the
       // action behind the row becomes the thing that will happen, and a thumb
       // covering the label is exactly who needs telling.
-      const past = Math.abs(next) >= SWIPE_ACTION_THRESHOLD
-      if (past !== armed.current) {
-        armed.current = past
-        if (past) void nativeShell.impact('light')
-      }
+      tick.report(Math.abs(next) >= SWIPE_ACTION_THRESHOLD)
     },
     onCommit: ({ dx, dy }) => {
       cancelLongPress()
@@ -102,11 +108,9 @@ export const SwipeThreadRow = memo(function SwipeThreadRow({
     drag.onPointerDown(event)
     if (editing) return
     suppressClick.current = false
-    armed.current = false
-    // The start of the drag, not the crossing. `prepare()` needs the head
-    // start if the tap at the threshold is to land on the frame the label
-    // appears — the same bargain `usePullRefresh` makes.
-    void nativeShell.prepareHaptics()
+    // Only the warm-up is reset here. The crossing needs no reset: every
+    // ending goes through `settle`, and `settle` reports its way back to false.
+    primed.current = false
     // The page is the scroller now, so a press that becomes a scroll can stop
     // reaching this row entirely: WebKit hands the gesture to the scroll view
     // and `onMove` never fires to cancel the timer. A drag is never a long

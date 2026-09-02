@@ -152,16 +152,14 @@
   color: var(--wren-text-3);
 }
 
-/* Gated on the input modality, like every other ring in the shell — the
-   reasoning is in mobile.css beside the reset. These are the fields that made
-   the problem visible: WebKit matches `:focus-visible` on a text input the
-   moment a thumb lands in it. */
-html[data-input-modality='keyboard'] .mobile-account-field input:focus-visible,
-html[data-input-modality='keyboard'] .mobile-account-field textarea:focus-visible,
-html[data-input-modality='keyboard'] .mobile-account-device-form input:focus-visible,
+/* The fields on this screen need no rule of their own: the shell's one ring in
+   mobile.css already reaches every input and textarea. The checkbox does,
+   because the input it belongs to is invisible and the ring has to land on the
+   box beside it. Gated on the input modality like the rest — the reasoning is
+   in mobile.css beside the reset. */
 html[data-input-modality='keyboard'] .mobile-account-check-row input:focus-visible + .mobile-account-checkbox {
-  outline: 2px solid var(--wren-text-1);
-  outline-offset: 2px;
+  outline: var(--mobile-ring);
+  outline-offset: var(--mobile-ring-offset);
 }
 
 .mobile-account-meter {
@@ -197,8 +195,10 @@ html[data-input-modality='keyboard'] .mobile-account-check-row input:focus-visib
   text-align: end;
 }
 
-.mobile-account-primary,
-.mobile-account-secondary,
+/* The two full-width buttons on this screen are `.mobile-button-primary` and
+   `.mobile-button-secondary` from mobile.css. What is left here is the small
+   stuff that only this screen has: a button inside a row, and the one that
+   deletes something. */
 .mobile-account-inline-button,
 .mobile-account-danger-button,
 .mobile-account-copy {
@@ -209,32 +209,10 @@ html[data-input-modality='keyboard'] .mobile-account-check-row input:focus-visib
   font-weight: 600;
 }
 
-.mobile-account-primary {
-  width: 100%;
-  min-height: 50px;
-  padding: 0 16px;
-  background: var(--wren-accent);
-  color: var(--wren-accent-fg);
-  font-size: var(--mobile-text-body);
-}
-
-.mobile-account-primary.is-destructive {
-  background: var(--wren-destructive);
-  color: var(--wren-accent-fg);
-}
-
-.mobile-account-primary:disabled,
-.mobile-account-secondary:disabled,
 .mobile-account-inline-button:disabled,
 .mobile-account-danger-button:disabled,
 .mobile-account-action-row:disabled {
   opacity: 0.42;
-}
-
-.mobile-account-secondary {
-  width: 100%;
-  background: var(--wren-surface-sunken);
-  color: var(--wren-text-1);
 }
 
 .mobile-account-inline-button,

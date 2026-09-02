@@ -198,7 +198,7 @@ function SignedOut() {
         {mode !== 'signIn' && <PasswordMeter meter={meter} />}
         {error && <p className="mobile-account-error" role="alert">{error}</p>}
 
-        <button className="mobile-account-primary mobile-press" type="submit" disabled={busy}>
+        <button className="mobile-button-primary mobile-press" type="submit" disabled={busy}>
           {busy ? `${actionLabel}…` : actionLabel}
         </button>
       </form>
@@ -265,7 +265,7 @@ function RecoveryCeremony() {
           <strong>I saved these 12 words somewhere safe</strong>
         </label>
         {error && <p className="mobile-account-error" role="alert">{error}</p>}
-        <button className="mobile-account-primary mobile-press" type="button" disabled={!saved || busy} onClick={() => void activate()}>
+        <button className="mobile-button-primary mobile-press" type="button" disabled={!saved || busy} onClick={() => void activate()}>
           {busy ? 'Activating account…' : 'Activate account'}
         </button>
       </div>
@@ -483,10 +483,10 @@ function RestoreSheet({ entry, busy, onClose, onRestore }: { entry: VaultHistory
     <BottomSheet title="Restore this version?" onClose={onClose}>
       <div className="mobile-account-sheet-body">
         <p>This copies the vault from {accountDate(entry.updatedAt)} forward as the newest version.</p>
-        <button className="mobile-account-primary mobile-press" type="button" disabled={busy} onClick={() => void onRestore()}>
+        <button className="mobile-button-primary mobile-press" type="button" disabled={busy} onClick={() => void onRestore()}>
           {busy ? 'Restoring…' : 'Restore earlier version'}
         </button>
-        <button className="mobile-account-secondary mobile-press" type="button" onClick={onClose}>Keep current version</button>
+        <button className="mobile-button-secondary mobile-press" type="button" onClick={onClose}>Keep current version</button>
       </div>
     </BottomSheet>
   )
@@ -519,7 +519,7 @@ function PasswordSheet({ busy, onClose, onChange }: { busy: boolean; onClose: ()
         </AccountField>
         <PasswordMeter meter={meter} />
         {error && <p className="mobile-account-error" role="alert">{error}</p>}
-        <button className="mobile-account-primary mobile-press" type="submit" disabled={busy}>{busy ? 'Changing password…' : 'Change password'}</button>
+        <button className="mobile-button-primary mobile-press" type="submit" disabled={busy}>{busy ? 'Changing password…' : 'Change password'}</button>
       </form>
     </BottomSheet>
   )
@@ -552,7 +552,7 @@ function DeleteSheet({ email, busy, onClose, onDelete }: { email: string; busy: 
           <input id="mobile-delete-password" type="password" autoCapitalize="none" autoCorrect="off" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
         </AccountField>
         {error && <p className="mobile-account-error" role="alert">{error}</p>}
-        <button className="mobile-account-primary is-destructive mobile-press" type="submit" disabled={!matches || !password || busy}>
+        <button className="mobile-button-primary is-destructive mobile-press" type="submit" disabled={!matches || !password || busy}>
           {busy ? 'Deleting account…' : 'Delete Maru account'}
         </button>
       </form>

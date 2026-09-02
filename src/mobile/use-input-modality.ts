@@ -36,11 +36,16 @@ export function useInputModality(): void {
       set('keyboard')
     }
     const onPointerDown = () => set('pointer')
-    window.addEventListener('keydown', onKeyDown, true)
-    window.addEventListener('pointerdown', onPointerDown, true)
+    // Capture, so the attribute is already right before anything downstream
+    // can act on the event. Passive, because neither handler calls
+    // `preventDefault` and `pointerdown` is on the path of every scroll the
+    // phone starts.
+    const listen = { capture: true, passive: true } as const
+    window.addEventListener('keydown', onKeyDown, listen)
+    window.addEventListener('pointerdown', onPointerDown, listen)
     return () => {
-      window.removeEventListener('keydown', onKeyDown, true)
-      window.removeEventListener('pointerdown', onPointerDown, true)
+      window.removeEventListener('keydown', onKeyDown, listen)
+      window.removeEventListener('pointerdown', onPointerDown, listen)
       delete root.dataset.inputModality
     }
   }, [])

@@ -111,12 +111,11 @@ export function MobileApp() {
   }
   const closeSheet = () => dispatch({ type: 'closeSheet' })
   const openAccount = useCallback(() => dispatch({ type: 'push', entry: { kind: 'account' } }), [])
+  const openPushSheet = useCallback(() => dispatch({ type: 'openSheet', sheet: { kind: 'pushAccount' } }), [])
   // Only from the inbox at rest. The offer is worth making once and worth
   // making well, so it waits for a screen with nothing else on it.
-  usePushAccountNudge(
-    screen === 'inbox' && sheet === null && !composerOpen,
-    useCallback(() => dispatch({ type: 'openSheet', sheet: { kind: 'pushAccount' } }), []),
-  )
+  const inboxAtRest = screen === 'inbox' && sheet === null && !composerOpen
+  usePushAccountNudge(inboxAtRest, openPushSheet)
 
   useNativeShellSync(nativeTabBar, {
     tab: navigation.tab,

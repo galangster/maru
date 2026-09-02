@@ -3,30 +3,9 @@ import { useEffect, useRef } from 'react'
 import { useAccountsById } from '@/features/mail/queries'
 import { usePushUi } from '@/features/notifications/push-store'
 import { useMaruAccount } from '@/features/settings/account/account-store'
+import { readFlag, writeFlag } from '@/lib/local-flag'
 
-const NUDGE_KEY = 'maru.push-account-nudge'
-
-/**
- * Whether this phone has already been asked. Wrapped because Safari throws on
- * `localStorage` rather than returning null when site data is blocked, and a
- * phone that cannot remember the answer must not ask every launch — so the
- * failure is read as "already asked".
- */
-function alreadyAsked(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(NUDGE_KEY) === '1'
-  } catch {
-    return true
-  }
-}
-
-function rememberAsked(): void {
-  try {
-    globalThis.localStorage?.setItem(NUDGE_KEY, '1')
-  } catch {
-    /* Private mode. The sheet has been shown; it just may be shown again. */
-  }
-}
+const NUDGE_KEY = 'maru.push.account-nudge'
 
 /**
  * Offers the one thing a new phone is missing.
@@ -57,9 +36,12 @@ export function usePushAccountNudge(ready: boolean, open: () => void): void {
     // Off iOS there is no notification to offer, so there is nothing to say.
     if (!ready || !pushAvailable) return
     if (maruEmail || accounts.length === 0) return
-    if (alreadyAsked()) return
+    // A phone that cannot remember the answer reads as already asked: an offer
+    // worth making once is worse than not made at all if it returns every
+    // launch.
+    if (readFlag(NUDGE_KEY, true)) return
     asked.current = true
-    rememberAsked()
+    writeFlag(NUDGE_KEY)
     open()
   }, [ready, pushAvailable, maruEmail, accounts.length, open])
 }

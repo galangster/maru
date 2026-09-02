@@ -14,10 +14,10 @@ export function PushAccountSheet({ onClose, onAccount }: { onClose: () => void; 
         Want new-mail alerts on this iPhone? Sign in to your Maru account.
       </p>
       <div className="mobile-offer-actions">
-        <button type="button" className="mobile-offer-primary mobile-press" onClick={onAccount}>
+        <button type="button" className="mobile-button-primary mobile-press" onClick={onAccount}>
           Sign in to Maru
         </button>
-        <button type="button" className="mobile-offer-secondary mobile-press" onClick={onClose}>
+        <button type="button" className="mobile-button-secondary mobile-offer-secondary mobile-press" onClick={onClose}>
           Not now
         </button>
       </div>
