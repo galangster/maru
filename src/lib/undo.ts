@@ -10,6 +10,8 @@
 // you just took, not an edit history: a second undoable replaces the first,
 // and ⌘Z twice in a row does not walk backwards through the morning.
 
+import type { MailActionType } from '@/core/types'
+
 /**
  * How long an action stays undoable. Longer than the 4 s the composer holds a
  * send, because the reverse path does not need the mutation to still be held —
@@ -26,6 +28,49 @@ export const UNDO_WINDOW_MS = 10_000
  * whatever was done after it. One id, one toast, one meaning.
  */
 export const UNDO_TOAST_ID = 'wren-undo'
+
+/** Past tense, because it is what the confirmation says happened. */
+export const UNDO_LABELS: Record<MailActionType, string> = {
+  archive: 'Archived',
+  unarchive: 'Moved to Inbox',
+  // Restoring puts INBOX back, so it says where the thread went rather than
+  // where it came from — the mirror of "Moved to trash", which is the whole
+  // point of the confirmation (issue 5).
+  untrash: 'Moved to Inbox',
+  trash: 'Moved to trash',
+  star: 'Starred',
+  unstar: 'Unstarred',
+  markRead: 'Marked read',
+  markUnread: 'Marked unread',
+}
+
+/**
+ * The actions that take the thread out of the list it was in.
+ *
+ * All four are a move between mailboxes rather than a flag on a row you can
+ * still see. Star and read/unread are not here: the row is still there,
+ * wearing the change.
+ *
+ * Two rules read this one set, because they are the same question asked twice.
+ * The row is gone, so the selection has to advance to the next one; and the row
+ * is gone, so there is nothing left to stand in for the confirmation and the
+ * action has to say out loud what it did.
+ *
+ * A set rather than a condition at each call site, because the call sites are
+ * the keyboard, the row cluster, the reading toolbar, the bulk bar and the
+ * palette, and hardcoding `archive || trash` at each of them is what left
+ * restore-from-trash silent (issue 5).
+ */
+export const LEAVES_THE_LIST: ReadonlySet<MailActionType> = new Set<MailActionType>([
+  'archive',
+  'unarchive',
+  'trash',
+  'untrash',
+])
+
+export function announcesItself(type: MailActionType): boolean {
+  return LEAVES_THE_LIST.has(type)
+}
 
 export interface Undoable {
   /**

@@ -486,7 +486,17 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
       )}
     >
       <ApprovalsBadge />
-      {!collapsed && <SyncLine sync={sync} waiting={waiting} openSettings={openSettings} />}
+      {/* The status line's own box, which stays whatever the line inside it
+          does. It owns the flex-1 that pushes the three chrome buttons to the
+          right edge, so the row keeps its arrangement at the width where the
+          line drops out (issue 3). No `overflow-hidden` here: the line clips
+          itself, and the button form's -mx-1 hover fill is meant to bleed into
+          the gap on either side. */}
+      {!collapsed && (
+        <div className="flex min-w-0 flex-1 items-center">
+          <SyncLine sync={sync} waiting={waiting} openSettings={openSettings} />
+        </div>
+      )}
       {/* Collapsed, the status line is gone — so without this a dead grant is
           invisible at 68 px and mail silently stops. Exactly one addition, and
           only for the two states a person can act on: the rail is a column of
@@ -515,10 +525,11 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
         name="panelLeft"
         label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!collapsed}
+        className="shrink-0"
         onClick={toggleSidebar}
       />
-      <IconButton name="settings" label="Settings" onClick={() => openSettings()} />
-      <IconButton name={themeIcon} label={themeLabel} onClick={toggle} />
+      <IconButton name="settings" label="Settings" className="shrink-0" onClick={() => openSettings()} />
+      <IconButton name={themeIcon} label={themeLabel} className="shrink-0" onClick={toggle} />
     </div>
   )
 }
@@ -529,6 +540,16 @@ function SidebarFooter({ collapsed, accounts }: { collapsed: boolean; accounts: 
  * control that does nothing six days a week teaches people to stop looking at
  * it. A clickable "Up to date" is a focus stop that buys nothing.
  */
+/**
+ * The status line's box, declared once for the two element types it can be.
+ *
+ * A span when there is nothing to do about the state and a button when there
+ * is — one sentence of layout either way, so the line does not change shape as
+ * it becomes actionable. `flex` itself is left to the `room` gate beside it,
+ * which is the thing that decides whether the line is laid out at all.
+ */
+const SYNC_LINE = 'min-w-0 flex-1 items-center gap-2 overflow-hidden text-xs'
+
 function SyncLine({
   sync,
   waiting,
@@ -542,6 +563,26 @@ function SyncLine({
   // Settings too, so `action !== null` would have let a dropped connection take
   // the destructive glyph and displace the approvals pill.
   const urgent = isUrgent(sync)
+
+  /**
+   * Whether there is room for the line at all.
+   *
+   * The three chrome buttons and their gaps take ~128 px and no longer shrink;
+   * the approvals pill takes ~56 px more when it is up. At the sidebar's 200 px
+   * floor — which the panel group reaches at about a 950 px window — that left
+   * the line a 1 px box, and its 16 px glyph overhung the collapse button
+   * beside it (issue 3). Below the gate the line drops out whole: a glyph drawn
+   * on top of a control is not information.
+   *
+   * The gate is on the LINE and not on the wrapper around it, because the
+   * wrapper is also the flex-1 that holds the three chrome buttons at the right
+   * edge. Hiding the wrapper would take that spacer away and slide them left at
+   * exactly the width issue 3 was about.
+   *
+   * Written out in full, both branches, so Tailwind can see the class names.
+   */
+  const room = waiting > 0 ? 'hidden @[13rem]:flex' : 'flex'
+
   const body = (
     <>
       <Icon
@@ -617,10 +658,7 @@ function SyncLine({
   const action = sync.action
   if (action === null) {
     return (
-      <span
-        title={sync.detail}
-        className="text-ink-3 flex min-w-0 flex-1 items-center gap-2 text-xs"
-      >
+      <span title={sync.detail} className={cn(SYNC_LINE, room, 'text-ink-3')}>
         {body}
       </span>
     )
@@ -635,10 +673,12 @@ function SyncLine({
             aria-label={sync.detail}
             onClick={() => openSettings(action)}
             className={cn(
+              SYNC_LINE,
+              room,
               // NavRow's own radius and focus ring, so the hit target reads as
               // the same kind of object as a mailbox row. -mx-1 px-1 = 4 px, on
               // grid.
-              'rounded-row focus-ring text-ink-2 -mx-1 flex min-w-0 flex-1 items-center gap-2 px-1 text-xs',
+              'rounded-row focus-ring text-ink-2 -mx-1 px-1',
               'duration-(--wren-dur-fast) ease-(--wren-ease-out) transition-colors',
               'hover:bg-fill-hover hover:text-ink',
             )}

@@ -33,7 +33,12 @@ import { useAccounts } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
 import { useUi } from '@/features/mail/ui-store'
 import { useAnyDialogOpen } from '@/features/shell/surface-store'
-import { ATTACHMENT_WARN_BYTES, totalBytes, type ReplyMode } from '@/lib/compose'
+import {
+  ATTACHMENT_WARN_BYTES,
+  sendBlockReason,
+  totalBytes,
+  type ReplyMode,
+} from '@/lib/compose'
 import { HeldMutations } from '@/lib/deferred'
 import { formatBytes } from '@/lib/format'
 import { MOD } from '@/features/keyboard/keymap'
@@ -43,13 +48,14 @@ import { playSound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 
 import { BodyEditor, FormatToolbar, useBodyEditor } from './body-editor'
-import { ChipInput, FIELD_LABEL } from './chip-input'
+import { ChipInput, FIELD_LABEL, type ChipInputHandle } from './chip-input'
 import {
   toComposeDraft,
   useComposer,
   type Draft,
   type DraftAttachment,
 } from './compose-store'
+import { sendToastOptions } from './send-toast'
 
 const TITLES: Record<ReplyMode, string> = {
   reply: 'Reply',
@@ -67,9 +73,6 @@ const TITLES: Record<ReplyMode, string> = {
  * the whole of the send's undo, not a display duration on top of one.
  */
 const UNDO_WINDOW_MS = 4000
-
-/** One toast at a time. A second send replaces this one rather than stacking. */
-const SEND_TOAST = 'wren-send'
 
 /**
  * The send waiting out its undo window, if there is one.
@@ -159,7 +162,22 @@ function ComposerSheet() {
     [draft.attachments],
   )
   const tooLarge = attachedBytes > ATTACHMENT_WARN_BYTES
-  const canSend = Boolean(draft.accountId) && draft.to.length > 0
+
+  /**
+   * Why the mail cannot go yet, in a sentence — issue 7.
+   *
+   * The button is `aria-disabled` rather than `disabled` so it keeps its hover
+   * and its focus: a `disabled` button fires no pointer events, so the tooltip
+   * carrying the reason could never open on the one control that needs it.
+   * Pressing it, or pressing ⌘↵, is not swallowed either — it says the reason
+   * out loud and puts the caret where the answer goes.
+   */
+  const blocked = sendBlockReason(draft)
+  const toRef = useRef<ChipInputHandle>(null)
+  // Whether the person has asked. The reason itself is never held in state —
+  // `blocked` is already the live answer, and a second copy of it could only
+  // ever be the stale one.
+  const [askedWhy, setAskedWhy] = useState(false)
 
   const title = draft.reply ? TITLES[draft.reply.mode] : 'New message'
 
@@ -177,7 +195,15 @@ function ComposerSheet() {
    * sheet is gone and the app is usable from 140 ms onward.
    */
   const send = () => {
-    if (!canSend || sending) return
+    if (sending) return
+    if (blocked) {
+      // Never a silent key. The sentence appears beside the button and the
+      // caret lands in the field that answers it.
+      setAskedWhy(true)
+      playSound('error')
+      toRef.current?.focus()
+      return
+    }
     const payload = toComposeDraft(draft)
     const kept: Draft = draft
     setSending(true)
@@ -195,25 +221,31 @@ function ComposerSheet() {
 
     window.setTimeout(() => {
       close()
+      const subject = payload.subject || '(no subject)'
+
       const cancel = heldSend.hold(SEND_KEY, () => {
         // The window is over and the mail is going. Withdraw the offer before
         // the request, not after it: ⌘Z landing on a send that is already in
         // flight would reopen a composer for a message the server has.
         useUi.getState().clearUndo(SEND_UNDO)
+        // The toast's button is the other half of the same offer, and it goes
+        // in the same turn. The words still say "Sending…" — the network is
+        // still out there — but the send is past taking back, and a button
+        // that is on screen has to still work (issue 2).
+        toast('Sending…', sendToastOptions(subject))
         void (async () => {
           try {
             await service.send(payload)
             cue('sent')
-            toast.success('Sent', {
-              id: SEND_TOAST,
-              description: payload.subject || '(no subject)',
-            })
+            toast.success('Sent', sendToastOptions(subject))
           } catch (cause) {
             playSound('error')
-            toast.error('Could not send', {
-              id: SEND_TOAST,
-              description: cause instanceof Error ? cause.message : 'The draft is back, unchanged.',
-            })
+            toast.error(
+              'Could not send',
+              sendToastOptions(
+                cause instanceof Error ? cause.message : 'The draft is back, unchanged.',
+              ),
+            )
             openWith(kept)
           }
         })()
@@ -240,12 +272,10 @@ function ComposerSheet() {
       useUi.getState().registerUndo({ id: SEND_UNDO, label: 'Send', run: undoSend })
 
       window.setTimeout(() => {
-        toast('Sending…', {
-          id: SEND_TOAST,
-          description: payload.subject || '(no subject)',
-          duration: UNDO_WINDOW_MS,
-          action: { label: 'Undo', onClick: undoSend },
-        })
+        toast(
+          'Sending…',
+          sendToastOptions(subject, { onClick: undoSend, durationMs: UNDO_WINDOW_MS }),
+        )
       }, 80)
     }, beat)
   }
@@ -375,6 +405,7 @@ function ComposerSheet() {
         value={draft.to}
         onChange={(to) => edit({ to })}
         autoFocus
+        ref={toRef}
         trailing={
           showCc ? undefined : (
             <button
@@ -480,13 +511,20 @@ function ComposerSheet() {
           aria-label="Attach files"
           onChange={(event) => void addFiles(event.target.files)}
         />
-        <div className="flex-1" />
+        <div className="min-w-0 flex-1" />
+        {/* The reason, once the person has asked for it by pressing something.
+            Live, so it is heard as well as seen, and truncating rather than
+            wrapping because the footer is one 48 px band. */}
+        <p aria-live="polite" className="text-ink-2 min-w-0 truncate text-xs">
+          {askedWhy ? (blocked ?? '') : ''}
+        </p>
         <Tooltip>
           <TooltipTrigger
             render={
               <PrimaryButton
                 onClick={send}
-                disabled={!canSend || sending}
+                disabled={sending}
+                aria-disabled={blocked !== null || undefined}
                 // The send celebration — AMIE-STUDY §7(c).3. The button *is*
                 // the celebration: its fill crossfades to the green solid over
                 // 120 ms, the arrow becomes a check, and it runs one gentle
@@ -501,6 +539,10 @@ function ComposerSheet() {
                     ? { animation: 'wren-fill-pop var(--wren-dur-base) var(--wren-ease-spring)' }
                     : undefined
                 }
+                // `aria-disabled`, not `disabled`: it reads as unavailable and
+                // keeps its pointer events, which is what lets the tooltip and
+                // the press explain themselves. The dimming that goes with it
+                // is PrimaryButton's, not this call site's.
                 className={cn(SEND_BUTTON, sending && SEND_CONFIRM)}
               />
             }
@@ -514,8 +556,8 @@ function ComposerSheet() {
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <span>Send</span>
-            <TooltipHint>{MOD}↵</TooltipHint>
+            <span>{blocked ?? 'Send'}</span>
+            {!blocked && <TooltipHint>{MOD}↵</TooltipHint>}
           </TooltipContent>
         </Tooltip>
       </footer>

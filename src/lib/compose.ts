@@ -4,7 +4,7 @@
 // Nothing here touches React, the DOM or MailService, so every rule the
 // composer depends on is unit-testable in plain Node — see tests/compose.test.ts.
 
-import type { EmailAddress, Message } from '@/core/types'
+import type { AttachmentSource, EmailAddress, Message } from '@/core/types'
 
 export type ReplyMode = 'reply' | 'replyAll' | 'forward'
 
@@ -205,6 +205,90 @@ export function quoteOriginal(
     message.from,
   ])} wrote:</p>`
   return `${spacer}${attribution}<blockquote>${body}</blockquote>`
+}
+
+/**
+ * What every attachment in a draft is known by, however it got there.
+ *
+ * The one place these four fields are written down. A file picked in the
+ * composer and a file carried off a forward differ only in where the bytes
+ * are — see `CarriedAttachment` here and `DraftAttachment` in the compose
+ * store, which both build on this.
+ */
+export interface AttachmentFacts {
+  /** Local id; the chip's key and what its remove control names. */
+  id: string
+  filename: string
+  mimeType: string
+  sizeBytes: number
+}
+
+/**
+ * An attachment a new draft carries from the message it answers.
+ *
+ * `source` is required here and optional on a draft attachment, which is the
+ * whole difference: a carried attachment is a reference by definition, and a
+ * picked file has bytes instead.
+ */
+export interface CarriedAttachment extends AttachmentFacts {
+  source: AttachmentSource
+}
+
+/** The subset of a Message the carry rule reads. */
+export type CarrySource = Pick<Message, 'id' | 'attachments'>
+
+/**
+ * The attachments a new draft carries from the message it answers.
+ *
+ *   forward   — all of them
+ *   reply     — none
+ *   replyAll  — none
+ *
+ * Gmail's rule, and the right one: a forward is usually done *for* the
+ * attachment, and a reply goes back to the person who already has the file.
+ *
+ * Inline parts are left behind. They are the `cid:` images the quoted body
+ * already points at, and carrying them without their Content-ID headers would
+ * bolt a copy of every signature logo onto the forward as a visible file.
+ *
+ * The bytes are not read here. Each entry names where they live and the send
+ * path fetches them — see `AttachmentSource`.
+ */
+export function carriedAttachments(
+  message: CarrySource,
+  mode: ReplyMode,
+  threadKey: string,
+): CarriedAttachment[] {
+  if (mode !== 'forward') return []
+  return message.attachments
+    .filter((attachment) => !attachment.inline)
+    .map((attachment) => ({
+      id: attachment.id,
+      filename: attachment.filename,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      source: { threadKey, messageId: message.id, attachmentId: attachment.id },
+    }))
+}
+
+/** The subset of a draft the send gate reads. */
+export type SendGateSource = { accountId: string; to: EmailAddress[] }
+
+/**
+ * Why this draft cannot be sent yet, or null when it can.
+ *
+ * A sentence rather than a boolean, because a disabled control that does not
+ * say why is the one place in Maru that explains nothing (issue 7). The same
+ * string is the button's tooltip, the line beside it, and what a screen reader
+ * hears — one answer, not three.
+ *
+ * Recipients are asked about first: it is the case a person actually hits, and
+ * the account resolves itself the moment there is one to resolve.
+ */
+export function sendBlockReason(draft: SendGateSource): string | null {
+  if (draft.to.length === 0) return 'Add a recipient to send'
+  if (!draft.accountId) return 'Pick an account to send from'
+  return null
 }
 
 export const ATTACHMENT_WARN_BYTES = 20 * 1024 * 1024

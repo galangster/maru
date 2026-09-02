@@ -204,7 +204,11 @@ export function PrimaryButton({
         'shadow-xs transition-[color,background-color,scale] duration-(--wren-dur-fast) ease-(--wren-ease-out)',
         PRESS,
         'focus-ring hover:bg-brand-hover',
+        // Two ways to be unavailable, one look. `disabled` also drops pointer
+        // events; `aria-disabled` deliberately keeps them, so a button that
+        // has a reason to give can still be hovered and pressed for it.
         'disabled:pointer-events-none disabled:opacity-40',
+        'aria-disabled:opacity-40',
         className,
       )}
       {...props}

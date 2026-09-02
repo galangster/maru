@@ -8,6 +8,7 @@ import {
 } from '@/features/compose/compose-store'
 import { useAccountsById, useCorrespondents } from '@/features/mail/queries'
 import { useMailService } from '@/features/mail/service'
+import { sendBlockReason } from '@/lib/compose'
 import { cue } from '@/lib/cue'
 import { RecipientField, type RecipientFieldHandle } from '../components/recipient-field'
 import { MobileIcon } from '../components/mobile-icon'
@@ -63,7 +64,11 @@ export function ComposeSheet({ onSent }: { onSent: () => void }) {
       return setError('Check the recipient addresses.')
     }
     const outgoing = useComposer.getState().draft
-    if (outgoing.to.length === 0) return setError('Add at least one recipient.')
+    // The same gate and the same sentence the desktop composer uses (issue 7),
+    // so a blocked send is never explained two different ways — and so the
+    // phone checks the account it sends from as well as the recipients.
+    const blocked = sendBlockReason(outgoing)
+    if (blocked) return setError(blocked)
     setSending(true)
     setError('')
     try {

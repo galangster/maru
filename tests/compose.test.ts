@@ -3,9 +3,11 @@
 
 import { describe, expect, it } from 'vitest'
 
-import type { EmailAddress } from '@/core/types'
+import type { Attachment, EmailAddress } from '@/core/types'
 import {
+  carriedAttachments,
   dedupeAddresses,
+  sendBlockReason,
   deriveRecipients,
   formatAddress,
   isEmail,
@@ -224,5 +226,74 @@ describe('quoteOriginal', () => {
   it('falls back to the plain-text body when there is no HTML', () => {
     const html = quoteOriginal({ ...message, bodyHtml: undefined }, 'reply', at)
     expect(html).toContain('<blockquote><p>Ready</p></blockquote>')
+  })
+})
+
+describe('carriedAttachments', () => {
+  const file = (over: Partial<Attachment> = {}): Attachment => ({
+    id: 'att-1',
+    messageId: 'm-9',
+    filename: 'invoice-40812.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 88_000,
+    inline: false,
+    ...over,
+  })
+
+  const message = { id: 'm-9', attachments: [file()] }
+
+  it('carries every attachment on a forward, by reference', () => {
+    expect(carriedAttachments(message, 'forward', 'acct-1/t-7')).toEqual([
+      {
+        id: 'att-1',
+        filename: 'invoice-40812.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 88_000,
+        source: { threadKey: 'acct-1/t-7', messageId: 'm-9', attachmentId: 'att-1' },
+      },
+    ])
+  })
+
+  it('carries nothing on a reply or a reply-all', () => {
+    expect(carriedAttachments(message, 'reply', 'acct-1/t-7')).toEqual([])
+    expect(carriedAttachments(message, 'replyAll', 'acct-1/t-7')).toEqual([])
+  })
+
+  it('leaves inline parts behind — the quoted body already points at them', () => {
+    const withLogo = {
+      id: 'm-9',
+      attachments: [file(), file({ id: 'att-2', filename: 'logo.png', inline: true })],
+    }
+    expect(carriedAttachments(withLogo, 'forward', 'acct-1/t-7').map((a) => a.id)).toEqual(['att-1'])
+  })
+
+  it('carries nothing when the message has no attachments', () => {
+    expect(carriedAttachments({ id: 'm-9', attachments: [] }, 'forward', 'k')).toEqual([])
+  })
+})
+
+describe('sendBlockReason', () => {
+  it('names the missing recipient — the case a new person hits first', () => {
+    expect(sendBlockReason({ accountId: 'acct-1', to: [] })).toBe('Add a recipient to send')
+  })
+
+  it('names the missing account once there is somebody to send to', () => {
+    expect(sendBlockReason({ accountId: '', to: [A('maya@fernwood.dev')] })).toBe(
+      'Pick an account to send from',
+    )
+  })
+
+  it('is null when the mail can actually go', () => {
+    expect(sendBlockReason({ accountId: 'acct-1', to: [A('maya@fernwood.dev')] })).toBeNull()
+  })
+
+  it('always gives a sentence when it blocks, never a bare flag', () => {
+    for (const draft of [
+      { accountId: '', to: [] },
+      { accountId: 'acct-1', to: [] },
+      { accountId: '', to: [A('maya@fernwood.dev')] },
+    ]) {
+      expect(sendBlockReason(draft)?.length).toBeGreaterThan(0)
+    }
   })
 })

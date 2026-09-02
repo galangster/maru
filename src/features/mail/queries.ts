@@ -26,7 +26,7 @@ import { playSound } from '@/lib/sound'
 import { dedupeAddresses } from '@/lib/compose'
 import { correspondents } from '@/lib/format'
 import { useNow } from '@/lib/use-now'
-import { UNDO_TOAST_ID } from '@/lib/undo'
+import { UNDO_LABELS, UNDO_TOAST_ID } from '@/lib/undo'
 
 import { useMailService } from './service'
 import { useUi, viewKey } from './ui-store'
@@ -323,18 +323,6 @@ function patchLists(
 function restore(client: QueryClient, threadKey: string, context: ActionContext | undefined): void {
   for (const [queryKey, threads] of context?.lists ?? []) client.setQueryData(queryKey, threads)
   if (context?.detail) client.setQueryData(keys.thread(threadKey), context.detail)
-}
-
-/** Past tense, because it is what the confirmation says happened. */
-export const UNDO_LABELS: Record<MailActionType, string> = {
-  archive: 'Archived',
-  unarchive: 'Moved to Inbox',
-  trash: 'Moved to trash',
-  untrash: 'Restored from trash',
-  star: 'Starred',
-  unstar: 'Unstarred',
-  markRead: 'Marked read',
-  markUnread: 'Marked unread',
 }
 
 /**

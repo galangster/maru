@@ -10,7 +10,7 @@
 
 import { mergeParticipants } from '../gmail/mapping'
 import { base64DecodedBytes, htmlToText } from '../mime'
-import type { Account, ComposeDraft, Message, Thread } from '../types'
+import type { Account, Message, SendableDraft, Thread } from '../types'
 import { threadKey } from '../types'
 
 export interface SentContext {
@@ -42,7 +42,7 @@ export interface SentRows {
   thread: Thread
 }
 
-export function sentRowsFor(draft: ComposeDraft, ctx: SentContext): SentRows {
+export function sentRowsFor(draft: SendableDraft, ctx: SentContext): SentRows {
   const { account } = ctx
   const key = threadKey(account.id, ctx.gmailThreadId)
   const existingMessages = ctx.existingMessages ?? []

@@ -6,7 +6,7 @@ import {
   htmlToText,
   base64UrlEncodeBytes,
 } from '../src/core/mime'
-import type { ComposeDraft } from '../src/core/types'
+import type { SendableDraft } from '../src/core/types'
 
 const NOW = Date.UTC(2025, 7, 20, 15, 4, 5)
 
@@ -22,7 +22,7 @@ function boundaryOf(source: string, contentType: string): string {
   return m[1]
 }
 
-function draft(patch: Partial<ComposeDraft> = {}): ComposeDraft {
+function draft(patch: Partial<SendableDraft> = {}): SendableDraft {
   return {
     accountId: 'acct-1',
     to: [{ name: 'Maya Ellison', email: 'maya@fernwood.dev' }],

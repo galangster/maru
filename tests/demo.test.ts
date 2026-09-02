@@ -126,6 +126,27 @@ describe('views', () => {
     expect(labels.some((l) => l.id === 'INBOX' && l.type === 'system')).toBe(true)
     expect(labels.some((l) => l.type === 'user')).toBe(true)
   })
+
+  // Issue 4: the demo is the only way to try Maru without a Gmail account, so
+  // a label it offers has to have mail behind it. This is the test that keeps
+  // a new label from being declared and left empty.
+  it('puts mail behind every user label it offers, on every account', async () => {
+    const { svc } = service()
+    await svc.addAccount()
+    for (const account of await svc.listAccounts()) {
+      const labels = await svc.listLabels(account.id)
+      const user = labels.filter((l) => l.type === 'user')
+      expect(user.length).toBeGreaterThan(0)
+      for (const label of user) {
+        const threads = await svc.listThreads(
+          { kind: 'account', accountId: account.id, labelId: label.id },
+          { limit: 500 },
+        )
+        expect(threads.length, `${account.email} / ${label.name}`).toBeGreaterThan(0)
+        expect(threads.every((t) => t.labelIds.includes(label.id))).toBe(true)
+      }
+    }
+  })
 })
 
 describe('reading', () => {
@@ -242,6 +263,64 @@ describe('send', () => {
     expect(events.some((e) => e.type === 'threadsChanged')).toBe(true)
   })
 
+  it('fetches a carried attachment by reference and sends it with the mail', async () => {
+    const { svc } = service()
+    const [account] = await svc.listAccounts()
+    const inbox = await svc.listThreads({ kind: 'unified', folder: 'inbox' }, { limit: 500 })
+    const withFile = inbox.find((t) => t.accountId === account.id && t.hasAttachments)!
+    const { messages } = await svc.getThread(withFile.key)
+    const carrier = messages.find((m) => m.attachments.some((a) => !a.inline))!
+    const attachment = carrier.attachments.find((a) => !a.inline)!
+
+    // What the composer hands over on a forward: a reference, no bytes.
+    await svc.send({
+      accountId: account.id,
+      to: [{ email: 'maya@fernwood.dev' }],
+      cc: [],
+      bcc: [],
+      subject: `Fwd: ${withFile.subject}`,
+      bodyHtml: '<p>Passing this on.</p>',
+      attachments: [
+        {
+          filename: attachment.filename,
+          mimeType: attachment.mimeType,
+          sizeBytes: attachment.sizeBytes,
+          source: {
+            threadKey: withFile.key,
+            messageId: carrier.id,
+            attachmentId: attachment.id,
+          },
+        },
+      ],
+    })
+
+    const sent = await svc.listThreads({ kind: 'unified', folder: 'sent' }, { limit: 500 })
+    const forwarded = sent.find((t) => t.subject === `Fwd: ${withFile.subject}`)!
+    expect(forwarded.hasAttachments).toBe(true)
+    const rows = (await svc.getThread(forwarded.key)).messages
+    const carried = rows[rows.length - 1].attachments
+    expect(carried.map((a) => a.filename)).toEqual([attachment.filename])
+    // The bytes were really fetched: the size comes from what came back, not
+    // from the zero a dropped attachment would have measured.
+    expect(carried[0].sizeBytes).toBeGreaterThan(0)
+  })
+
+  it('refuses a draft whose attachment has neither bytes nor a source', async () => {
+    const { svc } = service()
+    const [account] = await svc.listAccounts()
+    await expect(
+      svc.send({
+        accountId: account.id,
+        to: [{ email: 'maya@fernwood.dev' }],
+        cc: [],
+        bcc: [],
+        subject: 'Nothing behind it',
+        bodyHtml: '<p>.</p>',
+        attachments: [{ filename: 'ghost.pdf', mimeType: 'application/pdf' }],
+      }),
+    ).rejects.toThrow(/ghost.pdf/)
+  })
+
   it('appends a reply to the thread it answers', async () => {
     const { svc } = service()
     const inbox = await svc.listThreads({ kind: 'unified', folder: 'inbox' }, { limit: 500 })
@@ -286,6 +365,14 @@ describe('search', () => {
     const { svc } = service()
     expect((await svc.search('walkthrough')).length).toBeGreaterThan(0)
     expect((await svc.search('Alderfly')).length).toBeGreaterThan(0)
+  })
+
+  it('finds labelled mail with the label: operator, in any case', async () => {
+    const { svc } = service()
+    const travel = await svc.search('label:Travel')
+    expect(travel.length).toBeGreaterThan(0)
+    expect(travel.every((t) => t.labelIds.includes('Label_travel'))).toBe(true)
+    expect((await svc.search('label:receipts')).length).toBeGreaterThan(0)
   })
 
   it('returns nothing for a blank query', async () => {

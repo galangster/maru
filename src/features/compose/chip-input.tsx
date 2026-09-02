@@ -3,7 +3,7 @@
 //
 // Parsing and validation are pure and live in src/lib/compose.ts.
 
-import { useId, useRef, useState } from 'react'
+import { useId, useImperativeHandle, useRef, useState } from 'react'
 
 import { Icon } from '@/components/ui/icon'
 import { SECTION_LABEL } from '@/components/wren-controls'
@@ -23,6 +23,17 @@ import { cn } from '@/lib/utils'
  */
 export const FIELD_LABEL = `${SECTION_LABEL} w-14 shrink-0`
 
+/**
+ * What a surface outside the field can ask of it.
+ *
+ * A verb rather than the raw input element: the composer wants to put the
+ * caret in the To field when Send is blocked, not to reach inside and drive
+ * the DOM node. Mirrors `RecipientFieldHandle` on the phone.
+ */
+export interface ChipInputHandle {
+  focus: () => void
+}
+
 export interface ChipInputProps {
   label: string
   value: EmailAddress[]
@@ -30,12 +41,21 @@ export interface ChipInputProps {
   autoFocus?: boolean
   /** Rendered at the end of the row — the "Cc Bcc" affordance on To. */
   trailing?: React.ReactNode
+  ref?: React.Ref<ChipInputHandle>
 }
 
-export function ChipInput({ label, value, onChange, autoFocus, trailing }: ChipInputProps) {
+export function ChipInput({
+  label,
+  value,
+  onChange,
+  autoFocus,
+  trailing,
+  ref,
+}: ChipInputProps) {
   const [state, setState] = useState(recipientChipState)
   const inputRef = useRef<HTMLInputElement>(null)
   const id = useId()
+  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }), [])
 
   const dispatch = (action: RecipientChipAction) => {
     const next = reduceRecipientChips(state, value, action)
